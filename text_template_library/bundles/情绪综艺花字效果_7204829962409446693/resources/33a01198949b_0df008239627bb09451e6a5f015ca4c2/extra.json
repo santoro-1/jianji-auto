@@ -1,0 +1,35 @@
+{
+    "depend_resource_list": [
+        {
+            "resource_id": "6724919955654971918",
+            "source": 2,
+            "type": "sticker"
+        },
+        {
+            "resource_id": "6884154692398486023",
+            "source": 2,
+            "type": "sticker"
+        },
+        {
+            "resource_id": "6724921437930394120",
+            "source": 2,
+            "type": "sticker"
+        },
+        {
+            "resource_id": "7068207165277737502",
+            "source": 2,
+            "type": "fonts"
+        },
+        {
+            "resource_id": "6908592686781960717",
+            "source": 2,
+            "type": "text"
+        },
+        {
+            "resource_id": "6872642189260755463",
+            "source": 2,
+            "type": "text"
+        }
+    ,{"resource_id":"7257081653569342754","source":1,"type":"default"},{"resource_id":"7257082939211648271","source":1,"type":"default"},{"resource_id":"7257082432271224116","source":1,"type":"default"}],
+    "script_template_version": "1.0.0"
+}

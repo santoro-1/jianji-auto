@@ -1,0 +1,214 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:23",
+  "identity": "resource_id:7091940115265622565",
+  "name": "绝密内情曝光",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "CDD320CA-A425-40e6-86A9-57AA50892B9E",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "1793965",
+    "id": "0B519D0D-4F9B-40a8-A7AC-9B526232736A",
+    "name": "绝密内情曝光",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1793965/124e0c48636fea1dab3dd1ccc79d7193",
+    "resource_id": "7091940115265622565",
+    "resources": [
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644312/34d74f1bf451dac1a23158380a5be322",
+        "resource_id": "6884154692398486023"
+      },
+      {
+        "panel": "flower",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1791353/45f0b02549bb8e04ebfa58a82566dd0c",
+        "resource_id": "7091651849345831454"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+        "resource_id": "7068207165277737502"
+      }
+    ],
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "F5C7377F-13DC-408a-8465-5B6D996B8E7F",
+          "ED0E57EB-89E3-4e19-9AE4-495F73D43C56"
+        ],
+        "text_material_id": "80F97742-446F-4386-99C4-79F0FAC381ED"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "ED0E57EB-89E3-4e19-9AE4-495F73D43C56",
+      "F5C7377F-13DC-408a-8465-5B6D996B8E7F"
+    ],
+    "id": "B2ED10D0-3ACC-4aa2-8C4E-95C439E97523",
+    "material_id": "0B519D0D-4F9B-40a8-A7AC-9B526232736A",
+    "render_index": 14069,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 207000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "80F97742-446F-4386-99C4-79F0FAC381ED",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "F5C7377F-13DC-408a-8465-5B6D996B8E7F",
+          "ED0E57EB-89E3-4e19-9AE4-495F73D43C56"
+        ],
+        "text_material_id": "80F97742-446F-4386-99C4-79F0FAC381ED"
+      },
+      "text_material": {
+        "border_width": 0.08,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "combo_info": {},
+        "content": "绝密内情曝光！",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+        "font_resource_id": "7068207165277737502",
+        "font_size": 20.0,
+        "id": "80F97742-446F-4386-99C4-79F0FAC381ED",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#FFFEFEFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "ED0E57EB-89E3-4e19-9AE4-495F73D43C56",
+    "F5C7377F-13DC-408a-8465-5B6D996B8E7F"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 800000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644312/34d74f1bf451dac1a23158380a5be322",
+            "resource_id": "6884154692398486023",
+            "type": "in"
+          }
+        ],
+        "id": "ED0E57EB-89E3-4e19-9AE4-495F73D43C56",
+        "type": "sticker_animation"
+      }
+    ],
+    "effects": [
+      {
+        "id": "F5C7377F-13DC-408a-8465-5B6D996B8E7F",
+        "multi_language_current": "",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1791353/45f0b02549bb8e04ebfa58a82566dd0c",
+        "resource_id": "7091651849345831454",
+        "sub_type": "none",
+        "type": "text_effect"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1793965/124e0c48636fea1dab3dd1ccc79d7193",
+      "library_path": "resources/f0a4c82fee2e_124e0c48636fea1dab3dd1ccc79d7193",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644312/34d74f1bf451dac1a23158380a5be322",
+      "library_path": "resources/18ce7c288311_34d74f1bf451dac1a23158380a5be322",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1791353/45f0b02549bb8e04ebfa58a82566dd0c",
+      "library_path": "resources/556ad68027b0_45f0b02549bb8e04ebfa58a82566dd0c",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.effects[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+      "library_path": "resources/037754e975ca_优设标题黑.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path",
+        "text_slots[0].text_material.font_path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 69,
+      "material_id": "0B519D0D-4F9B-40a8-A7AC-9B526232736A",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 207000000
+      }
+    }
+  ]
+}

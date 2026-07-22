@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7504566891344596235",
+  "name": "HelloFont BangKeTi",
+  "resource_id": "7504566891344596235",
+  "effect_id": "7504566891344596235",
+  "checksum_sha256": "37734b0d86a9e3af3fa7cc47ef371bcf1e1f4e6542e46da0780500b4dc291926",
+  "size_bytes": 7634076,
+  "file": "files/font_7504566891344596235.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7504566891344596235.ttf",
+  "metadata_file": "metadata/font_7504566891344596235.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7504566891344596235\\720ea6fd50924d19580b48d69b95de52\\font.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 26,
+          "material_id": "2C6FCD9D-03D9-4fad-91B1-5182C5FA87B1",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 26,
+          "material_id": "2C6FCD9D-03D9-4fad-91B1-5182C5FA87B1",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 26,
+          "material_id": "2C6FCD9D-03D9-4fad-91B1-5182C5FA87B1",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

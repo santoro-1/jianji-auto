@@ -1,0 +1,38 @@
+{
+  "schema": "jyd_probe.audio_asset.v1",
+  "exported_at": "2026-07-13T19:52:39",
+  "identity": "music_id:7545119072356206635",
+  "checksum_sha256": "33c6509c2c8e769852f3eb1d95d8f1832356fd9f72da3784a28f4c685a82c750",
+  "file": "files/你眼里的星光_7545119072356206635.mp3",
+  "material": {
+    "app_id": 1775,
+    "category_id": "100",
+    "category_name": "收藏",
+    "duration": 182100000,
+    "id": "7934DAC3-E02F-4537-9ED6-FE2472FA62F7",
+    "music_id": "7545119072356206635",
+    "music_source": "pgc",
+    "name": "你眼里的星光",
+    "path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\cfa21823e758af32bddcd2d82d4375b6.mp3",
+    "resource_id": "",
+    "similiar_music_info": {},
+    "type": "music"
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+      "audio_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 0,
+      "material_id": "7934DAC3-E02F-4537-9ED6-FE2472FA62F7",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\cfa21823e758af32bddcd2d82d4375b6.mp3",
+      "source_timerange": {
+        "duration": 182100000
+      },
+      "target_timerange": {
+        "duration": 182100000
+      },
+      "volume": 1.0
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+	"filemap" : 
+	{
+		"prefab" : "effect.prefab"
+	},
+	"requirement" : 
+	{
+		"3dFaceMeshPerspective" : false,
+		"Bg" : false,
+		"FaceAttributes" : false,
+		"faceDetect" : true,
+		"faceVerify" : false,
+		"hairColor" : false,
+		"handDetect" : false
+	},
+	"tag" : "AMG_62898912505007548019199975357669333178"
+}

@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "sobgahxg_1645020754_00.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_01.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_02.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 71
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_03.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 71
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_04.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 140
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_05.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 140
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_06.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 209
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_07.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 209
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_08.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 278
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_09.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 278
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_10.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 710,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_11.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 779,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_12.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 848,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_13.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 917,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_14.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 347
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_15.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 347
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_16.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 416
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_17.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 416
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_18.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 485
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_19.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 485
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_20.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 554
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_21.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 554
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_22.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 623
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_23.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 623
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_24.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 710,
+                "y": 356
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_25.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 779,
+                "y": 356
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_26.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 848,
+                "y": 356
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_27.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 917,
+                "y": 356
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_28.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 692
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_29.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 692
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_30.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 761
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_31.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 761
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_32.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 830
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_33.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 830
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_34.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 899
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_35.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 899
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_36.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 968
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_37.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 968
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_38.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 710,
+                "y": 710
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_39.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 779,
+                "y": 710
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_40.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 848,
+                "y": 710
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_41.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 917,
+                "y": 710
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_42.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 1037
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_43.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 1037
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_44.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 1106
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_45.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 1106
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_46.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 1175
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "sobgahxg_1645020754_47.png",
+            "frame": {
+                "h": 67,
+                "w": 352,
+                "x": 356,
+                "y": 1175
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 71,
+                "w": 356
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 352,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 1244,
+            "w": 986
+        }
+    }
+}

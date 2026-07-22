@@ -1,0 +1,39 @@
+{
+  "schema": "jyd_probe.audio_asset.v1",
+  "exported_at": "2026-07-13T19:32:11",
+  "identity": "music_id:7035666773449902110",
+  "checksum_sha256": "2c6823d44e42ff46f0ed52ea9b0a80c42b9f26a2ad9651a8ef077d33205571f8",
+  "file": "files/Apollo's_Triumph_(抖音原版)_7035666773449902110.mp3",
+  "material": {
+    "app_id": 1775,
+    "category_id": "100",
+    "category_name": "收藏",
+    "duration": 190050000,
+    "id": "EDB7190F-F5C0-49b1-96AA-B642C3BEF625",
+    "music_id": "7035666773449902110",
+    "music_source": "pgc",
+    "name": "Apollo's Triumph (抖音原版)",
+    "path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\517d2603307a8c007a78ad6e2d52ce98.mp3",
+    "resource_id": "",
+    "similiar_music_info": {},
+    "type": "music"
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+      "audio_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 3,
+      "material_id": "EDB7190F-F5C0-49b1-96AA-B642C3BEF625",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\517d2603307a8c007a78ad6e2d52ce98.mp3",
+      "source_timerange": {
+        "duration": 190050000
+      },
+      "target_timerange": {
+        "duration": 190050000,
+        "start": 426716666
+      },
+      "volume": 1.0
+    }
+  ]
+}

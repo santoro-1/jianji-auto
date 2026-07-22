@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7410326723318780453",
+  "name": "华光楷体二",
+  "resource_id": "7410326723318780453",
+  "effect_id": "7410326723318780453",
+  "checksum_sha256": "d44363c0d8f21e138d3ac68b3e3e4f7f2b6ca9aba97f4f01e756176612e922a1",
+  "size_bytes": 19907408,
+  "file": "files/华光楷体二_7410326723318780453.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\华光楷体二_7410326723318780453.ttf",
+  "metadata_file": "metadata/华光楷体二_7410326723318780453.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7410326723318780453\\b2f9d6b81eff2e0e2eaef0f3a46890fd\\华光楷体二.TTF",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 17,
+          "material_id": "C1541FB2-3DFC-414b-89BE-524B724C14DB",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 17,
+          "material_id": "C1541FB2-3DFC-414b-89BE-524B724C14DB",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 17,
+          "material_id": "C1541FB2-3DFC-414b-89BE-524B724C14DB",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

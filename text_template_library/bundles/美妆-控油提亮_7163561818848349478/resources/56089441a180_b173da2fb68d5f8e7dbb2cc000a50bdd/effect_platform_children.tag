@@ -1,0 +1,1 @@
+/content.json, /anim.prefab, /config.json, /Transform.lua

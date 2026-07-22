@@ -1,0 +1,58 @@
+{
+    "schema": "jyd_probe.video_effect.v1",
+    "exported_at": "2026-07-13T10:23:55",
+    "effect_label": "name='光斑飘落', type='video_effect', effect_id='7399492531039309056', resource_id='7399492531039309056', id='44542287-27C7-4dd0-9A2B-16AA7800CD12'",
+    "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 8,
+        "material_id": "44542287-27C7-4dd0-9A2B-16AA7800CD12",
+        "target_timerange": {
+            "duration": 583334,
+            "start": 4116666
+        }
+    },
+    "material": {
+        "adjust_params": [
+            {
+                "default_value": 0.33,
+                "name": "effects_adjust_speed",
+                "value": 0.33
+            },
+            {
+                "default_value": 1.0,
+                "name": "effects_adjust_background_animation",
+                "value": 1.0
+            }
+        ],
+        "apply_target_type": 2,
+        "category_id": "100000",
+        "category_name": "effects2",
+        "effect_id": "7399492531039309056",
+        "id": "44542287-27C7-4dd0-9A2B-16AA7800CD12",
+        "name": "光斑飘落",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7399492531039309056/5106ce263097acfbe5f8319841bc1e7a",
+        "resource_id": "7399492531039309056",
+        "source_platform": 1,
+        "type": "video_effect",
+        "value": 1.0
+    },
+    "segment_template": {
+        "enable_adjust": false,
+        "enable_adjust_mask": false,
+        "enable_hsl": false,
+        "enable_lut": false,
+        "id": "9100EA85-3ECF-47f8-9894-39088E229799",
+        "material_id": "44542287-27C7-4dd0-9A2B-16AA7800CD12",
+        "render_index": 11008,
+        "render_timerange": {},
+        "responsive_layout": {},
+        "source": "segmentsourcenormal",
+        "target_timerange": {
+            "duration": 583334,
+            "start": 4116666
+        },
+        "track_render_index": 1
+    }
+}

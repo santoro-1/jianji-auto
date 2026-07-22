@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:6807742980271641102",
+  "name": "SourceHanSerifCN-Heavy",
+  "resource_id": "6807742980271641102",
+  "effect_id": "6807742980271641102",
+  "checksum_sha256": "115ee030d66716f7294f82c0c3e63f405a25c74a75705ba7e79fad42114b04de",
+  "size_bytes": 13528216,
+  "file": "files/SourceHanSerifCN-Heavy_6807742980271641102.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\SourceHanSerifCN-Heavy_6807742980271641102.otf",
+  "metadata_file": "metadata/SourceHanSerifCN-Heavy_6807742980271641102.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\6807742980271641102\\e4387517f584be39bb2e1ca4ede6cbe3\\SourceHanSerifCN-Heavy.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 7,
+          "material_id": "3AD3B802-B72E-44b1-B0CD-B28D28E2E2CA",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 7,
+          "material_id": "3AD3B802-B72E-44b1-B0CD-B28D28E2E2CA",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 7,
+          "material_id": "3AD3B802-B72E-44b1-B0CD-B28D28E2E2CA",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,206 @@
+[
+    {
+        "ClassName": "T1608802625400681067",
+        "Super": "ScriptComponent",
+        "FilePath": "T1608802625400681067.lua",
+        "FileAbsPath": "/Users/yyb/Downloads/33659f254fe808c455ce00d7e4e533d8/T1608802625400681067.lua",
+        "Properties": [
+            {
+                "VarName": "curTime",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    3.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Input",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "time1",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "PosRange1",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "bezierParams1",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "time2",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "PosRange2",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "bezierParams2",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "time3",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "PosRange3",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "bezierParams3",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "time4",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "PosRange4",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "bezierParams4",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "extraSize",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "isAutoPlay",
+                "VarType": "Bool",
+                "Comment": ""
+            }
+        ],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "constructor",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "init",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onStart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "ButtonClip",
+                "Params": [],
+                "Comment": "",
+                "Return": {
+                    "Types": [
+                        "void"
+                    ],
+                    "Comment": ""
+                },
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Button",
+                                "RawValue": "",
+                                "Values": [
+                                    "Auto Play"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "FuncName": "onUpdate",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "beforeEditorSave",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "seek",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setDuration",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onEnter",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onLeave",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

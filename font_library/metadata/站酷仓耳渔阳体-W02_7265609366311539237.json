@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7265609366311539237",
+  "name": "站酷仓耳渔阳体-W02",
+  "resource_id": "7265609366311539237",
+  "effect_id": "7265609366311539237",
+  "checksum_sha256": "3fe4d0d53fa429b4b663d8c401a83bb0c6a40a3814c081b0ba313e27d18020fa",
+  "size_bytes": 1584316,
+  "file": "files/站酷仓耳渔阳体-W02_7265609366311539237.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\站酷仓耳渔阳体-W02_7265609366311539237.ttf",
+  "metadata_file": "metadata/站酷仓耳渔阳体-W02_7265609366311539237.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265609366311539237\\9a845e092fe17de221ac868374d9744b\\站酷仓耳渔阳体-W02.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 20,
+          "material_id": "C16B1BE5-806A-4180-B85D-61C8C5F9846E",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 20,
+          "material_id": "C16B1BE5-806A-4180-B85D-61C8C5F9846E",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 20,
+          "material_id": "C16B1BE5-806A-4180-B85D-61C8C5F9846E",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

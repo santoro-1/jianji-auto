@@ -1,0 +1,6 @@
+pyJianYingDraft==0.3.0
+fastapi
+uvicorn
+fonttools
+opencv-python-headless>=4.10,<5
+numpy>=1.23,<3

@@ -1,0 +1,120 @@
+{
+  "type": "TextTemplate",
+  "root": {
+    "guid": "64f4935d-c175-4f38-a3db-d242b8cd3484",
+    "size": [
+      400.0,
+      400.0
+    ],
+    "duration": 3.0,
+    "preview_time": 0.0,
+    "children": [
+      {
+        "guid": "dcd6d7bc-4304-463c-8e10-aa15b50aba24",
+        "type": "text",
+        "position": [
+          0.0,
+          0.0
+        ],
+        "rotation": 0.0,
+        "scale": [
+          1.0,
+          1.0
+        ],
+        "order_in_layer": 0,
+        "start_time": 0.0,
+        "duration": 3.0,
+        "font_resource_id": "6740499585669534215",
+        "effect_text_resource_id": "",
+        "limit_size_enable": true,
+        "limit_size": [
+          380.0,
+          380.0
+        ],
+        "char_bgs": [],
+        "text_params": {
+          "version": "1",
+          "text": "好运 +1",
+          "fontSize": 20.0,
+          "alignType": 1,
+          "typeSettingKind": 0,
+          "textColor": [
+            0.98821,
+            0.3882,
+            0.1529,
+            1.0
+          ],
+          "background": false,
+          "backgroundColor": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "shadow": false,
+          "shadowColor": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "shadowSmoothing": 0,
+          "shadowOffset": [
+            0.1,
+            -0.1
+          ],
+          "outline": true,
+          "outlineWidth": 0.06,
+          "outlineColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "ktvColor": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvOutlineColor": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvShadowColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "boldWidth": 0.0,
+          "italicDegree": 0.0,
+          "lineGap": 0.0,
+          "useEffectDefaultColor": true,
+          "charSpacing": 0.0,
+          "innerPadding": 0.1,
+          "lineMaxWidth": -1,
+          "fontPath": "",
+          "fallbackFontPath": "",
+          "fallbackFontPathList": [],
+          "effectPath": "",
+          "shapePath": ""
+        },
+        "anim_duration_mode": 0,
+        "anim_duration_scale_min": 0,
+        "anims": [
+          {
+            "anim_type": "loop",
+            "anim_resource_id": "6915269706769240583",
+            "duration": 1.7
+          }
+        ],
+        "children": [],
+        "foldin": false,
+        "children_foldout": true
+      }
+    ]
+  }
+}

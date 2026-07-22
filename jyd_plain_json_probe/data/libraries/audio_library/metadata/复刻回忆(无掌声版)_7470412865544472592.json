@@ -1,0 +1,39 @@
+{
+  "schema": "jyd_probe.audio_asset.v1",
+  "exported_at": "2026-07-13T19:32:11",
+  "identity": "music_id:7470412865544472592",
+  "checksum_sha256": "c853f15b94a4f5f236eb10b3743d523ec8b4eafacbffc0e5eeb341d5e908756a",
+  "file": "files/复刻回忆(无掌声版)_7470412865544472592.mp3",
+  "material": {
+    "app_id": 1775,
+    "category_id": "100",
+    "category_name": "收藏",
+    "duration": 266483333,
+    "id": "9CA22E84-D6D7-44a9-931B-9F594ABB1337",
+    "music_id": "7470412865544472592",
+    "music_source": "pgc",
+    "name": "复刻回忆(无掌声版)",
+    "path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\8a9cb8e1b90563a5ab767a4be7ffe07d.mp3",
+    "resource_id": "",
+    "similiar_music_info": {},
+    "type": "music"
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+      "audio_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 11,
+      "material_id": "9CA22E84-D6D7-44a9-931B-9F594ABB1337",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\8a9cb8e1b90563a5ab767a4be7ffe07d.mp3",
+      "source_timerange": {
+        "duration": 266483333
+      },
+      "target_timerange": {
+        "duration": 266483334,
+        "start": 1768666666
+      },
+      "volume": 1.0
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+%YAML 1.1
+--- !XShader &1
+name: rt_xshader
+guid: {a: 3480535573314339687, b: 17806655791497263280}
+renderQueue: 2000
+passes:
+  - __class: Pass
+    name: ""
+    guid: {a: 1895449624022935165, b: 861196088140947122}
+    shaders:
+      __class: Map
+      gles2:
+        - {localId: 2}
+        - {localId: 3}
+    semantics:
+      __class: Map
+      position:
+        __class: VertexAttribType
+        value: POSITION
+      texcoord0:
+        __class: VertexAttribType
+        value: TEXCOORD0
+    renderTexture: {localId: 1, path: rt.rt}   
+    clearColor: {r: 0, g: 0, b: 0, a: 0}
+    clearDepth: 1
+    clearType:
+      __class: CameraClearType
+      value: COLOR
+    renderState:
+      __class: RenderState
+      name: ""
+      guid: {a: 2472470287873367184, b: 5456611420740793533}
+      colorBlend:
+        __class: ColorBlendState
+        name: ""
+        guid: {a: 10899724052146643312, b: 11246096711801695674}
+        blendConstants: {x: 0, y: 0, z: 0, w: 0}
+        blendEnableName: ""
+        blendFactorName: ""
+        blendOpName: ""
+        attachments:
+          - __class: ColorBlendAttachmentState
+            name: ""
+            guid: {a: 1316979959866040039, b: 6017114007428081035}
+            blendEnable: true
+            srcColorBlendFactor:
+              __class: BlendFactor
+              value: ONE
+            dstColorBlendFactor:
+              __class: BlendFactor
+              value: ONE_MINUS_SRC_ALPHA
+            srcAlphaBlendFactor:
+              __class: BlendFactor
+              value: ONE
+            dstAlphaBlendFactor:
+              __class: BlendFactor
+              value: ONE_MINUS_SRC_ALPHA
+            colorWriteMask: 15
+            ColorBlendOp:
+              __class: BlendOp
+              value: ADD
+            AlphaBlendOp:
+              __class: BlendOp
+              value: ADD
+    useFBOTexture: false
+    useCameraRT: false
+    useFBOFetch: false
+    isFullScreenShading: false
+    macrosMap:
+      __class: Map
+    preprocess: false
+    passType:
+      __class: PassType
+      value: NORMAL
+    lightMode:
+      __class: LightMode
+      value: NONE
+  - __class: Pass
+    name: ""
+    guid: {a: 1895449624022935165, b: 861196088140947122}
+    shaders:
+      __class: Map
+      gles2:
+        - {localId: 4}
+        - {localId: 5}
+    semantics:
+      __class: Map
+      position:
+        __class: VertexAttribType
+        value: POSITION
+      texcoord0:
+        __class: VertexAttribType
+        value: TEXCOORD0
+    clearColor: {r: 0, g: 0, b: 0, a: 0}
+    clearDepth: 1
+    clearType:
+      __class: CameraClearType
+      value: DONT
+    renderState:
+      __class: RenderState
+      name: ""
+      guid: {a: 2472470287873367184, b: 5456611420740793533}
+      colorBlend:
+        __class: ColorBlendState
+        name: ""
+        guid: {a: 10899724052146643312, b: 11246096711801695674}
+        blendConstants: {x: 0, y: 0, z: 0, w: 0}
+        blendEnableName: ""
+        blendFactorName: ""
+        blendOpName: ""
+        attachments:
+          - __class: ColorBlendAttachmentState
+            name: ""
+            guid: {a: 1316979959866040039, b: 6017114007428081035}
+            blendEnable: true
+            srcColorBlendFactor:
+              __class: BlendFactor
+              value: ONE
+            dstColorBlendFactor:
+              __class: BlendFactor
+              value: ONE_MINUS_SRC_ALPHA
+            srcAlphaBlendFactor:
+              __class: BlendFactor
+              value: ONE
+            dstAlphaBlendFactor:
+              __class: BlendFactor
+              value: ONE_MINUS_SRC_ALPHA
+            colorWriteMask: 15
+            ColorBlendOp:
+              __class: BlendOp
+              value: ADD
+            AlphaBlendOp:
+              __class: BlendOp
+              value: ADD
+    useFBOTexture: false
+    useCameraRT: false
+    useFBOFetch: false
+    isFullScreenShading: false
+    macrosMap:
+      __class: Map
+    preprocess: false
+    passType:
+      __class: PassType
+      value: NORMAL
+    lightMode:
+      __class: LightMode
+      value: NONE
+--- !Shader &2
+name: ""
+guid: {a: 2038740079287379884, b: 16378687209352388789}
+type:
+  __class: ShaderType
+  value: VERTEX
+sourcePath: rt.vert
+--- !Shader &3
+name: ""
+guid: {a: 4417282514422014145, b: 8178011870388386696}
+type:
+  __class: ShaderType
+  value: FRAGMENT
+sourcePath: rt.frag
+--- !Shader &4
+name: ""
+guid: {a: 10251441307522957274, b: 2311741591313725612}
+type:
+  __class: ShaderType
+  value: VERTEX
+sourcePath: rt1.vert
+--- !Shader &5
+name: ""
+guid: {a: 9602567257296599157, b: 16212387670520997518}
+type:
+  __class: ShaderType
+  value: FRAGMENT
+sourcePath: rt1.frag

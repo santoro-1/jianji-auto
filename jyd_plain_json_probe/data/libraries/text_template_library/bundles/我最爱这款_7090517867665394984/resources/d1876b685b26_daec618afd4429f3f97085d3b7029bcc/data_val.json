@@ -1,0 +1,101 @@
+{
+    "showingInfo": {
+        "val": [
+            0,
+            0.10400000214577,
+            0.89600002765656,
+            1
+        ],
+        "type": "vec4"
+    },
+    "shakeYRange": {
+        "val": [
+            -15,
+            15,
+            0.5
+        ],
+        "type": "vec3"
+    },
+    "moveXRange": {
+        "val": [
+            0.029999999329448,
+            0.85000002384186
+        ],
+        "type": "vec2"
+    },
+    "trapezoid": {
+        "val": [
+            0.6666,
+            1,
+            -0.20000000298023,
+            0.20000000298023
+        ],
+        "type": "vec4"
+    },
+    "selfZ": {
+        "val": 8.4899997711182,
+        "type": "float"
+    },
+    "shakeZRange": {
+        "val": [
+            -10,
+            10,
+            0.5
+        ],
+        "type": "vec3"
+    },
+    "shakeFrequency": {
+        "val": [
+            5.5,
+            0.5
+        ],
+        "type": "vec2"
+    },
+    "moveFrequency": {
+        "val": [
+            20,
+            0.5
+        ],
+        "type": "vec2"
+    },
+    "shakeXRange": {
+        "val": [
+            -15,
+            15,
+            0.5
+        ],
+        "type": "vec3"
+    },
+    "selfRotate": {
+        "val": [
+            0,
+            20,
+            0
+        ],
+        "type": "vec3"
+    },
+    "moveYRange": {
+        "val": [
+            0.029999999329448,
+            0.85000002384186
+        ],
+        "type": "vec2"
+    },
+    "camera_fov": {
+        "val": 60,
+        "type": "float"
+    },
+    "showingBezier": {
+        "val": [
+            0.15999999642372,
+            0.83999997377396,
+            0.43000000715256,
+            1
+        ],
+        "type": "vec4"
+    },
+    "blurStep": {
+        "val": -0.30000001192093,
+        "type": "float"
+    }
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7020729846334493215",
+  "name": "NotoSerifJP-Black",
+  "resource_id": "7020729846334493215",
+  "effect_id": "7020729846334493215",
+  "checksum_sha256": "a54d7409c7702b5aee0276d0179660271e3d8107db3d201de4536694edaf09e0",
+  "size_bytes": 6334936,
+  "file": "files/NotoSerifJP-Black_7020729846334493215.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\NotoSerifJP-Black_7020729846334493215.otf",
+  "metadata_file": "metadata/NotoSerifJP-Black_7020729846334493215.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7020729846334493215\\569bf7220b9170da8dd45c2241740140\\NotoSerifJP-Black.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 3,
+          "material_id": "1B93234A-A3CC-4310-A78A-40F2B9001543",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 3,
+          "material_id": "1B93234A-A3CC-4310-A78A-40F2B9001543",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 3,
+          "material_id": "1B93234A-A3CC-4310-A78A-40F2B9001543",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

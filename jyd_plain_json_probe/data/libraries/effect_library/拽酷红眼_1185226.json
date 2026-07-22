@@ -1,0 +1,63 @@
+{
+    "schema": "jyd_probe.video_effect.v1",
+    "exported_at": "2026-07-13T10:23:55",
+    "effect_label": "name='拽酷红眼', type='face_effect', effect_id='1185226', resource_id='6979861988935471623', id='A6BA56EB-7BC4-438b-BDD6-15F5301AD122'",
+    "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 9,
+        "material_id": "A6BA56EB-7BC4-438b-BDD6-15F5301AD122",
+        "target_timerange": {
+            "duration": 433333,
+            "start": 4700000
+        }
+    },
+    "material": {
+        "adjust_params": [
+            {
+                "default_value": 0.5,
+                "name": "effects_adjust_size",
+                "value": 0.5
+            },
+            {
+                "default_value": 0.5,
+                "name": "effects_adjust_vertical_shift",
+                "value": 0.5
+            },
+            {
+                "default_value": 0.5,
+                "name": "effects_adjust_horizontal_shift",
+                "value": 0.5
+            }
+        ],
+        "algorithm_artifact_path": "##_draftpath_placeholder_0E685133-18CE-45ED-8CB8-2904A212EC80_##/video_effect/multi_faces_algorithm/FBEB5D9B-0252-4d0c-9276-FF4749D30CFE",
+        "apply_target_type": 2,
+        "category_id": "100001",
+        "category_name": "face-prop",
+        "effect_id": "1185226",
+        "id": "A6BA56EB-7BC4-438b-BDD6-15F5301AD122",
+        "name": "拽酷红眼",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1185226/3528fdf176336d1ae503e85611d96347",
+        "resource_id": "6979861988935471623",
+        "type": "face_effect",
+        "value": 1.0
+    },
+    "segment_template": {
+        "enable_adjust": false,
+        "enable_adjust_mask": false,
+        "enable_hsl": false,
+        "enable_lut": false,
+        "id": "E9DFBD54-41D2-441f-9311-098330442AE2",
+        "material_id": "A6BA56EB-7BC4-438b-BDD6-15F5301AD122",
+        "render_index": 11009,
+        "render_timerange": {},
+        "responsive_layout": {},
+        "source": "segmentsourcenormal",
+        "target_timerange": {
+            "duration": 433333,
+            "start": 4700000
+        },
+        "track_render_index": 1
+    }
+}

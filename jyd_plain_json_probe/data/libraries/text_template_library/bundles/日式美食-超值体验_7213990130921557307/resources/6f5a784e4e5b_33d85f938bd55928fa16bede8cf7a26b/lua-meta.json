@@ -1,0 +1,171 @@
+[
+    {
+        "ClassName": "AnimScript",
+        "Super": "ScriptComponent",
+        "FilePath": "lua/AnimScript.lua",
+        "FileAbsPath": "/Users/apple/Documents/\u4e1a\u52a1\u9700\u6c42/\u526a\u6620/2023.1-2/\u6587\u5b57\u52a8\u753b-\u6781\u81f4\u7f13\u52a8/v1_binary/lua/AnimScript.lua",
+        "Properties": [
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "progress",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    1.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "autoPlay",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "effectMaterial",
+                "VarType": "Material",
+                "Comment": ""
+            }
+        ],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_remap01",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_cubicBezier",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_cubicBezier01",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_getBezier01X",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_mix",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "SetAllFrame",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "GetVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "initKeyFrame",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setMatToSDFText",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onStart",
+                "Params": [
+                    {
+                        "ParaName": "comp",
+                        "ParaType": "Component",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onUpdate",
+                "Params": [
+                    {
+                        "ParaName": "comp",
+                        "ParaType": "Component",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "deltaTime",
+                        "ParaType": "Double",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "seek",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onEnter",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "resetData",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setDuration",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onLeave",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

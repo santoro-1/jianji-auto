@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7290445705578025529",
+  "name": "温宁体",
+  "resource_id": "7290445705578025529",
+  "effect_id": "7290445705578025529",
+  "checksum_sha256": "edb4eb24039b75326e06c8904d0ba2fafa5f81260c2229c5dc4457514a400906",
+  "size_bytes": 1412824,
+  "file": "files/温宁体_7290445705578025529.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\温宁体_7290445705578025529.otf",
+  "metadata_file": "metadata/温宁体_7290445705578025529.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7290445705578025529\\fdc9d5eb51a0e4f9e1dedc0091402ff5\\温宁体.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 21,
+          "material_id": "A8863DB3-6752-4ac8-B9AF-CD612A7B749A",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 21,
+          "material_id": "A8863DB3-6752-4ac8-B9AF-CD612A7B749A",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 21,
+          "material_id": "A8863DB3-6752-4ac8-B9AF-CD612A7B749A",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

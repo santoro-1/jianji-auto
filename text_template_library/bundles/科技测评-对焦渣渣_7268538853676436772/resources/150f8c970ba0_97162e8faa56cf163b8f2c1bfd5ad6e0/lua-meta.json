@@ -1,0 +1,118 @@
+[
+    {
+        "ClassName": "AEAdapter",
+        "Super": "",
+        "FilePath": "lua/src/common/AEAdapter.lua",
+        "FileAbsPath": "/Users/o/EffectMacaron/scriptEffect/lua/src/common/AEAdapter.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "new ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addKeyframes ",
+                "Params": [
+                    {
+                        "ParaName": "layerName",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layerData",
+                        "ParaType": "table<string,",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addFrames ",
+                "Params": [
+                    {
+                        "ParaName": "layerName",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layerData",
+                        "ParaType": "table",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addAnimations ",
+                "Params": [
+                    {
+                        "ParaName": "layerName",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layerData",
+                        "ParaType": "table",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "get ",
+                "Params": [
+                    {
+                        "ParaName": "path",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "time",
+                        "ParaType": "Double",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": "",
+                "Return": {
+                    "Types": [
+                        "number|number[]"
+                    ],
+                    "Comment": ""
+                }
+            },
+            {
+                "FuncName": "_solveFrame ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_interpolateFrame ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_solveKeyframe ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_interpolateScalar ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_interpolateVector ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_solveAnimation ",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

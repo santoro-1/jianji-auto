@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7290456514370736698",
+  "name": "山雁体",
+  "resource_id": "7290456514370736698",
+  "effect_id": "7290456514370736698",
+  "checksum_sha256": "4e70ecb9ca4c5d00d9025540b3e8bd2c178bfc26d2b28d9c439665f6246147ed",
+  "size_bytes": 2362304,
+  "file": "files/山雁体_7290456514370736698.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\山雁体_7290456514370736698.otf",
+  "metadata_file": "metadata/山雁体_7290456514370736698.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7290456514370736698\\c29a5195061ec2b2f72aa4fe97e04f43\\山雁体.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "9549616F-FA4F-496d-8FF3-13231BC09E29",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "9549616F-FA4F-496d-8FF3-13231BC09E29",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "9549616F-FA4F-496d-8FF3-13231BC09E29",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

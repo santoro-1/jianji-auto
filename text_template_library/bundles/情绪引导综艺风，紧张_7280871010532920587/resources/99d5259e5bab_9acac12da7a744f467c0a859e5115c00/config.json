@@ -1,0 +1,12 @@
+{
+	"effect": {
+		"Link": [
+			{
+				"type": "InfoSticker",
+				"format": "gif",
+				"path": "final.gif" 
+			}
+		]
+	},
+	"version": "9.1.0"
+}

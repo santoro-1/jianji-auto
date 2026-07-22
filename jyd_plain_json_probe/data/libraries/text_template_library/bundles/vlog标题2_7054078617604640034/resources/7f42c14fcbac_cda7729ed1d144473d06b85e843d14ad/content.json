@@ -1,0 +1,129 @@
+{
+  "type": "TextTemplate",
+  "root": {
+    "guid": "9778ed16-015d-403a-aad6-bb23466b4406",
+    "size": [
+      390.0,
+      70.0
+    ],
+    "duration": 3.0,
+    "preview_time": 0.0,
+    "children": [
+      {
+        "guid": "e705d131-134c-4289-8c0c-9fb0db67ad74",
+        "type": "text",
+        "position": [
+          0.0,
+          0.0
+        ],
+        "rotation": 0.0,
+        "scale": [
+          1.0,
+          1.0
+        ],
+        "order_in_layer": 0,
+        "start_time": 0.0,
+        "duration": 3.0,
+        "font_resource_id": "6807743644842332685",
+        "effect_text_resource_id": "",
+        "limit_size_enable": true,
+        "limit_size": [
+          360.0,
+          40.0
+        ],
+        "char_bgs": [
+          {
+            "guid": "4dc4e616-a49a-498b-b508-eec4bc8c85cd",
+            "sticker_path": "blue",
+            "sticker_loop": true,
+            "position": [
+              0.0,
+              -0.2
+            ],
+            "rotation": 0.0,
+            "scale": [
+              1.1,
+              0.7
+            ]
+          }
+        ],
+        "text_params": {
+          "version": "1",
+          "text": "Daily Vlog #001",
+          "fontSize": 20.0,
+          "alignType": 1,
+          "typeSettingKind": 0,
+          "textColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "shadow": true,
+          "shadowColor": [
+            0.0,
+            0.0,
+            0.0,
+            0.3
+          ],
+          "shadowSmoothing": 0.0,
+          "shadowOffset": [
+            0.065,
+            -0.065
+          ],
+          "outline": false,
+          "outlineWidth": 0.1,
+          "outlineColor": [
+            1,
+            0,
+            0,
+            1
+          ],
+          "ktvColor": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvOutlineColor": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvShadowColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "boldWidth": 0.008,
+          "italicDegree": 0.0,
+          "lineGap": 0.0,
+          "useEffectDefaultColor": true,
+          "charSpacing": 0.03,
+          "lineMaxWidth": -1,
+          "fontPath": "",
+          "fallbackFontPath": "",
+          "fallbackFontPathList": [],
+          "effectPath": "",
+          "shapePath": "",
+          "background": false,
+          "backgroundColor": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "innerPadding": 0.0
+        },
+        "anims": [],
+        "children": [],
+        "foldin": false,
+        "anim_duration_mode": 0,
+        "anim_duration_scale_min": 0,
+        "children_foldout": true
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+release/
+runtime/decrypted_work/
+runtime/test_tmp/
+runtime/collector_state/
+runtime/web_drafts/
+runtime/generated_video_drafts/
+runtime/packaged_test_state/
+data/web_storage/admin_password.txt
+data/web_storage/admin_session_secret.txt
+data/web_storage/media/
+data/web_storage/jobs/
+data/web_storage/outputs/
+data/web_storage/draft_imports/

@@ -1,0 +1,11 @@
+{
+  "schema": "jyd.template.v1",
+  "template_id": "demo_template",
+  "name": "演示模板",
+  "source_dir": "D:\\工作内容\\轻盈健\\公寓\\jy-draftc\\decrypted",
+  "draft_dir": "draft",
+  "created_at": "2026-07-09T14:34:55",
+  "was_decrypted": false,
+  "duration_us": 21433333,
+  "track_count": 1
+}

@@ -1,0 +1,265 @@
+[
+    {
+        "ClassName": "AEAdapter",
+        "Super": "",
+        "FilePath": "lua/src/common/AEAdapter.lua",
+        "FileAbsPath": "/Users/jorgen/EffectMacaron/scriptEffect/lua/src/common/AEAdapter.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "new ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addKeyframes ",
+                "Params": [
+                    {
+                        "ParaName": "layerName",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layerData",
+                        "ParaType": "table<string,",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addFrames ",
+                "Params": [
+                    {
+                        "ParaName": "layerName",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layerData",
+                        "ParaType": "table",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addAnimations ",
+                "Params": [
+                    {
+                        "ParaName": "layerName",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layerData",
+                        "ParaType": "table",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "get ",
+                "Params": [
+                    {
+                        "ParaName": "path",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "time",
+                        "ParaType": "Double",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": "",
+                "Return": {
+                    "Types": [
+                        "number|number[]"
+                    ],
+                    "Comment": ""
+                }
+            },
+            {
+                "FuncName": "getVelocity ",
+                "Params": [
+                    {
+                        "ParaName": "path",
+                        "ParaType": "String",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "time",
+                        "ParaType": "Double",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "delta",
+                        "ParaType": "number|nil",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": "",
+                "Return": {
+                    "Types": [
+                        "number|number[]"
+                    ],
+                    "Comment": ""
+                }
+            },
+            {
+                "FuncName": "makeTransform3D ",
+                "Params": [
+                    {
+                        "ParaName": "layers",
+                        "ParaType": "table[]",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": "",
+                "Return": {
+                    "Types": [
+                        "Matrix4x4f"
+                    ],
+                    "Comment": ""
+                }
+            },
+            {
+                "FuncName": "makeTransform2D ",
+                "Params": [
+                    {
+                        "ParaName": "screenSize",
+                        "ParaType": "Vector2f|nil",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "layers",
+                        "ParaType": "table[]",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": "",
+                "Return": {
+                    "Types": [
+                        "Mat3"
+                    ],
+                    "Comment": ""
+                }
+            },
+            {
+                "FuncName": "_solveFrame ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_interpolateFrame ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_solveKeyframe ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_interpolateScalar ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_interpolateVector ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_solveAnimation ",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "Mat3",
+        "Super": "",
+        "FilePath": "lua/src/common/Mat3.lua",
+        "FileAbsPath": "/Users/jorgen/EffectMacaron/scriptEffect/lua/src/common/Mat3.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "identity ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "rotate ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "translate ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "scale ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "skewX ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "skewY ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "determinant ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "inverse ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mulMatrix ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mulVector ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mulPoint ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mulScalar ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "toMaterial ",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "toMaterialVector ",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

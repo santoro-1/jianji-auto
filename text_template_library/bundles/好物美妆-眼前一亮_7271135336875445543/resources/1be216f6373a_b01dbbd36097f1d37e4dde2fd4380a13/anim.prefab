@@ -1,0 +1,23 @@
+%YAML 1.1
+--- !Prefab &1
+name: anim_Prefab
+guid: {a: 5638725259437973279, b: 13789670906236956857}
+entities:
+  - __class: Entity
+    name: root_entity
+    guid: {a: 13854514427416133366, b: 10402516303897250433}
+    selfvisible: true
+    components:
+      - __class: ScriptComponent
+        name: script
+        guid: {a: 5281969789763579575, b: 3879466010566663048}
+        enabled: true
+        path: lua/AnimScript.lua
+        properties:
+          __class: Map
+          clone_material: {localId: 1, path: material/noface1.material}
+          effect_material: {localId: 1, path: material/noface.material}
+        className: AnimScript
+    layer: 0
+standaloneResources:
+  __class: Map

@@ -1,0 +1,182 @@
+{
+  "schema": "jyd_probe.text_effect_library_manifest.v1",
+  "effects": [
+    {
+      "identity": "resource_id:7127684319300078885",
+      "name": "双描边紫色渐变花字",
+      "effect_id": "7127684319300078885",
+      "resource_id": "7127684319300078885",
+      "third_resource_id": "6992472582247158308",
+      "bundle": "bundles/双描边紫色渐变花字_7127684319300078885",
+      "metadata_file": "bundles/双描边紫色渐变花字_7127684319300078885/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7127684319300078885/837d6c46dd4eaa62643f4684a29f2cb7",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "existing"
+      },
+      "source_count": 2
+    },
+    {
+      "identity": "resource_id:7127828208690482463",
+      "name": "蓝白花字",
+      "effect_id": "7127828208690482463",
+      "resource_id": "7127828208690482463",
+      "third_resource_id": "7127633325463704071",
+      "bundle": "bundles/蓝白花字_7127828208690482463",
+      "metadata_file": "bundles/蓝白花字_7127828208690482463/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7127828208690482463/06e1b420ce674261606b07e79f702ea9",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6872619693404852750",
+      "name": "177",
+      "effect_id": "921686",
+      "resource_id": "6872619693404852750",
+      "third_resource_id": "0",
+      "bundle": "bundles/177_6872619693404852750",
+      "metadata_file": "bundles/177_6872619693404852750/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/921686/9d10b9dc0f9a153b0b28b38fbdff9242",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6733866662287643147",
+      "name": "012",
+      "effect_id": "466355",
+      "resource_id": "6733866662287643147",
+      "third_resource_id": "0",
+      "bundle": "bundles/012_6733866662287643147",
+      "metadata_file": "bundles/012_6733866662287643147/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/466355/222e74aabf56090e77a05f3b876f9636",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6841440905870709262",
+      "name": "136",
+      "effect_id": "772994",
+      "resource_id": "6841440905870709262",
+      "third_resource_id": "0",
+      "bundle": "bundles/136_6841440905870709262",
+      "metadata_file": "bundles/136_6841440905870709262/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/772994/8b9315d392847f4f557d21717bf5dedf",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6824690061594857992",
+      "name": "JP006",
+      "effect_id": "760132",
+      "resource_id": "6824690061594857992",
+      "third_resource_id": "0",
+      "bundle": "bundles/JP006_6824690061594857992",
+      "metadata_file": "bundles/JP006_6824690061594857992/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/760132/910b614b512863adb417a2b94b3376dc",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6839155363766342152",
+      "name": "130",
+      "effect_id": "765598",
+      "resource_id": "6839155363766342152",
+      "third_resource_id": "0",
+      "bundle": "bundles/130_6839155363766342152",
+      "metadata_file": "bundles/130_6839155363766342152/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/765598/de2da4702962a3150678284d73343400",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6825471384353772046",
+      "name": "Kr020",
+      "effect_id": "734550",
+      "resource_id": "6825471384353772046",
+      "third_resource_id": "0",
+      "bundle": "bundles/Kr020_6825471384353772046",
+      "metadata_file": "bundles/Kr020_6825471384353772046/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/734550/1db5594493c45eb7a8713bc75039e0cb",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6825471222147453448",
+      "name": "Kr019",
+      "effect_id": "734548",
+      "resource_id": "6825471222147453448",
+      "third_resource_id": "0",
+      "bundle": "bundles/Kr019_6825471222147453448",
+      "metadata_file": "bundles/Kr019_6825471222147453448/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/734548/bf71a9559da17ce47efc61474ec4593c",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6964676276015600159",
+      "name": "228",
+      "effect_id": "1137064",
+      "resource_id": "6964676276015600159",
+      "third_resource_id": "0",
+      "bundle": "bundles/228_6964676276015600159",
+      "metadata_file": "bundles/228_6964676276015600159/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1137064/ee20b6af46b7625d5587f54d6096d5ba",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    },
+    {
+      "identity": "resource_id:6970967083441984013",
+      "name": "232",
+      "effect_id": "1156320",
+      "resource_id": "6970967083441984013",
+      "third_resource_id": "0",
+      "bundle": "bundles/232_6970967083441984013",
+      "metadata_file": "bundles/232_6970967083441984013/text_effect.json",
+      "resource": {
+        "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1156320/ea313663956a7503d5f1e8caed519afd",
+        "library_path": "resources/effect",
+        "kind": "directory",
+        "status": "copied"
+      },
+      "source_count": 1
+    }
+  ],
+  "updated_at": "2026-07-13T20:12:24"
+}

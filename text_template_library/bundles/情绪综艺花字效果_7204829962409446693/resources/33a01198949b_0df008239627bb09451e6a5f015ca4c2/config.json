@@ -1,0 +1,15 @@
+{
+    "bALG_BACH_CONFIG": true,
+    "effect": {
+        "Link": [
+            {
+                "scriptPath": "js/template/template.js",
+                "type": "ScriptInfoSticker",
+                "zorder": 8010
+            }
+        ]
+    },
+    "name": "template_filter",
+    "script_version": "1.0.0",
+    "version": "13.1.0"
+}

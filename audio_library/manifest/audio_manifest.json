@@ -1,0 +1,1335 @@
+{
+  "schema": "jyd_probe.audio_library_manifest.v1",
+  "assets": [
+    {
+      "identity": "music_id:7634368473006934054",
+      "name": "松间月 钢琴纯音乐",
+      "music_id": "7634368473006934054",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 125750000,
+      "checksum_sha256": "46363d36b95b6256cd047735ecd07b85ad4e540ea6441b1e135f27c8a90fd25f",
+      "file": "files/松间月_钢琴纯音乐_7634368473006934054.mp3",
+      "metadata_file": "metadata/松间月_钢琴纯音乐_7634368473006934054.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐测试1",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 0,
+          "material_id": "E94B6EB8-EB5D-484d-A5B4-61121E65C339",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\134e54fca432ef03c877f96fb71909ac.mp3",
+          "source_timerange": {
+            "duration": 125750000
+          },
+          "target_timerange": {
+            "duration": 125750000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7592079909348280326",
+      "name": "午后 吉他 阳光 轻松（午后音乐）",
+      "music_id": "7592079909348280326",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 144000000,
+      "checksum_sha256": "dca2455464f9e72aa8706bb81a7986b913bfa24d800877c9a5abb9f737d00627",
+      "file": "files/午后_吉他_阳光_轻松（午后音乐）_7592079909348280326.mp3",
+      "metadata_file": "metadata/午后_吉他_阳光_轻松（午后音乐）_7592079909348280326.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐测试1",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 1,
+          "material_id": "04948CA7-F64E-4d18-B647-0111198AC4BB",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\6881a5f838c4dae602cd08f3cfc9b179.mp3",
+          "source_timerange": {
+            "duration": 144000000
+          },
+          "target_timerange": {
+            "duration": 144000000,
+            "start": 125750000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7613266934335408171",
+      "name": "Peach",
+      "music_id": "7613266934335408171",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 31400000,
+      "checksum_sha256": "f8f504e9af2268c84adb2928245822f912398edb445901c00908d244cd0a7e37",
+      "file": "files/Peach_7613266934335408171.mp3",
+      "metadata_file": "metadata/Peach_7613266934335408171.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐测试1",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 2,
+          "material_id": "ADBC4454-7ACC-4feb-A1DC-421561F45862",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\31ad25df72954bd2ca209ccfcdd17f71.mp3",
+          "source_timerange": {
+            "duration": 31400000
+          },
+          "target_timerange": {
+            "duration": 31400000,
+            "start": 269750000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7657505192778140462",
+      "name": "半衰期（我还是很想你）",
+      "music_id": "7657505192778140462",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 31566666,
+      "checksum_sha256": "078276fee26a45c3d229ba98afb870c87e62a0dab3b94467b217b5c6e37f90b4",
+      "file": "files/半衰期（我还是很想你）_7657505192778140462.mp3",
+      "metadata_file": "metadata/半衰期（我还是很想你）_7657505192778140462.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐测试1",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 3,
+          "material_id": "474BD827-B2E7-4eee-B92E-40084D738529",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\c6c75d0438eab070f6545392a0d4c846.mp3",
+          "source_timerange": {
+            "duration": 31566666
+          },
+          "target_timerange": {
+            "duration": 31566666,
+            "start": 301150000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7402551600542631937",
+      "name": "你赠我独有段戒感",
+      "music_id": "7402551600542631937",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 143216666,
+      "checksum_sha256": "00886f4b2b0447aa2c562ca4336f96a3622ab118f62fda610eaaab1c93bf5887",
+      "file": "files/你赠我独有段戒感_7402551600542631937.mp3",
+      "metadata_file": "metadata/你赠我独有段戒感_7402551600542631937.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 0,
+          "material_id": "E46A7E61-B293-406b-ACE4-EF7FC0E24E75",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\79143589c8e2b5ede52ba7a5f7c02254.mp3",
+          "source_timerange": {
+            "duration": 143216666
+          },
+          "target_timerange": {
+            "duration": 143216666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7433382301377103913",
+      "name": "III (Find Yourself)",
+      "music_id": "7433382301377103913",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 158866666,
+      "checksum_sha256": "dfbd0ac11386766efec38db4691cf40717bad89007cc30552cbe990dc1e40faa",
+      "file": "files/III_(Find_Yourself)_7433382301377103913.mp3",
+      "metadata_file": "metadata/III_(Find_Yourself)_7433382301377103913.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 1,
+          "material_id": "B7C5A277-3FD9-4c2e-AC91-C28AADD5E996",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\bdd3e79a60f6b21501cffaa761c643c9.mp3",
+          "source_timerange": {
+            "duration": 158866666
+          },
+          "target_timerange": {
+            "duration": 158866667,
+            "start": 143216666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7406550315586586634",
+      "name": "晴（宿命感BGM）",
+      "music_id": "7406550315586586634",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 124633333,
+      "checksum_sha256": "268b3457270cb33dccc367c79fac75858a25000f68fcf1221e3d6df8674302b3",
+      "file": "files/晴（宿命感BGM）_7406550315586586634.mp3",
+      "metadata_file": "metadata/晴（宿命感BGM）_7406550315586586634.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 2,
+          "material_id": "4542D6C2-1C9F-4769-B427-598706878941",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\2e4c2bbc3dabd48c47db741b07b974cd.mp3",
+          "source_timerange": {
+            "duration": 124633333
+          },
+          "target_timerange": {
+            "duration": 124633333,
+            "start": 302083333
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7035666773449902110",
+      "name": "Apollo's Triumph (抖音原版)",
+      "music_id": "7035666773449902110",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 190050000,
+      "checksum_sha256": "2c6823d44e42ff46f0ed52ea9b0a80c42b9f26a2ad9651a8ef077d33205571f8",
+      "file": "files/Apollo's_Triumph_(抖音原版)_7035666773449902110.mp3",
+      "metadata_file": "metadata/Apollo's_Triumph_(抖音原版)_7035666773449902110.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 3,
+          "material_id": "EDB7190F-F5C0-49b1-96AA-B642C3BEF625",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\517d2603307a8c007a78ad6e2d52ce98.mp3",
+          "source_timerange": {
+            "duration": 190050000
+          },
+          "target_timerange": {
+            "duration": 190050000,
+            "start": 426716666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7076108218967001102",
+      "name": "经济舱（钢琴版）",
+      "music_id": "7076108218967001102",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 102333333,
+      "checksum_sha256": "da1d7f31b74acd5e621e4c55530c64003c06f57b54084ba544fd1bee6b6fecbc",
+      "file": "files/经济舱（钢琴版）_7076108218967001102.mp3",
+      "metadata_file": "metadata/经济舱（钢琴版）_7076108218967001102.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 4,
+          "material_id": "DC092874-EB7D-43c9-8253-AACE44774944",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\d8fcfb6354489f645d9de01f4c363abd.mp3",
+          "source_timerange": {
+            "duration": 102333333
+          },
+          "target_timerange": {
+            "duration": 102333334,
+            "start": 616766666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7134737655275653121",
+      "name": "Take me hand",
+      "music_id": "7134737655275653121",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 259483333,
+      "checksum_sha256": "cb1f8fb2fad29e33b8539640b67118be8f889d50b14dfe1211b041bdf520841e",
+      "file": "files/Take_me_hand_7134737655275653121.mp3",
+      "metadata_file": "metadata/Take_me_hand_7134737655275653121.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 5,
+          "material_id": "366970DB-D896-44f5-89CC-855E515CFC00",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\62bb34faa6b18aa0d61769e97ba1f8ee.mp3",
+          "source_timerange": {
+            "duration": 259483333
+          },
+          "target_timerange": {
+            "duration": 259483333,
+            "start": 719100000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7283782326893578240",
+      "name": "可不可以（音乐）（Cover 张紫豪）（剪辑版2）",
+      "music_id": "7283782326893578240",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 132166666,
+      "checksum_sha256": "55b2c0ceae204b250091b8f83bb758ed4cee041cf74002b334ddf598ea5d53f5",
+      "file": "files/可不可以（音乐）（Cover_张紫豪）（剪辑版2）_7283782326893578240.mp3",
+      "metadata_file": "metadata/可不可以（音乐）（Cover_张紫豪）（剪辑版2）_7283782326893578240.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 6,
+          "material_id": "DC9005EE-154A-4aef-B464-8BA24D43500A",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\d165418958e438a7635e078ea43ede72.mp3",
+          "source_timerange": {
+            "duration": 132166666
+          },
+          "target_timerange": {
+            "duration": 132166667,
+            "start": 978583333
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7508613637859411978",
+      "name": "Letting Go（Cover 蔡健雅）",
+      "music_id": "7508613637859411978",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 262516666,
+      "checksum_sha256": "a4c1fe0701190d558e4623d43e21beec533bfa8462cb587deac9b7d68c13699d",
+      "file": "files/Letting_Go（Cover_蔡健雅）_7508613637859411978.mp3",
+      "metadata_file": "metadata/Letting_Go（Cover_蔡健雅）_7508613637859411978.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 7,
+          "material_id": "FF44D168-E210-49f6-A465-BAD24E041E21",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\51cf449c6fddb95a2b23ab1a68448f7c.mp3",
+          "source_timerange": {
+            "duration": 262516666
+          },
+          "target_timerange": {
+            "duration": 262516666,
+            "start": 1110750000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7056670833205905409",
+      "name": "偏爱（钢琴版） （剪辑版）",
+      "music_id": "7056670833205905409",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 130750000,
+      "checksum_sha256": "5add68dd066723af1adbf12e28c5e48ecfbe0db9337270913bdd943dd266d5b6",
+      "file": "files/偏爱（钢琴版）_（剪辑版）_7056670833205905409.mp3",
+      "metadata_file": "metadata/偏爱（钢琴版）_（剪辑版）_7056670833205905409.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 8,
+          "material_id": "C12D2FD7-5FC8-4929-A0C3-A9935DCD0727",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\eb231fc868800bce364866a790ddca6d.mp3",
+          "source_timerange": {
+            "duration": 130750000
+          },
+          "target_timerange": {
+            "duration": 130750000,
+            "start": 1373266666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7338043534886390578",
+      "name": "@Knight1.创作的原声",
+      "music_id": "7338043534886390578",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 35300000,
+      "checksum_sha256": "38bd281146324b851dc49928b5165efa2f2ee31f875a089ab455f2d41c22fcf2",
+      "file": "files/@Knight1.创作的原声_7338043534886390578.mp3",
+      "metadata_file": "metadata/@Knight1.创作的原声_7338043534886390578.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 9,
+          "material_id": "AD051631-03A8-48d2-B2AC-76F1AE9CCFED",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\50e91a1a38b9e1e57b4668c0e2d46dd3.mp3",
+          "source_timerange": {
+            "duration": 35300000
+          },
+          "target_timerange": {
+            "duration": 35300000,
+            "start": 1504016666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:6527484568614767364",
+      "name": "还是分开",
+      "music_id": "6527484568614767364",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 229350000,
+      "checksum_sha256": "6cfc64a41c60f170a6e4ebcc8e4f53c4cd54a417b56a35294e3950028b7e3f9d",
+      "file": "files/还是分开_6527484568614767364.mp3",
+      "metadata_file": "metadata/还是分开_6527484568614767364.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 10,
+          "material_id": "2D5F4A28-EB4D-4eaf-BDBD-0F3AB476CDAF",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\2f38b3b56dc449fe0a8544663476ceef.mp3",
+          "source_timerange": {
+            "duration": 229350000
+          },
+          "target_timerange": {
+            "duration": 229350000,
+            "start": 1539316666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7470412865544472592",
+      "name": "复刻回忆(无掌声版)",
+      "music_id": "7470412865544472592",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 266483333,
+      "checksum_sha256": "c853f15b94a4f5f236eb10b3743d523ec8b4eafacbffc0e5eeb341d5e908756a",
+      "file": "files/复刻回忆(无掌声版)_7470412865544472592.mp3",
+      "metadata_file": "metadata/复刻回忆(无掌声版)_7470412865544472592.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 11,
+          "material_id": "9CA22E84-D6D7-44a9-931B-9F594ABB1337",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\8a9cb8e1b90563a5ab767a4be7ffe07d.mp3",
+          "source_timerange": {
+            "duration": 266483333
+          },
+          "target_timerange": {
+            "duration": 266483334,
+            "start": 1768666666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7478872354421491724",
+      "name": "做最好的自己",
+      "music_id": "7478872354421491724",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 155500000,
+      "checksum_sha256": "34f581aff39eb2eccc49d19880e77a6287302d299605182255fae7e9591ca97b",
+      "file": "files/做最好的自己_7478872354421491724.mp3",
+      "metadata_file": "metadata/做最好的自己_7478872354421491724.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 12,
+          "material_id": "56FF157F-4EEE-4732-8361-37158800A0D4",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\7c3460fb730aebeb6312307926e51179.mp3",
+          "source_timerange": {
+            "duration": 155500000
+          },
+          "target_timerange": {
+            "duration": 155500000,
+            "start": 2035150000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7165378986772433672",
+      "name": "@周佳亮·马头琴（冈仁波齐转山）创作的原声",
+      "music_id": "7165378986772433672",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 66266666,
+      "checksum_sha256": "968e87798f91987fcb6a0083991d33f377911a251cd2e80f97fc918a7223c7e7",
+      "file": "files/@周佳亮·马头琴（冈仁波齐转山）创作的原声_7165378986772433672.mp3",
+      "metadata_file": "metadata/@周佳亮·马头琴（冈仁波齐转山）创作的原声_7165378986772433672.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 13,
+          "material_id": "A0DC979D-32B2-406c-895C-9760ABFB9622",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\a89a662afe17a254baf61a4f26e00689.mp3",
+          "source_timerange": {
+            "duration": 66266666
+          },
+          "target_timerange": {
+            "duration": 66266666,
+            "start": 2190650000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7530905227610195968",
+      "name": "越界（剪辑版）",
+      "music_id": "7530905227610195968",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 86000000,
+      "checksum_sha256": "84526ee3d9180a652e0c002faae98f6381f891b53b05f0a96620f4b453f7d189",
+      "file": "files/越界（剪辑版）_7530905227610195968.mp3",
+      "metadata_file": "metadata/越界（剪辑版）_7530905227610195968.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 14,
+          "material_id": "5092E76A-B9FD-485a-A84A-CC0B3C65E197",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\c17f1cca145c5745f732a00ed0ce6d70.mp3",
+          "source_timerange": {
+            "duration": 86000000
+          },
+          "target_timerange": {
+            "duration": 86000000,
+            "start": 2256916666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7466677529013831721",
+      "name": " 世界赠与我的（Cover 王菲）",
+      "music_id": "7466677529013831721",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 222850000,
+      "checksum_sha256": "d05a1e76967954d4c1f1b1d2e98f54052a56ef7176504362939b03ba784a74a6",
+      "file": "files/世界赠与我的（Cover_王菲）_7466677529013831721.mp3",
+      "metadata_file": "metadata/世界赠与我的（Cover_王菲）_7466677529013831721.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 15,
+          "material_id": "1DE9E9D6-8D03-4029-B39A-055D877DF2F2",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\90776abef065f3116b0a3cd551b07d81.mp3",
+          "source_timerange": {
+            "duration": 222850000
+          },
+          "target_timerange": {
+            "duration": 222850000,
+            "start": 2342916666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7517237591881336883",
+      "name": "焚情 (纯音乐）（Cover 黄凯芹）",
+      "music_id": "7517237591881336883",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 243533333,
+      "checksum_sha256": "1a031a4fddd3ddfbc0cf8d2a8c1ca7969fdfc48cd4384325a77b0f7764d3ca08",
+      "file": "files/焚情_(纯音乐）（Cover_黄凯芹）_7517237591881336883.mp3",
+      "metadata_file": "metadata/焚情_(纯音乐）（Cover_黄凯芹）_7517237591881336883.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 16,
+          "material_id": "53DEBD3B-C359-4144-AD88-CA6BDA9F4089",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\285c5cbbb8c3c500f9f8bc377115bf8c.mp3",
+          "source_timerange": {
+            "duration": 243533333
+          },
+          "target_timerange": {
+            "duration": 243533334,
+            "start": 2565766666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7536835366960171048",
+      "name": "独角戏（Cover 许茹芸）",
+      "music_id": "7536835366960171048",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 274466666,
+      "checksum_sha256": "434e339d211ee3a7182af6816338cdca69d2f412f520860d986e3bc9ce35a22b",
+      "file": "files/独角戏（Cover_许茹芸）_7536835366960171048.mp3",
+      "metadata_file": "metadata/独角戏（Cover_许茹芸）_7536835366960171048.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 17,
+          "material_id": "0B5EFF4D-8C40-44ed-A66C-519BE4A8D194",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\d306afefbc6f532fc1757cd6c298a214.mp3",
+          "source_timerange": {
+            "duration": 274466666
+          },
+          "target_timerange": {
+            "duration": 274466666,
+            "start": 2809300000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7555654943560026175",
+      "name": "落在杯沿的光",
+      "music_id": "7555654943560026175",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 238200000,
+      "checksum_sha256": "1b7546bc3f99538ecd1ec593dba9475ade6c13367d7d99336bd9a0844de6319f",
+      "file": "files/落在杯沿的光_7555654943560026175.mp3",
+      "metadata_file": "metadata/落在杯沿的光_7555654943560026175.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 18,
+          "material_id": "965043F3-A3E7-41d5-90C8-F3DACEFBE292",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\6ae09ec85d50b8b3a0689975d84ff7c5.mp3",
+          "source_timerange": {
+            "duration": 238200000
+          },
+          "target_timerange": {
+            "duration": 238200000,
+            "start": 3083766666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7051390538976626702",
+      "name": "起风了（间奏加长版） ",
+      "music_id": "7051390538976626702",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 61566666,
+      "checksum_sha256": "c0b117160803be1d738eecec79aa3aef44d83b5e932d8e0f131b6bdd5427364e",
+      "file": "files/起风了（间奏加长版）_7051390538976626702.mp3",
+      "metadata_file": "metadata/起风了（间奏加长版）_7051390538976626702.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 19,
+          "material_id": "93E6F3EE-4807-4e59-83C1-451A4493FB33",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\2ddca9b9cdc104625bfe87176cfe9839.mp3",
+          "source_timerange": {
+            "duration": 61566666
+          },
+          "target_timerange": {
+            "duration": 61566667,
+            "start": 3321966666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7530466682295044132",
+      "name": "花海 (钢琴版)(改编版)",
+      "music_id": "7530466682295044132",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 194133333,
+      "checksum_sha256": "81ffb5d8ef418875c2cb27543975443b158090300677c11bde9e5e6c66d3bfa1",
+      "file": "files/花海_(钢琴版)(改编版)_7530466682295044132.mp3",
+      "metadata_file": "metadata/花海_(钢琴版)(改编版)_7530466682295044132.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 20,
+          "material_id": "74B5D270-3806-4fa1-8E55-C0EA4200CC29",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\5d11ab2a97bd31f0182511f58a30c52d.mp3",
+          "source_timerange": {
+            "duration": 194133333
+          },
+          "target_timerange": {
+            "duration": 194133333,
+            "start": 3383533333
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7468232856016472080",
+      "name": "远去的列车",
+      "music_id": "7468232856016472080",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 240416666,
+      "checksum_sha256": "13fcafd09063e07689aad333f6ff141c672a8e92201615756771b8238129b829",
+      "file": "files/远去的列车_7468232856016472080.mp3",
+      "metadata_file": "metadata/远去的列车_7468232856016472080.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 21,
+          "material_id": "CC2678AD-B838-4279-A1DB-5A3E8A7DE96B",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\82e0a26ff01597a7cbefb29bf1080459.mp3",
+          "source_timerange": {
+            "duration": 240416666
+          },
+          "target_timerange": {
+            "duration": 240416667,
+            "start": 3577666666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7361650846344103948",
+      "name": "请你好好爱自己（剪辑版）",
+      "music_id": "7361650846344103948",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 35483333,
+      "checksum_sha256": "c957441fab204ddc48b68f607ab84cbfe1dd9a98c47dc17be469ca9a81b6645e",
+      "file": "files/请你好好爱自己（剪辑版）_7361650846344103948.mp3",
+      "metadata_file": "metadata/请你好好爱自己（剪辑版）_7361650846344103948.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\鸡汤人设",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 22,
+          "material_id": "165CC5C4-950B-4d68-B8A2-1671F5873D24",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\bd5c5f1eecb784199fa8d3736fce3f4a.mp3",
+          "source_timerange": {
+            "duration": 35483333
+          },
+          "target_timerange": {
+            "duration": 35483333,
+            "start": 3818083333
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7545119072356206635",
+      "name": "你眼里的星光",
+      "music_id": "7545119072356206635",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 182100000,
+      "checksum_sha256": "33c6509c2c8e769852f3eb1d95d8f1832356fd9f72da3784a28f4c685a82c750",
+      "file": "files/你眼里的星光_7545119072356206635.mp3",
+      "metadata_file": "metadata/你眼里的星光_7545119072356206635.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 0,
+          "material_id": "7934DAC3-E02F-4537-9ED6-FE2472FA62F7",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\cfa21823e758af32bddcd2d82d4375b6.mp3",
+          "source_timerange": {
+            "duration": 182100000
+          },
+          "target_timerange": {
+            "duration": 182100000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7429070971728529418",
+      "name": "国风 轻快 阳光 俏皮",
+      "music_id": "7429070971728529418",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 90000000,
+      "checksum_sha256": "83e6b7ebd28d10a2e1a6f6ed18aa1848ff566d407ed886ed95111f32cdccd548",
+      "file": "files/国风_轻快_阳光_俏皮_7429070971728529418.mp3",
+      "metadata_file": "metadata/国风_轻快_阳光_俏皮_7429070971728529418.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 1,
+          "material_id": "CF212D07-BE74-41a5-BE10-B7606525131B",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\da2dccdd19f58ee4cf986c0d3bc0d604.mp3",
+          "source_timerange": {
+            "duration": 90000000
+          },
+          "target_timerange": {
+            "duration": 90000000,
+            "start": 182100000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:6867663002858948609",
+      "name": "Happy People",
+      "music_id": "6867663002858948609",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 136066666,
+      "checksum_sha256": "e8ccf7585b6436a48971bff7604099426176c691979a6ed07d608cc4e29404ef",
+      "file": "files/Happy_People_6867663002858948609.mp3",
+      "metadata_file": "metadata/Happy_People_6867663002858948609.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 2,
+          "material_id": "098F3AB4-3B7B-4265-ABE4-6BD775B29D5D",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\e3be5e25016a8bc487bd7f5405afc0b3.mp3",
+          "source_timerange": {
+            "duration": 136066666
+          },
+          "target_timerange": {
+            "duration": 136066666,
+            "start": 272100000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7549622880502892590",
+      "name": "爱江山更爱美人（Cover 小阿枫）",
+      "music_id": "7549622880502892590",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 230316666,
+      "checksum_sha256": "d8f6f9521a8cf7197291b0124e5b461108b0cb76fc1f50542383f55835b50af0",
+      "file": "files/爱江山更爱美人（Cover_小阿枫）_7549622880502892590.mp3",
+      "metadata_file": "metadata/爱江山更爱美人（Cover_小阿枫）_7549622880502892590.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 3,
+          "material_id": "5CF9D424-BAE5-439c-9EFF-BB3316F61460",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\504eacb517849cdd8e59cf38d5ad962a.mp3",
+          "source_timerange": {
+            "duration": 230316666
+          },
+          "target_timerange": {
+            "duration": 230316667,
+            "start": 408166666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7493860627694373695",
+      "name": "@唐尼（上上钢琴）创作的原声",
+      "music_id": "7493860627694373695",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 39016666,
+      "checksum_sha256": "e48000ce7f040398216a54782f70eec3870bc47baeddafdbda356bfb3449224c",
+      "file": "files/@唐尼（上上钢琴）创作的原声_7493860627694373695.mp3",
+      "metadata_file": "metadata/@唐尼（上上钢琴）创作的原声_7493860627694373695.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 4,
+          "material_id": "5734802F-CA86-48d2-AA84-1E1181057CB4",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\4c9772bdaa81bf51634a6a7c8ce1847d.mp3",
+          "source_timerange": {
+            "duration": 39016666
+          },
+          "target_timerange": {
+            "duration": 39016667,
+            "start": 638483333
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:6874387537750657031",
+      "name": "美丽的神话 钢琴演奏",
+      "music_id": "6874387537750657031",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 223433333,
+      "checksum_sha256": "ee53cc80dc9002449caf36248794585879b51a1cc496b85078074ddef9121e12",
+      "file": "files/美丽的神话_钢琴演奏_6874387537750657031.mp3",
+      "metadata_file": "metadata/美丽的神话_钢琴演奏_6874387537750657031.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 5,
+          "material_id": "0F2ADA9A-0D08-4adb-ACCB-D21CB43DCDE7",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\5611e70897151a26355fe19c7a65c182.mp3",
+          "source_timerange": {
+            "duration": 223433333
+          },
+          "target_timerange": {
+            "duration": 223433333,
+            "start": 677500000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7340141583693269011",
+      "name": "美好的一天（古筝版）",
+      "music_id": "7340141583693269011",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 144000000,
+      "checksum_sha256": "1df5a932d5afdfce3499e2b1a55186138caa7530fd2d2b6de61aa37c72b0c6df",
+      "file": "files/美好的一天（古筝版）_7340141583693269011.mp3",
+      "metadata_file": "metadata/美好的一天（古筝版）_7340141583693269011.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\干货",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 6,
+          "material_id": "B58BA084-192A-43e4-A90E-F654FE5B1861",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\c9dad299d7b8d1072022f5f2631f672a.mp3",
+          "source_timerange": {
+            "duration": 144000000
+          },
+          "target_timerange": {
+            "duration": 144000000,
+            "start": 900933333
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7391026495597889552",
+      "name": "Dehors（中法合唱版）",
+      "music_id": "7391026495597889552",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 23000000,
+      "checksum_sha256": "ba5cae8bfd2a92841a84b75590388f6b1a6842ac541a69436c5d5668822e22dd",
+      "file": "files/Dehors（中法合唱版）_7391026495597889552.mp3",
+      "metadata_file": "metadata/Dehors（中法合唱版）_7391026495597889552.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\减肥打卡",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 0,
+          "material_id": "50C8D489-9C3F-4251-AAC1-DEBE61DA49BF",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\a3d604aadb64809a2de260441e21f86c.mp3",
+          "source_timerange": {
+            "duration": 23000000
+          },
+          "target_timerange": {
+            "duration": 23000000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7533063885827524651",
+      "name": "Tikolin Purre（Explicit）",
+      "music_id": "7533063885827524651",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 104866666,
+      "checksum_sha256": "736f060901651836100fae085dd2f7ec370bb4aa5181655f38ffb7396fa9c7e3",
+      "file": "files/Tikolin_Purre（Explicit）_7533063885827524651.mp3",
+      "metadata_file": "metadata/Tikolin_Purre（Explicit）_7533063885827524651.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\减肥打卡",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 1,
+          "material_id": "3D2A89E9-2739-4857-BACD-60D51CB021D7",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\16b4a0131362e4cee55150b34d4206f0.mp3",
+          "source_timerange": {
+            "duration": 104866666
+          },
+          "target_timerange": {
+            "duration": 104866666,
+            "start": 23000000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7016359577441437730",
+      "name": "喜剧之王（剪辑版）",
+      "music_id": "7016359577441437730",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 61383333,
+      "checksum_sha256": "9b758d549cf026a8e1d6c289447dacb52c7a52b2450c469bcc9b5f804480c4fc",
+      "file": "files/喜剧之王（剪辑版）_7016359577441437730.mp3",
+      "metadata_file": "metadata/喜剧之王（剪辑版）_7016359577441437730.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\减肥打卡",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 2,
+          "material_id": "5474470D-886F-4e52-A9D5-98496CBAF7F8",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\0606700649a048f7cd5fff89ae921cc0.mp3",
+          "source_timerange": {
+            "duration": 61383333
+          },
+          "target_timerange": {
+            "duration": 61383334,
+            "start": 127866666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:6931987094940174343",
+      "name": "萱草花 哼唱版（电影《你好，李焕英》主题曲）",
+      "music_id": "6931987094940174343",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 75416666,
+      "checksum_sha256": "fd4098e35171efbe59c55363d883409ecf1a96bb9ca976a4212528ef362408c3",
+      "file": "files/萱草花_哼唱版（电影《你好，李焕英》主题曲）_6931987094940174343.mp3",
+      "metadata_file": "metadata/萱草花_哼唱版（电影《你好，李焕英》主题曲）_6931987094940174343.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 0,
+          "material_id": "5DD48137-C5D0-4f9c-B708-840DCD0AB5F6",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\6a575f6e2e01984f92201aff4fbc6d51.mp3",
+          "source_timerange": {
+            "duration": 75416666
+          },
+          "target_timerange": {
+            "duration": 75416666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7632723157036976166",
+      "name": "妈妈的温柔",
+      "music_id": "7632723157036976166",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 203000000,
+      "checksum_sha256": "573ccdd14f10720d135718a0604a937826c86cf7eb80ef5d2999e543326b9f09",
+      "file": "files/妈妈的温柔_7632723157036976166.mp3",
+      "metadata_file": "metadata/妈妈的温柔_7632723157036976166.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 1,
+          "material_id": "21A89501-171E-443f-BB9E-BB1D031AAF40",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\c5440794f25e30fd96061ec34011784f.mp3",
+          "source_timerange": {
+            "duration": 203000000
+          },
+          "target_timerange": {
+            "duration": 203000000,
+            "start": 75416666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7051534960741681957",
+      "name": "@艺术家的妈妈（老歌分享）创作的原声",
+      "music_id": "7051534960741681957",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 254100000,
+      "checksum_sha256": "b6fadbbdbce8c5d276c16b77356b07013402167e8237dccb67c3e9bf6694adc3",
+      "file": "files/@艺术家的妈妈（老歌分享）创作的原声_7051534960741681957.mp3",
+      "metadata_file": "metadata/@艺术家的妈妈（老歌分享）创作的原声_7051534960741681957.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 2,
+          "material_id": "1146B2B5-5A64-418c-B5CD-830F2344ED54",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\418b862a71d47a717020dfe60b7910b2.mp3",
+          "source_timerange": {
+            "duration": 254100000
+          },
+          "target_timerange": {
+            "duration": 254100000,
+            "start": 278416666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7633188159245289523",
+      "name": "是妈妈是女儿 (Live)",
+      "music_id": "7633188159245289523",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 450533333,
+      "checksum_sha256": "5f2370fe8e37cc652a5ca6e5a9bbb2dbde8745235e236e8b2b72252005fddbfb",
+      "file": "files/是妈妈是女儿_(Live)_7633188159245289523.mp3",
+      "metadata_file": "metadata/是妈妈是女儿_(Live)_7633188159245289523.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 3,
+          "material_id": "B6F585AA-6F86-4823-A6B1-27A334E2E8CB",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\f47f91339a1315b703a91b3db3408bbc.mp3",
+          "source_timerange": {
+            "duration": 450533333
+          },
+          "target_timerange": {
+            "duration": 450533334,
+            "start": 532516666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7363794259227805732",
+      "name": "妈妈陪我长大了",
+      "music_id": "7363794259227805732",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 189716666,
+      "checksum_sha256": "9de30fa80c5752ff0bd8b61763fc6c2be1b9ff6e41e78c820ac98c09060fb38a",
+      "file": "files/妈妈陪我长大了_7363794259227805732.mp3",
+      "metadata_file": "metadata/妈妈陪我长大了_7363794259227805732.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 4,
+          "material_id": "CEB8F8AB-B1A4-4e41-ADE3-C31FA6EBD421",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\0f1d9b1a01cb2b238e0531826d064cfa.mp3",
+          "source_timerange": {
+            "duration": 189716666
+          },
+          "target_timerange": {
+            "duration": 189716666,
+            "start": 983050000
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7585886063152842794",
+      "name": "愿妈妈平安健康（剪辑版）",
+      "music_id": "7585886063152842794",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 18000000,
+      "checksum_sha256": "a7254141fa4b71f4a8d82af265dab273e8de3b4f338197c982ab09b0886540ef",
+      "file": "files/愿妈妈平安健康（剪辑版）_7585886063152842794.mp3",
+      "metadata_file": "metadata/愿妈妈平安健康（剪辑版）_7585886063152842794.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 5,
+          "material_id": "78C83AFE-ADE7-4723-8462-3C961D5321FE",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\3180fe6eb3328b88f271be74f78c4137.mp3",
+          "source_timerange": {
+            "duration": 18000000
+          },
+          "target_timerange": {
+            "duration": 18000000,
+            "start": 1172766666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7504606390863890449",
+      "name": "亲爱的你啊",
+      "music_id": "7504606390863890449",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 235750000,
+      "checksum_sha256": "0e84fe343ca6a2ab3c44f9c98da4fdabc5ebb8bc8586b80fe4ef9e8918fa3367",
+      "file": "files/亲爱的你啊_7504606390863890449.mp3",
+      "metadata_file": "metadata/亲爱的你啊_7504606390863890449.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 6,
+          "material_id": "DAA254CE-5E06-4fa8-A083-C03E2FA72528",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\eac30c058b642199a688d4b21c8ad367.mp3",
+          "source_timerange": {
+            "duration": 235750000
+          },
+          "target_timerange": {
+            "duration": 235750000,
+            "start": 1190766666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7486776822181906448",
+      "name": "时光琥珀",
+      "music_id": "7486776822181906448",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 114533333,
+      "checksum_sha256": "673d9dcfdba7ee81e631f83c4da4e9257927bb96b6c86cf4f6fa3c9d60087867",
+      "file": "files/时光琥珀_7486776822181906448.mp3",
+      "metadata_file": "metadata/时光琥珀_7486776822181906448.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 7,
+          "material_id": "802B4873-61AC-4f3a-A597-8266DF2F3A56",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\f4d2332400f12e787f4b8304ac9ae58a.mp3",
+          "source_timerange": {
+            "duration": 114533333
+          },
+          "target_timerange": {
+            "duration": 114533334,
+            "start": 1426516666
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:7504573154510424115",
+      "name": "致伟大的妈妈",
+      "music_id": "7504573154510424115",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 60000000,
+      "checksum_sha256": "d20a9f058d3bf101495f1bd6375624f82143e3e72236929b9d767a72858fb399",
+      "file": "files/致伟大的妈妈_7504573154510424115.mp3",
+      "metadata_file": "metadata/致伟大的妈妈_7504573154510424115.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 8,
+          "material_id": "E1B188B3-EC58-43b5-A73E-FB1760D18257",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\1bbe2527a94202df12e616f2f381bfde.mp3",
+          "source_timerange": {
+            "duration": 60000000
+          },
+          "target_timerange": {
+            "duration": 60000000,
+            "start": 1541050000
+          },
+          "volume": 1.0
+        }
+      ]
+    }
+  ],
+  "updated_at": "2026-07-13T20:04:36"
+}

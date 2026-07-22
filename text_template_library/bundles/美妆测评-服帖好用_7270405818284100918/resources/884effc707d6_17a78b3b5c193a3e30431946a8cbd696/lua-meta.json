@@ -1,0 +1,190 @@
+[
+    {
+        "ClassName": "Util",
+        "Super": "",
+        "FilePath": "Util.lua",
+        "FileAbsPath": "/Users/bytedance/Downloads/\u65cb\u8f6c\u5165\u573a/Util.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "registerParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRegistedParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setRegistedVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "registerRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezier",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "remap01",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mix",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "CreateJsonFile",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "ReadFromJson",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezierWithParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "AETools",
+        "Super": "",
+        "FilePath": "AETools.lua",
+        "FileAbsPath": "/Users/bytedance/Downloads/\u65cb\u8f6c\u5165\u573a/AETools.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addKeyFrameInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_updateKeyFrameInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getCurPartVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_getCurPart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "TextAnim",
+        "Super": "ScriptComponent",
+        "FilePath": "TextAnim.lua",
+        "FileAbsPath": "/Users/bytedance/Downloads/\u65cb\u8f6c\u5165\u573a/TextAnim.lua",
+        "Properties": [
+            {
+                "VarName": "autoplay",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "curTime",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "progress",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    1.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "single_line_anim_time",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "single_char_anim_time",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "move_bezier",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "rotate_bezier",
+                "VarType": "Vector4f",
+                "Comment": ""
+            }
+        ],
+        "Methods": [],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

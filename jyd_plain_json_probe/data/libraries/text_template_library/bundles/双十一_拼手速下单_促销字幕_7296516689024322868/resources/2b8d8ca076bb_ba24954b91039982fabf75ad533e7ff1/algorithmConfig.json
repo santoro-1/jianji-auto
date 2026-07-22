@@ -1,0 +1,27 @@
+{
+	"version":	"1.0",
+	"mode":	2,
+	"name":	"AlgorithmGraph_6bHc",
+	"nodes":	[{
+			"name":	"blit_0",
+			"type":	"blit",
+			"graphs":	[],
+			"config":	{
+				"size":	{
+					"width":	0,
+					"height":	0
+				},
+				"keyMaps":	{
+					"intParam":	{
+					},
+					"floatParam":	{
+					},
+					"stringParam":	{
+					},
+					"pathParam":	{
+					}
+				}
+			}
+		}],
+	"links":	[]
+}

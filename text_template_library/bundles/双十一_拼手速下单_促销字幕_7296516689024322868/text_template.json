@@ -1,0 +1,758 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:21",
+  "identity": "resource_id:7296516689024322868",
+  "name": "双十一 拼手速下单 促销字幕",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "828FB815-7529-41d5-8576-1E3501DF80A7",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7296516689024322868",
+    "id": "DEEBE9C1-7719-4d60-93B7-881C15ECFBF9",
+    "name": "双十一 拼手速下单 促销字幕",
+    "non_text_info_resources": [
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.9999997615814209,
+              "y": 1.0000001192092896
+            },
+            "transform": {
+              "x": 0.0,
+              "y": 2.6702880859375e-05
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 87.03522953606807,
+          "original_size_width": 283.0472641159395
+        },
+        "name": "4DDB9283-C188-465e-A613-86989098D41F",
+        "shape_param": {
+          "points": [
+            -141.52363205796976,
+            43.517614768034036,
+            141.52363205796976,
+            43.517614768034036,
+            141.52363205796976,
+            -43.517614768034036,
+            -141.52363205796976,
+            -43.517614768034036
+          ],
+          "shape_type": 4
+        },
+        "type": "shape"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.18518517911434174,
+              "y": 0.18518520891666412
+            },
+            "transform": {
+              "x": 271.40057373046875,
+              "y": -40.01628875732422
+            }
+          },
+          "duration": 1000000,
+          "original_size_height": 540.0,
+          "original_size_width": 540.0,
+          "start_time": 2000000
+        },
+        "extra_material_refs": [
+          "ACF84BAA-C718-41e5-A909-9616E295BEAE"
+        ],
+        "name": "B640D414-914C-4caf-A759-4EF26C57BDE9",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.18518517911434174,
+              "y": 0.18518520891666412
+            },
+            "transform": {
+              "x": -271.40057373046875,
+              "y": -40.01628875732422
+            }
+          },
+          "duration": 1000000,
+          "original_size_height": 540.0,
+          "original_size_width": 540.0,
+          "start_time": 2000000
+        },
+        "extra_material_refs": [
+          "A1AEFF7F-D364-4942-8111-E8C77C7C76D1"
+        ],
+        "name": "CD351976-5C91-40e6-AC4A-565FBB37F264",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.18518517911434174,
+              "y": 0.18518520891666412
+            },
+            "transform": {
+              "x": 271.40057373046875,
+              "y": -40.01628875732422
+            }
+          },
+          "duration": 1000000,
+          "original_size_height": 540.0,
+          "original_size_width": 540.0,
+          "start_time": 1000000
+        },
+        "extra_material_refs": [
+          "317C6C9D-447B-4060-92C1-3758C17D4D1D"
+        ],
+        "name": "46C89CDB-9C65-479b-A060-B7373FC96D18",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.18518517911434174,
+              "y": 0.18518520891666412
+            },
+            "transform": {
+              "x": -271.40057373046875,
+              "y": -40.01628875732422
+            }
+          },
+          "duration": 1000000,
+          "original_size_height": 540.0,
+          "original_size_width": 540.0,
+          "start_time": 1000000
+        },
+        "extra_material_refs": [
+          "4A1B3293-7BEE-4e19-9701-0E24A0FD7113"
+        ],
+        "name": "1AD3502C-59B8-4785-AB96-A36B10FB0F11",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.18518517911434174,
+              "y": 0.18518520891666412
+            },
+            "transform": {
+              "x": 271.40057373046875,
+              "y": -40.01628875732422
+            }
+          },
+          "duration": 1000000,
+          "original_size_height": 540.0,
+          "original_size_width": 540.0
+        },
+        "extra_material_refs": [
+          "A233016F-4978-4b42-B234-783BC8089307"
+        ],
+        "name": "43450F07-9673-4a79-AD7C-8F51123C4D0B",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.18518517911434174,
+              "y": 0.18518520891666412
+            },
+            "transform": {
+              "x": -271.40057373046875,
+              "y": -40.01628875732422
+            }
+          },
+          "duration": 1000000,
+          "original_size_height": 540.0,
+          "original_size_width": 540.0
+        },
+        "extra_material_refs": [
+          "4F8CE16C-39F1-4cf2-A9E0-33D2B6210B23"
+        ],
+        "name": "C8258D51-079D-4094-8DA3-60EBE437139A",
+        "shape_param": {},
+        "type": "sticker"
+      }
+    ],
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296516689024322868/94bb68f041b2c087aaba00a235b25c04",
+    "resource_id": "7296516689024322868",
+    "resources": [
+      {
+        "panel": "default",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7194838565417651468/cfb70414d52f0704ba4cd8c84859db22",
+        "resource_id": "7194838565417651468",
+        "source_platform": 1
+      },
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+        "resource_id": "6763873859402732039"
+      },
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+        "resource_id": "6724920869363126795"
+      },
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+        "resource_id": "6763873732143354376"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/9893370/1e04097242afd9dea436e390c2b8d89d/UnboundedSans-2.ttf",
+        "resource_id": "7203638485670957629"
+      },
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/22619881/ba24954b91039982fabf75ad533e7ff1",
+        "resource_id": "7277870806552547895"
+      },
+      {
+        "panel": "flower",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296520611503934760/f9d05f5177355ca688242eb33d394b0e",
+        "resource_id": "7296520611503934760",
+        "source_platform": 1
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.7758505344390869,
+              "y": 0.7758499383926392
+            },
+            "transform": {
+              "x": 0.0,
+              "y": -23.37152099609375
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 93.33332824707031,
+          "original_size_width": 319.9999694824219
+        },
+        "extra_material_refs": [
+          "80321F88-7077-4b60-8608-D13A1FF3844C",
+          "673F0382-598E-4b72-94FE-DE4484F49B1E"
+        ],
+        "text_material_id": "5DA7AAC2-18BA-413f-8D14-ACB26306C080"
+      }
+    ],
+    "type": "text_template",
+    "version": "1.0.0"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "673F0382-598E-4b72-94FE-DE4484F49B1E",
+      "80321F88-7077-4b60-8608-D13A1FF3844C",
+      "ACF84BAA-C718-41e5-A909-9616E295BEAE",
+      "A1AEFF7F-D364-4942-8111-E8C77C7C76D1",
+      "317C6C9D-447B-4060-92C1-3758C17D4D1D",
+      "4A1B3293-7BEE-4e19-9701-0E24A0FD7113",
+      "A233016F-4978-4b42-B234-783BC8089307",
+      "4F8CE16C-39F1-4cf2-A9E0-33D2B6210B23"
+    ],
+    "id": "D1E206B3-167E-4226-A449-51D8F9143A48",
+    "material_id": "DEEBE9C1-7719-4d60-93B7-881C15ECFBF9",
+    "render_index": 14017,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 51000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "5DA7AAC2-18BA-413f-8D14-ACB26306C080",
+      "text": "拼手速下单",
+      "text_info_resource": {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.7758505344390869,
+              "y": 0.7758499383926392
+            },
+            "transform": {
+              "x": 0.0,
+              "y": -23.37152099609375
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 93.33332824707031,
+          "original_size_width": 319.9999694824219
+        },
+        "extra_material_refs": [
+          "80321F88-7077-4b60-8608-D13A1FF3844C",
+          "673F0382-598E-4b72-94FE-DE4484F49B1E"
+        ],
+        "text_material_id": "5DA7AAC2-18BA-413f-8D14-ACB26306C080"
+      },
+      "text_material": {
+        "bold_width": 0.008,
+        "border_alpha": 0.0,
+        "border_width": 0.0,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 47,
+        "combo_info": {},
+        "content": "{\"text\":\"拼手速下单\",\"styles\":[{\"fill\":{\"content\":{\"render_type\":\"gradient\",\"gradient\":{\"angle\":111,\"color\":[[1,1,1],[1,1,0.74901962280273438]],\"alpha\":[1,1],\"percent\":[0.4048672616481781,0.8216814398765564],\"mode\":\"character\"}}},\"font\":{\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/9893370/1e04097242afd9dea436e390c2b8d89d/UnboundedSans-2.ttf\",\"id\":\"7203638485670957629\"},\"size\":16,\"effectStyle\":{\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296520611503934760/f9d05f5177355ca688242eb33d394b0e\",\"id\":\"7296520611503934760\"},\"range\":[0,5]}]}",
+        "current_words": {},
+        "fonts": [
+          {
+            "id": "026459EB-3B8E-4300-A817-8BEE59BAED41",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/9893370/1e04097242afd9dea436e390c2b8d89d/UnboundedSans-2.ttf",
+            "resource_id": "7203638485670957629"
+          }
+        ],
+        "id": "5DA7AAC2-18BA-413f-8D14-ACB26306C080",
+        "initial_scale": 1.0,
+        "italic_degree": 10,
+        "layer_weight": 1,
+        "letter_spacing": -0.15,
+        "line_spacing": 0.02,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "name": "74F65A6C-B99B-4e66-BD30-DEC34D24CC13",
+        "shadow_alpha": 0.0,
+        "shadow_angle": -45.0,
+        "shadow_distance": 5.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#ffffffff",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {
+        "text": "拼手速下单",
+        "styles": [
+          {
+            "fill": {
+              "content": {
+                "render_type": "gradient",
+                "gradient": {
+                  "angle": 111,
+                  "color": [
+                    [
+                      1,
+                      1,
+                      1
+                    ],
+                    [
+                      1,
+                      1,
+                      0.7490196228027344
+                    ]
+                  ],
+                  "alpha": [
+                    1,
+                    1
+                  ],
+                  "percent": [
+                    0.4048672616481781,
+                    0.8216814398765564
+                  ],
+                  "mode": "character"
+                }
+              }
+            },
+            "font": {
+              "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/9893370/1e04097242afd9dea436e390c2b8d89d/UnboundedSans-2.ttf",
+              "id": "7203638485670957629"
+            },
+            "size": 16,
+            "effectStyle": {
+              "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296520611503934760/f9d05f5177355ca688242eb33d394b0e",
+              "id": "7296520611503934760"
+            },
+            "range": [
+              0,
+              5
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "reference_ids": [
+    "317C6C9D-447B-4060-92C1-3758C17D4D1D",
+    "4A1B3293-7BEE-4e19-9701-0E24A0FD7113",
+    "4F8CE16C-39F1-4cf2-A9E0-33D2B6210B23",
+    "673F0382-598E-4b72-94FE-DE4484F49B1E",
+    "80321F88-7077-4b60-8608-D13A1FF3844C",
+    "A1AEFF7F-D364-4942-8111-E8C77C7C76D1",
+    "A233016F-4978-4b42-B234-783BC8089307",
+    "ACF84BAA-C718-41e5-A909-9616E295BEAE"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+            "resource_id": "6763873859402732039",
+            "type": "in"
+          },
+          {
+            "duration": 200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+            "resource_id": "6724920869363126795",
+            "type": "loop"
+          },
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+            "resource_id": "6763873732143354376",
+            "type": "out"
+          }
+        ],
+        "id": "317C6C9D-447B-4060-92C1-3758C17D4D1D",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+            "resource_id": "6763873859402732039",
+            "type": "in"
+          },
+          {
+            "duration": 200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+            "resource_id": "6724920869363126795",
+            "type": "loop"
+          },
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+            "resource_id": "6763873732143354376",
+            "type": "out"
+          }
+        ],
+        "id": "4A1B3293-7BEE-4e19-9701-0E24A0FD7113",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+            "resource_id": "6763873859402732039",
+            "type": "in"
+          },
+          {
+            "duration": 200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+            "resource_id": "6724920869363126795",
+            "type": "loop"
+          },
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+            "resource_id": "6763873732143354376",
+            "type": "out"
+          }
+        ],
+        "id": "4F8CE16C-39F1-4cf2-A9E0-33D2B6210B23",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 1033333,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/22619881/ba24954b91039982fabf75ad533e7ff1",
+            "resource_id": "7277870806552547895",
+            "type": "loop"
+          }
+        ],
+        "id": "673F0382-598E-4b72-94FE-DE4484F49B1E",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+            "resource_id": "6763873859402732039",
+            "type": "in"
+          },
+          {
+            "duration": 200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+            "resource_id": "6724920869363126795",
+            "type": "loop"
+          },
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+            "resource_id": "6763873732143354376",
+            "type": "out"
+          }
+        ],
+        "id": "A1AEFF7F-D364-4942-8111-E8C77C7C76D1",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+            "resource_id": "6763873859402732039",
+            "type": "in"
+          },
+          {
+            "duration": 200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+            "resource_id": "6724920869363126795",
+            "type": "loop"
+          },
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+            "resource_id": "6763873732143354376",
+            "type": "out"
+          }
+        ],
+        "id": "A233016F-4978-4b42-B234-783BC8089307",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+            "resource_id": "6763873859402732039",
+            "type": "in"
+          },
+          {
+            "duration": 200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+            "resource_id": "6724920869363126795",
+            "type": "loop"
+          },
+          {
+            "duration": 300000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+            "resource_id": "6763873732143354376",
+            "type": "out"
+          }
+        ],
+        "id": "ACF84BAA-C718-41e5-A909-9616E295BEAE",
+        "type": "sticker_animation"
+      }
+    ],
+    "effects": [
+      {
+        "id": "80321F88-7077-4b60-8608-D13A1FF3844C",
+        "multi_language_current": "",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296520611503934760/f9d05f5177355ca688242eb33d394b0e",
+        "resource_id": "7296520611503934760",
+        "source_platform": 1,
+        "sub_type": "none",
+        "type": "text_effect"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296516689024322868/94bb68f041b2c087aaba00a235b25c04",
+      "library_path": "resources/98feeffc7d8e_94bb68f041b2c087aaba00a235b25c04",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7194838565417651468/cfb70414d52f0704ba4cd8c84859db22",
+      "library_path": "resources/cd55164868a9_cfb70414d52f0704ba4cd8c84859db22",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362986/457d0fac57bd57289d51579f28fe6166",
+      "library_path": "resources/97411d1f0527_457d0fac57bd57289d51579f28fe6166",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.material_animations[0].animations[0].path",
+        "referenced_materials.material_animations[1].animations[0].path",
+        "referenced_materials.material_animations[2].animations[0].path",
+        "referenced_materials.material_animations[4].animations[0].path",
+        "referenced_materials.material_animations[5].animations[0].path",
+        "referenced_materials.material_animations[6].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363026/2bd1f9aa3d040af255bcd0fcd4911670",
+      "library_path": "resources/53e06a0b9a53_2bd1f9aa3d040af255bcd0fcd4911670",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path",
+        "referenced_materials.material_animations[0].animations[1].path",
+        "referenced_materials.material_animations[1].animations[1].path",
+        "referenced_materials.material_animations[2].animations[1].path",
+        "referenced_materials.material_animations[4].animations[1].path",
+        "referenced_materials.material_animations[5].animations[1].path",
+        "referenced_materials.material_animations[6].animations[1].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363002/1a271ab8cc6354c97a4ef8a54b9bda69",
+      "library_path": "resources/c27c6086705f_1a271ab8cc6354c97a4ef8a54b9bda69",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[3].path",
+        "referenced_materials.material_animations[0].animations[2].path",
+        "referenced_materials.material_animations[1].animations[2].path",
+        "referenced_materials.material_animations[2].animations[2].path",
+        "referenced_materials.material_animations[4].animations[2].path",
+        "referenced_materials.material_animations[5].animations[2].path",
+        "referenced_materials.material_animations[6].animations[2].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/9893370/1e04097242afd9dea436e390c2b8d89d/UnboundedSans-2.ttf",
+      "library_path": "resources/bb2b12e01383_UnboundedSans-2.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[4].path",
+        "text_slots[0].text_material.fonts[0].path",
+        "text_slots[0].text_content.styles[0].font.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/22619881/ba24954b91039982fabf75ad533e7ff1",
+      "library_path": "resources/2b8d8ca076bb_ba24954b91039982fabf75ad533e7ff1",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[5].path",
+        "referenced_materials.material_animations[3].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7296520611503934760/f9d05f5177355ca688242eb33d394b0e",
+      "library_path": "resources/0b4c451d2877_f9d05f5177355ca688242eb33d394b0e",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[6].path",
+        "text_slots[0].text_content.styles[0].effectStyle.path",
+        "referenced_materials.effects[0].path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 17,
+      "material_id": "DEEBE9C1-7719-4d60-93B7-881C15ECFBF9",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 51000000
+      }
+    }
+  ]
+}

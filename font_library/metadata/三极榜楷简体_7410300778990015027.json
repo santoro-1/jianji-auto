@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7410300778990015027",
+  "name": "三极榜楷简体",
+  "resource_id": "7410300778990015027",
+  "effect_id": "7410300778990015027",
+  "checksum_sha256": "64ff5b86898a6b64ee2c9915854e75ad09ad403ede03c5ece2616bb293c5db9b",
+  "size_bytes": 10115380,
+  "file": "files/三极榜楷简体_7410300778990015027.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\三极榜楷简体_7410300778990015027.ttf",
+  "metadata_file": "metadata/三极榜楷简体_7410300778990015027.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7410300778990015027\\1b1aadca917f42578fb41d5d95c6539c\\三极榜楷简体.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 25,
+          "material_id": "DC1FCE59-15B9-4168-BB31-338D5512B555",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 25,
+          "material_id": "DC1FCE59-15B9-4168-BB31-338D5512B555",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 25,
+          "material_id": "DC1FCE59-15B9-4168-BB31-338D5512B555",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

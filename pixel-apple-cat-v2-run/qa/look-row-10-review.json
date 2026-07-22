@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "row": "look-row-10",
+  "directions": [
+    {"degree": "180", "verdict": "pass", "observed": "broadly frontal face with eyes and muzzle pitched down"},
+    {"degree": "202.5", "verdict": "pass", "observed": "down-left gaze with a modest screen-left face turn"},
+    {"degree": "225", "verdict": "pass", "observed": "clear down-left three-quarter gaze"},
+    {"degree": "247.5", "verdict": "pass", "observed": "near-left gaze retaining a downward cue"},
+    {"degree": "270", "verdict": "pass", "observed": "clear screen-left gaze with both eyes visible"},
+    {"degree": "292.5", "verdict": "pass", "observed": "up-left gaze beginning return toward frontal"},
+    {"degree": "315", "verdict": "pass", "observed": "clear up-left gaze with visible eyes and muzzle"},
+    {"degree": "337.5", "verdict": "pass", "observed": "nearly frontal up gaze with subtle screen-left cue, one step before 000"}
+  ],
+  "continuity": "pass: 180 continues smoothly from row 9; fixed apple body, scale, baseline, and planted feet; face returns toward frontal after 270 and closes cleanly into 000",
+  "edge_check": "pass: assembled cells are complete and clear of cell edges",
+  "reviewed_by": "parent"
+}

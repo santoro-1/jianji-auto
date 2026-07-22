@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "taszmrmr_1645020794_00.png",
+            "frame": {
+                "h": 41,
+                "w": 36,
+                "x": 165,
+                "y": 124
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 36,
+                "x": 19,
+                "y": 17
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_01.png",
+            "frame": {
+                "h": 37,
+                "w": 32,
+                "x": 990,
+                "y": 124
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 37,
+                "w": 32,
+                "x": 20,
+                "y": 19
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_02.png",
+            "frame": {
+                "h": 36,
+                "w": 30,
+                "x": 562,
+                "y": 122
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 36,
+                "w": 30,
+                "x": 21,
+                "y": 20
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_03.png",
+            "frame": {
+                "h": 38,
+                "w": 33,
+                "x": 950,
+                "y": 124
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 38,
+                "w": 33,
+                "x": 19,
+                "y": 19
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_04.png",
+            "frame": {
+                "h": 43,
+                "w": 36,
+                "x": 348,
+                "y": 68
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 43,
+                "w": 36,
+                "x": 17,
+                "y": 17
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_05.png",
+            "frame": {
+                "h": 48,
+                "w": 41,
+                "x": 391,
+                "y": 123
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 48,
+                "w": 41,
+                "x": 14,
+                "y": 14
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_06.png",
+            "frame": {
+                "h": 51,
+                "w": 45,
+                "x": 286,
+                "y": 122
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 51,
+                "w": 45,
+                "x": 12,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_07.png",
+            "frame": {
+                "h": 51,
+                "w": 45,
+                "x": 223,
+                "y": 123
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 51,
+                "w": 45,
+                "x": 12,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_08.png",
+            "frame": {
+                "h": 53,
+                "w": 46,
+                "x": 452,
+                "y": 122
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 53,
+                "w": 46,
+                "x": 11,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_09.png",
+            "frame": {
+                "h": 58,
+                "w": 50,
+                "x": 958,
+                "y": 72
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 58,
+                "w": 50,
+                "x": 9,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_10.png",
+            "frame": {
+                "h": 65,
+                "w": 55,
+                "x": 608,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 65,
+                "w": 55,
+                "x": 7,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_11.png",
+            "frame": {
+                "h": 71,
+                "w": 61,
+                "x": 462,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 71,
+                "w": 61,
+                "x": 4,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_12.png",
+            "frame": {
+                "h": 75,
+                "w": 64,
+                "x": 158,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 75,
+                "w": 64,
+                "x": 3,
+                "y": 0
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_13.png",
+            "frame": {
+                "h": 75,
+                "w": 65,
+                "x": 81,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 75,
+                "w": 65,
+                "x": 3,
+                "y": 0
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_14.png",
+            "frame": {
+                "h": 73,
+                "w": 63,
+                "x": 387,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 73,
+                "w": 63,
+                "x": 4,
+                "y": 1
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_15.png",
+            "frame": {
+                "h": 70,
+                "w": 60,
+                "x": 681,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 70,
+                "w": 60,
+                "x": 6,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_16.png",
+            "frame": {
+                "h": 68,
+                "w": 59,
+                "x": 895,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 68,
+                "w": 59,
+                "x": 6,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_17.png",
+            "frame": {
+                "h": 69,
+                "w": 59,
+                "x": 753,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 69,
+                "w": 59,
+                "x": 6,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_18.png",
+            "frame": {
+                "h": 71,
+                "w": 61,
+                "x": 535,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 71,
+                "w": 61,
+                "x": 5,
+                "y": 1
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_19.png",
+            "frame": {
+                "h": 71,
+                "w": 60,
+                "x": 608,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 71,
+                "w": 60,
+                "x": 6,
+                "y": 1
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_20.png",
+            "frame": {
+                "h": 67,
+                "w": 58,
+                "x": 753,
+                "y": 63
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 58,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_21.png",
+            "frame": {
+                "h": 63,
+                "w": 54,
+                "x": 387,
+                "y": 67
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 63,
+                "w": 54,
+                "x": 10,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_22.png",
+            "frame": {
+                "h": 59,
+                "w": 51,
+                "x": 81,
+                "y": 69
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 51,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_23.png",
+            "frame": {
+                "h": 58,
+                "w": 50,
+                "x": 890,
+                "y": 121
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 58,
+                "w": 50,
+                "x": 13,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_24.png",
+            "frame": {
+                "h": 63,
+                "w": 54,
+                "x": 158,
+                "y": 68
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 63,
+                "w": 54,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_25.png",
+            "frame": {
+                "h": 69,
+                "w": 59,
+                "x": 824,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 69,
+                "w": 59,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_26.png",
+            "frame": {
+                "h": 74,
+                "w": 64,
+                "x": 235,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 74,
+                "w": 64,
+                "x": 5,
+                "y": 1
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_27.png",
+            "frame": {
+                "h": 77,
+                "w": 66,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 77,
+                "w": 66,
+                "x": 4,
+                "y": 0
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_28.png",
+            "frame": {
+                "h": 74,
+                "w": 64,
+                "x": 311,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 74,
+                "w": 64,
+                "x": 4,
+                "y": 1
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_29.png",
+            "frame": {
+                "h": 66,
+                "w": 57,
+                "x": 822,
+                "y": 63
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 57,
+                "x": 7,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_30.png",
+            "frame": {
+                "h": 56,
+                "w": 48,
+                "x": 2,
+                "y": 122
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 56,
+                "w": 48,
+                "x": 11,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_31.png",
+            "frame": {
+                "h": 50,
+                "w": 42,
+                "x": 339,
+                "y": 123
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 50,
+                "w": 42,
+                "x": 14,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_32.png",
+            "frame": {
+                "h": 47,
+                "w": 40,
+                "x": 761,
+                "y": 123
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 47,
+                "w": 40,
+                "x": 15,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_33.png",
+            "frame": {
+                "h": 48,
+                "w": 41,
+                "x": 711,
+                "y": 123
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 48,
+                "w": 41,
+                "x": 15,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_34.png",
+            "frame": {
+                "h": 53,
+                "w": 46,
+                "x": 507,
+                "y": 122
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 53,
+                "w": 46,
+                "x": 13,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_35.png",
+            "frame": {
+                "h": 60,
+                "w": 52,
+                "x": 286,
+                "y": 68
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 60,
+                "w": 52,
+                "x": 10,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_36.png",
+            "frame": {
+                "h": 64,
+                "w": 55,
+                "x": 462,
+                "y": 65
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 64,
+                "w": 55,
+                "x": 8,
+                "y": 4
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_37.png",
+            "frame": {
+                "h": 63,
+                "w": 55,
+                "x": 528,
+                "y": 65
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 63,
+                "w": 55,
+                "x": 8,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_38.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 2,
+                "y": 70
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 10,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_39.png",
+            "frame": {
+                "h": 55,
+                "w": 47,
+                "x": 60,
+                "y": 122
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 55,
+                "w": 47,
+                "x": 11,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_40.png",
+            "frame": {
+                "h": 56,
+                "w": 49,
+                "x": 653,
+                "y": 121
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 56,
+                "w": 49,
+                "x": 10,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_41.png",
+            "frame": {
+                "h": 61,
+                "w": 53,
+                "x": 223,
+                "y": 68
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 53,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_42.png",
+            "frame": {
+                "h": 66,
+                "w": 56,
+                "x": 890,
+                "y": 63
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 56,
+                "x": 7,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_43.png",
+            "frame": {
+                "h": 68,
+                "w": 58,
+                "x": 965,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 68,
+                "w": 58,
+                "x": 7,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_44.png",
+            "frame": {
+                "h": 65,
+                "w": 55,
+                "x": 675,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 65,
+                "w": 55,
+                "x": 9,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_45.png",
+            "frame": {
+                "h": 58,
+                "w": 50,
+                "x": 593,
+                "y": 121
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 58,
+                "w": 50,
+                "x": 12,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_46.png",
+            "frame": {
+                "h": 52,
+                "w": 45,
+                "x": 822,
+                "y": 122
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 52,
+                "w": 45,
+                "x": 15,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "taszmrmr_1645020794_47.png",
+            "frame": {
+                "h": 46,
+                "w": 40,
+                "x": 117,
+                "y": 124
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 46,
+                "w": 40,
+                "x": 17,
+                "y": 14
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 173,
+            "w": 1025
+        }
+    }
+}

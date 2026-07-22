@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7504924433966976293",
+  "name": "HelloFont LieHei 75",
+  "resource_id": "7504924433966976293",
+  "effect_id": "7504924433966976293",
+  "checksum_sha256": "4b36fdbc3693f9145a7a021956706264e9a8a76664b13f354e756bd54e46f949",
+  "size_bytes": 2814472,
+  "file": "files/font_7504924433966976293.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7504924433966976293.ttf",
+  "metadata_file": "metadata/font_7504924433966976293.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7504924433966976293\\0d5daf5db2a1172e5afc9042be3b0bae\\font.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 24,
+          "material_id": "AB53890D-F7BB-4310-BE24-B816429D85C8",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 24,
+          "material_id": "AB53890D-F7BB-4310-BE24-B816429D85C8",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 24,
+          "material_id": "AB53890D-F7BB-4310-BE24-B816429D85C8",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+%YAML 1.1
+--- !Material &1
+name: rt_material
+guid: {a: 9029621075900037125, b: 6965016430409707930}
+xshader: {localId: 1, path: rt.xshader}
+properties:
+  __class: PropertySheet
+  name: rt_propertySheet
+  guid: {a: 5423999353750681028, b: 6615282848135513776}
+  floatmap:
+    __class: Map
+    _time: 1
+    blurSize_all: 54.70000076293945
+    blurSize_half: 18.23999977111816
+    where_all: 0.4799999892711639
+    where_half: 0.6899999976158142
+    yoffset: 0
+  vec4map:
+    __class: Map
+  vec3map:
+    __class: Map
+  vec2map:
+    __class: Map
+  mat4map:
+    __class: Map
+  texmap:
+    __class: Map
+    inputTex: {localId: 1, path: rt.rt}
+  intmap:
+    __class: Map
+renderQueue: 0
+enabledMacros:
+  __class: Map
+  AE_AreaLightNum: !<str> 0
+  AE_DirLightNum: !<str> 0
+  AE_PointLightNum: !<str> 0
+  AE_SpotLightNum: !<str> 0
+mshaderPath: ""

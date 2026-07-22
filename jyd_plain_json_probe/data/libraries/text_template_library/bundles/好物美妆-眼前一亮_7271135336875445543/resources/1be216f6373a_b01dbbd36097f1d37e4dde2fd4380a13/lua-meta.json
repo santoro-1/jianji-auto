@@ -1,0 +1,252 @@
+[
+    {
+        "ClassName": "AnimScript",
+        "Super": "ScriptComponent",
+        "FilePath": "lua/AnimScript.lua",
+        "FileAbsPath": "/Users/bytedance/Desktop/38b8d4da97c1efe546a28e8abfb5eb86/lua/AnimScript.lua",
+        "Properties": [
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "progress",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    1.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "auto_play",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "effect_material",
+                "VarType": "Material",
+                "Comment": ""
+            },
+            {
+                "VarName": "clone_material",
+                "VarType": "Material",
+                "Comment": ""
+            }
+        ],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "initMaterial",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onStart",
+                "Params": [
+                    {
+                        "ParaName": "comp",
+                        "ParaType": "Component",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getLayer",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setMatToSDFText",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addEffectLayers",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addEntity",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clone",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onUpdate",
+                "Params": [
+                    {
+                        "ParaName": "comp",
+                        "ParaType": "Component",
+                        "Comment": ""
+                    },
+                    {
+                        "ParaName": "deltaTime",
+                        "ParaType": "Double",
+                        "Comment": ""
+                    }
+                ],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getProgress",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "isvalidchar",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getFontSize",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getTextLineCount",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "seek",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setDuration",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "resetData",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onLeave",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onEnter",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "Util",
+        "Super": "",
+        "FilePath": "lua/Util.lua",
+        "FileAbsPath": "/Users/bytedance/Desktop/38b8d4da97c1efe546a28e8abfb5eb86/lua/Util.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "registerParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRegistedParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setRegistedVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "registerRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezier",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "remap",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mix",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clamp",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "CreateJsonFile",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "step",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "ReadFromJson",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "valueNoise",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezierWithParams",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

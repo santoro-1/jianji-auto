@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7068207165277737502",
+  "name": "优设标题黑",
+  "resource_id": "7068207165277737502",
+  "effect_id": "7068207165277737502",
+  "checksum_sha256": "dab883d69fb713233ea5d9aff8d1f27ccc2b71e249143edf6ea08367784c5dba",
+  "size_bytes": 1414784,
+  "file": "files/优设标题黑_7068207165277737502.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\优设标题黑_7068207165277737502.ttf",
+  "metadata_file": "metadata/优设标题黑_7068207165277737502.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7068207165277737502\\d9f1238f50005595eff5f545aa54776c\\优设标题黑.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "223484C1-2BDA-4cf6-86E7-1D5EA5595BF4",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "223484C1-2BDA-4cf6-86E7-1D5EA5595BF4",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "223484C1-2BDA-4cf6-86E7-1D5EA5595BF4",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

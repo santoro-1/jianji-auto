@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7503750223118847271",
+  "name": "HelloFont JianSong 95",
+  "resource_id": "7503750223118847271",
+  "effect_id": "7503750223118847271",
+  "checksum_sha256": "072c3816ef4938b23b90be72fd94284282bb7b8bbb7661f31abb823e1f0f0273",
+  "size_bytes": 2142960,
+  "file": "files/font_7503750223118847271.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7503750223118847271.ttf",
+  "metadata_file": "metadata/font_7503750223118847271.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7503750223118847271\\0a7f2568c1441a4a50a5ea12f3b3c818\\font.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 15,
+          "material_id": "9EC9C0D9-AD69-413b-A87E-B0EF991A10A7",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 15,
+          "material_id": "9EC9C0D9-AD69-413b-A87E-B0EF991A10A7",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 15,
+          "material_id": "9EC9C0D9-AD69-413b-A87E-B0EF991A10A7",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

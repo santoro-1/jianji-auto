@@ -1,0 +1,11 @@
+{
+    "date": "2026-02-03 01:07:22 +0800",
+    "author": "fengzicheng",
+    "source": "b/fengzicheng/20.9.0/anim_change_crash",
+    "branch": "release/20.9.0",
+    "commit": {
+        "id": "837a184e81a10ac92ae588cab09bc945581fee96",
+        "message": "fix: fix bug that studio anim handle after other reset"
+    },
+    "buildingTime": "2026-02-03 21:45:41"
+}

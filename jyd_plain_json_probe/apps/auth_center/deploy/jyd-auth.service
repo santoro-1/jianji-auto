@@ -1,0 +1,24 @@
+[Unit]
+Description=JYD isolated authentication center
+After=network.target
+
+[Service]
+Type=simple
+User=jyd-auth
+Group=jyd-auth
+WorkingDirectory=/opt/jyd-auth/current
+EnvironmentFile=/opt/jyd-auth/config/jyd-auth.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/jyd-auth/venv/bin/uvicorn app:app --host 127.0.0.1 --port 18082 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/jyd-auth/data
+
+[Install]
+WantedBy=multi-user.target

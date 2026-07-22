@@ -1,0 +1,362 @@
+[
+    {
+        "ClassName": "Util",
+        "Super": "",
+        "FilePath": "Util.lua",
+        "FileAbsPath": "/Users/bytedance/lrc/\u5de5\u4f5c/2022/3-4\u6708/\u526a\u6620-\u6587\u5b57-\u98a4\u6296\u5de6\u8fb9\u51fa/\u6587\u5b57tmp/\u8d85\u5f3a\u6643\u52a82/Util.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "registerParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRegistedParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setRegistedVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "registerRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezier",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "remap01",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mix",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "CreateJsonFile",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "ReadFromJson",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezierWithParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "TextAnim",
+        "Super": "ScriptComponent",
+        "FilePath": "TextAnim.lua",
+        "FileAbsPath": "/Users/bytedance/lrc/\u5de5\u4f5c/2022/3-4\u6708/\u526a\u6620-\u6587\u5b57-\u98a4\u6296\u5de6\u8fb9\u51fa/\u6587\u5b57tmp/\u8d85\u5f3a\u6643\u52a82/TextAnim.lua",
+        "Properties": [
+            {
+                "VarName": "split_line1",
+                "VarType": "String",
+                "Comment": ""
+            },
+            {
+                "VarName": "autoplay",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "isShaking",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "isTypesetting",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "split_line2",
+                "VarType": "String",
+                "Comment": ""
+            },
+            {
+                "VarName": "curTime",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "progress",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    1.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "split_line3",
+                "VarType": "String",
+                "Comment": ""
+            },
+            {
+                "VarName": "trapezoid",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "shakeXRange",
+                "VarType": "Vector3f",
+                "Comment": ""
+            },
+            {
+                "VarName": "shakeYRange",
+                "VarType": "Vector3f",
+                "Comment": ""
+            },
+            {
+                "VarName": "shakeZRange",
+                "VarType": "Vector3f",
+                "Comment": ""
+            },
+            {
+                "VarName": "shakeFrequency",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "moveXRange",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "moveYRange",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "moveFrequency",
+                "VarType": "Vector2f",
+                "Comment": ""
+            },
+            {
+                "VarName": "camera_fov",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "selfZ",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "selfRotate",
+                "VarType": "Vector3f",
+                "Comment": ""
+            },
+            {
+                "VarName": "showingInfo",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "showingBezier",
+                "VarType": "Vector4f",
+                "Comment": ""
+            },
+            {
+                "VarName": "blurStep",
+                "VarType": "Double",
+                "Comment": ""
+            }
+        ],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "registerParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "constructor",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onStart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "resetCharLineInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "initAnim",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "generateShakeInfo",
+                "Params": [],
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Button",
+                                "RawValue": "",
+                                "Values": [
+                                    "generate shake info"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "FuncName": "onUpdate",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "CreateJsonFile",
+                "Params": [],
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Button",
+                                "RawValue": "",
+                                "Values": [
+                                    "generate json file"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "FuncName": "ReadFromJson",
+                "Params": [],
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Button",
+                                "RawValue": "",
+                                "Values": [
+                                    "read from json file"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "FuncName": "shakingLogic",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "findCamera",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "flyIn",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "flyOut",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "seek",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "resetData",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setDuration",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onEnter",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onLeave",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

@@ -1,0 +1,3 @@
+https://github.com/wenshui330/jy-draftc.git	剪映json解密
+
+https://github.com/GuanYixuan/pyJianYingDraft.git	pyJianYingDraft

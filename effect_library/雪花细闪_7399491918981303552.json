@@ -1,0 +1,58 @@
+{
+    "schema": "jyd_probe.video_effect.v1",
+    "exported_at": "2026-07-13T10:23:55",
+    "effect_label": "name='雪花细闪', type='video_effect', effect_id='7399491918981303552', resource_id='7399491918981303552', id='3DB73F68-57FE-4e23-89F8-2C07BD113180'",
+    "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 2,
+        "material_id": "3DB73F68-57FE-4e23-89F8-2C07BD113180",
+        "target_timerange": {
+            "duration": 533333,
+            "start": 1083333
+        }
+    },
+    "material": {
+        "adjust_params": [
+            {
+                "default_value": 0.33,
+                "name": "effects_adjust_speed",
+                "value": 0.33
+            },
+            {
+                "default_value": 1.0,
+                "name": "effects_adjust_background_animation",
+                "value": 1.0
+            }
+        ],
+        "apply_target_type": 2,
+        "category_id": "100000",
+        "category_name": "画面特效",
+        "effect_id": "7399491918981303552",
+        "id": "3DB73F68-57FE-4e23-89F8-2C07BD113180",
+        "name": "雪花细闪",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7399491918981303552/3eab18374e64043e209c3deac2bbe56d",
+        "resource_id": "7399491918981303552",
+        "source_platform": 1,
+        "type": "video_effect",
+        "value": 1.0
+    },
+    "segment_template": {
+        "enable_adjust": false,
+        "enable_adjust_mask": false,
+        "enable_hsl": false,
+        "enable_lut": false,
+        "id": "05F7DB43-CE02-4372-9F0B-40506C3ECDBE",
+        "material_id": "3DB73F68-57FE-4e23-89F8-2C07BD113180",
+        "render_index": 11002,
+        "render_timerange": {},
+        "responsive_layout": {},
+        "source": "segmentsourcenormal",
+        "target_timerange": {
+            "duration": 533333,
+            "start": 1083333
+        },
+        "track_render_index": 1
+    }
+}

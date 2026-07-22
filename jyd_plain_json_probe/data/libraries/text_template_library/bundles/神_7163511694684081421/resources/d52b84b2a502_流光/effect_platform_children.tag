@@ -1,0 +1,1 @@
+/content.json,/rt1.frag,/rt.rt,/anim.prefab,/rt.material,/rt.frag,/config.json,/TextAnim.lua,/rt.xshader,/rt1.vert,/effect_platform_children.tag,/rt.vert

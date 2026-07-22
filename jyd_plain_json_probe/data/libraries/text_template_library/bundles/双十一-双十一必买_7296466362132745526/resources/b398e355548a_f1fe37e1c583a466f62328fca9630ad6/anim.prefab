@@ -1,0 +1,23 @@
+%YAML 1.1
+--- !Prefab &1
+name: anim_Prefab
+guid: {a: 5464246838667831486, b: 4220721161736507528}
+entities:
+  - __class: Entity
+    name: root_entity
+    guid: {a: 7886784338701646031, b: 4536866742047548437}
+    selfvisible: true
+    tag: 0
+    components:
+      - __class: ScriptComponent
+        name: script
+        guid: {a: 7341668178783407584, b: 1462144150347545288}
+        enabled: true
+        path: SpringIn.lua
+        properties:
+          __class: Map
+          sharedMaterial: {localId: 1, path: rt.material}
+        className: SpringIn
+    layer: 0
+standaloneResources:
+  __class: Map

@@ -1,0 +1,97 @@
+{
+  "schema": "jyd_probe.fullscreen_sticker_library_manifest.v1",
+  "stickers": [
+    {
+      "identity": "resource_id:7614429081228266814",
+      "name": "粉色氛围感边框",
+      "resource_id": "7614429081228266814",
+      "sticker_id": "7614429081228266814",
+      "bundle": "bundles/粉色氛围感边框_7614429081228266814",
+      "metadata_file": "bundles/粉色氛围感边框_7614429081228266814/sticker.json",
+      "preview_file": "bundles/粉色氛围感边框_7614429081228266814/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7550244783860682046",
+      "name": "粉色古早感边框",
+      "resource_id": "7550244783860682046",
+      "sticker_id": "7550244783860682046",
+      "bundle": "bundles/粉色古早感边框_7550244783860682046",
+      "metadata_file": "bundles/粉色古早感边框_7550244783860682046/sticker.json",
+      "preview_file": "bundles/粉色古早感边框_7550244783860682046/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7630417876624608536",
+      "name": "英文斑驳拍立得相框",
+      "resource_id": "7630417876624608536",
+      "sticker_id": "7630417876624608536",
+      "bundle": "bundles/英文斑驳拍立得相框_7630417876624608536",
+      "metadata_file": "bundles/英文斑驳拍立得相框_7630417876624608536/sticker.json",
+      "preview_file": "bundles/英文斑驳拍立得相框_7630417876624608536/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:6983228207520550174",
+      "name": "粉色梦幻爱心边框",
+      "resource_id": "6983228207520550174",
+      "sticker_id": "6983228207520550174",
+      "bundle": "bundles/粉色梦幻爱心边框_6983228207520550174",
+      "metadata_file": "bundles/粉色梦幻爱心边框_6983228207520550174/sticker.json",
+      "preview_file": "bundles/粉色梦幻爱心边框_6983228207520550174/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7452256781822070043",
+      "name": "边框",
+      "resource_id": "7452256781822070043",
+      "sticker_id": "7452256781822070043",
+      "bundle": "bundles/边框_7452256781822070043",
+      "metadata_file": "bundles/边框_7452256781822070043/sticker.json",
+      "preview_file": "bundles/边框_7452256781822070043/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7616283090922802456",
+      "name": "春日时光-发光梦幻樱花边框",
+      "resource_id": "7616283090922802456",
+      "sticker_id": "7616283090922802456",
+      "bundle": "bundles/春日时光-发光梦幻樱花边框_7616283090922802456",
+      "metadata_file": "bundles/春日时光-发光梦幻樱花边框_7616283090922802456/sticker.json",
+      "preview_file": "bundles/春日时光-发光梦幻樱花边框_7616283090922802456/resources/sticker/SequenceMap.png"
+    },
+    {
+      "identity": "resource_id:7642240433724165438",
+      "name": "白色系星芒梦幻边框",
+      "resource_id": "7642240433724165438",
+      "sticker_id": "7642240433724165438",
+      "bundle": "bundles/白色系星芒梦幻边框_7642240433724165438",
+      "metadata_file": "bundles/白色系星芒梦幻边框_7642240433724165438/sticker.json",
+      "preview_file": "bundles/白色系星芒梦幻边框_7642240433724165438/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7630318676302023960",
+      "name": "简约白色拍立得相框",
+      "resource_id": "7630318676302023960",
+      "sticker_id": "7630318676302023960",
+      "bundle": "bundles/简约白色拍立得相框_7630318676302023960",
+      "metadata_file": "bundles/简约白色拍立得相框_7630318676302023960/sticker.json",
+      "preview_file": "bundles/简约白色拍立得相框_7630318676302023960/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7550260313455791422",
+      "name": "爱心弥散方形边框",
+      "resource_id": "7550260313455791422",
+      "sticker_id": "7550260313455791422",
+      "bundle": "bundles/爱心弥散方形边框_7550260313455791422",
+      "metadata_file": "bundles/爱心弥散方形边框_7550260313455791422/sticker.json",
+      "preview_file": "bundles/爱心弥散方形边框_7550260313455791422/resources/sticker/singleImage.png"
+    },
+    {
+      "identity": "resource_id:7106804313413979423",
+      "name": "古风国风荷花杨柳夏日边框",
+      "resource_id": "7106804313413979423",
+      "sticker_id": "7106804313413979423",
+      "bundle": "bundles/古风国风荷花杨柳夏日边框_7106804313413979423",
+      "metadata_file": "bundles/古风国风荷花杨柳夏日边框_7106804313413979423/sticker.json",
+      "preview_file": "bundles/古风国风荷花杨柳夏日边框_7106804313413979423/resources/sticker/singleImage.png"
+    }
+  ],
+  "updated_at": "2026-07-14T14:33:12",
+  "source": "D:\\剪映草稿\\JianyingPro Drafts\\全屏贴纸草稿"
+}

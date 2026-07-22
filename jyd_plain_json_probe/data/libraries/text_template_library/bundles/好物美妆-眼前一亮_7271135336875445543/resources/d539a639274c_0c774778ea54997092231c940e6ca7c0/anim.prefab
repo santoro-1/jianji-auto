@@ -1,0 +1,23 @@
+%YAML 1.1
+--- !Prefab &1
+name: anim_Prefab
+guid: {a: 5282130243821059727, b: 11163738890152708486}
+entities:
+  - __class: Entity
+    name: root_entity
+    guid: {a: 6361386339379840853, b: 2156383315259575486}
+    selfvisible: true
+    tag: 0
+    components:
+      - __class: ScriptComponent
+        name: script
+        guid: {a: 6576130013094398533, b: 3675636209428266129}
+        enabled: true
+        path: BounceOut.lua
+        properties:
+          __class: Map
+          sharedMaterial: {localId: 1, path: rt.material}
+        className: BounceOut
+    layer: 0
+standaloneResources:
+  __class: Map

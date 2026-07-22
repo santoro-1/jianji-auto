@@ -1,0 +1,216 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:22",
+  "identity": "resource_id:7172100876193025291",
+  "name": "赛事-14加油",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "F12F5309-31FC-42e7-9AF7-D3FC8A1A3B17",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7172100876193025291",
+    "id": "F2342D17-E860-485d-8F65-430252109BFA",
+    "name": "赛事-14加油",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7172100876193025291/0b660a5af4cd1fd6d58964a4a6a848c9",
+    "resource_id": "7172100876193025291",
+    "resources": [
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1696102/df16cc64db780cbd53172c1d34d2b105",
+        "resource_id": "7070332284934558245"
+      },
+      {
+        "panel": "flower",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/6022739/1aae9c33908979419f6206c129bc7398",
+        "resource_id": "7164398321866379807"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1349506/cca0479069f8293a2d4d3d7a9c93a685/庞门正道标题体免费版.ttf",
+        "resource_id": "7003588181790560775"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "E8CF7E00-FDA2-421c-9FF4-29AB1940983A",
+          "36FB424C-DF5B-4e2b-B2FA-51A4630E02ED"
+        ],
+        "text_material_id": "EFEEABF5-EA5E-4ba8-876E-B8BA46DA26D5"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "36FB424C-DF5B-4e2b-B2FA-51A4630E02ED",
+      "E8CF7E00-FDA2-421c-9FF4-29AB1940983A"
+    ],
+    "id": "D8A72674-DB5E-4607-9E27-634C3F14150E",
+    "material_id": "F2342D17-E860-485d-8F65-430252109BFA",
+    "render_index": 14040,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 120000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "EFEEABF5-EA5E-4ba8-876E-B8BA46DA26D5",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "E8CF7E00-FDA2-421c-9FF4-29AB1940983A",
+          "36FB424C-DF5B-4e2b-B2FA-51A4630E02ED"
+        ],
+        "text_material_id": "EFEEABF5-EA5E-4ba8-876E-B8BA46DA26D5"
+      },
+      "text_material": {
+        "border_width": 0.08,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "combo_info": {},
+        "content": "Sportsman\n加油!",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1349506/cca0479069f8293a2d4d3d7a9c93a685/庞门正道标题体免费版.ttf",
+        "font_resource_id": "7003588181790560775",
+        "font_size": 20.0,
+        "id": "EFEEABF5-EA5E-4ba8-876E-B8BA46DA26D5",
+        "initial_scale": 1.0,
+        "italic_degree": 10,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#FFFFFFFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "36FB424C-DF5B-4e2b-B2FA-51A4630E02ED",
+    "E8CF7E00-FDA2-421c-9FF4-29AB1940983A"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 1000000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1696102/df16cc64db780cbd53172c1d34d2b105",
+            "resource_id": "7070332284934558245",
+            "type": "loop"
+          }
+        ],
+        "id": "36FB424C-DF5B-4e2b-B2FA-51A4630E02ED",
+        "type": "sticker_animation"
+      }
+    ],
+    "effects": [
+      {
+        "id": "E8CF7E00-FDA2-421c-9FF4-29AB1940983A",
+        "multi_language_current": "",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/6022739/1aae9c33908979419f6206c129bc7398",
+        "resource_id": "7164398321866379807",
+        "sub_type": "none",
+        "type": "text_effect"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7172100876193025291/0b660a5af4cd1fd6d58964a4a6a848c9",
+      "library_path": "resources/8cf9bcd9b4d8_0b660a5af4cd1fd6d58964a4a6a848c9",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1696102/df16cc64db780cbd53172c1d34d2b105",
+      "library_path": "resources/4a704133db03_df16cc64db780cbd53172c1d34d2b105",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/6022739/1aae9c33908979419f6206c129bc7398",
+      "library_path": "resources/ecd7402f85b9_1aae9c33908979419f6206c129bc7398",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.effects[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1349506/cca0479069f8293a2d4d3d7a9c93a685/庞门正道标题体免费版.ttf",
+      "library_path": "resources/f9f90b3e4dc3_庞门正道标题体免费版.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path",
+        "text_slots[0].text_material.font_path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 40,
+      "material_id": "F2342D17-E860-485d-8F65-430252109BFA",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 120000000
+      }
+    }
+  ]
+}

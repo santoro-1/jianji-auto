@@ -1,0 +1,327 @@
+[
+    {
+        "ClassName": "TextAnim1",
+        "Super": "ScriptComponent",
+        "FilePath": "TextAnim1.lua",
+        "FileAbsPath": "/Users/apple/Documents/\u4e1a\u52a1\u9700\u6c42/\u526a\u6620/2022.7-8/\u53e0\u52a0\u81a8\u80c0/TextAnim1.lua",
+        "Properties": [
+            {
+                "VarName": "effectMaterial",
+                "VarType": "Material",
+                "Comment": ""
+            },
+            {
+                "VarName": "curTime",
+                "VarType": "Double",
+                "Comment": ""
+            }
+        ],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "constructor",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onStart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onUpdate",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "seek",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "TextAnim",
+        "Super": "ScriptComponent",
+        "FilePath": "lua/TextAnim.lua",
+        "FileAbsPath": "/Users/apple/Documents/\u4e1a\u52a1\u9700\u6c42/\u526a\u6620/2022.7-8/\u53e0\u52a0\u81a8\u80c0/lua/TextAnim.lua",
+        "Properties": [
+            {
+                "VarName": "effectMaterial",
+                "VarType": "Material",
+                "Comment": ""
+            },
+            {
+                "VarName": "quad",
+                "VarType": "Mesh",
+                "Comment": ""
+            },
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "progress",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    1.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "VarName": "autoPlay",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "sharedMaterial",
+                "VarType": "Material",
+                "Comment": ""
+            },
+            {
+                "VarName": "rt",
+                "VarType": "ScreenRenderTexture",
+                "Comment": ""
+            }
+        ],
+        "Methods": [],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "AETools",
+        "Super": "",
+        "FilePath": "lua/AETools.lua",
+        "FileAbsPath": "/Users/apple/Documents/\u4e1a\u52a1\u9700\u6c42/\u526a\u6620/2022.7-8/\u53e0\u52a0\u81a8\u80c0/lua/AETools.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addKeyFrameInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_updateKeyFrameInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getCurPartVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_getCurPart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "Util",
+        "Super": "",
+        "FilePath": "lua/TextAnim.lua",
+        "FileAbsPath": "/Users/apple/Documents/\u4e1a\u52a1\u9700\u6c42/\u526a\u6620/2022.7-8/\u53e0\u52a0\u81a8\u80c0/lua/TextAnim.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "registerParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRegistedParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setRegistedVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "registerRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezier",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "remap01",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "remapNew",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mix",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "CreateJsonFile",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "ReadFromJson",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezierWithParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clamp",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "constructor",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "initKeyFrame",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onStart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setMatToSDFText",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "initAnimConfig",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onUpdate",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "createEntity",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addEffectLayers",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addEntity",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getTextFontSize",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "seek",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onEnter",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "resetData",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setDuration",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "onLeave",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

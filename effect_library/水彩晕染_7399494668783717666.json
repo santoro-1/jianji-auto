@@ -1,0 +1,58 @@
+{
+    "schema": "jyd_probe.video_effect.v1",
+    "exported_at": "2026-07-13T10:23:55",
+    "effect_label": "name='水彩晕染', type='video_effect', effect_id='7399494668783717666', resource_id='7399494668783717666', id='811280FA-8D6C-453c-A4B4-A8786CB546B3'",
+    "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 1,
+        "material_id": "811280FA-8D6C-453c-A4B4-A8786CB546B3",
+        "target_timerange": {
+            "duration": 633333,
+            "start": 450000
+        }
+    },
+    "material": {
+        "adjust_params": [
+            {
+                "default_value": 0.33,
+                "name": "effects_adjust_speed",
+                "value": 0.33
+            },
+            {
+                "default_value": 1.0,
+                "name": "effects_adjust_background_animation",
+                "value": 1.0
+            }
+        ],
+        "apply_target_type": 2,
+        "category_id": "100000",
+        "category_name": "effects2",
+        "effect_id": "7399494668783717666",
+        "id": "811280FA-8D6C-453c-A4B4-A8786CB546B3",
+        "name": "水彩晕染",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7399494668783717666/85757609b1d1f799ebf542aec9662fce",
+        "resource_id": "7399494668783717666",
+        "source_platform": 1,
+        "type": "video_effect",
+        "value": 1.0
+    },
+    "segment_template": {
+        "enable_adjust": false,
+        "enable_adjust_mask": false,
+        "enable_hsl": false,
+        "enable_lut": false,
+        "id": "B335C936-960F-426c-8EA0-446186EBBD54",
+        "material_id": "811280FA-8D6C-453c-A4B4-A8786CB546B3",
+        "render_index": 11001,
+        "render_timerange": {},
+        "responsive_layout": {},
+        "source": "segmentsourcenormal",
+        "target_timerange": {
+            "duration": 633333,
+            "start": 450000
+        },
+        "track_render_index": 1
+    }
+}

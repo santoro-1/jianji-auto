@@ -1,0 +1,1 @@
+/content.json,/anim.prefab,/config.json,/TextAnim.lua,/TextRender.vert,/TextRender.material,/TextRender.frag,/effect_platform_children.tag,/TextRender.xshader

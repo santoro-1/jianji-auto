@@ -1,0 +1,23 @@
+%YAML 1.1
+--- !Prefab &1
+name: anim_Prefab
+guid: {a: 5282160243821268727, b: 11163758120143708486}
+entities:
+  - __class: Entity
+    name: root_entity
+    guid: {a: 6361286445579840853, b: 2156981215129575486}
+    selfvisible: true
+    tag: 0
+    components:
+      - __class: ScriptComponent
+        name: script
+        guid: {a: 6576170052394398533, b: 3675606201122266129}
+        enabled: true
+        path: MyTextAnim.lua
+        properties:
+          __class: Map          
+          sharedMaterial1: {localId: 1, path: material/MyText.material}
+        className: MyTextAnim
+    layer: 0
+standaloneResources:
+  __class: Map

@@ -1,0 +1,155 @@
+{
+  "schema": "jyd_probe.audio_catalog.v1",
+  "categories": [
+    {
+      "id": "category_12080c11ba",
+      "name": "鸡汤人设",
+      "created_at": "2026-07-13T19:32:11"
+    },
+    {
+      "id": "category_44d901ea72",
+      "name": "干货",
+      "created_at": "2026-07-13T19:52:39"
+    },
+    {
+      "id": "category_39ae38003a",
+      "name": "减肥打卡",
+      "created_at": "2026-07-13T20:00:01"
+    },
+    {
+      "id": "category_50493b2e51",
+      "name": "访谈",
+      "created_at": "2026-07-13T20:04:36"
+    }
+  ],
+  "assignments": {
+    "music_id:7402551600542631937": [
+      "category_12080c11ba"
+    ],
+    "music_id:7433382301377103913": [
+      "category_12080c11ba"
+    ],
+    "music_id:7406550315586586634": [
+      "category_12080c11ba"
+    ],
+    "music_id:7035666773449902110": [
+      "category_12080c11ba"
+    ],
+    "music_id:7076108218967001102": [
+      "category_12080c11ba"
+    ],
+    "music_id:7134737655275653121": [
+      "category_12080c11ba"
+    ],
+    "music_id:7283782326893578240": [
+      "category_12080c11ba"
+    ],
+    "music_id:7508613637859411978": [
+      "category_12080c11ba"
+    ],
+    "music_id:7056670833205905409": [
+      "category_12080c11ba"
+    ],
+    "music_id:7338043534886390578": [
+      "category_12080c11ba"
+    ],
+    "music_id:6527484568614767364": [
+      "category_12080c11ba"
+    ],
+    "music_id:7470412865544472592": [
+      "category_12080c11ba"
+    ],
+    "music_id:7478872354421491724": [
+      "category_12080c11ba"
+    ],
+    "music_id:7165378986772433672": [
+      "category_12080c11ba"
+    ],
+    "music_id:7530905227610195968": [
+      "category_12080c11ba"
+    ],
+    "music_id:7466677529013831721": [
+      "category_12080c11ba"
+    ],
+    "music_id:7517237591881336883": [
+      "category_12080c11ba"
+    ],
+    "music_id:7536835366960171048": [
+      "category_12080c11ba"
+    ],
+    "music_id:7555654943560026175": [
+      "category_12080c11ba"
+    ],
+    "music_id:7051390538976626702": [
+      "category_12080c11ba"
+    ],
+    "music_id:7530466682295044132": [
+      "category_12080c11ba"
+    ],
+    "music_id:7468232856016472080": [
+      "category_12080c11ba"
+    ],
+    "music_id:7361650846344103948": [
+      "category_12080c11ba"
+    ],
+    "music_id:7545119072356206635": [
+      "category_44d901ea72"
+    ],
+    "music_id:7429070971728529418": [
+      "category_44d901ea72"
+    ],
+    "music_id:6867663002858948609": [
+      "category_44d901ea72"
+    ],
+    "music_id:7549622880502892590": [
+      "category_44d901ea72"
+    ],
+    "music_id:7493860627694373695": [
+      "category_44d901ea72"
+    ],
+    "music_id:6874387537750657031": [
+      "category_44d901ea72"
+    ],
+    "music_id:7340141583693269011": [
+      "category_44d901ea72"
+    ],
+    "music_id:7391026495597889552": [
+      "category_39ae38003a"
+    ],
+    "music_id:7533063885827524651": [
+      "category_39ae38003a"
+    ],
+    "music_id:7016359577441437730": [
+      "category_39ae38003a"
+    ],
+    "music_id:6931987094940174343": [
+      "category_50493b2e51"
+    ],
+    "music_id:7632723157036976166": [
+      "category_50493b2e51"
+    ],
+    "music_id:7051534960741681957": [
+      "category_50493b2e51"
+    ],
+    "music_id:7633188159245289523": [
+      "category_50493b2e51"
+    ],
+    "music_id:7363794259227805732": [
+      "category_50493b2e51"
+    ],
+    "music_id:7585886063152842794": [
+      "category_50493b2e51"
+    ],
+    "music_id:7504606390863890449": [
+      "category_50493b2e51"
+    ],
+    "music_id:7486776822181906448": [
+      "category_50493b2e51"
+    ],
+    "music_id:7504573154510424115": [
+      "category_50493b2e51"
+    ]
+  },
+  "cursors": {},
+  "updated_at": "2026-07-13T20:04:36"
+}

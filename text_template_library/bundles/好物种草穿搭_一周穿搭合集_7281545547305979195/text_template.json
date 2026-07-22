@@ -1,0 +1,367 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:21",
+  "identity": "resource_id:7281545547305979195",
+  "name": "好物种草穿搭 一周穿搭合集",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "F377B394-5DDC-407f-8D2B-21005C0A3C50",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7281545547305979195",
+    "id": "82C3B590-217E-418c-8A46-2A64A6264887",
+    "name": "好物种草穿搭 一周穿搭合集",
+    "non_text_info_resources": [
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.7198911309242249,
+              "y": 0.7198911309242249
+            },
+            "transform": {
+              "x": 134.84176635742188,
+              "y": 104.22988891601562
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 96.0,
+          "original_size_width": 178.0
+        },
+        "name": "8A2FB09E-AC48-4f5c-B35E-CACA3F9B79E6",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.763441264629364,
+              "y": 0.5475336909294128
+            },
+            "transform": {
+              "x": 0.0,
+              "y": -20.00000762939453
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 162.0,
+          "original_size_width": 831.0
+        },
+        "extra_material_refs": [
+          "1823567E-446B-4298-88D8-0F8B55C12B2B"
+        ],
+        "name": "AEDB13A4-7D67-454e-9652-64A4DE45259B",
+        "shape_param": {},
+        "type": "sticker"
+      }
+    ],
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7281545547305979195/def3f2071aaa807a727240fedf8dbfbe",
+    "resource_id": "7281545547305979195",
+    "resources": [
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362980/099e15aa3f318f66da1ba940bdb63066",
+        "resource_id": "6763469998330483213"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7047541/f3b0d37b587cc5b5ee33b5092802c5a7/AaHouDiHei-2.ttf",
+        "resource_id": "7174431250067755577"
+      },
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644305/f9300b314e5bd7df573063b15a1ab081",
+        "resource_id": "6862897343176380942"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 1.5463253259658813,
+              "y": 1.6231721639633179
+            },
+            "transform": {
+              "x": 0.0,
+              "y": 7.999992370605469
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 87.6875,
+          "original_size_width": 400.0
+        },
+        "extra_material_refs": [
+          "9FB511BC-EB11-4b6d-9368-84F077B0D0B4"
+        ],
+        "text_material_id": "F065D89C-CFCD-48e9-9C7F-D75818A7EDA8"
+      }
+    ],
+    "type": "text_template",
+    "version": "1.0.0"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "9FB511BC-EB11-4b6d-9368-84F077B0D0B4",
+      "1823567E-446B-4298-88D8-0F8B55C12B2B"
+    ],
+    "id": "C5C6A07F-C6FF-4d03-BEF2-CDDC3885B473",
+    "material_id": "82C3B590-217E-418c-8A46-2A64A6264887",
+    "render_index": 14027,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 81000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "F065D89C-CFCD-48e9-9C7F-D75818A7EDA8",
+      "text": "一周穿搭合集",
+      "text_info_resource": {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 1.5463253259658813,
+              "y": 1.6231721639633179
+            },
+            "transform": {
+              "x": 0.0,
+              "y": 7.999992370605469
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 87.6875,
+          "original_size_width": 400.0
+        },
+        "extra_material_refs": [
+          "9FB511BC-EB11-4b6d-9368-84F077B0D0B4"
+        ],
+        "text_material_id": "F065D89C-CFCD-48e9-9C7F-D75818A7EDA8"
+      },
+      "text_material": {
+        "bold_width": 0.008,
+        "border_alpha": 0.0,
+        "border_color": "#5974c9ff",
+        "border_width": 0.012000000104308128,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 47,
+        "combo_info": {},
+        "content": "{\"text\":\"一周穿搭合集\",\"styles\":[{\"fill\":{\"content\":{\"render_type\":\"solid\",\"solid\":{\"color\":[0.99216002225875854,0.98430997133255,0.98430997133255]}}},\"font\":{\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7047541/f3b0d37b587cc5b5ee33b5092802c5a7/AaHouDiHei-2.ttf\",\"id\":\"7174431250067755577\"},\"strokes\":[{\"content\":{\"render_type\":\"solid\",\"solid\":{\"color\":[0.349020004272461,0.45489999651908875,0.78824001550674438]}},\"width\":0.012000000104308128}],\"size\":15,\"shadows\":[{\"distance\":4.9999990463256836,\"content\":{\"render_type\":\"solid\",\"solid\":{\"color\":[0.349020004272461,0.45489999651908875,0.78824001550674438]}},\"feather\":0.00703810015693307,\"angle\":-17.419000625610352}],\"range\":[0,6]}]}",
+        "current_words": {},
+        "fonts": [
+          {
+            "id": "2B9C4332-6A41-49b0-94A4-BBD049A182B0",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7047541/f3b0d37b587cc5b5ee33b5092802c5a7/AaHouDiHei-2.ttf",
+            "resource_id": "7174431250067755577"
+          }
+        ],
+        "id": "F065D89C-CFCD-48e9-9C7F-D75818A7EDA8",
+        "initial_scale": 1.0,
+        "italic_degree": 10,
+        "layer_weight": 1,
+        "line_spacing": 0.1,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "name": "05C9EDF0-4E7F-4e01-A8A0-E3AE53AFADB5",
+        "shadow_alpha": 1.0,
+        "shadow_angle": -17.41900062561035,
+        "shadow_color": "#5974c9ff",
+        "shadow_distance": 4.999999046325684,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "shadow_smoothing": 0.007038100156933069,
+        "text_color": "#fdfbfbff",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {
+        "text": "一周穿搭合集",
+        "styles": [
+          {
+            "fill": {
+              "content": {
+                "render_type": "solid",
+                "solid": {
+                  "color": [
+                    0.9921600222587585,
+                    0.98430997133255,
+                    0.98430997133255
+                  ]
+                }
+              }
+            },
+            "font": {
+              "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7047541/f3b0d37b587cc5b5ee33b5092802c5a7/AaHouDiHei-2.ttf",
+              "id": "7174431250067755577"
+            },
+            "strokes": [
+              {
+                "content": {
+                  "render_type": "solid",
+                  "solid": {
+                    "color": [
+                      0.349020004272461,
+                      0.45489999651908875,
+                      0.7882400155067444
+                    ]
+                  }
+                },
+                "width": 0.012000000104308128
+              }
+            ],
+            "size": 15,
+            "shadows": [
+              {
+                "distance": 4.999999046325684,
+                "content": {
+                  "render_type": "solid",
+                  "solid": {
+                    "color": [
+                      0.349020004272461,
+                      0.45489999651908875,
+                      0.7882400155067444
+                    ]
+                  }
+                },
+                "feather": 0.00703810015693307,
+                "angle": -17.41900062561035
+              }
+            ],
+            "range": [
+              0,
+              6
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "reference_ids": [
+    "1823567E-446B-4298-88D8-0F8B55C12B2B",
+    "9FB511BC-EB11-4b6d-9368-84F077B0D0B4"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 700000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362980/099e15aa3f318f66da1ba940bdb63066",
+            "resource_id": "6763469998330483213",
+            "type": "in"
+          }
+        ],
+        "id": "1823567E-446B-4298-88D8-0F8B55C12B2B",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 933333,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644305/f9300b314e5bd7df573063b15a1ab081",
+            "resource_id": "6862897343176380942",
+            "type": "in"
+          }
+        ],
+        "id": "9FB511BC-EB11-4b6d-9368-84F077B0D0B4",
+        "type": "sticker_animation"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7281545547305979195/def3f2071aaa807a727240fedf8dbfbe",
+      "library_path": "resources/c771085154df_def3f2071aaa807a727240fedf8dbfbe",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1362980/099e15aa3f318f66da1ba940bdb63066",
+      "library_path": "resources/663809ff4dda_099e15aa3f318f66da1ba940bdb63066",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7047541/f3b0d37b587cc5b5ee33b5092802c5a7/AaHouDiHei-2.ttf",
+      "library_path": "resources/4c555afe04d7_AaHouDiHei-2.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "text_slots[0].text_material.fonts[0].path",
+        "text_slots[0].text_content.styles[0].font.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644305/f9300b314e5bd7df573063b15a1ab081",
+      "library_path": "resources/573d057a7dee_f9300b314e5bd7df573063b15a1ab081",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path",
+        "referenced_materials.material_animations[1].animations[0].path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 27,
+      "material_id": "82C3B590-217E-418c-8A46-2A64A6264887",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 81000000
+      }
+    }
+  ]
+}

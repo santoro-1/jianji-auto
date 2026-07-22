@@ -1,0 +1,217 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:22",
+  "identity": "resource_id:7163545531816447239",
+  "name": "买买买",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "5EA2E1EF-1910-4b04-B6B6-863116FD5D5A",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7163545531816447239",
+    "id": "41EF80B2-4544-461f-B188-59489C563387",
+    "name": "买买买",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7163545531816447239/8d06039be25808bebdd61b68861cf366",
+    "resource_id": "7163545531816447239",
+    "resources": [
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/3966601/f34d9d771c836c5e4e836d4789788a82",
+        "resource_id": "7129767866894651917"
+      },
+      {
+        "panel": "flower",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/4795602/5e7f322b697ee9e051b14e7e9e193a57",
+        "resource_id": "7130639285492912647"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1488712/377365df3340b4b642a0c199fcbb3882/HelloFont ID DunDunTi.ttf",
+        "resource_id": "7043772438898807304"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "3FA54B4E-A571-438e-92E6-0BF64E20901C",
+          "1AA63357-5CD3-4418-AAEA-7C7CF8F8DB03"
+        ],
+        "text_material_id": "49DCEAC2-0514-42e7-AFF2-EB0DC7A11986"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "1AA63357-5CD3-4418-AAEA-7C7CF8F8DB03",
+      "3FA54B4E-A571-438e-92E6-0BF64E20901C"
+    ],
+    "id": "C564EAA3-3353-4c37-9986-FD1D70740587",
+    "material_id": "41EF80B2-4544-461f-B188-59489C563387",
+    "render_index": 14047,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 141000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "49DCEAC2-0514-42e7-AFF2-EB0DC7A11986",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "3FA54B4E-A571-438e-92E6-0BF64E20901C",
+          "1AA63357-5CD3-4418-AAEA-7C7CF8F8DB03"
+        ],
+        "text_material_id": "49DCEAC2-0514-42e7-AFF2-EB0DC7A11986"
+      },
+      "text_material": {
+        "alignment": 2,
+        "border_width": 0.08,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "combo_info": {},
+        "content": "买!!",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1488712/377365df3340b4b642a0c199fcbb3882/HelloFont ID DunDunTi.ttf",
+        "font_resource_id": "7043772438898807304",
+        "font_size": 20.0,
+        "id": "49DCEAC2-0514-42e7-AFF2-EB0DC7A11986",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "letter_spacing": 0.0500000007450581,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#FFFFFFFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "1AA63357-5CD3-4418-AAEA-7C7CF8F8DB03",
+    "3FA54B4E-A571-438e-92E6-0BF64E20901C"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 1500000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/3966601/f34d9d771c836c5e4e836d4789788a82",
+            "resource_id": "7129767866894651917",
+            "type": "loop"
+          }
+        ],
+        "id": "1AA63357-5CD3-4418-AAEA-7C7CF8F8DB03",
+        "type": "sticker_animation"
+      }
+    ],
+    "effects": [
+      {
+        "id": "3FA54B4E-A571-438e-92E6-0BF64E20901C",
+        "multi_language_current": "",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/4795602/5e7f322b697ee9e051b14e7e9e193a57",
+        "resource_id": "7130639285492912647",
+        "sub_type": "none",
+        "type": "text_effect"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7163545531816447239/8d06039be25808bebdd61b68861cf366",
+      "library_path": "resources/b8e258ecaa06_8d06039be25808bebdd61b68861cf366",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/3966601/f34d9d771c836c5e4e836d4789788a82",
+      "library_path": "resources/c119890241c9_f34d9d771c836c5e4e836d4789788a82",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/4795602/5e7f322b697ee9e051b14e7e9e193a57",
+      "library_path": "resources/1d32cf0fcbd0_5e7f322b697ee9e051b14e7e9e193a57",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.effects[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1488712/377365df3340b4b642a0c199fcbb3882/HelloFont ID DunDunTi.ttf",
+      "library_path": "resources/f166f4a79204_HelloFont_ID_DunDunTi.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path",
+        "text_slots[0].text_material.font_path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 47,
+      "material_id": "41EF80B2-4544-461f-B188-59489C563387",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 141000000
+      }
+    }
+  ]
+}

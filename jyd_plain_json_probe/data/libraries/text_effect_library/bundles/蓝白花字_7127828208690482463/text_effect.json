@@ -1,0 +1,106 @@
+{
+  "schema": "jyd_probe.text_effect.v1",
+  "exported_at": "2026-07-13T20:12:24",
+  "identity": "resource_id:7127828208690482463",
+  "name": "蓝白花字",
+  "material": {
+    "category_id": "100000",
+    "category_name": "flower",
+    "color_match_info": {},
+    "effect_id": "7127828208690482463",
+    "id": "8221840F-008B-44fc-A181-BEC5B78AB0DA",
+    "multi_language_current": "",
+    "name": "蓝白花字",
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7127828208690482463/06e1b420ce674261606b07e79f702ea9",
+    "resource_id": "7127828208690482463",
+    "source_platform": 1,
+    "sub_type": "none",
+    "third_resource_id": "7127633325463704071",
+    "type": "text_effect",
+    "value": 1.0
+  },
+  "resource": {
+    "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7127828208690482463/06e1b420ce674261606b07e79f702ea9",
+    "library_path": "resources/effect",
+    "kind": "directory",
+    "status": "copied"
+  },
+  "sample_text_material": {
+    "border_width": 0.08,
+    "caption_template_info": {
+      "path": "",
+      "resource_id": ""
+    },
+    "combo_info": {},
+    "content": "{\"styles\":[{\"effectStyle\":{\"id\":\"7127828208690482463\",\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7127828208690482463/06e1b420ce674261606b07e79f702ea9\"},\"fill\":{\"alpha\":1.0,\"content\":{\"render_type\":\"solid\",\"solid\":{\"alpha\":1.0,\"color\":[1.0,1.0,1.0]}}},\"font\":{\"id\":\"\",\"path\":\"C:/Users/san/AppData/Local/JianyingPro/Apps/8.9.0.13361/Resources/Font/SystemFont/zh-hans.ttf\"},\"range\":[0,4],\"size\":15.0}],\"text\":\"默认文本\"}",
+    "current_words": {},
+    "font_path": "C:/Users/san/AppData/Local/JianyingPro/Apps/8.9.0.13361/Resources/Font/SystemFont/zh-hans.ttf",
+    "id": "0A948A01-86CD-4c5f-BF82-26A7CE008838",
+    "initial_scale": 1.0,
+    "layer_weight": 1,
+    "line_spacing": 0.02,
+    "lyrics_template": {
+      "path": "",
+      "resource_id": ""
+    },
+    "shadow_alpha": 0.9,
+    "shadow_angle": -45.0,
+    "shadow_distance": 5.0,
+    "shadow_point": {
+      "x": 0.6363961030678928,
+      "y": -0.6363961030678928
+    },
+    "shadow_smoothing": 0.45,
+    "text_color": "#FFFFFF",
+    "type": "text",
+    "words": {}
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "8F23A2EB-281E-4be1-9DE8-1C2EC27BC022",
+      "8221840F-008B-44fc-A181-BEC5B78AB0DA",
+      "8221840F-008B-44fc-A181-BEC5B78AB0DA"
+    ],
+    "id": "3B0BBFD1-E8C7-47c8-B7A9-788B41E06B42",
+    "material_id": "0A948A01-86CD-4c5f-BF82-26A7CE008838",
+    "render_index": 14001,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 3000000
+    },
+    "track_render_index": 1
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\花字采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 1,
+      "material_id": "0A948A01-86CD-4c5f-BF82-26A7CE008838",
+      "effect_material_id": "8221840F-008B-44fc-A181-BEC5B78AB0DA",
+      "text": "默认文本",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 3000000
+      },
+      "effect_style": {
+        "id": "7127828208690482463",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7127828208690482463/06e1b420ce674261606b07e79f702ea9"
+      }
+    }
+  ]
+}

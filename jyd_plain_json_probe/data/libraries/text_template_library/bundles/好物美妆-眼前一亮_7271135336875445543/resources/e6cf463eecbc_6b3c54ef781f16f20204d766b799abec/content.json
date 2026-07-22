@@ -1,0 +1,10 @@
+{
+    "needblend": false, 
+    "version": "1.0", 
+    "filemap": {
+        "prefab": "anim.prefab"
+    }, 
+    "ae_tool": "AmazingEditor", 
+    "content": {}, 
+    "tag": "2023_11_30_22_57_50_d4a472708f9011eeae12acde48001122"
+}

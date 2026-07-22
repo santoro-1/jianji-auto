@@ -1,0 +1,200 @@
+{
+  "schema": "jyd_probe.effect_library_manifest.v1",
+  "exported_at": "2026-07-13T10:23:55",
+  "source": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+  "scanned_segment_count": 10,
+  "unique_effect_count": 10,
+  "duplicate_count": 0,
+  "missing_material_count": 0,
+  "effects": [
+    {
+      "name": "泡泡",
+      "effect_id": "7399493181051669775",
+      "resource_id": "7399493181051669775",
+      "identity": "resource_id:7399493181051669775",
+      "file": "泡泡_7399493181051669775.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 0,
+        "material_id": "80F1C8D4-D472-43cf-ACD7-9300E29185DE",
+        "target_timerange": {
+          "duration": 450000
+        }
+      }
+    },
+    {
+      "name": "水彩晕染",
+      "effect_id": "7399494668783717666",
+      "resource_id": "7399494668783717666",
+      "identity": "resource_id:7399494668783717666",
+      "file": "水彩晕染_7399494668783717666.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 1,
+        "material_id": "811280FA-8D6C-453c-A4B4-A8786CB546B3",
+        "target_timerange": {
+          "duration": 633333,
+          "start": 450000
+        }
+      }
+    },
+    {
+      "name": "雪花细闪",
+      "effect_id": "7399491918981303552",
+      "resource_id": "7399491918981303552",
+      "identity": "resource_id:7399491918981303552",
+      "file": "雪花细闪_7399491918981303552.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 2,
+        "material_id": "3DB73F68-57FE-4e23-89F8-2C07BD113180",
+        "target_timerange": {
+          "duration": 533333,
+          "start": 1083333
+        }
+      }
+    },
+    {
+      "name": "金色星星",
+      "effect_id": "7653715769553046808",
+      "resource_id": "7653715769553046808",
+      "identity": "resource_id:7653715769553046808",
+      "file": "金色星星_7653715769553046808.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 3,
+        "material_id": "6E28900A-485C-49dc-804F-C2E4AD9A12EA",
+        "target_timerange": {
+          "duration": 383334,
+          "start": 1616666
+        }
+      }
+    },
+    {
+      "name": "萤火",
+      "effect_id": "7399493359015890228",
+      "resource_id": "7399493359015890228",
+      "identity": "resource_id:7399493359015890228",
+      "file": "萤火_7399493359015890228.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 4,
+        "material_id": "916CB622-6C54-4389-B5F7-B5A1021E3C2C",
+        "target_timerange": {
+          "duration": 366666,
+          "start": 2000000
+        }
+      }
+    },
+    {
+      "name": "樱花飘落",
+      "effect_id": "7399492311949774132",
+      "resource_id": "7399492311949774132",
+      "identity": "resource_id:7399492311949774132",
+      "file": "樱花飘落_7399492311949774132.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 5,
+        "material_id": "4010A042-1E8A-4ac7-A1A9-C791E1FF5C05",
+        "target_timerange": {
+          "duration": 550000,
+          "start": 2366666
+        }
+      }
+    },
+    {
+      "name": "星火",
+      "effect_id": "7399493412052946191",
+      "resource_id": "7399493412052946191",
+      "identity": "resource_id:7399493412052946191",
+      "file": "星火_7399493412052946191.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 6,
+        "material_id": "BF19766E-A213-456c-A022-09C623ABA2DF",
+        "target_timerange": {
+          "duration": 466667,
+          "start": 2916666
+        }
+      }
+    },
+    {
+      "name": "浪漫氛围",
+      "effect_id": "7399497600191237391",
+      "resource_id": "7399497600191237391",
+      "identity": "resource_id:7399497600191237391",
+      "file": "浪漫氛围_7399497600191237391.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 7,
+        "material_id": "A5826483-B757-4ba5-8DFC-2DFC398A3EE9",
+        "target_timerange": {
+          "duration": 733333,
+          "start": 3383333
+        }
+      }
+    },
+    {
+      "name": "光斑飘落",
+      "effect_id": "7399492531039309056",
+      "resource_id": "7399492531039309056",
+      "identity": "resource_id:7399492531039309056",
+      "file": "光斑飘落_7399492531039309056.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 8,
+        "material_id": "44542287-27C7-4dd0-9A2B-16AA7800CD12",
+        "target_timerange": {
+          "duration": 583334,
+          "start": 4116666
+        }
+      }
+    },
+    {
+      "name": "拽酷红眼",
+      "effect_id": "1185226",
+      "resource_id": "6979861988935471623",
+      "identity": "resource_id:6979861988935471623",
+      "file": "拽酷红眼_1185226.json",
+      "status": "exported",
+      "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 9,
+        "material_id": "A6BA56EB-7BC4-438b-BDD6-15F5301AD122",
+        "target_timerange": {
+          "duration": 433333,
+          "start": 4700000
+        }
+      }
+    }
+  ]
+}

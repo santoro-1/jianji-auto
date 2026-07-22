@@ -1,0 +1,153 @@
+%YAML 1.1
+--- !Prefab &1
+name: ""
+entities:
+  - __class: Entity
+    name: noFilter_entity
+    selfvisible: true
+    tag: 0
+    components:
+      - {localId: 2}
+      - __class: SDFText
+        name: ""
+        enabled: true
+        drivenByScript: false
+        forceDegeneratedEs2Enabled: false
+        str: HAPPY
+        fontSize: 48
+        fontPath: ""
+        fallbackFontPath: ""
+        wordGap: 0
+        innerPadding: 0
+        lineGap: 0
+        fixedRectEnabled: false
+        autoFontSize: false
+        rect: {x: -243.9995, y: -51.07133, w: 487.999, h: 102.1427}
+        autoWrapWidth: 4000
+        textColor: {x: 1, y: 1, z: 1, w: 1}
+        randomGridSize: {x: 2, y: 1}
+        shadowEnabled: false
+        shadowColor: {x: 0, y: 0, z: 0, w: 1}
+        shadowOffset: {x: 0.1, y: -0.1}
+        shadowSmoothing: 0.1000000014901161
+        shadowBlur: 0.01999999955296516
+        outlineEnabled: false
+        outlineWidth: 0.2000000029802322
+        outlineMaxWidth: 0.2000000029802322
+        outlineColor: {x: 0, y: 0, z: 0, w: 1}
+        backgroundEnabled: false
+        backgroundColor: {x: 1, y: 0, z: 0, w: 1}
+        alpha: 1
+        typeSettingKind:
+          __class: TypeSettingKind
+          value: HORIZONTAL
+        textAlign:
+          __class: TextAlign
+          value: LEFT
+        effectTextParam:
+          __class: EffectTextParam
+          name: ""
+          textColor: {r: 0, g: 0, b: 0, a: 1}
+          outlineMaxWidth: 0.2000000029802322
+          randomGridSize: {x: 2, y: 1}
+          effectLayers:
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0
+                angle: -90
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.550000011920929
+                  color: {r: 0, g: 0, b: 0, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                color2:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.8999999761581421
+                  color: {r: 0, g: 0, b: 0, a: 0.4705882}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0
+              offset: {x: 0, y: 0}
+              innerShadowEnabled: false
+              textureLevel: 1
+              texture: {localId: 1, path: image/网格.png}
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.05999999865889549
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: false
+                  percent: 0
+                  color: {r: 1, g: 0.9960784, b: 0.9960784, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0
+              offset: {x: 0, y: 0}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.03999999910593033
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: false
+                  percent: 0
+                  color: {r: 0, g: 0, b: 0, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0.07999999821186066
+              offset: {x: 0, y: 0}
+              innerShadowEnabled: false
+              textureLevel: 1
+              texture: {localId: 1, path: image/噪点A.png}
+        ktvEnabled: false
+        ktvDirection: 1
+        ktvAlpha: 1
+        renderToRT: false
+        targetRTExtraSize: {x: 0, y: 0}
+      - __class: MeshRenderer
+        name: SDFTextMeshRenderer
+        enabled: true
+        sortingOrder: 0
+        autoSortingOrder: false
+        useFrustumCulling: true
+        castShadow: true
+    layer: 0
+standaloneResources:
+  __class: Map
+--- !Transform &2
+name: noFilter_transform
+enabled: true
+localPosition: {x: 0, y: 0, z: 0}
+localScale: {x: 1, y: 1, z: 1}
+localOrientation: {w: 1, x: 0, y: 0, z: 0}

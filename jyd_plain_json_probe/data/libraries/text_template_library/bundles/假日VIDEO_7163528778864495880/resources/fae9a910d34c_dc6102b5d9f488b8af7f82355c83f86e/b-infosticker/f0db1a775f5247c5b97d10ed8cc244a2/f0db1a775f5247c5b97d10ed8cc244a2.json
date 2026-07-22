@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "jjjlihls_1651153421_00.png",
+            "frame": {
+                "h": 99,
+                "w": 124,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 99,
+                "w": 124,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "jjjlihls_1651153421_01.png",
+            "frame": {
+                "h": 99,
+                "w": 124,
+                "x": 128,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 99,
+                "w": 124,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "jjjlihls_1651153421_02.png",
+            "frame": {
+                "h": 99,
+                "w": 124,
+                "x": 254,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 99,
+                "w": 124,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "jjjlihls_1651153421_03.png",
+            "frame": {
+                "h": 99,
+                "w": 124,
+                "x": 380,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 99,
+                "w": 124,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "jjjlihls_1651153421_04.png",
+            "frame": {
+                "h": 23,
+                "w": 11,
+                "x": 989,
+                "y": 144
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 23,
+                "w": 11,
+                "x": 43,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_05.png",
+            "frame": {
+                "h": 26,
+                "w": 33,
+                "x": 954,
+                "y": 144
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 26,
+                "w": 33,
+                "x": 43,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_06.png",
+            "frame": {
+                "h": 49,
+                "w": 68,
+                "x": 450,
+                "y": 103
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 49,
+                "w": 68,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_07.png",
+            "frame": {
+                "h": 54,
+                "w": 68,
+                "x": 954,
+                "y": 88
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 54,
+                "w": 68,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_08.png",
+            "frame": {
+                "h": 84,
+                "w": 68,
+                "x": 954,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 84,
+                "w": 68,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_09.png",
+            "frame": {
+                "h": 85,
+                "w": 92,
+                "x": 335,
+                "y": 364
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 92,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_10.png",
+            "frame": {
+                "h": 85,
+                "w": 107,
+                "x": 226,
+                "y": 364
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 107,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_11.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 506,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_12.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 618,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_13.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 730,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_14.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 842,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_15.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 506,
+                "y": 89
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_16.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 618,
+                "y": 89
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_17.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 730,
+                "y": 89
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_18.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 842,
+                "y": 89
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_19.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 2,
+                "y": 103
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_20.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 114,
+                "y": 103
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_21.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 226,
+                "y": 103
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_22.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 338,
+                "y": 103
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_23.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 450,
+                "y": 176
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_24.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 562,
+                "y": 176
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_25.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 674,
+                "y": 176
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_26.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 786,
+                "y": 176
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_27.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 898,
+                "y": 176
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_28.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 2,
+                "y": 190
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_29.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 114,
+                "y": 190
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_30.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 226,
+                "y": 190
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_31.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 338,
+                "y": 190
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_32.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 450,
+                "y": 263
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_33.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 562,
+                "y": 263
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_34.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 674,
+                "y": 263
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_35.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 786,
+                "y": 263
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_36.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 898,
+                "y": 263
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_37.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 2,
+                "y": 277
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_38.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 114,
+                "y": 277
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_39.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 226,
+                "y": 277
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_40.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 338,
+                "y": 277
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_41.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 450,
+                "y": 350
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_42.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 562,
+                "y": 350
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_43.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 674,
+                "y": 350
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_44.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 786,
+                "y": 350
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_45.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 898,
+                "y": 350
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_46.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 2,
+                "y": 364
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "jjjlihls_1651153421_47.png",
+            "frame": {
+                "h": 85,
+                "w": 110,
+                "x": 114,
+                "y": 364
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 99,
+                "w": 124
+            },
+            "spriteSourceSize": {
+                "h": 85,
+                "w": 110,
+                "x": 8,
+                "y": 3
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 451,
+            "w": 1024
+        }
+    }
+}

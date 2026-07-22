@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7244518590332801592",
+  "name": "DouyinSansBold",
+  "resource_id": "7244518590332801592",
+  "effect_id": "7244518590332801592",
+  "checksum_sha256": "575beb5f23791ff4d0efb3f53fbad57f010ae63592bcb21a902d281efe6ebd92",
+  "size_bytes": 2082964,
+  "file": "files/DouyinSansBold_7244518590332801592.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\DouyinSansBold_7244518590332801592.otf",
+  "metadata_file": "metadata/DouyinSansBold_7244518590332801592.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7244518590332801592\\1a9c90e65d4ac34436d90a1b19d94d5a\\DouyinSansBold.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 6,
+          "material_id": "1D6A63D6-408F-4ff5-B5C5-E74350C8EE10",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 6,
+          "material_id": "1D6A63D6-408F-4ff5-B5C5-E74350C8EE10",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 6,
+          "material_id": "1D6A63D6-408F-4ff5-B5C5-E74350C8EE10",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

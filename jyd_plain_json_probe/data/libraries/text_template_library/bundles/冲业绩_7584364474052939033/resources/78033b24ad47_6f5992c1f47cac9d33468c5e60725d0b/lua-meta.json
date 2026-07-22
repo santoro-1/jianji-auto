@@ -1,0 +1,170 @@
+[
+    {
+        "ClassName": "AETools",
+        "Super": "",
+        "FilePath": "AETools.lua",
+        "FileAbsPath": "/Users/bytedance/lrc/\u5de5\u4f5c/2023/1-2/\u6587\u5b57\u52a8\u753b-\u5450\u558a\u58f0\u6ce2/v1/AETools.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "new",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "addKeyFrameInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_updateKeyFrameInfo",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getCurPartVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "_getCurPart",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "clear",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "Util",
+        "Super": "",
+        "FilePath": "Util.lua",
+        "FileAbsPath": "/Users/bytedance/lrc/\u5de5\u4f5c/2023/1-2/\u6587\u5b57\u52a8\u753b-\u5450\u558a\u58f0\u6ce2/v1/Util.lua",
+        "Properties": [],
+        "Methods": [
+            {
+                "FuncName": "registerParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRegistedParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "setRegistedVal",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "getRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "registerRootDir",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezier",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "remap01",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "mix",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "CreateJsonFile",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "ReadFromJson",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "bezierWithParams",
+                "Params": [],
+                "Comment": ""
+            },
+            {
+                "FuncName": "test",
+                "Params": [],
+                "Comment": ""
+            }
+        ],
+        "Comment": "",
+        "ExportFiles": []
+    },
+    {
+        "ClassName": "TextAnim",
+        "Super": "ScriptComponent",
+        "FilePath": "TextAnim.lua",
+        "FileAbsPath": "/Users/bytedance/lrc/\u5de5\u4f5c/2023/1-2/\u6587\u5b57\u52a8\u753b-\u5450\u558a\u58f0\u6ce2/v1/TextAnim.lua",
+        "Properties": [
+            {
+                "VarName": "autoplay",
+                "VarType": "Bool",
+                "Comment": ""
+            },
+            {
+                "VarName": "duration",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "curTime",
+                "VarType": "Double",
+                "Comment": ""
+            },
+            {
+                "VarName": "progress",
+                "VarType": "Double",
+                "Comment": "",
+                "AnnoItems": [
+                    {
+                        "ItemType": "UI",
+                        "Attributes": [
+                            {
+                                "AttrType": "Range",
+                                "RawValue": "",
+                                "Values": [
+                                    0.0,
+                                    1.0
+                                ]
+                            },
+                            {
+                                "AttrType": "Slider",
+                                "RawValue": "",
+                                "Values": []
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "Methods": [],
+        "Comment": "",
+        "ExportFiles": []
+    }
+]

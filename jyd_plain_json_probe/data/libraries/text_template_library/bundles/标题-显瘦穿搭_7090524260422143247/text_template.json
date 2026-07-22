@@ -1,0 +1,277 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:22",
+  "identity": "resource_id:7090524260422143247",
+  "name": "标题-显瘦穿搭",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "8F7D3E56-1DF0-41c1-886F-3B28EEFE0DA6",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7090524260422143247",
+    "id": "ABE125F9-281A-4c67-B694-15B5197F10B9",
+    "name": "标题-显瘦穿搭",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7090524260422143247/6a3ce9f45c358711e001b310df0a011c",
+    "resource_id": "7090524260422143247",
+    "resources": [
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644276/1c500e93b3b8bdee3cbe1095db5d01ff",
+        "resource_id": "6724920636403094028"
+      },
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644311/7d23b7a68a1bf21c7692a35ffa6ddcdc",
+        "resource_id": "6872642189260755463"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+        "resource_id": "7068208151488631309"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "0712C71F-6270-46da-9596-D1021FCF49D4"
+        ],
+        "text_material_id": "CA0A4FA6-B7EB-4811-B297-B08DDCFCC050"
+      },
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "3AD6530C-1768-40ac-BC64-E452CC218A9D"
+        ],
+        "text_material_id": "5F9FD1B0-5694-4aa9-9B29-C34718967D88"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "0712C71F-6270-46da-9596-D1021FCF49D4",
+      "3AD6530C-1768-40ac-BC64-E452CC218A9D"
+    ],
+    "id": "71756383-D301-47f5-B520-72EB6284FD12",
+    "material_id": "ABE125F9-281A-4c67-B694-15B5197F10B9",
+    "render_index": 14057,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 171000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "CA0A4FA6-B7EB-4811-B297-B08DDCFCC050",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "0712C71F-6270-46da-9596-D1021FCF49D4"
+        ],
+        "text_material_id": "CA0A4FA6-B7EB-4811-B297-B08DDCFCC050"
+      },
+      "text_material": {
+        "alignment": 0,
+        "border_color": "#414594FF",
+        "border_width": 0.0799999982118607,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 15,
+        "combo_info": {},
+        "content": "显瘦穿搭",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+        "font_resource_id": "7068208151488631309",
+        "font_size": 20.0,
+        "id": "CA0A4FA6-B7EB-4811-B297-B08DDCFCC050",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "letter_spacing": 0.1599999964237213,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#FEFECCFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    },
+    {
+      "slot_index": 1,
+      "text_material_id": "5F9FD1B0-5694-4aa9-9B29-C34718967D88",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "3AD6530C-1768-40ac-BC64-E452CC218A9D"
+        ],
+        "text_material_id": "5F9FD1B0-5694-4aa9-9B29-C34718967D88"
+      },
+      "text_material": {
+        "alignment": 0,
+        "border_color": "#FEFECCFF",
+        "border_width": 0.10000000149011612,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 15,
+        "combo_info": {},
+        "content": "懒人春装搭配大法",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+        "font_resource_id": "7068208151488631309",
+        "font_size": 20.0,
+        "id": "5F9FD1B0-5694-4aa9-9B29-C34718967D88",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "letter_spacing": 0.10000000149011612,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#414594FF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "0712C71F-6270-46da-9596-D1021FCF49D4",
+    "3AD6530C-1768-40ac-BC64-E452CC218A9D"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 1500000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644311/7d23b7a68a1bf21c7692a35ffa6ddcdc",
+            "resource_id": "6872642189260755463",
+            "type": "in"
+          }
+        ],
+        "id": "0712C71F-6270-46da-9596-D1021FCF49D4",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 1000000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644276/1c500e93b3b8bdee3cbe1095db5d01ff",
+            "resource_id": "6724920636403094028",
+            "type": "in"
+          }
+        ],
+        "id": "3AD6530C-1768-40ac-BC64-E452CC218A9D",
+        "type": "sticker_animation"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7090524260422143247/6a3ce9f45c358711e001b310df0a011c",
+      "library_path": "resources/80e84946261e_6a3ce9f45c358711e001b310df0a011c",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644276/1c500e93b3b8bdee3cbe1095db5d01ff",
+      "library_path": "resources/c2ae61c3d7bc_1c500e93b3b8bdee3cbe1095db5d01ff",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "referenced_materials.material_animations[1].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644311/7d23b7a68a1bf21c7692a35ffa6ddcdc",
+      "library_path": "resources/9ba3a1a448d4_7d23b7a68a1bf21c7692a35ffa6ddcdc",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+      "library_path": "resources/4f964d62b8d3_造字工房文雅体.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path",
+        "text_slots[0].text_material.font_path",
+        "text_slots[1].text_material.font_path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 57,
+      "material_id": "ABE125F9-281A-4c67-B694-15B5197F10B9",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 171000000
+      }
+    }
+  ]
+}

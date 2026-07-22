@@ -1,0 +1,38 @@
+{
+  "schema": "jyd_probe.audio_asset.v1",
+  "exported_at": "2026-07-13T20:04:36",
+  "identity": "music_id:6931987094940174343",
+  "checksum_sha256": "fd4098e35171efbe59c55363d883409ecf1a96bb9ca976a4212528ef362408c3",
+  "file": "files/萱草花_哼唱版（电影《你好，李焕英》主题曲）_6931987094940174343.mp3",
+  "material": {
+    "app_id": 1775,
+    "category_id": "100",
+    "category_name": "收藏",
+    "duration": 75416666,
+    "id": "5DD48137-C5D0-4f9c-B708-840DCD0AB5F6",
+    "music_id": "6931987094940174343",
+    "music_source": "pgc",
+    "name": "萱草花 哼唱版（电影《你好，李焕英》主题曲）",
+    "path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\6a575f6e2e01984f92201aff4fbc6d51.mp3",
+    "resource_id": "",
+    "similiar_music_info": {},
+    "type": "music"
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+      "audio_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 0,
+      "material_id": "5DD48137-C5D0-4f9c-B708-840DCD0AB5F6",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\6a575f6e2e01984f92201aff4fbc6d51.mp3",
+      "source_timerange": {
+        "duration": 75416666
+      },
+      "target_timerange": {
+        "duration": 75416666
+      },
+      "volume": 1.0
+    }
+  ]
+}

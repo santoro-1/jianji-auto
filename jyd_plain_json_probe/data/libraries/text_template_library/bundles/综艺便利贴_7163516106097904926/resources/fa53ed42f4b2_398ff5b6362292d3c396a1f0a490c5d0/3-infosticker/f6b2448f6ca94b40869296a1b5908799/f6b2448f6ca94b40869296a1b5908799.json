@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "iovhjaxa_1645020829_00.png",
+            "frame": {
+                "h": 61,
+                "w": 52,
+                "x": 465,
+                "y": 57
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 52,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_01.png",
+            "frame": {
+                "h": 62,
+                "w": 52,
+                "x": 722,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 62,
+                "w": 52,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_02.png",
+            "frame": {
+                "h": 62,
+                "w": 52,
+                "x": 786,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 62,
+                "w": 52,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_03.png",
+            "frame": {
+                "h": 61,
+                "w": 51,
+                "x": 591,
+                "y": 57
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 51,
+                "x": 11,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_04.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 653,
+                "y": 110
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_05.png",
+            "frame": {
+                "h": 58,
+                "w": 49,
+                "x": 2,
+                "y": 112
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 58,
+                "w": 49,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_06.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 714,
+                "y": 110
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_07.png",
+            "frame": {
+                "h": 60,
+                "w": 51,
+                "x": 128,
+                "y": 59
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 60,
+                "w": 51,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_08.png",
+            "frame": {
+                "h": 63,
+                "w": 53,
+                "x": 401,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 63,
+                "w": 53,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_09.png",
+            "frame": {
+                "h": 65,
+                "w": 55,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 65,
+                "w": 55,
+                "x": 10,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_10.png",
+            "frame": {
+                "h": 65,
+                "w": 55,
+                "x": 69,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 65,
+                "w": 55,
+                "x": 10,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_11.png",
+            "frame": {
+                "h": 64,
+                "w": 55,
+                "x": 203,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 64,
+                "w": 55,
+                "x": 10,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_12.png",
+            "frame": {
+                "h": 63,
+                "w": 53,
+                "x": 466,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 63,
+                "w": 53,
+                "x": 11,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_13.png",
+            "frame": {
+                "h": 62,
+                "w": 53,
+                "x": 531,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 62,
+                "w": 53,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_14.png",
+            "frame": {
+                "h": 62,
+                "w": 52,
+                "x": 722,
+                "y": 56
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 62,
+                "w": 52,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_15.png",
+            "frame": {
+                "h": 62,
+                "w": 52,
+                "x": 401,
+                "y": 57
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 62,
+                "w": 52,
+                "x": 11,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_16.png",
+            "frame": {
+                "h": 60,
+                "w": 51,
+                "x": 190,
+                "y": 59
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 60,
+                "w": 51,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_17.png",
+            "frame": {
+                "h": 58,
+                "w": 49,
+                "x": 62,
+                "y": 112
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 58,
+                "w": 49,
+                "x": 13,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_18.png",
+            "frame": {
+                "h": 55,
+                "w": 47,
+                "x": 299,
+                "y": 163
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 55,
+                "w": 47,
+                "x": 14,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_19.png",
+            "frame": {
+                "h": 54,
+                "w": 46,
+                "x": 356,
+                "y": 163
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 54,
+                "w": 46,
+                "x": 14,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_20.png",
+            "frame": {
+                "h": 54,
+                "w": 46,
+                "x": 412,
+                "y": 163
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 54,
+                "w": 46,
+                "x": 14,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_21.png",
+            "frame": {
+                "h": 57,
+                "w": 49,
+                "x": 182,
+                "y": 112
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 57,
+                "w": 49,
+                "x": 12,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_22.png",
+            "frame": {
+                "h": 60,
+                "w": 51,
+                "x": 252,
+                "y": 59
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 60,
+                "w": 51,
+                "x": 11,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_23.png",
+            "frame": {
+                "h": 62,
+                "w": 53,
+                "x": 595,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 62,
+                "w": 53,
+                "x": 10,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_24.png",
+            "frame": {
+                "h": 61,
+                "w": 51,
+                "x": 654,
+                "y": 57
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 51,
+                "x": 11,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_25.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 314,
+                "y": 111
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 12,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_26.png",
+            "frame": {
+                "h": 57,
+                "w": 48,
+                "x": 241,
+                "y": 112
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 57,
+                "w": 48,
+                "x": 13,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_27.png",
+            "frame": {
+                "h": 56,
+                "w": 48,
+                "x": 712,
+                "y": 162
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 56,
+                "w": 48,
+                "x": 13,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_28.png",
+            "frame": {
+                "h": 57,
+                "w": 48,
+                "x": 775,
+                "y": 128
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 57,
+                "w": 48,
+                "x": 13,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_29.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 375,
+                "y": 111
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 12,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_30.png",
+            "frame": {
+                "h": 61,
+                "w": 51,
+                "x": 335,
+                "y": 58
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 51,
+                "x": 11,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_31.png",
+            "frame": {
+                "h": 61,
+                "w": 51,
+                "x": 2,
+                "y": 59
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 51,
+                "x": 11,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_32.png",
+            "frame": {
+                "h": 61,
+                "w": 51,
+                "x": 65,
+                "y": 59
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 51,
+                "x": 11,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_33.png",
+            "frame": {
+                "h": 60,
+                "w": 51,
+                "x": 786,
+                "y": 66
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 60,
+                "w": 51,
+                "x": 11,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_34.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 436,
+                "y": 111
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 11,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_35.png",
+            "frame": {
+                "h": 57,
+                "w": 48,
+                "x": 653,
+                "y": 162
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 57,
+                "w": 48,
+                "x": 12,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_36.png",
+            "frame": {
+                "h": 54,
+                "w": 45,
+                "x": 468,
+                "y": 163
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 54,
+                "w": 45,
+                "x": 13,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_37.png",
+            "frame": {
+                "h": 53,
+                "w": 45,
+                "x": 524,
+                "y": 163
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 53,
+                "w": 45,
+                "x": 13,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_38.png",
+            "frame": {
+                "h": 53,
+                "w": 45,
+                "x": 579,
+                "y": 163
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 53,
+                "w": 45,
+                "x": 13,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_39.png",
+            "frame": {
+                "h": 56,
+                "w": 47,
+                "x": 241,
+                "y": 162
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 56,
+                "w": 47,
+                "x": 12,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_40.png",
+            "frame": {
+                "h": 61,
+                "w": 52,
+                "x": 528,
+                "y": 57
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 52,
+                "x": 10,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_41.png",
+            "frame": {
+                "h": 64,
+                "w": 55,
+                "x": 269,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 64,
+                "w": 55,
+                "x": 9,
+                "y": 4
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_42.png",
+            "frame": {
+                "h": 65,
+                "w": 55,
+                "x": 136,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 65,
+                "w": 55,
+                "x": 9,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_43.png",
+            "frame": {
+                "h": 64,
+                "w": 54,
+                "x": 335,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 64,
+                "w": 54,
+                "x": 10,
+                "y": 4
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_44.png",
+            "frame": {
+                "h": 61,
+                "w": 53,
+                "x": 659,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 61,
+                "w": 53,
+                "x": 11,
+                "y": 5
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_45.png",
+            "frame": {
+                "h": 60,
+                "w": 51,
+                "x": 591,
+                "y": 110
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 60,
+                "w": 51,
+                "x": 12,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_46.png",
+            "frame": {
+                "h": 58,
+                "w": 49,
+                "x": 122,
+                "y": 112
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 58,
+                "w": 49,
+                "x": 13,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "iovhjaxa_1645020829_47.png",
+            "frame": {
+                "h": 59,
+                "w": 50,
+                "x": 497,
+                "y": 111
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 77,
+                "w": 74
+            },
+            "spriteSourceSize": {
+                "h": 59,
+                "w": 50,
+                "x": 12,
+                "y": 7
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 212,
+            "w": 840
+        }
+    }
+}

@@ -1,0 +1,47 @@
+{
+	"version":	"1.0",
+	"mode":	2,
+	"name":	"AlgorithmGraph_deJdjbSbycDdjbm",
+	"size":	{
+		"width":	360,
+		"height":	640
+	},
+	"nodes":	[{
+			"name":	"blit_0",
+			"type":	"blit",
+			"config":	{
+				"keyMaps":	{
+					"intParam":	{
+					},
+					"floatParam":	{
+					},
+					"stringParam":	{
+					},
+					"pathParam":	{
+					}
+				}
+			}
+		}, {
+			"name":	"face_0",
+			"type":	"face",
+			"config":	{
+				"keyMaps":	{
+					"intParam":	{
+						"face_detect_ability":	63
+					},
+					"floatParam":	{
+					},
+					"stringParam":	{
+					},
+					"pathParam":	{
+					}
+				}
+			}
+		}],
+	"links":	[{
+			"fromNode":	"blit_0",
+			"fromIndex":	0,
+			"toNode":	"face_0",
+			"toIndex":	0
+		}]
+}

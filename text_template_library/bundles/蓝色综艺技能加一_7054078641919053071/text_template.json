@@ -1,0 +1,237 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:21",
+  "identity": "resource_id:7054078641919053071",
+  "name": "蓝色综艺技能加一",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "EE475395-63C8-4175-B90E-5907D5DF388D",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7054078641919053071",
+    "id": "6C7B647D-2DD3-4541-91EE-9C31C993A6BB",
+    "name": "蓝色综艺技能加一",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7054078641919053071/b023a8c59e7a2677edbe8b0c01b41eab",
+    "resource_id": "7054078641919053071",
+    "resources": [
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349481/be8ed2902b2b812c367103e7697bea3e/木头人-汉仪铸字木头人.ttf",
+        "resource_id": "6740498474212528644"
+      },
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644303/cb7eabb90d32a7bdd7454ac88bb092f1",
+        "resource_id": "6915269706769240583"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "text_material_id": "CC2C9932-3450-42a4-820C-F4A0379E0292"
+      },
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "67A70E76-89E5-490f-BCA2-326096BFAC3D"
+        ],
+        "text_material_id": "4B8A0348-385E-4fcd-A271-8EFA8D00DD0C"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "67A70E76-89E5-490f-BCA2-326096BFAC3D"
+    ],
+    "id": "8FDD826B-743F-4c52-8C9C-AB7198D9C1AF",
+    "material_id": "6C7B647D-2DD3-4541-91EE-9C31C993A6BB",
+    "render_index": 14023,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 69000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "CC2C9932-3450-42a4-820C-F4A0379E0292",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "text_material_id": "CC2C9932-3450-42a4-820C-F4A0379E0292"
+      },
+      "text_material": {
+        "border_color": "#47C0FFFF",
+        "border_width": 0.04,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 15,
+        "combo_info": {},
+        "content": "技能",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349481/be8ed2902b2b812c367103e7697bea3e/木头人-汉仪铸字木头人.ttf",
+        "font_resource_id": "6740498474212528644",
+        "font_size": 20.0,
+        "id": "CC2C9932-3450-42a4-820C-F4A0379E0292",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "letter_spacing": 0.05,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#DFF6FCFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    },
+    {
+      "slot_index": 1,
+      "text_material_id": "4B8A0348-385E-4fcd-A271-8EFA8D00DD0C",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "67A70E76-89E5-490f-BCA2-326096BFAC3D"
+        ],
+        "text_material_id": "4B8A0348-385E-4fcd-A271-8EFA8D00DD0C"
+      },
+      "text_material": {
+        "alignment": 0,
+        "border_color": "#47C0FFFF",
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 15,
+        "combo_info": {},
+        "content": "+1",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349481/be8ed2902b2b812c367103e7697bea3e/木头人-汉仪铸字木头人.ttf",
+        "font_resource_id": "6740498474212528644",
+        "font_size": 20.0,
+        "id": "4B8A0348-385E-4fcd-A271-8EFA8D00DD0C",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#DFF6FCFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "67A70E76-89E5-490f-BCA2-326096BFAC3D"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 1500000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644303/cb7eabb90d32a7bdd7454ac88bb092f1",
+            "resource_id": "6915269706769240583",
+            "type": "loop"
+          }
+        ],
+        "id": "67A70E76-89E5-490f-BCA2-326096BFAC3D",
+        "type": "sticker_animation"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7054078641919053071/b023a8c59e7a2677edbe8b0c01b41eab",
+      "library_path": "resources/dd8fdd2d00aa_b023a8c59e7a2677edbe8b0c01b41eab",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349481/be8ed2902b2b812c367103e7697bea3e/木头人-汉仪铸字木头人.ttf",
+      "library_path": "resources/a4aeb1ec68c6_木头人-汉仪铸字木头人.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "text_slots[0].text_material.font_path",
+        "text_slots[1].text_material.font_path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644303/cb7eabb90d32a7bdd7454ac88bb092f1",
+      "library_path": "resources/5153d31d97bb_cb7eabb90d32a7bdd7454ac88bb092f1",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 23,
+      "material_id": "6C7B647D-2DD3-4541-91EE-9C31C993A6BB",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 69000000
+      }
+    }
+  ]
+}

@@ -1,0 +1,144 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:22",
+  "identity": "resource_id:7054078618749685032",
+  "name": "白色地标在远方",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "2CAD0E45-FC03-4eb4-8852-4944CE28825D",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7054078618749685032",
+    "id": "6A5315C1-F2B1-4b3c-967D-62F02F7ADEFC",
+    "name": "白色地标在远方",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7054078618749685032/bd55ef29398aa72b508e338ee851985a",
+    "resource_id": "7054078618749685032",
+    "resources": [
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349461/2f460ce688c37123262d25a3cc01771c/文鼎陈森田字体.ttf",
+        "resource_id": "6740499585669534215"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "text_material_id": "6CD6DFDE-B32C-483f-9AC7-76EF5C2C15D9"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "id": "114093DD-0E8F-451c-8CD9-1333E0ECE9ED",
+    "material_id": "6A5315C1-F2B1-4b3c-967D-62F02F7ADEFC",
+    "render_index": 14038,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 114000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "6CD6DFDE-B32C-483f-9AC7-76EF5C2C15D9",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "text_material_id": "6CD6DFDE-B32C-483f-9AC7-76EF5C2C15D9"
+      },
+      "text_material": {
+        "alignment": 0,
+        "border_width": 0.08,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "combo_info": {},
+        "content": "在远方",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349461/2f460ce688c37123262d25a3cc01771c/文鼎陈森田字体.ttf",
+        "font_resource_id": "6740499585669534215",
+        "font_size": 20.0,
+        "id": "6CD6DFDE-B32C-483f-9AC7-76EF5C2C15D9",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#FFFFFFFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [],
+  "referenced_materials": {},
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7054078618749685032/bd55ef29398aa72b508e338ee851985a",
+      "library_path": "resources/6df85abb63ff_bd55ef29398aa72b508e338ee851985a",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/349461/2f460ce688c37123262d25a3cc01771c/文鼎陈森田字体.ttf",
+      "library_path": "resources/46094fae24e3_文鼎陈森田字体.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "text_slots[0].text_material.font_path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 38,
+      "material_id": "6A5315C1-F2B1-4b3c-967D-62F02F7ADEFC",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 114000000
+      }
+    }
+  ]
+}

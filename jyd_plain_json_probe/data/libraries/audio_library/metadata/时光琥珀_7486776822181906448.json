@@ -1,0 +1,39 @@
+{
+  "schema": "jyd_probe.audio_asset.v1",
+  "exported_at": "2026-07-13T20:04:36",
+  "identity": "music_id:7486776822181906448",
+  "checksum_sha256": "673d9dcfdba7ee81e631f83c4da4e9257927bb96b6c86cf4f6fa3c9d60087867",
+  "file": "files/时光琥珀_7486776822181906448.mp3",
+  "material": {
+    "app_id": 1775,
+    "category_id": "search_audio",
+    "category_name": "search_audio",
+    "duration": 114533333,
+    "id": "802B4873-61AC-4f3a-A597-8266DF2F3A56",
+    "music_id": "7486776822181906448",
+    "music_source": "pgc",
+    "name": "时光琥珀",
+    "path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\f4d2332400f12e787f4b8304ac9ae58a.mp3",
+    "resource_id": "",
+    "similiar_music_info": {},
+    "type": "music"
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\访谈",
+      "audio_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 7,
+      "material_id": "802B4873-61AC-4f3a-A597-8266DF2F3A56",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\f4d2332400f12e787f4b8304ac9ae58a.mp3",
+      "source_timerange": {
+        "duration": 114533333
+      },
+      "target_timerange": {
+        "duration": 114533334,
+        "start": 1426516666
+      },
+      "volume": 1.0
+    }
+  ]
+}

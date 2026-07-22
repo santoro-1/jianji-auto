@@ -1,0 +1,376 @@
+%YAML 1.1
+--- !Prefab &1
+name: ""
+entities:
+  - __class: Entity
+    name: noFilter_entity
+    selfvisible: true
+    tag: 0
+    components:
+      - {localId: 2}
+      - __class: SDFText
+        name: ""
+        enabled: true
+        drivenByScript: false
+        forceDegeneratedEs2Enabled: false
+        str: 人没了
+        fontSize: 48
+        fontPath: ""
+        fallbackFontPath: ""
+        wordGap: 0
+        innerPadding: 0
+        lineGap: 0
+        fixedRectEnabled: false
+        autoFontSize: false
+        rect: {x: -214.2853, y: -66.71414, w: 428.5705, h: 133.4283}
+        autoWrapWidth: 4000
+        textColor: {x: 1, y: 1, z: 1, w: 1}
+        randomGridSize: {x: 1, y: 1}
+        shadowEnabled: false
+        shadowColor: {x: 0, y: 0, z: 0, w: 1}
+        shadowOffset: {x: 0.1, y: -0.1}
+        shadowSmoothing: 0.1000000014901161
+        shadowBlur: 0.01999999955296516
+        outlineEnabled: false
+        outlineWidth: 0.2000000029802322
+        outlineMaxWidth: 0.2000000029802322
+        outlineColor: {x: 0, y: 0, z: 0, w: 1}
+        backgroundEnabled: false
+        backgroundColor: {x: 1, y: 0, z: 0, w: 1}
+        alpha: 1
+        typeSettingKind:
+          __class: TypeSettingKind
+          value: HORIZONTAL
+        textAlign:
+          __class: TextAlign
+          value: LEFT
+        effectTextParam:
+          __class: EffectTextParam
+          name: ""
+          textColor: {r: 0.4, g: 0.8352941, b: 0.9843137, a: 1}
+          outlineMaxWidth: 0.2000000029802322
+          randomGridSize: {x: 1, y: 1}
+          effectLayers:
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0
+                angle: -90
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: false
+                  percent: 0.4199999868869781
+                  color: {r: 0.9740068, g: 0.9743143, b: 0.9869179, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 0.550000011920929
+                color2:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.6800000071525574
+                  color: {r: 0.4, g: 0.8352941, b: 0.9843137, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent2_3: 0.9800000190734863
+                color3:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.8500000238418579
+                  color: {r: 0.2019885, g: 0.4709368, b: 1, a: 0}
+                  hsbOffset: {x: 18, y: 0.3, z: 0}
+                  alphaOffset: 0
+                linear: true
+              smoothing: 0
+              offset: {x: 0, y: 0}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0
+                angle: -90
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.7799999713897705
+                  color: {r: 0.1019608, g: 0.5882353, b: 1, a: 1}
+                  hsbOffset: {x: 18, y: 0.2, z: 0}
+                  alphaOffset: 0
+                percent1_2: 0.07000000029802322
+                color2:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.8999999761581421
+                  color: {r: 0.4, g: 0.8352941, b: 0.9843137, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              outline1Grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.007000000216066837
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: false
+                  percent: 0
+                  color: {r: 1e-06, g: 0, b: 0, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0
+              offset: {x: 0, y: 0}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.01799999922513962
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: false
+                  percent: 0
+                  color: {r: 1e-06, g: 0, b: 0, a: 1}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0
+              offset: {x: 0.018, y: -0.01}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0
+                  color: {r: 0.1372549, g: 0.3490196, b: 0.5450981, a: 0.6470588}
+                  hsbOffset: {x: 12, y: 0.13, z: -0.44}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0.1000000014901161
+              offset: {x: 0, y: 0}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.03999999910593033
+                angle: 90
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.1599999964237213
+                  color: {r: 0.4196078, g: 0.1843137, b: 0.9529412, a: 1}
+                  hsbOffset: {x: 69, y: 0.14, z: -0.08}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                color2:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.2300000041723251
+                  color: {r: 0.2313726, g: 0, b: 0.7568628, a: 1}
+                  hsbOffset: {x: 58.13, y: 0.27, z: -0.36}
+                  alphaOffset: 0
+                percent2_3: 0.3499999940395355
+                color3:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.5099999904632568
+                  color: {r: 0.4196078, g: 0.1843137, b: 0.9529412, a: 0}
+                  hsbOffset: {x: 69, y: 0.14, z: -0.08}
+                  alphaOffset: 0
+                linear: true
+              smoothing: 0
+              offset: {x: 0.01, y: -0.005}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.05000000074505806
+                angle: 90
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.3799999952316284
+                  color: {r: 0.4196078, g: 0.1843137, b: 0.9529412, a: 1}
+                  hsbOffset: {x: 60.97, y: 0.14, z: -0.08}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                color2:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0.7099999785423279
+                  color: {r: 0.7294118, g: 0.6235294, b: 0.9686275, a: 1}
+                  hsbOffset: {x: 64.69, y: -0.32, z: -0.1}
+                  alphaOffset: 0
+                percent2_3: 0.5799999833106995
+                color3:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 1
+                  color: {r: 0.9607843, g: 0.9568627, b: 0.8666667, a: 1}
+                  hsbOffset: {x: -133, y: -0.49, z: -0.004}
+                  alphaOffset: 0
+                linear: true
+              smoothing: 0
+              offset: {x: 0.01, y: -0.005}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.05499999970197678
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: false
+                  percent: 0
+                  color: {r: 0, g: 0, b: 0, a: 0.7803922}
+                  hsbOffset: {x: 0, y: 0, z: 0}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0.02999999932944775
+              offset: {x: 0.01, y: -0.005}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.004999999888241291
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0
+                  color: {r: 0.282353, g: 0.06666667, b: 0.3215686, a: 1}
+                  hsbOffset: {x: 100, y: 0.4, z: -0.67}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0.1449999958276749
+              offset: {x: 0.01, y: -0.005}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.07999999821186066
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0
+                  color: {r: 0.282353, g: 0.06666667, b: 0.3215686, a: 0.6313726}
+                  hsbOffset: {x: 100, y: 0.4, z: -0.67}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0.05000000074505806
+              offset: {x: 0.01, y: -0.005}
+              innerShadowEnabled: false
+              textureLevel: 0
+            - __class: EffectLayer
+              name: ""
+              mat: {localId: 1, path: material/effect.material}
+              grad:
+                __class: GradientChange
+                name: ""
+                scale: 0.1299999952316284
+                angle: 0
+                color1:
+                  __class: ColorChange
+                  name: ""
+                  change: true
+                  percent: 0
+                  color: {r: 0.282353, g: 0.06666667, b: 0.3215686, a: 0.2431373}
+                  hsbOffset: {x: 100, y: 0.4, z: -0.67}
+                  alphaOffset: 0
+                percent1_2: 9.999999747378752e-06
+                percent2_3: 9.999999747378752e-06
+                linear: true
+              smoothing: 0.03999999910593033
+              offset: {x: 0.01, y: -0.005}
+              innerShadowEnabled: false
+              textureLevel: 0
+        ktvEnabled: false
+        ktvDirection: 1
+        ktvAlpha: 1
+        renderToRT: false
+        targetRTExtraSize: {x: 0, y: 0}
+      - __class: MeshRenderer
+        name: SDFTextMeshRenderer
+        enabled: true
+        sortingOrder: 0
+        autoSortingOrder: false
+        useFrustumCulling: true
+        castShadow: true
+    layer: 0
+standaloneResources:
+  __class: Map
+--- !Transform &2
+name: noFilter_transform
+enabled: true
+localPosition: {x: 0, y: 0, z: 0}
+localScale: {x: 1, y: 1, z: 1}
+localOrientation: {w: 1, x: 0, y: 0, z: 0}

@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7312719852194501158",
+  "name": "三极黑宋体 中粗",
+  "resource_id": "7312719852194501158",
+  "effect_id": "7312719852194501158",
+  "checksum_sha256": "c59ae8ba3d4362a80a208deba570d8dcf5f73a4dc28572e447c2d2d74ff9fda1",
+  "size_bytes": 4907220,
+  "file": "files/三极黑宋体_中粗_7312719852194501158.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\三极黑宋体_中粗_7312719852194501158.ttf",
+  "metadata_file": "metadata/三极黑宋体_中粗_7312719852194501158.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7312719852194501158\\4577355bc0adeb1763ad581f05e7c5ea\\三极黑宋体 中粗.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 13,
+          "material_id": "13AF2CA1-CC8A-455d-8BB1-8CE0E5660F25",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 13,
+          "material_id": "13AF2CA1-CC8A-455d-8BB1-8CE0E5660F25",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 13,
+          "material_id": "13AF2CA1-CC8A-455d-8BB1-8CE0E5660F25",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

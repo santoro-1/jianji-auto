@@ -1,0 +1,23 @@
+%YAML 1.1
+--- !Prefab &1
+name: anim_Prefab
+guid: {a: 6342158648654086511, b: 4556476388835211735}
+entities:
+  - __class: Entity
+    name: root_entity
+    guid: {a: 4452825432632244338, b: 3835405120322705480}
+    selfvisible: true
+    tag: 0
+    components:
+      - __class: ScriptComponent
+        name: script
+        guid: {a: 2586100438285620664, b: 8167661422240545807}
+        enabled: true
+        path: shangxiaweiyi.lua
+        properties:
+          __class: Map
+          sharedMaterial: {localId: 1, path: rt.material}
+        className: shangxiaweiyi
+    layer: 0
+standaloneResources:
+  __class: Map

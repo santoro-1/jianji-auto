@@ -1,0 +1,34 @@
+{
+    "text": "ababababs",
+    "start_time": 0,
+    "end_time": 3000,
+    "words": [
+        {
+            "attribute": {
+                "event": "singing"
+            },
+            "start_time": 0,
+            "text": "input",
+            "end_time": 2000
+        },
+        {
+            "attribute": {
+                "event": "singing"
+            },
+            "start_time": 2000,
+            "text": " ",
+            "end_time": 2000
+        },
+        {
+            "attribute": {
+                "event": "singing"
+            },
+            "start_time": 2000,
+            "text": "Text",
+            "end_time": 3000
+        }
+    ],
+    "attribute": {
+        "event": "singing"
+    }
+}

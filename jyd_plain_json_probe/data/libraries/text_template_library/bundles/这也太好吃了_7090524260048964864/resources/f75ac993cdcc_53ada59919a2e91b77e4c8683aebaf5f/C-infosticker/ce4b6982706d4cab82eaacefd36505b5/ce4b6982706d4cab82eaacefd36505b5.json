@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "brgticsj_1645778817_00.png",
+            "frame": {
+                "h": 177,
+                "w": 172,
+                "x": 184,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 177,
+                "w": 172,
+                "x": 15,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_01.png",
+            "frame": {
+                "h": 174,
+                "w": 170,
+                "x": 723,
+                "y": 175
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 174,
+                "w": 170,
+                "x": 16,
+                "y": 14
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_02.png",
+            "frame": {
+                "h": 170,
+                "w": 169,
+                "x": 1250,
+                "y": 515
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 170,
+                "w": 169,
+                "x": 17,
+                "y": 18
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_03.png",
+            "frame": {
+                "h": 173,
+                "w": 167,
+                "x": 529,
+                "y": 514
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 173,
+                "w": 167,
+                "x": 18,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_04.png",
+            "frame": {
+                "h": 178,
+                "w": 165,
+                "x": 709,
+                "y": 347
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 178,
+                "w": 165,
+                "x": 19,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_05.png",
+            "frame": {
+                "h": 173,
+                "w": 166,
+                "x": 703,
+                "y": 683
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 173,
+                "w": 166,
+                "x": 19,
+                "y": 16
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_06.png",
+            "frame": {
+                "h": 174,
+                "w": 164,
+                "x": 1053,
+                "y": 685
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 174,
+                "w": 164,
+                "x": 21,
+                "y": 14
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_07.png",
+            "frame": {
+                "h": 176,
+                "w": 162,
+                "x": 179,
+                "y": 686
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 162,
+                "x": 21,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_08.png",
+            "frame": {
+                "h": 174,
+                "w": 163,
+                "x": 876,
+                "y": 851
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 174,
+                "w": 163,
+                "x": 20,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_09.png",
+            "frame": {
+                "h": 175,
+                "w": 163,
+                "x": 1229,
+                "y": 686
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 163,
+                "x": 20,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_10.png",
+            "frame": {
+                "h": 175,
+                "w": 163,
+                "x": 2,
+                "y": 686
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 163,
+                "x": 20,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_11.png",
+            "frame": {
+                "h": 175,
+                "w": 165,
+                "x": 879,
+                "y": 515
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 165,
+                "x": 19,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_12.png",
+            "frame": {
+                "h": 177,
+                "w": 165,
+                "x": 1253,
+                "y": 348
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 177,
+                "w": 165,
+                "x": 19,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_13.png",
+            "frame": {
+                "h": 175,
+                "w": 168,
+                "x": 1076,
+                "y": 344
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 168,
+                "x": 18,
+                "y": 14
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_14.png",
+            "frame": {
+                "h": 172,
+                "w": 167,
+                "x": 2,
+                "y": 517
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 172,
+                "w": 167,
+                "x": 20,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_15.png",
+            "frame": {
+                "h": 174,
+                "w": 168,
+                "x": 2,
+                "y": 347
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 174,
+                "w": 168,
+                "x": 19,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_16.png",
+            "frame": {
+                "h": 176,
+                "w": 167,
+                "x": 531,
+                "y": 345
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 167,
+                "x": 18,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_17.png",
+            "frame": {
+                "h": 177,
+                "w": 167,
+                "x": 541,
+                "y": 176
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 177,
+                "w": 167,
+                "x": 17,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_18.png",
+            "frame": {
+                "h": 176,
+                "w": 169,
+                "x": 1079,
+                "y": 173
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 169,
+                "x": 17,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_19.png",
+            "frame": {
+                "h": 175,
+                "w": 169,
+                "x": 899,
+                "y": 175
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 169,
+                "x": 17,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_20.png",
+            "frame": {
+                "h": 176,
+                "w": 171,
+                "x": 723,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 171,
+                "x": 16,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_21.png",
+            "frame": {
+                "h": 171,
+                "w": 169,
+                "x": 1077,
+                "y": 514
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 171,
+                "w": 169,
+                "x": 18,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_22.png",
+            "frame": {
+                "h": 172,
+                "w": 168,
+                "x": 355,
+                "y": 514
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 172,
+                "w": 168,
+                "x": 19,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_23.png",
+            "frame": {
+                "h": 176,
+                "w": 167,
+                "x": 899,
+                "y": 346
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 167,
+                "x": 20,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_24.png",
+            "frame": {
+                "h": 178,
+                "w": 169,
+                "x": 1079,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 178,
+                "w": 169,
+                "x": 20,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_25.png",
+            "frame": {
+                "h": 176,
+                "w": 172,
+                "x": 545,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 172,
+                "x": 19,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_26.png",
+            "frame": {
+                "h": 176,
+                "w": 171,
+                "x": 901,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 171,
+                "x": 19,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_27.png",
+            "frame": {
+                "h": 180,
+                "w": 169,
+                "x": 363,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 180,
+                "w": 169,
+                "x": 19,
+                "y": 6
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_28.png",
+            "frame": {
+                "h": 180,
+                "w": 170,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 180,
+                "w": 170,
+                "x": 17,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_29.png",
+            "frame": {
+                "h": 176,
+                "w": 169,
+                "x": 363,
+                "y": 173
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 176,
+                "w": 169,
+                "x": 18,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_30.png",
+            "frame": {
+                "h": 175,
+                "w": 168,
+                "x": 354,
+                "y": 344
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 168,
+                "x": 19,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_31.png",
+            "frame": {
+                "h": 172,
+                "w": 167,
+                "x": 879,
+                "y": 682
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 172,
+                "w": 167,
+                "x": 19,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_32.png",
+            "frame": {
+                "h": 173,
+                "w": 167,
+                "x": 704,
+                "y": 514
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 173,
+                "w": 167,
+                "x": 20,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_33.png",
+            "frame": {
+                "h": 172,
+                "w": 167,
+                "x": 529,
+                "y": 683
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 172,
+                "w": 167,
+                "x": 20,
+                "y": 13
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_34.png",
+            "frame": {
+                "h": 171,
+                "w": 166,
+                "x": 703,
+                "y": 851
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 171,
+                "w": 166,
+                "x": 19,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_35.png",
+            "frame": {
+                "h": 170,
+                "w": 168,
+                "x": 351,
+                "y": 684
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 170,
+                "w": 168,
+                "x": 18,
+                "y": 16
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_36.png",
+            "frame": {
+                "h": 171,
+                "w": 168,
+                "x": 178,
+                "y": 516
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 171,
+                "w": 168,
+                "x": 19,
+                "y": 14
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_37.png",
+            "frame": {
+                "h": 175,
+                "w": 169,
+                "x": 177,
+                "y": 176
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 169,
+                "x": 17,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_38.png",
+            "frame": {
+                "h": 175,
+                "w": 167,
+                "x": 178,
+                "y": 347
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 175,
+                "w": 167,
+                "x": 19,
+                "y": 10
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_39.png",
+            "frame": {
+                "h": 170,
+                "w": 163,
+                "x": 343,
+                "y": 854
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 170,
+                "w": 163,
+                "x": 22,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_40.png",
+            "frame": {
+                "h": 173,
+                "w": 163,
+                "x": 1052,
+                "y": 851
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 173,
+                "w": 163,
+                "x": 21,
+                "y": 11
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_41.png",
+            "frame": {
+                "h": 172,
+                "w": 162,
+                "x": 523,
+                "y": 852
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 172,
+                "w": 162,
+                "x": 21,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_42.png",
+            "frame": {
+                "h": 168,
+                "w": 162,
+                "x": 174,
+                "y": 864
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 168,
+                "w": 162,
+                "x": 22,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_43.png",
+            "frame": {
+                "h": 170,
+                "w": 164,
+                "x": 1227,
+                "y": 851
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 170,
+                "w": 164,
+                "x": 21,
+                "y": 14
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_44.png",
+            "frame": {
+                "h": 170,
+                "w": 167,
+                "x": 2,
+                "y": 851
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 170,
+                "w": 167,
+                "x": 20,
+                "y": 16
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_45.png",
+            "frame": {
+                "h": 173,
+                "w": 171,
+                "x": 2,
+                "y": 174
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 173,
+                "w": 171,
+                "x": 18,
+                "y": 15
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_46.png",
+            "frame": {
+                "h": 173,
+                "w": 170,
+                "x": 1257,
+                "y": 176
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 173,
+                "w": 170,
+                "x": 19,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "brgticsj_1645778817_47.png",
+            "frame": {
+                "h": 174,
+                "w": 172,
+                "x": 1259,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 196,
+                "w": 198
+            },
+            "spriteSourceSize": {
+                "h": 174,
+                "w": 172,
+                "x": 17,
+                "y": 12
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 1028,
+            "w": 1435
+        }
+    }
+}

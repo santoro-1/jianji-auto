@@ -1,0 +1,41 @@
+{
+  "schema": "jyd.template.v1",
+  "template_id": "d4ad83d477ae44ddb141e534793db162_YZ-__00001_p87-",
+  "name": "d4ad83d477ae44ddb141e534793db162_YZ-数字人_00001_p87-",
+  "source_dir": "D:\\剪映草稿\\JianyingPro Drafts\\d4ad83d477ae44ddb141e534793db162_YZ-数字人_00001_p87-",
+  "draft_dir": "draft",
+  "created_at": "2026-07-14T11:38:51",
+  "was_decrypted": true,
+  "duration_us": 25066666,
+  "track_count": 3,
+  "summary": {
+    "track_type_counts": {
+      "video": 1,
+      "effect": 1,
+      "text": 1
+    },
+    "segment_count_by_type": {
+      "video": 1,
+      "effect": 1,
+      "text": 4
+    },
+    "material_counts": {
+      "canvases": 1,
+      "material_colors": 1,
+      "placeholder_infos": 1,
+      "sound_channel_mappings": 1,
+      "speeds": 1,
+      "texts": 4,
+      "video_effects": 1,
+      "videos": 1,
+      "vocal_separations": 1
+    },
+    "text_count": 4,
+    "audio_count": 0,
+    "video_count": 1,
+    "effect_count": 1,
+    "animation_count": 0,
+    "nested_draft_count": 0
+  },
+  "import_info": {}
+}

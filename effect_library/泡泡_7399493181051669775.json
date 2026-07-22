@@ -1,0 +1,56 @@
+{
+    "schema": "jyd_probe.video_effect.v1",
+    "exported_at": "2026-07-13T10:23:55",
+    "effect_label": "name='泡泡', type='video_effect', effect_id='7399493181051669775', resource_id='7399493181051669775', id='80F1C8D4-D472-43cf-ACD7-9300E29185DE'",
+    "source": {
+        "label": "D:\\剪映草稿\\JianyingPro Drafts\\特效采集01",
+        "effect_track_index": 0,
+        "raw_track_index": 1,
+        "segment_index": 0,
+        "material_id": "80F1C8D4-D472-43cf-ACD7-9300E29185DE",
+        "target_timerange": {
+            "duration": 450000
+        }
+    },
+    "material": {
+        "adjust_params": [
+            {
+                "default_value": 0.33,
+                "name": "effects_adjust_speed",
+                "value": 0.33
+            },
+            {
+                "default_value": 1.0,
+                "name": "effects_adjust_background_animation",
+                "value": 1.0
+            }
+        ],
+        "apply_target_type": 2,
+        "category_id": "100000",
+        "category_name": "effects2",
+        "effect_id": "7399493181051669775",
+        "id": "80F1C8D4-D472-43cf-ACD7-9300E29185DE",
+        "name": "泡泡",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/7399493181051669775/060b8178d3ac554eaa0d22e04989e70c",
+        "resource_id": "7399493181051669775",
+        "source_platform": 1,
+        "type": "video_effect",
+        "value": 1.0
+    },
+    "segment_template": {
+        "enable_adjust": false,
+        "enable_adjust_mask": false,
+        "enable_hsl": false,
+        "enable_lut": false,
+        "id": "32B970AE-C3D4-408f-8CCE-A5D74D671DD9",
+        "material_id": "80F1C8D4-D472-43cf-ACD7-9300E29185DE",
+        "render_index": 11000,
+        "render_timerange": {},
+        "responsive_layout": {},
+        "source": "segmentsourcenormal",
+        "target_timerange": {
+            "duration": 450000
+        },
+        "track_render_index": 1
+    }
+}

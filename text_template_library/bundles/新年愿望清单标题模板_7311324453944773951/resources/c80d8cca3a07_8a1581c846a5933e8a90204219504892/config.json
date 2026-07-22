@@ -1,0 +1,10 @@
+{
+    "version": "6.6.0", 
+    "effect": {
+        "Link": [
+            {
+                "type": "InfoSticker"
+            }
+        ]
+    }
+}

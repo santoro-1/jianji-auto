@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7080097079397192228",
+  "name": "HelloFont ID JiangHuTi",
+  "resource_id": "7080097079397192228",
+  "effect_id": "7080097079397192228",
+  "checksum_sha256": "a238c6302de19fe5a7297aa1e13ff5aa7c9984c4bfecd1f61f3843bdb6d54220",
+  "size_bytes": 5552340,
+  "file": "files/HelloFont_ID_JiangHuTi_7080097079397192228.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\HelloFont_ID_JiangHuTi_7080097079397192228.ttf",
+  "metadata_file": "metadata/HelloFont_ID_JiangHuTi_7080097079397192228.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7080097079397192228\\50957d5102cb4f2ea1459e140826eb0c\\HelloFont ID JiangHuTi.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 9,
+          "material_id": "05E2C769-0C29-4619-833B-90F7D25895AF",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 9,
+          "material_id": "05E2C769-0C29-4619-833B-90F7D25895AF",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 9,
+          "material_id": "05E2C769-0C29-4619-833B-90F7D25895AF",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

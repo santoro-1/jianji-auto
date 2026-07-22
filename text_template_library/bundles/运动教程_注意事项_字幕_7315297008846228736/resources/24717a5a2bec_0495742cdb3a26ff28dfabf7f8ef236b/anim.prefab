@@ -1,0 +1,35 @@
+%YAML 1.1
+--- !Prefab &1
+name: anim_Prefab
+guid: {a: 2975077541073943676, b: 8609717594254619285}
+entities:
+  - __class: Entity
+    name: root_entity
+    guid: {a: 10610798365100826605, b: 2975190670478283662}
+    selfvisible: true
+    tag: 0
+    components:
+      - __class: ScriptComponent
+        name: script
+        guid: {a: 15008392922199702306, b: 17402233309371984010}
+        enabled: true
+        path: TextAnim.lua
+        properties:
+          __class: Map
+          sharedMaterial: {localId: 1, path: rt.material}
+          angle: 30
+          autoPlay: true
+          blackCurve: {x: 0.142, y: 0.135, z: 0.287, w: 0.347}
+          blackCurve1: {x: 0.512, y: 1.005, z: 0, w: 0}
+          colorChange: {x: 4.6, y: 115.2, z: 80.8, w: 6}
+          duration: 4
+          lineCurve: {x: 1.278, y: 0.808, z: 0.287, w: 0.347}
+          lineCurve1: {x: 0.512, y: 1.005, z: 0, w: 0}
+          playTime: 19.53499984741211
+          rorate: 1
+          smoothRange: 3.125
+          speed: 0.1000000014901161
+        className: TextAnim
+    layer: 0
+standaloneResources:
+  __class: Map

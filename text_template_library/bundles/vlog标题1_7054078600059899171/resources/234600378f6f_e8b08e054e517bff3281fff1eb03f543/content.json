@@ -1,0 +1,136 @@
+{
+  "type": "TextTemplate",
+  "root": {
+    "guid": "0715f94b-d483-41ce-ac58-23d15d4c686b",
+    "size": [
+      480.0,
+      110.0
+    ],
+    "duration": 3.0,
+    "preview_time": 0.0,
+    "children": [
+      {
+        "guid": "16e01f0c-153b-4e0b-9485-b529d7d5ddf9",
+        "type": "text",
+        "position": [
+          0.0,
+          0.05
+        ],
+        "rotation": 0.0,
+        "scale": [
+          1.0,
+          1.0
+        ],
+        "order_in_layer": 0,
+        "start_time": 0.0,
+        "duration": 3.0,
+        "font_resource_id": "6740435892441190919",
+        "effect_text_resource_id": "6886015372009411085",
+        "limit_size_enable": true,
+        "limit_size": [
+          440.0,
+          60.0
+        ],
+        "char_bgs": [],
+        "text_params": {
+          "version": "1",
+          "text": "分享今日 VLOG",
+          "fontSize": 20.0,
+          "alignType": 1,
+          "typeSettingKind": 0,
+          "textColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "background": false,
+          "backgroundColor": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "shadow": false,
+          "shadowColor": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "shadowSmoothing": 0,
+          "shadowOffset": [
+            0.1,
+            -0.1
+          ],
+          "outline": false,
+          "outlineWidth": 0.06,
+          "outlineColor": [
+            0.2823,
+            0.0078,
+            0.0509,
+            1.0
+          ],
+          "ktvColor": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvOutlineColor": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvShadowColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "boldWidth": 0.0,
+          "italicDegree": 10.0,
+          "lineGap": 0.0,
+          "useEffectDefaultColor": true,
+          "charSpacing": 0.02,
+          "innerPadding": 0.2,
+          "lineMaxWidth": -1,
+          "fontPath": "",
+          "fallbackFontPath": "",
+          "fallbackFontPathList": [],
+          "effectPath": "",
+          "shapePath": ""
+        },
+        "anims": [],
+        "children": [],
+        "foldin": false,
+        "anim_duration_mode": 0,
+        "anim_duration_scale_min": 0
+      },
+      {
+        "guid": "59702074-7dd7-4732-917f-a8c4db5da4c6",
+        "type": "sticker",
+        "position": [
+          0.0,
+          -0.4
+        ],
+        "rotation": 0.0,
+        "scale": [
+          0.8,
+          0.8
+        ],
+        "order_in_layer": 0,
+        "start_time": 0.0,
+        "duration": 3.0,
+        "sticker_path": "穿搭底",
+        "sticker_loop": true,
+        "anims": [],
+        "children": [],
+        "foldin": false,
+        "anim_duration_mode": 0,
+        "anim_duration_scale_min": 0
+      }
+    ]
+  }
+}

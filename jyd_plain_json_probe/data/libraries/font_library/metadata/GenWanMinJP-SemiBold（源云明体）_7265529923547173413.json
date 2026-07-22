@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7265529923547173413",
+  "name": "GenWanMinJP-SemiBold（源云明体）",
+  "resource_id": "7265529923547173413",
+  "effect_id": "7265529923547173413",
+  "checksum_sha256": "fd4a19f95f3a7be49392c88acf34d108ee502c9cdd7a7985231b49e9abbe97f9",
+  "size_bytes": 17975352,
+  "file": "files/GenWanMinJP-SemiBold（源云明体）_7265529923547173413.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\GenWanMinJP-SemiBold（源云明体）_7265529923547173413.ttf",
+  "metadata_file": "metadata/GenWanMinJP-SemiBold（源云明体）_7265529923547173413.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265529923547173413\\f8f73f5b108d3a2ada9b8bdb5ba230ce\\GenWanMinJP-SemiBold（源云明体）.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 11,
+          "material_id": "54D96053-60A5-4c93-AB84-A66C9FDDDD1A",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 11,
+          "material_id": "54D96053-60A5-4c93-AB84-A66C9FDDDD1A",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 11,
+          "material_id": "54D96053-60A5-4c93-AB84-A66C9FDDDD1A",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

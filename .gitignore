@@ -1,0 +1,42 @@
+# Development/runtime output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Local agent/editor metadata
+.agents/
+
+# Workspace-wide build and test artifacts
+.jyd-build-cache/
+_local_loop_test/
+
+# Local builds
+jyd_plain_json_probe/.collector-build-*/
+jyd_plain_json_probe/.processor-build-*/
+jyd_plain_json_probe/.uv-cache/
+jyd_plain_json_probe/build/
+jyd_plain_json_probe/dist/
+jyd_plain_json_probe/release/
+jyd_plain_json_probe/.packaged-test-state/
+jyd_plain_json_probe/.processor-test-state/
+jyd_plain_json_probe/dev_artifacts/
+jyd_plain_json_probe/runtime/
+
+# Temporary and generated jobs
+jyd_plain_json_probe/_test_tmp/
+jyd_plain_json_probe/_analysis/
+jyd_plain_json_probe/_decrypted_work/
+jyd_plain_json_probe/_generated_video_drafts/
+jyd_plain_json_probe/_local_collector/
+jyd_plain_json_probe/_web_drafts/
+jyd_plain_json_probe/_*_test*/
+
+# Runtime secrets and one-time uploads
+jyd_plain_json_probe/web_storage/admin_password.txt
+jyd_plain_json_probe/web_storage/admin_session_secret.txt
+jyd_plain_json_probe/web_storage/media/
+jyd_plain_json_probe/web_storage/jobs/
+jyd_plain_json_probe/web_storage/outputs/
+jyd_plain_json_probe/web_storage/draft_imports/
+jyd_plain_json_probe/data/web_storage/

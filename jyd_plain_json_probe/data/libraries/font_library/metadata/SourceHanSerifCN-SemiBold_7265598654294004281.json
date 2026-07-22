@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7265598654294004281",
+  "name": "SourceHanSerifCN-SemiBold",
+  "resource_id": "7265598654294004281",
+  "effect_id": "7265598654294004281",
+  "checksum_sha256": "d6533c6c0b1ca2a958a820114473b8ea54a87ff0cfc3276f6c7af32797b00001",
+  "size_bytes": 12943444,
+  "file": "files/SourceHanSerifCN-SemiBold_7265598654294004281.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\SourceHanSerifCN-SemiBold_7265598654294004281.otf",
+  "metadata_file": "metadata/SourceHanSerifCN-SemiBold_7265598654294004281.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265598654294004281\\f1b0ad6ceca5ec6bd47b0dacae9fbf97\\SourceHanSerifCN-SemiBold.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 8,
+          "material_id": "EFDF00D7-D3EE-4772-932D-CD3AAA9EDB16",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 8,
+          "material_id": "EFDF00D7-D3EE-4772-932D-CD3AAA9EDB16",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 8,
+          "material_id": "EFDF00D7-D3EE-4772-932D-CD3AAA9EDB16",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7043772438898807304",
+  "name": "字由墩墩体",
+  "resource_id": "7043772438898807304",
+  "effect_id": "7043772438898807304",
+  "checksum_sha256": "815a7d32ac38018fd0189481f4f2897949a975d1f6cb175a24d069e451142e4f",
+  "size_bytes": 2695632,
+  "file": "files/字由墩墩体_7043772438898807304.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字由墩墩体_7043772438898807304.ttf",
+  "metadata_file": "metadata/字由墩墩体_7043772438898807304.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7043772438898807304\\223892af1e691ccffc9e33decda4d09a\\字由墩墩体.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 12,
+          "material_id": "9BF48F1E-3D50-48eb-9B8D-EF076BF8952E",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 12,
+          "material_id": "9BF48F1E-3D50-48eb-9B8D-EF076BF8952E",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 12,
+          "material_id": "9BF48F1E-3D50-48eb-9B8D-EF076BF8952E",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

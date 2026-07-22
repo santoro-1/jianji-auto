@@ -1,0 +1,72 @@
+{
+  "schema": "jyd_probe.fullscreen_sticker.v1",
+  "exported_at": "2026-07-14T14:33:12",
+  "identity": "resource_id:7550260313455791422",
+  "name": "爱心弥散方形边框",
+  "usage": "fullscreen_overlay",
+  "material": {
+    "category_id": "100000",
+    "category_name": "default",
+    "combo_info": {},
+    "icon_url": "https://p3-heycan-jy-sign.byteimg.com/tos-cn-i-3jr8j4ixpe/2c45c041b1b14db6a1121e741f1bb693~tplv-3jr8j4ixpe-resize:200:200.png?x-expires=1815546151&x-signature=j1Ubk2lRaWTIha%2FocPVppo8DTu0%3D",
+    "id": "FEC50E53-8734-426b-874B-37F82F0CA58B",
+    "name": "爱心弥散方形边框",
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7550260313455791422/25f2a4a5f99e84f095a008c1a133a462",
+    "preview_cover_url": "https://p3-heycan-jy-sign.byteimg.com/tos-cn-i-3jr8j4ixpe/2c45c041b1b14db6a1121e741f1bb693~tplv-3jr8j4ixpe-resize:200:200.png?x-expires=1815546151&x-signature=j1Ubk2lRaWTIha%2FocPVppo8DTu0%3D",
+    "radius": {},
+    "resource_id": "7550260313455791422",
+    "shadow_point": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "shape_param": {},
+    "source_platform": 1,
+    "sticker_id": "7550260313455791422",
+    "type": "sticker"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "scale": {
+        "x": 2.3771428830516586,
+        "y": 2.3771428830516586
+      },
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "id": "46CE689F-6F93-4498-BDE0-CE99C0613963",
+    "material_id": "FEC50E53-8734-426b-874B-37F82F0CA58B",
+    "render_index": 14012,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 21083333
+    },
+    "track_render_index": 1
+  },
+  "resource": {
+    "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7550260313455791422/25f2a4a5f99e84f095a008c1a133a462",
+    "library_path": "resources/sticker",
+    "status": "copied"
+  },
+  "preview_file": "resources/sticker/singleImage.png",
+  "source": {
+    "label": "D:\\剪映草稿\\JianyingPro Drafts\\全屏贴纸草稿",
+    "sticker_track_index": 0,
+    "raw_track_index": 1,
+    "segment_index": 8,
+    "material_id": "FEC50E53-8734-426b-874B-37F82F0CA58B",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 21083333
+    }
+  }
+}

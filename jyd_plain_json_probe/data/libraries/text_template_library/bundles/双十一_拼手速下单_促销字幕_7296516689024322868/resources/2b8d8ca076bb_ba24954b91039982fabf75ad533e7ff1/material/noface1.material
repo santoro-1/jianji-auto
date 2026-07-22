@@ -1,0 +1,39 @@
+%YAML 1.1
+--- !Material &1
+name: noFilter_material
+guid: {a: 17312590586225215299, b: 3125905964880675260}
+xshader: {localId: 1, path: xshader/noface1.xshader}
+properties:
+  __class: PropertySheet
+  name: noFilter_propertySheet
+  guid: {a: 9533763795451257995, b: 6008191959454018694}
+  floatmap:
+    __class: Map
+    alpha: 1
+    bulge_height: 1
+    cone_radius: 0
+    pinning: 0
+  vec4map:
+    __class: Map
+  vec3map:
+    __class: Map
+  vec2map:
+    __class: Map
+    bulge_center: {x: 0, y: 0}
+    bulge_radius: {x: 1, y: 1}
+    u_TextRect: {x: 1, y: 1}
+  mat4map:
+    __class: Map
+  texmap:
+    __class: Map
+  intmap:
+    __class: Map
+renderQueue: 1
+enabledMacros:
+  __class: Map
+  AE_AreaLightNum: !<str> 0
+  AE_DirLightNum: !<str> 0
+  AE_PointLightNum: !<str> 0
+  AE_SpotLightNum: !<str> 0
+mshaderPath: ""
+instanceCount: 0

@@ -1,0 +1,49 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T01:04:07",
+  "identity": "sha256:23c4c2392431725af8a8cf23b8e355c181ead687a43e79e842c9ae1647b293b2",
+  "name": "zh-hans",
+  "resource_id": "",
+  "effect_id": "",
+  "checksum_sha256": "23c4c2392431725af8a8cf23b8e355c181ead687a43e79e842c9ae1647b293b2",
+  "size_bytes": 10227544,
+  "file": "files/zh-hans_23c4c2392431725af8a8cf23.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\zh-hans_23c4c2392431725af8a8cf23.ttf",
+  "metadata_file": "metadata/zh-hans_23c4c2392431725af8a8cf23.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\d4ad83d477ae44ddb141e534793db162_YZ-数字人_00001_p87-",
+      "source_path": "D:\\BaiduNetdiskDownload\\剪映会员版Win电脑「点击进来下载」\\剪映会员版6.0.1「不用卸载当前版本剪映」\\剪映会员版6.0.1\\6.0.1.11779\\Resources\\Font\\SystemFont\\zh-hans.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "6baa2bb3431a428b83ade6d5716363c5",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "dc7a84187f8d4f85afc8bd73da8299eb",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 2,
+          "material_id": "a95e2e587edb421f9715a25ab067ed9f",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 3,
+          "material_id": "c1ce60b395d14369ad220a0773f083de",
+          "json_pointer": "/font_path"
+        }
+      ]
+    }
+  ]
+}

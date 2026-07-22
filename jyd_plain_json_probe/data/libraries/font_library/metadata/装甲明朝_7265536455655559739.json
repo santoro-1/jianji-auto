@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7265536455655559739",
+  "name": "装甲明朝",
+  "resource_id": "7265536455655559739",
+  "effect_id": "7265536455655559739",
+  "checksum_sha256": "2d2e3b72bb426dd7f7324f11374d911c869d946ca587e33e6eb2b00fbc34d740",
+  "size_bytes": 9374068,
+  "file": "files/装甲明朝_7265536455655559739.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\装甲明朝_7265536455655559739.ttf",
+  "metadata_file": "metadata/装甲明朝_7265536455655559739.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265536455655559739\\3f334186c4522694108e7ab9534201fd\\装甲明朝.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 5,
+          "material_id": "5EFD71F4-9789-48b3-BBA1-015F862109A5",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 5,
+          "material_id": "5EFD71F4-9789-48b3-BBA1-015F862109A5",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 5,
+          "material_id": "5EFD71F4-9789-48b3-BBA1-015F862109A5",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

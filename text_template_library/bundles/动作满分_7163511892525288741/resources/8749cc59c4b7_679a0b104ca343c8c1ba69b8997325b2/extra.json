@@ -1,0 +1,19 @@
+{
+	"depend_resource_list":	[{
+			"type":	"flower",
+			"resource_id":	"7133465974275052046"
+		}, {
+			"type":	"text",
+			"resource_id":	"6884154692398486023"
+		}, {
+			"type":	"text",
+			"resource_id":	"6887482184844710413"
+		}, {
+			"type":	"flower",
+			"resource_id":	"7133206999692481032"
+		}, {
+			"type":	"fonts",
+			"resource_id":	"7003588181790560775"
+		}],
+	"template_version":	"1.1.0"
+}

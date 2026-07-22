@@ -1,0 +1,61 @@
+{
+  "ok": true,
+  "strip": "D:\\\u5de5\u4f5c\u5185\u5bb9\\\u8f7b\u76c8\u5065\\\u516c\u5bd3\\pixel-apple-cat-v2-run\\decoded\\look-cardinals.png",
+  "directions": [
+    "000",
+    "090",
+    "180",
+    "270"
+  ],
+  "errors": [],
+  "anchors": [
+    {
+      "direction": "000",
+      "source_box": [
+        0,
+        0,
+        518,
+        758
+      ],
+      "used_pixels": 94240,
+      "edge_pixels": 0,
+      "output": "D:\\\u5de5\u4f5c\u5185\u5bb9\\\u8f7b\u76c8\u5065\\\u516c\u5bd3\\pixel-apple-cat-v2-run\\decoded\\look-anchors\\000.png"
+    },
+    {
+      "direction": "090",
+      "source_box": [
+        518,
+        0,
+        1036,
+        758
+      ],
+      "used_pixels": 93926,
+      "edge_pixels": 0,
+      "output": "D:\\\u5de5\u4f5c\u5185\u5bb9\\\u8f7b\u76c8\u5065\\\u516c\u5bd3\\pixel-apple-cat-v2-run\\decoded\\look-anchors\\090.png"
+    },
+    {
+      "direction": "180",
+      "source_box": [
+        1036,
+        0,
+        1555,
+        758
+      ],
+      "used_pixels": 93496,
+      "edge_pixels": 0,
+      "output": "D:\\\u5de5\u4f5c\u5185\u5bb9\\\u8f7b\u76c8\u5065\\\u516c\u5bd3\\pixel-apple-cat-v2-run\\decoded\\look-anchors\\180.png"
+    },
+    {
+      "direction": "270",
+      "source_box": [
+        1555,
+        0,
+        2073,
+        758
+      ],
+      "used_pixels": 93421,
+      "edge_pixels": 0,
+      "output": "D:\\\u5de5\u4f5c\u5185\u5bb9\\\u8f7b\u76c8\u5065\\\u516c\u5bd3\\pixel-apple-cat-v2-run\\decoded\\look-anchors\\270.png"
+    }
+  ]
+}

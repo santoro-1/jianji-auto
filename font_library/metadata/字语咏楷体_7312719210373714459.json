@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7312719210373714459",
+  "name": "字语咏楷体",
+  "resource_id": "7312719210373714459",
+  "effect_id": "7312719210373714459",
+  "checksum_sha256": "bc3b63fa50dbff4842ec237211cfae36b22cffcba3e8f9a02053de192071af8f",
+  "size_bytes": 3694412,
+  "file": "files/字语咏楷体_7312719210373714459.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字语咏楷体_7312719210373714459.ttf",
+  "metadata_file": "metadata/字语咏楷体_7312719210373714459.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7312719210373714459\\06ab9abe9d2e6f4d10152bafe691738c\\字语咏楷体.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 14,
+          "material_id": "8A9706E4-1CF7-48be-8542-C3F5E4AD2409",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 14,
+          "material_id": "8A9706E4-1CF7-48be-8542-C3F5E4AD2409",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 14,
+          "material_id": "8A9706E4-1CF7-48be-8542-C3F5E4AD2409",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7423616268764189234",
+  "name": "雅月体",
+  "resource_id": "7423616268764189234",
+  "effect_id": "7423616268764189234",
+  "checksum_sha256": "d4e2afc439f3608d8d17400778e64618e591caf33c6ec21559055f0addaa098e",
+  "size_bytes": 1627236,
+  "file": "files/雅月体_7423616268764189234.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\雅月体_7423616268764189234.ttf",
+  "metadata_file": "metadata/雅月体_7423616268764189234.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7423616268764189234\\0f70f20df8d9be821e294a862be67304\\雅月体.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 4,
+          "material_id": "EC454949-9CD6-44c4-8B2E-42DD651D4E38",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 4,
+          "material_id": "EC454949-9CD6-44c4-8B2E-42DD651D4E38",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 4,
+          "material_id": "EC454949-9CD6-44c4-8B2E-42DD651D4E38",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

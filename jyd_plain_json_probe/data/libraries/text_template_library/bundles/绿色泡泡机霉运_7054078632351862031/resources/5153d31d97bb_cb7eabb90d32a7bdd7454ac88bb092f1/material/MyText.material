@@ -1,0 +1,31 @@
+%YAML 1.1
+--- !Material &1
+name: ""
+guid: {a: 1461695437319990150, b: 15085272791239714997}
+xshader: {localId: 1, path: xshader/MyText.xshader}
+properties:
+  __class: PropertySheet
+  name: ""
+  guid: {a: 5568268877090746420, b: 14029880457050667960}
+  floatmap:
+    __class: Map
+  vec4map:
+    __class: Map
+    _MainTex_ST: {x: 0, y: 0, z: 0, w: 0}
+  vec3map:
+    __class: Map
+  vec2map:
+    __class: Map
+  mat4map:
+    __class: Map
+  texmap:
+    __class: Map
+  intmap:
+    __class: Map
+renderQueue: -1
+enabledMacros:
+  __class: Map
+  AE_DirLightNum: !<str> 0
+  AE_PointLightNum: !<str> 0
+  AE_SpotLightNum: !<str> 0
+mshaderPath: ""

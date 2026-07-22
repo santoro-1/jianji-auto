@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7504569031081430335",
+  "name": "HelloFont ChangHei 95",
+  "resource_id": "7504569031081430335",
+  "effect_id": "7504569031081430335",
+  "checksum_sha256": "2185d360acc2ba2dcfe0227f9f78595aa64f18867e6f92ec9068734eba691db5",
+  "size_bytes": 1971912,
+  "file": "files/font_7504569031081430335.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7504569031081430335.ttf",
+  "metadata_file": "metadata/font_7504569031081430335.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7504569031081430335\\44baf591bff2fc83def02ddce3542cf7\\font.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 19,
+          "material_id": "80555EC0-9C9F-4833-BA58-CD8FDE419B03",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 19,
+          "material_id": "80555EC0-9C9F-4833-BA58-CD8FDE419B03",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 19,
+          "material_id": "80555EC0-9C9F-4833-BA58-CD8FDE419B03",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

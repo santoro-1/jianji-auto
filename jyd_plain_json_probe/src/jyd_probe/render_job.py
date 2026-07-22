@@ -1,0 +1,1000 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import json
+import time
+from typing import Any, Mapping
+
+from .content_replace import (
+    AudioAddition,
+    AudioSegmentReplacement,
+    ContentReplaceJob,
+    EffectAddition,
+    NamedAudioReplacement,
+    NestedTextStylePresetReplacement,
+    NestedVideoReplacement,
+    StickerAddition,
+    TextAddition,
+    TextFontReplacement,
+    TextReplacement,
+    TextStylePresetReplacement,
+    TextTemplateAddition,
+    VideoSegmentReplacement,
+    run_content_replace_job,
+)
+from .cli import load_plain_draft_json
+from .draft_crypto import prepare_plain_draft_dir
+from .draft_factory import create_plain_draft_from_video
+from .subtitles import add_captions_to_draft, build_caption_cues
+from .template_library import TemplateLibrary
+from .visual_variant import VisualVariant
+from .cover_apply import CoverConfig
+
+
+RENDER_JOB_SCHEMA = "jyd.render_job.v1"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+@dataclass(frozen=True)
+class RenderJobResult:
+    source_kind: str
+    source_draft_dir: Path | None
+    working_template_dir: Path
+    output_draft_dir: Path
+    output_draft_name: str
+    output_mp4: Path | None
+    exported: bool
+    top_level_changes: int
+    json_changes: int
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "source_kind": self.source_kind,
+            "source_draft_dir": str(self.source_draft_dir) if self.source_draft_dir else "",
+            "working_template_dir": str(self.working_template_dir),
+            "output_draft_dir": str(self.output_draft_dir),
+            "output_draft_name": self.output_draft_name,
+            "output_mp4": str(self.output_mp4) if self.output_mp4 else "",
+            "exported": self.exported,
+            "top_level_changes": self.top_level_changes,
+            "json_changes": self.json_changes,
+        }
+
+
+def load_render_job_config(job_path: str | Path) -> dict[str, Any]:
+    path = _positive_path(job_path, "任务 JSON")
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise RuntimeError(f"任务 JSON 顶层必须是对象: {path}")
+    return data
+
+
+def run_render_job_file(job_path: str | Path) -> RenderJobResult:
+    return run_render_job(load_render_job_config(job_path))
+
+
+def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
+    config = dict(data)
+    source = _dict_value(config.get("source"))
+    output = _dict_value(config.get("output"))
+
+    source_kind = str(
+        _value(source, "type", "kind", default=_value(config, "source_kind", default="auto"))
+    ).replace("_", "-").lower()
+    if source_kind == "auto":
+        source_kind = "template" if _template_dir_from_config(config, source) else "video"
+
+    if source_kind == "video":
+        source_draft_dir, template_dir, output_name_source = _prepare_video_source(config, source)
+        default_output_root = PROJECT_ROOT / "_local_loop_test"
+    elif source_kind == "template":
+        source_draft_dir, template_dir, output_name_source = _prepare_template_source(config, source)
+        default_output_root = source_draft_dir.parent
+    else:
+        raise RuntimeError(f"不支持的 source.type: {source_kind!r}")
+
+    output_root = Path(
+        _value(output, "draft_root", "output_root", default=_value(config, "draft_root", "output_root", default=default_output_root))
+    ).expanduser().resolve()
+    output_name = str(_value(output, "draft_name", "output_name", default=_value(config, "draft_name", "output_name", default=""))).strip()
+    if not output_name:
+        from datetime import datetime
+
+        output_name = f"{_safe_name(output_name_source)}_render_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+    video_segment_replacements = _build_video_replacements(config)
+    nested_video_replacements = _build_nested_video_replacements(config)
+    source_data = load_plain_draft_json(template_dir)
+    source_timeline_duration_us = _draft_duration_us(source_data)
+    text_replacements, text_additions, text_style_replacements, nested_text_style_replacements = _build_text_replacements(
+        config,
+        timeline_duration_us=source_timeline_duration_us,
+    )
+    text_style_replacements.extend(
+        _build_existing_text_style_replacements(config, source_data)
+    )
+    text_font_replacements = _build_existing_text_font_replacements(config, source_data)
+    text_template_additions = _build_text_template_additions(
+        config,
+        timeline_duration_us=source_timeline_duration_us,
+    )
+    named_audio_replacements, audio_segment_replacements, audio_additions = _build_audio_replacements(
+        config,
+        timeline_duration_us=source_timeline_duration_us,
+    )
+    effect_additions = _build_effect_additions(
+        config,
+        timeline_duration_us=source_timeline_duration_us,
+    )
+    sticker_additions = _build_sticker_additions(config)
+    visual_variant = _build_visual_variant(config)
+    cover = _build_cover(config, source_data)
+
+    content_job = ContentReplaceJob(
+        template_draft_dir=template_dir,
+        output_root=output_root,
+        output_name=output_name,
+        dump_effects=_as_bool(_value(config, "dump_effects", default=False)),
+        dump_nested_drafts=_as_bool(_value(config, "dump_nested_drafts", default=False)),
+        video_segment_replacements=video_segment_replacements,
+        nested_video_replacements=nested_video_replacements,
+        text_replacements=text_replacements,
+        text_additions=text_additions,
+        text_template_additions=text_template_additions,
+        text_font_replacements=text_font_replacements,
+        text_style_preset_replacements=text_style_replacements,
+        nested_text_style_preset_replacements=nested_text_style_replacements,
+        named_audio_replacements=named_audio_replacements,
+        audio_segment_replacements=audio_segment_replacements,
+        audio_additions=audio_additions,
+        effect_additions=effect_additions,
+        sticker_additions=sticker_additions,
+        visual_variant=visual_variant,
+        cover=cover,
+        original_video_volume=_optional_volume(config),
+        remove_existing_audio=_as_bool(_value(config, "remove_existing_audio", default=False)),
+        remove_existing_effects=_as_bool(_value(config, "remove_existing_effects", default=False)),
+    )
+
+    replace_result = run_content_replace_job(content_job)
+    caption_changes = _apply_captions_to_output(
+        config,
+        replace_result.output_dir,
+        timeline_offset_us=cover.duration_us if cover is not None else 0,
+    )
+
+    export_config = _dict_value(config.get("export"))
+    skip_export = _as_bool(
+        _value(
+            output,
+            "skip_export",
+            default=_value(config, "skip_export", default=_value(export_config, "skip_export", default=False)),
+        )
+    )
+    output_mp4_text = _value(
+        output,
+        "mp4_path",
+        "output_mp4",
+        "output_path",
+        default=_value(config, "output_mp4", "output_path", default=""),
+    )
+    output_mp4 = Path(output_mp4_text).expanduser().resolve() if output_mp4_text else None
+    exported = False
+    if not skip_export:
+        if output_mp4 is None:
+            raise RuntimeError("导出 MP4 时必须提供 output.mp4_path 或 output_mp4")
+        _export_mp4(
+            replace_result.output_name,
+            output_mp4,
+            resolution=str(_value(export_config, "resolution", default=_value(output, "resolution", default=""))),
+            framerate=str(_value(export_config, "framerate", default=_value(output, "framerate", default=""))),
+            timeout=float(_value(export_config, "timeout", "export_timeout", default=_value(output, "timeout", default=1200))),
+        )
+        exported = True
+
+    return RenderJobResult(
+        source_kind=source_kind,
+        source_draft_dir=source_draft_dir,
+        working_template_dir=template_dir,
+        output_draft_dir=replace_result.output_dir,
+        output_draft_name=replace_result.output_name,
+        output_mp4=output_mp4,
+        exported=exported,
+        top_level_changes=replace_result.top_level_changes,
+        json_changes=replace_result.json_changes + caption_changes,
+    )
+
+
+def _prepare_video_source(config: Mapping[str, Any], source: Mapping[str, Any]) -> tuple[Path, Path, str]:
+    media_path = _value(source, "media_path", "video_path", "input_video", default=_value(config, "input_video", default=""))
+    if not media_path:
+        raise RuntimeError("source.type=video 时必须提供 source.media_path")
+    media = _positive_path(media_path, "输入视频")
+
+    canvas = _dict_value(source.get("canvas"))
+    base_root = Path(
+        _value(source, "work_root", "base_draft_work_root", default=_value(config, "base_draft_work_root", default=PROJECT_ROOT / "_generated_video_drafts"))
+    ).expanduser().resolve()
+    created = create_plain_draft_from_video(
+        media,
+        base_root,
+        draft_name=str(_value(source, "base_draft_name", default="")),
+        width=int(_value(canvas, "width", default=_value(source, "canvas_width", "width", default=0))),
+        height=int(_value(canvas, "height", default=_value(source, "canvas_height", "height", default=0))),
+        fps=int(_value(canvas, "fps", default=_value(source, "canvas_fps", "fps", default=30))),
+        source_start_us=int(_value(source, "source_start_us", "start_us", default=0)),
+        source_duration_us=int(_value(source, "source_duration_us", "duration_us", default=0)),
+    )
+
+    return created.draft_dir, created.draft_dir, media.stem
+
+
+def _apply_captions_to_output(
+    config: Mapping[str, Any],
+    output_draft_dir: Path,
+    *,
+    timeline_offset_us: int = 0,
+) -> int:
+    captions = _dict_value(_value(config, "captions", "subtitles", default=None))
+    caption_text = str(_value(captions, "text", "content", default="")).strip()
+    if not caption_text:
+        return 0
+
+    draft_data = load_plain_draft_json(output_draft_dir)
+    draft_duration_us = _draft_duration_us(draft_data)
+    caption_start_us = int(_value(captions, "start_us", default=0)) + timeline_offset_us
+    if caption_start_us < 0 or caption_start_us >= draft_duration_us:
+        raise RuntimeError(
+            f"字幕开始时间超出草稿时长: start_us={caption_start_us}, draft_duration_us={draft_duration_us}"
+        )
+
+    caption_duration_us = int(_value(captions, "duration_us", default=0))
+    available_duration_us = draft_duration_us - caption_start_us
+    if caption_duration_us <= 0:
+        caption_duration_us = available_duration_us
+    elif caption_duration_us > available_duration_us:
+        raise RuntimeError(
+            "字幕范围超出草稿时长: "
+            f"start_us={caption_start_us}, duration_us={caption_duration_us}, "
+            f"draft_duration_us={draft_duration_us}"
+        )
+
+    style_json_path = _value(captions, "style_json_path", "style_json", default="")
+    if style_json_path:
+        _positive_path(style_json_path, "字幕样式 JSON")
+    cues = build_caption_cues(
+        caption_text,
+        start_us=caption_start_us,
+        duration_us=caption_duration_us,
+        max_chars=int(_value(captions, "max_chars", default=16)),
+        min_duration_us=int(_value(captions, "min_duration_us", default=650_000)),
+    )
+    add_captions_to_draft(
+        output_draft_dir,
+        cues,
+        style_json_path=style_json_path,
+        size=_optional_float(captions, "size"),
+        color=str(_value(captions, "color", default="")),
+        transform_x=_optional_float(captions, "transform_x"),
+        transform_y=_optional_float(captions, "transform_y"),
+        line_max_width=_optional_float(captions, "line_max_width"),
+        font_id=str(_value(captions, "font_id", default="")),
+        font_path=str(_value(captions, "font_path", default="")),
+        font_title=str(_value(captions, "font_title", "font_name", default="")),
+        track_name=str(_value(captions, "track_name", default="网页自动字幕")),
+    )
+    return len(cues)
+
+
+def _draft_duration_us(data: Mapping[str, Any]) -> int:
+    try:
+        duration = int(data.get("duration", 0) or 0)
+    except (TypeError, ValueError):
+        duration = 0
+    if duration > 0:
+        return duration
+
+    for track in data.get("tracks", []) if isinstance(data.get("tracks"), list) else []:
+        if not isinstance(track, dict):
+            continue
+        for segment in track.get("segments", []) if isinstance(track.get("segments"), list) else []:
+            if not isinstance(segment, dict):
+                continue
+            timerange = segment.get("target_timerange")
+            if not isinstance(timerange, dict):
+                continue
+            try:
+                duration = max(
+                    duration,
+                    int(timerange.get("start", 0) or 0) + int(timerange.get("duration", 0) or 0),
+                )
+            except (TypeError, ValueError):
+                continue
+    if duration <= 0:
+        raise RuntimeError("无法从输出草稿确定字幕可用时长")
+    return duration
+
+
+def _prepare_template_source(config: Mapping[str, Any], source: Mapping[str, Any]) -> tuple[Path, Path, str]:
+    template_id = _value(source, "template_id", default="")
+    if template_id:
+        library_root = _value(source, "library_root", default=_value(config, "template_library_root", default=""))
+        record = TemplateLibrary(library_root or None).get(str(template_id))
+        return record.draft_dir, record.draft_dir, record.template_id
+
+    template_dir_text = _template_dir_from_config(config, source)
+    if not template_dir_text:
+        raise RuntimeError("source.type=template 时必须提供 source.template_draft_dir")
+    source_template_dir = Path(template_dir_text).expanduser().resolve()
+    if not source_template_dir.is_dir():
+        raise NotADirectoryError(f"模板草稿目录不存在或不是目录: {source_template_dir}")
+
+    decrypt = _dict_value(config.get("decrypt"))
+    enabled = _value(decrypt, "enabled", "auto_decrypt", default=True)
+    prepared = prepare_plain_draft_dir(
+        source_template_dir,
+        auto_decrypt=_as_bool(enabled),
+        force_decrypt=_as_bool(_value(decrypt, "force", "force_decrypt", default=False)),
+        work_root=Path(_value(decrypt, "work_root", "decrypt_work_root", default="")).expanduser().resolve()
+        if _value(decrypt, "work_root", "decrypt_work_root", default="")
+        else None,
+        exe=Path(_value(decrypt, "exe", "jy_draftc_exe", default="")).expanduser().resolve()
+        if _value(decrypt, "exe", "jy_draftc_exe", default="")
+        else None,
+        install_dir=Path(_value(decrypt, "install_dir", "jy_install_dir", default="")).expanduser().resolve()
+        if _value(decrypt, "install_dir", "jy_install_dir", default="")
+        else None,
+        debug=_as_bool(_value(decrypt, "debug", default=False)),
+    )
+    return source_template_dir, prepared.draft_dir, source_template_dir.name
+
+
+def _template_dir_from_config(config: Mapping[str, Any], source: Mapping[str, Any]) -> Any:
+    return _value(
+        source,
+        "template_draft_dir",
+        "template_dir",
+        "draft_dir",
+        "template",
+        default=_value(config, "template_draft_dir", "template", default=""),
+    )
+
+
+def _build_video_replacements(config: Mapping[str, Any]) -> list[VideoSegmentReplacement]:
+    replacements: list[VideoSegmentReplacement] = []
+    for item in _list_config(_value(config, "video_replacements", "videos", "video", default=None), "video"):
+        kind = str(_value(item, "type", "target_kind", default="video-segment")).replace("_", "-")
+        if kind in ("none", "", "nested-video"):
+            continue
+        if kind != "video-segment":
+            raise RuntimeError(f"不支持的视频替换类型: {kind!r}")
+        media_path = _positive_path(_value(item, "media_path", "input_video", default=""), "输入视频/图片")
+        replacements.append(
+            VideoSegmentReplacement(
+                media_path=media_path,
+                track_index=int(_value(item, "track_index", "video_track_index", default=0)),
+                segment_index=int(_value(item, "segment_index", "video_segment_index", default=0)),
+                source_start_us=int(_value(item, "source_start_us", default=-1)),
+                source_duration_us=int(_value(item, "source_duration_us", default=0)),
+                target_start_us=int(_value(item, "target_start_us", default=-1)),
+                target_duration_us=int(_value(item, "target_duration_us", default=0)),
+            )
+        )
+    return replacements
+
+
+def _build_nested_video_replacements(config: Mapping[str, Any]) -> list[NestedVideoReplacement]:
+    replacements: list[NestedVideoReplacement] = []
+    for item in _list_config(_value(config, "video_replacements", "videos", "video", default=None), "video"):
+        kind = str(_value(item, "type", "target_kind", default="video-segment")).replace("_", "-")
+        if kind != "nested-video":
+            continue
+        media_path = _positive_path(_value(item, "media_path", "input_video", default=""), "输入视频/图片")
+        replacements.append(
+            NestedVideoReplacement(
+                media_path=media_path,
+                nested_draft_index=int(_value(item, "nested_draft_index", default=0)),
+                video_track_index=int(_value(item, "video_track_index", "nested_video_track_index", default=0)),
+                segment_index=int(_value(item, "segment_index", "nested_video_segment_index", default=0)),
+                source_start_us=int(_value(item, "source_start_us", default=-1)),
+                source_duration_us=int(_value(item, "source_duration_us", default=0)),
+                target_start_us=int(_value(item, "target_start_us", default=-1)),
+                target_duration_us=int(_value(item, "target_duration_us", default=0)),
+            )
+        )
+    return replacements
+
+
+def _build_text_replacements(
+    config: Mapping[str, Any],
+    *,
+    timeline_duration_us: int = 0,
+) -> tuple[
+    list[TextReplacement],
+    list[TextAddition],
+    list[TextStylePresetReplacement],
+    list[NestedTextStylePresetReplacement],
+]:
+    replacements: list[TextReplacement] = []
+    additions: list[TextAddition] = []
+    style_replacements: list[TextStylePresetReplacement] = []
+    nested_style_replacements: list[NestedTextStylePresetReplacement] = []
+
+    for item in _list_config(_value(config, "texts", "text", default=None), "texts"):
+        scope = str(_value(item, "scope", default="top")).lower()
+        mode = str(_value(item, "type", "mode", default="replace")).replace("_", "-")
+        text = str(_value(item, "text", default=""))
+        style_json_path = _value(item, "style_json_path", "style_json", default="")
+        apply_clip = _as_bool(_value(item, "apply_clip", default=True))
+
+        if mode == "add":
+            if scope != "top":
+                raise RuntimeError("新增文字当前只支持 scope='top'")
+            if not text:
+                raise RuntimeError("新增文字必须提供 text")
+            if style_json_path:
+                _positive_path(style_json_path, "文本样式 JSON")
+            text_effect_json_path = _value(item, "text_effect_json_path", "flower_text_json_path", default="")
+            if text_effect_json_path:
+                _positive_path(text_effect_json_path, "花字素材 JSON")
+            start_us = int(_value(item, "start_us", default=0))
+            duration_us = _resolve_timeline_duration(
+                start_us,
+                int(_value(item, "duration_us", default=5_000_000)),
+                timeline_duration_us,
+                "新增文字",
+            )
+            additions.append(
+                TextAddition(
+                    text=text,
+                    start_us=start_us,
+                    duration_us=duration_us,
+                    track_name=str(_value(item, "track_name", default="")),
+                    style_json_path=style_json_path,
+                    text_effect_json_path=text_effect_json_path,
+                    apply_clip=apply_clip,
+                    relative_index=int(_value(item, "relative_index", default=999)),
+                    transform_x=float(_value(item, "transform_x", default=0.0)),
+                    transform_y=float(_value(item, "transform_y", default=0.0)),
+                    size=float(_value(item, "size", default=8.0)),
+                    align=int(_value(item, "align", default=1)),
+                    auto_wrapping=_as_bool(_value(item, "auto_wrapping", default=False)),
+                )
+            )
+            continue
+
+        if mode != "replace":
+            raise RuntimeError(f"不支持的文字处理方式: {mode!r}")
+
+        if scope == "top":
+            track_index = int(_value(item, "track_index", "text_track_index", default=0))
+            segment_index = int(_value(item, "segment_index", "text_segment_index", default=0))
+            if style_json_path:
+                _positive_path(style_json_path, "文本样式 JSON")
+                style_replacements.append(
+                    TextStylePresetReplacement(
+                        style_json_path=style_json_path,
+                        text=text,
+                        apply_clip=apply_clip,
+                        track_index=track_index,
+                        segment_index=segment_index,
+                    )
+                )
+            elif text:
+                replacements.append(TextReplacement(text=text, track_index=track_index, segment_index=segment_index))
+            continue
+
+        if scope == "nested":
+            if not style_json_path:
+                raise RuntimeError("嵌套模板文字替换必须提供 style_json_path")
+            _positive_path(style_json_path, "文本样式 JSON")
+            nested_style_replacements.append(
+                NestedTextStylePresetReplacement(
+                    style_json_path=style_json_path,
+                    text=text,
+                    apply_clip=apply_clip,
+                    nested_draft_index=int(_value(item, "nested_draft_index", default=0)),
+                    text_track_index=int(_value(item, "text_track_index", "track_index", default=0)),
+                    segment_index=int(_value(item, "segment_index", "text_segment_index", "nested_segment_index", default=0)),
+                )
+            )
+            continue
+
+        raise RuntimeError(f"不支持的文字 scope: {scope!r}")
+
+    return replacements, additions, style_replacements, nested_style_replacements
+
+
+def _build_existing_text_style_replacements(
+    config: Mapping[str, Any],
+    draft_data: Mapping[str, Any],
+) -> list[TextStylePresetReplacement]:
+    style = _dict_value(
+        _value(config, "existing_text_style", "restyle_existing_text", default=None)
+    )
+    style_json_path = _value(style, "style_json_path", "style_json", default="")
+    if not style_json_path:
+        return []
+    _positive_path(style_json_path, "已有字幕样式 JSON")
+
+    materials = draft_data.get("materials", {})
+    text_materials = materials.get("texts", []) if isinstance(materials, dict) else []
+    text_material_ids = {
+        str(item.get("id", ""))
+        for item in text_materials
+        if isinstance(item, dict) and item.get("id")
+    }
+    replacements: list[TextStylePresetReplacement] = []
+    text_track_index = 0
+    tracks = draft_data.get("tracks", [])
+    for track in tracks if isinstance(tracks, list) else []:
+        if not isinstance(track, dict) or track.get("type") != "text":
+            continue
+        segments = track.get("segments", [])
+        for segment_index, segment in enumerate(segments if isinstance(segments, list) else []):
+            if not isinstance(segment, dict):
+                continue
+            if str(segment.get("material_id", "")) not in text_material_ids:
+                continue
+            replacements.append(
+                TextStylePresetReplacement(
+                    style_json_path=style_json_path,
+                    text="",
+                    apply_clip=_as_bool(_value(style, "apply_clip", default=True)),
+                    track_index=text_track_index,
+                    segment_index=segment_index,
+                )
+            )
+        text_track_index += 1
+    if not replacements:
+        raise RuntimeError("当前母版没有可批量替换样式的普通文字片段")
+    return replacements
+
+
+def _build_existing_text_font_replacements(
+    config: Mapping[str, Any],
+    draft_data: Mapping[str, Any],
+) -> list[TextFontReplacement]:
+    font = _dict_value(
+        _value(config, "existing_text_font", "replace_existing_text_font", default=None)
+    )
+    font_id = str(_value(font, "font_id", "resource_id", default="")).strip()
+    font_path_value = _value(font, "font_path", "path", default="")
+    if not font_id and not font_path_value:
+        return []
+    if not font_id or not font_path_value:
+        raise RuntimeError("替换已有字幕字体必须同时提供 font_id 和 font_path")
+    font_path = _positive_path(font_path_value, "已有字幕字体文件")
+    font_title = str(_value(font, "font_title", "font_name", "name", default="")).strip()
+
+    materials = draft_data.get("materials", {})
+    text_materials = materials.get("texts", []) if isinstance(materials, dict) else []
+    text_material_ids = {
+        str(item.get("id", ""))
+        for item in text_materials
+        if isinstance(item, dict) and item.get("id")
+    }
+    replacements: list[TextFontReplacement] = []
+    text_track_index = 0
+    tracks = draft_data.get("tracks", [])
+    for track in tracks if isinstance(tracks, list) else []:
+        if not isinstance(track, dict) or track.get("type") != "text":
+            continue
+        segments = track.get("segments", [])
+        for segment_index, segment in enumerate(segments if isinstance(segments, list) else []):
+            if not isinstance(segment, dict):
+                continue
+            if str(segment.get("material_id", "")) not in text_material_ids:
+                continue
+            replacements.append(
+                TextFontReplacement(
+                    font_id=font_id,
+                    font_path=str(font_path),
+                    font_title=font_title,
+                    track_index=text_track_index,
+                    segment_index=segment_index,
+                )
+            )
+        text_track_index += 1
+    if not replacements:
+        raise RuntimeError("当前母版没有可批量替换字体的普通文字片段")
+    return replacements
+
+
+def _resolve_timeline_duration(
+    start_us: int,
+    duration_us: int,
+    timeline_duration_us: int,
+    label: str,
+) -> int:
+    if start_us < 0:
+        raise RuntimeError(f"{label}开始时间不能为负数")
+    if timeline_duration_us <= 0 or start_us >= timeline_duration_us:
+        raise RuntimeError(
+            f"{label}开始时间超出视频时长: start_us={start_us}, video_duration_us={timeline_duration_us}"
+        )
+    resolved = duration_us if duration_us > 0 else timeline_duration_us - start_us
+    if resolved <= 0 or start_us + resolved > timeline_duration_us:
+        raise RuntimeError(
+            f"{label}时间范围超出视频时长: start_us={start_us}, duration_us={resolved}, "
+            f"video_duration_us={timeline_duration_us}"
+        )
+    return resolved
+
+
+def _build_text_template_additions(
+    config: Mapping[str, Any],
+    *,
+    timeline_duration_us: int,
+) -> list[TextTemplateAddition]:
+    additions: list[TextTemplateAddition] = []
+    for item in _list_config(_value(config, "text_templates", "text_template", default=None), "text_templates"):
+        template_json_path = _positive_path(
+            _value(item, "template_json_path", "metadata_path", default=""),
+            "复合文字模板 JSON",
+        )
+        texts_value = item.get("texts", [])
+        if not isinstance(texts_value, list):
+            raise RuntimeError("复合文字模板 texts 必须是数组")
+        start_us = int(_value(item, "start_us", default=0))
+        duration_us = _resolve_timeline_duration(
+            start_us,
+            int(_value(item, "duration_us", default=0)),
+            timeline_duration_us,
+            "复合文字模板",
+        )
+        additions.append(
+            TextTemplateAddition(
+                template_json_path=template_json_path,
+                texts=[str(value) for value in texts_value],
+                start_us=start_us,
+                duration_us=duration_us,
+                track_name=str(_value(item, "track_name", default="")),
+            )
+        )
+    return additions
+
+
+def _build_audio_replacements(
+    config: Mapping[str, Any],
+    *,
+    timeline_duration_us: int = 0,
+) -> tuple[list[NamedAudioReplacement], list[AudioSegmentReplacement], list[AudioAddition]]:
+    named: list[NamedAudioReplacement] = []
+    segments: list[AudioSegmentReplacement] = []
+    additions: list[AudioAddition] = []
+
+    for item in _list_config(_value(config, "audios", "audio", default=None), "audios"):
+        mode = str(_value(item, "type", "mode", default="add")).replace("_", "-")
+        media_path = _positive_path(_value(item, "media_path", "audio_path", default=""), "音频")
+        source_start_us = int(_value(item, "source_start_us", default=-1))
+        source_duration_us = int(_value(item, "source_duration_us", default=0))
+        target_start_us = int(_value(item, "target_start_us", "start_us", default=0))
+        target_duration_us = int(_value(item, "target_duration_us", "duration_us", default=0))
+        if (
+            mode in ("add", "bgm")
+            and target_duration_us <= 0
+            and _as_bool(_value(item, "fit_to_video", "fit_to_timeline", default=False))
+        ):
+            target_duration_us = max(0, timeline_duration_us - max(0, target_start_us))
+        source_start_us, source_duration_us = _normalise_audio_source_timerange(
+            source_start_us,
+            source_duration_us,
+            target_duration_us,
+        )
+        volume = float(_value(item, "volume", default=1.0))
+        if not 0.0 <= volume <= 2.0:
+            raise ValueError(f"BGM volume 必须在 0.0 到 2.0 之间: {volume}")
+        if mode in ("add", "bgm"):
+            additions.append(
+                AudioAddition(
+                    media_path=media_path,
+                    source_start_us=source_start_us,
+                    source_duration_us=source_duration_us,
+                    target_start_us=target_start_us,
+                    target_duration_us=target_duration_us,
+                    volume=volume,
+                )
+            )
+        elif mode == "replace-segment":
+            segments.append(
+                AudioSegmentReplacement(
+                    media_path=media_path,
+                    track_index=int(_value(item, "track_index", "audio_track_index", default=0)),
+                    segment_index=int(_value(item, "segment_index", "audio_segment_index", default=0)),
+                    source_start_us=source_start_us,
+                    source_duration_us=source_duration_us,
+                    target_start_us=target_start_us,
+                    target_duration_us=target_duration_us,
+                )
+            )
+        elif mode == "replace-named":
+            named.append(
+                NamedAudioReplacement(
+                    media_path=media_path,
+                    material_name=str(_value(item, "material_name", default="")),
+                )
+            )
+        else:
+            raise RuntimeError(f"不支持的音乐处理方式: {mode!r}")
+
+    return named, segments, additions
+
+
+def _normalise_audio_source_timerange(
+    source_start_us: int,
+    source_duration_us: int,
+    target_duration_us: int,
+) -> tuple[int, int]:
+    if source_start_us >= 0 and source_duration_us <= 0:
+        if target_duration_us > 0:
+            source_duration_us = target_duration_us
+        elif source_start_us == 0:
+            source_start_us = -1
+    return source_start_us, source_duration_us
+
+
+def _build_effect_additions(
+    config: Mapping[str, Any],
+    *,
+    timeline_duration_us: int,
+) -> list[EffectAddition]:
+    additions: list[EffectAddition] = []
+    for item in _list_config(_value(config, "effects", "effect", default=None), "effects"):
+        effect_json_path = _positive_path(_value(item, "effect_json_path", "effect_json", default=""), "特效 JSON")
+        start_us = int(_value(item, "start_us", default=0))
+        # Older web jobs used -1 to mean "follow the first video segment".
+        # The product-level default is now the complete draft timeline.
+        if start_us < 0:
+            start_us = 0
+        duration_us = _resolve_timeline_duration(
+            start_us,
+            int(_value(item, "duration_us", default=0)),
+            timeline_duration_us,
+            "视频特效",
+        )
+        additions.append(
+            EffectAddition(
+                effect_json_path=effect_json_path,
+                target_video_track_index=int(_value(item, "target_video_track_index", "video_track_index", default=0)),
+                target_video_segment_index=int(_value(item, "target_video_segment_index", "video_segment_index", default=0)),
+                start_us=start_us,
+                duration_us=duration_us,
+            )
+        )
+    return additions
+
+
+def _build_sticker_additions(config: Mapping[str, Any]) -> list[StickerAddition]:
+    additions: list[StickerAddition] = []
+    for item in _list_config(_value(config, "stickers", "sticker", default=None), "stickers"):
+        sticker_json_path = _positive_path(
+            _value(item, "sticker_json_path", "metadata_path", default=""),
+            "全屏贴纸 JSON",
+        )
+        opacity = float(_value(item, "opacity", "alpha", default=1.0))
+        if not 0.0 <= opacity <= 1.0:
+            raise ValueError("贴纸透明度必须在 0.0 到 1.0 之间")
+        scale = float(_value(item, "scale", default=1.0))
+        if scale <= 0.0 or scale > 10.0:
+            raise ValueError("贴纸缩放必须大于 0 且不超过 10")
+        additions.append(
+            StickerAddition(
+                sticker_json_path=sticker_json_path,
+                start_us=int(_value(item, "start_us", default=0)),
+                duration_us=int(_value(item, "duration_us", default=0)),
+                corner=str(_value(item, "corner", default="")),
+                visible_ratio=float(_value(item, "visible_ratio", default=0.05)),
+                scale=scale,
+                rotation=float(_value(item, "rotation", default=0.0)),
+                opacity=opacity,
+            )
+        )
+    return additions
+
+
+def _build_visual_variant(config: Mapping[str, Any]) -> VisualVariant | None:
+    raw = config.get("visual_variant")
+    if raw is None:
+        return None
+    value = _dict_value(raw)
+    if not value or not _as_bool(_value(value, "enabled", default=True)):
+        return None
+    interval_seconds = float(_value(value, "mirror_interval_seconds", default=10.0))
+    if interval_seconds <= 0 or interval_seconds > 3600:
+        raise ValueError("镜像间隔必须大于 0 秒且不超过 3600 秒")
+    sample_count = int(_value(value, "face_sample_count", default=3))
+    if sample_count <= 0 or sample_count > 9:
+        raise ValueError("人脸定位采样帧数必须是 1 到 9")
+    crop_offset_x = float(_value(value, "crop_offset_x", default=0.0))
+    crop_offset_y = float(_value(value, "crop_offset_y", default=0.0))
+    crop_zoom = float(_value(value, "crop_zoom", default=1.0))
+    if not -1.0 <= crop_offset_x <= 1.0 or not -1.0 <= crop_offset_y <= 1.0:
+        raise ValueError("裁剪微调必须在 -1.0 到 1.0 之间")
+    if not 1.0 <= crop_zoom <= 4.0:
+        raise ValueError("裁剪缩放必须在 1.0 到 4.0 之间")
+    return VisualVariant(
+        mirror_interval_us=int(round(interval_seconds * 1_000_000)),
+        crop_ratio=str(_value(value, "crop_ratio", default="1:1")),
+        background_color=str(_value(value, "background_color", default="#000000")),
+        face_centered=_as_bool(_value(value, "face_centered", default=True)),
+        face_sample_count=sample_count,
+        video_track_index=int(_value(value, "video_track_index", default=0)),
+        crop_offset_x=crop_offset_x,
+        crop_offset_y=crop_offset_y,
+        crop_zoom=crop_zoom,
+    )
+
+
+def _build_cover(
+    config: Mapping[str, Any],
+    source_data: Mapping[str, Any],
+) -> CoverConfig | None:
+    raw = config.get("cover")
+    if raw is None:
+        return None
+    value = _dict_value(raw)
+    if not value or not _as_bool(_value(value, "enabled", default=True)):
+        return None
+    fps = float(_value(value, "fps", default=source_data.get("fps", 30) or 30))
+    frame_time_seconds = float(
+        _value(value, "frame_time_seconds", "time_seconds", default=0.0)
+    )
+    font = _dict_value(
+        _value(
+            value,
+            "font",
+            default=_value(config, "existing_text_font", default=_value(config, "captions", default=None)),
+        )
+    )
+    overlay_top = float(_value(value, "overlay_top_ratio", default=0.50))
+    overlay_bottom = float(_value(value, "overlay_bottom_ratio", default=0.86))
+    return CoverConfig(
+        frame_time_us=int(round(frame_time_seconds * 1_000_000)),
+        frame_source=str(_value(value, "frame_source", default="preview_material")),
+        fps=fps,
+        frame_count=int(_value(value, "frame_count", default=3)),
+        text_line_1=str(_value(value, "text_line_1", "text1", default="默认文本")),
+        text_line_2=str(_value(value, "text_line_2", "text2", default="默认文本")),
+        text_size=float(_value(value, "text_size", default=12.0)),
+        text_scale=float(_value(value, "text_scale", default=1.4)),
+        line_1_x=float(_value(value, "line_1_x", default=0.0)),
+        line_1_y=float(_value(value, "line_1_y", default=-0.28)),
+        line_2_x=float(_value(value, "line_2_x", default=0.0)),
+        line_2_y=float(_value(value, "line_2_y", default=-0.55)),
+        line_1_size=float(_value(value, "line_1_size", default=_value(value, "text_size", default=12.0))),
+        line_2_size=float(_value(value, "line_2_size", default=_value(value, "text_size", default=12.0))),
+        line_1_color=str(_value(value, "line_1_color", default="#FFFFFF")),
+        line_2_color=str(_value(value, "line_2_color", default="#FFFFFF")),
+        frame_scale=float(_value(value, "frame_scale", default=1.0)),
+        frame_offset_x=float(_value(value, "frame_offset_x", default=0.0)),
+        frame_offset_y=float(_value(value, "frame_offset_y", default=0.0)),
+        overlay_alpha=float(_value(value, "overlay_alpha", default=0.5)),
+        overlay_x_ratio=float(_value(value, "overlay_x_ratio", default=0.5)),
+        overlay_y_ratio=float(_value(value, "overlay_y_ratio", default=(overlay_top + overlay_bottom) / 2.0)),
+        overlay_width_ratio=float(_value(value, "overlay_width_ratio", default=1.0)),
+        overlay_height_ratio=float(_value(value, "overlay_height_ratio", default=overlay_bottom - overlay_top)),
+        overlay_top_ratio=overlay_top,
+        overlay_bottom_ratio=overlay_bottom,
+        font_id=str(_value(font, "font_id", "resource_id", default="")).strip(),
+        font_path=str(_value(font, "font_path", "path", default="")).strip(),
+        font_title=str(_value(font, "font_title", "font_name", "name", default="")).strip(),
+    )
+
+
+def _optional_volume(config: Mapping[str, Any]) -> float | None:
+    raw = _value(config, "original_video_volume", "original_audio_volume", default=None)
+    if raw is None or raw == "":
+        return None
+    value = float(raw)
+    if not 0.0 <= value <= 2.0:
+        raise ValueError("原视频音量必须在 0.0 到 2.0 之间")
+    return value
+
+
+def _export_mp4(
+    draft_name: str,
+    output_mp4: Path,
+    *,
+    resolution: str = "",
+    framerate: str = "",
+    timeout: float = 1200,
+) -> None:
+    print(
+        f"[export] 开始调用剪映导出 draft={draft_name} output={output_mp4} "
+        f"resolution={resolution or '默认'} framerate={framerate or '默认'} timeout={timeout}",
+        flush=True,
+    )
+    controller_type, resolution_type, framerate_type = _load_export_api()
+    output_mp4.parent.mkdir(parents=True, exist_ok=True)
+    if output_mp4.exists():
+        raise FileExistsError(f"输出 MP4 已存在，为避免覆盖已停止: {output_mp4}")
+    export_kwargs = {
+        "resolution": _enum_by_value(resolution_type, resolution, "分辨率"),
+        "framerate": _enum_by_value(framerate_type, framerate, "帧率"),
+        "timeout": timeout,
+    }
+    discovery_attempts = 10
+    for attempt in range(1, discovery_attempts + 1):
+        controller = controller_type()
+        try:
+            controller.export_draft(draft_name, str(output_mp4), **export_kwargs)
+            break
+        except Exception as exc:
+            if type(exc).__name__ != "DraftNotFound" or attempt >= discovery_attempts:
+                raise
+            print(
+                f"[export] 剪映首页暂未识别草稿 draft={draft_name}，"
+                f"2 秒后重试（{attempt}/{discovery_attempts}）",
+                flush=True,
+            )
+            time.sleep(2)
+    print(f"[export] 剪映导出完成 output={output_mp4}", flush=True)
+
+
+def _load_export_api() -> tuple[type, type, type]:
+    try:
+        from pyJianYingDraft import ExportFramerate, ExportResolution, JianyingController
+    except Exception as exc:
+        raise RuntimeError("无法导入 pyJianYingDraft 导出控制器；请使用已安装依赖的 Python") from exc
+    return JianyingController, ExportResolution, ExportFramerate
+
+
+def _enum_by_value(enum_type: type, value: str, label: str):
+    if not value:
+        return None
+    for item in enum_type:
+        if item.value.lower() == value.lower():
+            return item
+    choices = ", ".join(item.value for item in enum_type)
+    raise ValueError(f"不支持的{label}: {value!r}，可用值: {choices}")
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _list_config(value: Any, label: str) -> list[dict[str, Any]]:
+    if value is None or value == "":
+        return []
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, list) and all(isinstance(item, dict) for item in value):
+        return value
+    raise RuntimeError(f"{label} 配置必须是对象或对象列表")
+
+
+def _value(data: Mapping[str, Any], *keys: str, default: Any = None) -> Any:
+    for key in keys:
+        if key in data and data[key] not in (None, ""):
+            return data[key]
+    return default
+
+
+def _optional_float(data: Mapping[str, Any], key: str) -> float | None:
+    value = data.get(key)
+    if value in (None, ""):
+        return None
+    return float(value)
+
+
+def _positive_path(path_text: Any, label: str) -> Path:
+    path = Path(str(path_text)).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"{label}不存在: {path}")
+    return path
+
+
+def _as_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"", "0", "false", "no", "off"}
+    return bool(value)
+
+
+def _safe_name(value: str) -> str:
+    name = "".join("_" if char in '<>:"/\\|?*' else char for char in value.strip())
+    return name.strip(" ._") or "render_job"

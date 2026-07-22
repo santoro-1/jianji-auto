@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "vogbgwee_1645778210_00.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 2,
+                "y": 310
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_01.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 336,
+                "y": 310
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_02.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 670,
+                "y": 310
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_03.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_04.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_05.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_06.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_07.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 46
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_08.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 46
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_09.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 1004,
+                "y": 310
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_10.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 46
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_11.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 2,
+                "y": 353
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_12.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 46
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_13.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 336,
+                "y": 353
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_14.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 670,
+                "y": 353
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_15.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 1004,
+                "y": 353
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_16.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 90
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_17.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 90
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_18.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 90
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_19.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 90
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_20.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 2,
+                "y": 396
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_21.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 134
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_22.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 336,
+                "y": 396
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_23.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 134
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_24.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 670,
+                "y": 396
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_25.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 1004,
+                "y": 396
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_26.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 2,
+                "y": 439
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_27.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 134
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_28.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 134
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_29.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 178
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_30.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 178
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_31.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 178
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_32.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 178
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_33.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 336,
+                "y": 439
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_34.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 222
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_35.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 670,
+                "y": 439
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_36.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 222
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_37.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 1004,
+                "y": 439
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_38.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 2,
+                "y": 482
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_39.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 336,
+                "y": 482
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_40.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 222
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_41.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 222
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_42.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 2,
+                "y": 266
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_43.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 336,
+                "y": 266
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_44.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 670,
+                "y": 482
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_45.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 670,
+                "y": 266
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_46.png",
+            "frame": {
+                "h": 41,
+                "w": 332,
+                "x": 1004,
+                "y": 482
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 41,
+                "w": 332,
+                "x": 8,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "vogbgwee_1645778210_47.png",
+            "frame": {
+                "h": 42,
+                "w": 332,
+                "x": 1004,
+                "y": 266
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 64,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 42,
+                "w": 332,
+                "x": 8,
+                "y": 8
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 525,
+            "w": 1338
+        }
+    }
+}

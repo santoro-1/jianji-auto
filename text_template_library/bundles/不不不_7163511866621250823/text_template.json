@@ -1,0 +1,209 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:22",
+  "identity": "resource_id:7163511866621250823",
+  "name": "不不不",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "140F4800-DA7E-4bb4-A98D-FF8696325B9E",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7163511866621250823",
+    "id": "A8439DF4-9931-4897-93FB-9FF3A7D85331",
+    "name": "不不不",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7163511866621250823/8e7daee262e462896e2ad661d69acbca",
+    "resource_id": "7163511866621250823",
+    "resources": [
+      {
+        "panel": "flower",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/4795598/7843d796faee22342288f7cd698c8ae0",
+        "resource_id": "7129477233374138917"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1488712/377365df3340b4b642a0c199fcbb3882/HelloFont ID DunDunTi.ttf",
+        "resource_id": "7043772438898807304"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "5A6684D8-6C7E-4a54-9F78-C0B16E2770EC",
+          "E97BC305-DEA8-49eb-B1E5-E6E44616C286"
+        ],
+        "text_material_id": "C3E5F65C-74AD-42bb-8BD1-4BE279A76D40"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "E97BC305-DEA8-49eb-B1E5-E6E44616C286",
+      "5A6684D8-6C7E-4a54-9F78-C0B16E2770EC"
+    ],
+    "id": "D8CC7CFD-0AFE-4f63-9D03-55DAEF056530",
+    "material_id": "A8439DF4-9931-4897-93FB-9FF3A7D85331",
+    "render_index": 14048,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 144000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "C3E5F65C-74AD-42bb-8BD1-4BE279A76D40",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "5A6684D8-6C7E-4a54-9F78-C0B16E2770EC",
+          "E97BC305-DEA8-49eb-B1E5-E6E44616C286"
+        ],
+        "text_material_id": "C3E5F65C-74AD-42bb-8BD1-4BE279A76D40"
+      },
+      "text_material": {
+        "border_width": 0.08,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "combo_info": {},
+        "content": "不",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1488712/377365df3340b4b642a0c199fcbb3882/HelloFont ID DunDunTi.ttf",
+        "font_resource_id": "7043772438898807304",
+        "font_size": 20.0,
+        "id": "C3E5F65C-74AD-42bb-8BD1-4BE279A76D40",
+        "initial_scale": 1.0,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_angle": -45.0,
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#FFFFFFFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "5A6684D8-6C7E-4a54-9F78-C0B16E2770EC",
+    "E97BC305-DEA8-49eb-B1E5-E6E44616C286"
+  ],
+  "referenced_materials": {
+    "effects": [
+      {
+        "id": "5A6684D8-6C7E-4a54-9F78-C0B16E2770EC",
+        "multi_language_current": "",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/4795598/7843d796faee22342288f7cd698c8ae0",
+        "resource_id": "7129477233374138917",
+        "sub_type": "none",
+        "type": "text_effect"
+      }
+    ],
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 1639999,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7163511866621250823/8e7daee262e462896e2ad661d69acbca/4f01b8c42b2d4a26a89aa528e6cc1544",
+            "resource_id": "",
+            "type": "loop"
+          }
+        ],
+        "id": "E97BC305-DEA8-49eb-B1E5-E6E44616C286",
+        "type": "sticker_animation"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7163511866621250823/8e7daee262e462896e2ad661d69acbca",
+      "library_path": "resources/77dce28d8d67_8e7daee262e462896e2ad661d69acbca",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/4795598/7843d796faee22342288f7cd698c8ae0",
+      "library_path": "resources/9a087e9f5b7f_7843d796faee22342288f7cd698c8ae0",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "referenced_materials.effects[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1488712/377365df3340b4b642a0c199fcbb3882/HelloFont ID DunDunTi.ttf",
+      "library_path": "resources/f166f4a79204_HelloFont_ID_DunDunTi.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "text_slots[0].text_material.font_path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7163511866621250823/8e7daee262e462896e2ad661d69acbca/4f01b8c42b2d4a26a89aa528e6cc1544",
+      "library_path": "resources/3b7e6bcdd2e7_4f01b8c42b2d4a26a89aa528e6cc1544",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 48,
+      "material_id": "A8439DF4-9931-4897-93FB-9FF3A7D85331",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 144000000
+      }
+    }
+  ]
+}

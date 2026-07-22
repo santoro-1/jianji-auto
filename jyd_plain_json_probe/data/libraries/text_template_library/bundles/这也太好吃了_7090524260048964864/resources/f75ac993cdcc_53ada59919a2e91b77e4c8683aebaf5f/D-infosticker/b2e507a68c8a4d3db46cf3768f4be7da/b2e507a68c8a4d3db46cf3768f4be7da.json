@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "lihlsgdu_1645787527_00.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_01.png",
+            "frame": {
+                "h": 11,
+                "w": 18,
+                "x": 1183,
+                "y": 1225
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 11,
+                "w": 18,
+                "x": 36,
+                "y": 97
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_02.png",
+            "frame": {
+                "h": 29,
+                "w": 59,
+                "x": 1139,
+                "y": 1542
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 29,
+                "w": 59,
+                "x": 33,
+                "y": 92
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_03.png",
+            "frame": {
+                "h": 35,
+                "w": 100,
+                "x": 968,
+                "y": 1542
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 35,
+                "w": 100,
+                "x": 33,
+                "y": 92
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_04.png",
+            "frame": {
+                "h": 47,
+                "w": 110,
+                "x": 752,
+                "y": 1528
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 47,
+                "w": 110,
+                "x": 33,
+                "y": 92
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_05.png",
+            "frame": {
+                "h": 49,
+                "w": 129,
+                "x": 1052,
+                "y": 1491
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 49,
+                "w": 129,
+                "x": 33,
+                "y": 92
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_06.png",
+            "frame": {
+                "h": 49,
+                "w": 137,
+                "x": 1058,
+                "y": 1440
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 49,
+                "w": 137,
+                "x": 33,
+                "y": 92
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_07.png",
+            "frame": {
+                "h": 118,
+                "w": 208,
+                "x": 354,
+                "y": 1478
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 118,
+                "w": 208,
+                "x": 33,
+                "y": 23
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_08.png",
+            "frame": {
+                "h": 129,
+                "w": 254,
+                "x": 1058,
+                "y": 268
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 129,
+                "w": 254,
+                "x": 35,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_09.png",
+            "frame": {
+                "h": 129,
+                "w": 264,
+                "x": 1058,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 129,
+                "w": 264,
+                "x": 54,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_10.png",
+            "frame": {
+                "h": 132,
+                "w": 229,
+                "x": 1058,
+                "y": 994
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 132,
+                "w": 229,
+                "x": 95,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_11.png",
+            "frame": {
+                "h": 134,
+                "w": 232,
+                "x": 1058,
+                "y": 524
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 134,
+                "w": 232,
+                "x": 96,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_12.png",
+            "frame": {
+                "h": 131,
+                "w": 234,
+                "x": 1058,
+                "y": 758
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 131,
+                "w": 234,
+                "x": 100,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_13.png",
+            "frame": {
+                "h": 123,
+                "w": 213,
+                "x": 1058,
+                "y": 1225
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 123,
+                "w": 213,
+                "x": 125,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_14.png",
+            "frame": {
+                "h": 111,
+                "w": 186,
+                "x": 564,
+                "y": 1478
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 111,
+                "w": 186,
+                "x": 153,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_15.png",
+            "frame": {
+                "h": 48,
+                "w": 156,
+                "x": 752,
+                "y": 1478
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 48,
+                "w": 156,
+                "x": 183,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_16.png",
+            "frame": {
+                "h": 48,
+                "w": 140,
+                "x": 910,
+                "y": 1478
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 48,
+                "w": 140,
+                "x": 199,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_17.png",
+            "frame": {
+                "h": 48,
+                "w": 102,
+                "x": 864,
+                "y": 1528
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 48,
+                "w": 102,
+                "x": 237,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_18.png",
+            "frame": {
+                "h": 46,
+                "w": 67,
+                "x": 1070,
+                "y": 1542
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 46,
+                "w": 67,
+                "x": 274,
+                "y": 9
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_19.png",
+            "frame": {
+                "h": 35,
+                "w": 44,
+                "x": 752,
+                "y": 1577
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 35,
+                "w": 44,
+                "x": 297,
+                "y": 17
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_20.png",
+            "frame": {
+                "h": 19,
+                "w": 18,
+                "x": 1170,
+                "y": 1542
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 19,
+                "w": 18,
+                "x": 320,
+                "y": 30
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "lihlsgdu_1645787527_21.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_22.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_23.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 166
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_24.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 166
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_25.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 166
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_26.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 330
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_27.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 330
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_28.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 330
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_29.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 494
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_30.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 494
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_31.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 494
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_32.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 658
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_33.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 658
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_34.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 658
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_35.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 822
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_36.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 822
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_37.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 822
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_38.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 986
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_39.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 986
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_40.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 986
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_41.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 1150
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_42.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 1150
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_43.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 1150
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_44.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 1314
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_45.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 354,
+                "y": 1314
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_46.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 706,
+                "y": 1314
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "lihlsgdu_1645787527_47.png",
+            "frame": {
+                "h": 162,
+                "w": 350,
+                "x": 2,
+                "y": 1478
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 162,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 162,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 1642,
+            "w": 1197
+        }
+    }
+}

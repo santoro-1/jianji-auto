@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7316819223840297481",
+  "name": "励字志向黑简 特粗",
+  "resource_id": "7316819223840297481",
+  "effect_id": "7316819223840297481",
+  "checksum_sha256": "c720f4e89d2fd2cdfae5ae89844f4d076444fda3f15ef8cd67496090029c4e0f",
+  "size_bytes": 1582100,
+  "file": "files/励字志向黑简_特粗_7316819223840297481.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\励字志向黑简_特粗_7316819223840297481.ttf",
+  "metadata_file": "metadata/励字志向黑简_特粗_7316819223840297481.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7316819223840297481\\ba409eae71d9d99f370175f283002307\\励字志向黑简 特粗.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 2,
+          "material_id": "79FE7F01-5DFD-4679-B729-72C9536CF04E",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 2,
+          "material_id": "79FE7F01-5DFD-4679-B729-72C9536CF04E",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 2,
+          "material_id": "79FE7F01-5DFD-4679-B729-72C9536CF04E",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

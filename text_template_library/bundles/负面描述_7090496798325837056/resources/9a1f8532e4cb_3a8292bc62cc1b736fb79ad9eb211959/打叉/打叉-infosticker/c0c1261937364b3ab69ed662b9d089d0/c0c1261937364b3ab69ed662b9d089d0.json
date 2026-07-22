@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "yjruoncn_1646026802_00.png",
+            "frame": {
+                "h": 17,
+                "w": 11,
+                "x": 1466,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 17,
+                "w": 11,
+                "x": 266,
+                "y": 60
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_01.png",
+            "frame": {
+                "h": 77,
+                "w": 150,
+                "x": 1387,
+                "y": 279
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 77,
+                "w": 150,
+                "x": 127,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_02.png",
+            "frame": {
+                "h": 94,
+                "w": 275,
+                "x": 1387,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 94,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_03.png",
+            "frame": {
+                "h": 260,
+                "w": 275,
+                "x": 1110,
+                "y": 2218
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 260,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_04.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_05.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_06.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_07.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_08.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_09.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 279
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_10.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_11.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_12.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_13.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_14.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 556
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_15.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_16.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_17.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_18.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_19.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 833
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_20.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_21.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_22.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_23.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_24.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 1110
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_25.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_26.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_27.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_28.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_29.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 1387
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_30.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_31.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_32.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_33.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_34.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 1664
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_35.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 1664
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_36.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 1664
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_37.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 1664
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_38.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 1664
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_39.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 1941
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_40.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 1941
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_41.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 1941
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_42.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 1941
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_43.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 1941
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_44.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2218
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_45.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 2218
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_46.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 2218
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "yjruoncn_1646026802_47.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 2218
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 2495,
+            "w": 1483
+        }
+    }
+}

@@ -1,0 +1,11 @@
+{
+    "date": "2025-09-22 17:19:45 +0800",
+    "author": "root",
+    "source": "b/luoruchong/fix_fontsize_anim_rtSize",
+    "branch": "release/20.0.0",
+    "commit": {
+        "id": "ec077ee56c5122c6b73594fa7867b04d34035d86",
+        "message": "Merge remote-tracking branch 'origin/release/20.0.0' into b/luoruchong/fix_fontsize_anim_rtSize"
+    },
+    "buildingTime": "2025-09-22 17:24:03"
+}

@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7311913734081876506",
+  "name": "字由青楷",
+  "resource_id": "7311913734081876506",
+  "effect_id": "7311913734081876506",
+  "checksum_sha256": "4341804a3e4032c0f3dba2988e140bffdd90252b9f1c34cc6c83bcfaa5323fa6",
+  "size_bytes": 6182424,
+  "file": "files/字由青楷_7311913734081876506.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字由青楷_7311913734081876506.ttf",
+  "metadata_file": "metadata/字由青楷_7311913734081876506.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7311913734081876506\\8de5c66831c1c08a3a0db17abffdc090\\字由青楷.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 18,
+          "material_id": "9F42309E-0B87-4d82-9F39-9AE4D1C004C8",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 18,
+          "material_id": "9F42309E-0B87-4d82-9F39-9AE4D1C004C8",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 18,
+          "material_id": "9F42309E-0B87-4d82-9F39-9AE4D1C004C8",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+%YAML 1.1
+--- !Material &1
+name: noFilter_material
+guid: {a: 16306687114124627670, b: 12682404434870856881}
+xshader: {localId: 1, path: xshader/noface.xshader}
+properties:
+  __class: PropertySheet
+  name: noFilter_propertySheet
+  guid: {a: 14000188475515734145, b: 3438780348635823506}
+  floatmap:
+    __class: Map
+    angle: 0
+    blurSize: 1
+    blurStep: 1
+    blurStep1: 1
+    blurStep2: 1
+    gauss_stron: 2
+    gauss_stron1: 1
+    gauss_stron2: 1
+    lineCount: 1
+    s_width: 8
+    u_Angle: 0
+    u_BlurScale: 1
+  vec4map:
+    __class: Map
+  vec3map:
+    __class: Map
+  vec2map:
+    __class: Map
+    u_TextRect: {x: 1, y: 1}
+  mat4map:
+    __class: Map
+  texmap:
+    __class: Map
+    inputTexture1: {localId: 1, path: rt/rt1.rt}
+    inputTexture2: {localId: 1, path: rt/rt2.rt}
+    inputTexture3: {localId: 1, path: rt/rt3.rt}
+    inputTexture4: {localId: 1, path: rt/rt4.rt}
+    inputTexture5: {localId: 1, path: rt/rt5.rt}
+    inputTexture6: {localId: 1, path: rt/rt6.rt}
+    u_albedo: {localId: 1, path: share://input.texture}
+  intmap:
+    __class: Map
+renderQueue: 0
+enabledMacros:
+  __class: Map
+  SAMPLETIIMES1: 16
+  SAMPLETIIMES2: 100
+  SAMPLETIIMES3: 100
+  SAMPLETIIMES4: 100
+mshaderPath: ""
+instanceCount: 0

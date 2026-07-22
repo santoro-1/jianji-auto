@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "adnjlhsb_1661339265_00.png",
+            "frame": {
+                "h": 302,
+                "w": 350,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 302,
+                "w": 350,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "adnjlhsb_1661339265_01.png",
+            "frame": {
+                "h": 50,
+                "w": 56,
+                "x": 240,
+                "y": 406
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 50,
+                "w": 56,
+                "x": 87,
+                "y": 201
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_02.png",
+            "frame": {
+                "h": 98,
+                "w": 99,
+                "x": 240,
+                "y": 306
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 98,
+                "w": 99,
+                "x": 76,
+                "y": 162
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_03.png",
+            "frame": {
+                "h": 149,
+                "w": 140,
+                "x": 1159,
+                "y": 893
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 149,
+                "w": 140,
+                "x": 61,
+                "y": 120
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_04.png",
+            "frame": {
+                "h": 198,
+                "w": 185,
+                "x": 2015,
+                "y": 937
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 198,
+                "w": 185,
+                "x": 40,
+                "y": 80
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_05.png",
+            "frame": {
+                "h": 206,
+                "w": 192,
+                "x": 951,
+                "y": 893
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 206,
+                "w": 192,
+                "x": 30,
+                "y": 75
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_06.png",
+            "frame": {
+                "h": 205,
+                "w": 188,
+                "x": 712,
+                "y": 895
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 205,
+                "w": 188,
+                "x": 25,
+                "y": 77
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_07.png",
+            "frame": {
+                "h": 205,
+                "w": 188,
+                "x": 235,
+                "y": 907
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 205,
+                "w": 188,
+                "x": 19,
+                "y": 76
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_08.png",
+            "frame": {
+                "h": 205,
+                "w": 191,
+                "x": 1544,
+                "y": 893
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 205,
+                "w": 191,
+                "x": 18,
+                "y": 77
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_09.png",
+            "frame": {
+                "h": 195,
+                "w": 189,
+                "x": 442,
+                "y": 909
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 195,
+                "w": 189,
+                "x": 30,
+                "y": 86
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_10.png",
+            "frame": {
+                "h": 189,
+                "w": 190,
+                "x": 2,
+                "y": 962
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 189,
+                "w": 190,
+                "x": 50,
+                "y": 87
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_11.png",
+            "frame": {
+                "h": 203,
+                "w": 210,
+                "x": 1803,
+                "y": 892
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 203,
+                "w": 210,
+                "x": 63,
+                "y": 74
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_12.png",
+            "frame": {
+                "h": 226,
+                "w": 230,
+                "x": 609,
+                "y": 242
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 226,
+                "w": 230,
+                "x": 63,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_13.png",
+            "frame": {
+                "h": 238,
+                "w": 241,
+                "x": 609,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 238,
+                "w": 241,
+                "x": 63,
+                "y": 40
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_14.png",
+            "frame": {
+                "h": 242,
+                "w": 253,
+                "x": 354,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 242,
+                "w": 253,
+                "x": 62,
+                "y": 32
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_15.png",
+            "frame": {
+                "h": 228,
+                "w": 250,
+                "x": 852,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 228,
+                "w": 250,
+                "x": 59,
+                "y": 47
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_16.png",
+            "frame": {
+                "h": 222,
+                "w": 240,
+                "x": 1585,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 222,
+                "w": 240,
+                "x": 58,
+                "y": 53
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_17.png",
+            "frame": {
+                "h": 211,
+                "w": 231,
+                "x": 2,
+                "y": 749
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 211,
+                "w": 231,
+                "x": 59,
+                "y": 63
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_18.png",
+            "frame": {
+                "h": 206,
+                "w": 224,
+                "x": 2067,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 206,
+                "w": 224,
+                "x": 61,
+                "y": 68
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_19.png",
+            "frame": {
+                "h": 210,
+                "w": 226,
+                "x": 1316,
+                "y": 891
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 210,
+                "w": 226,
+                "x": 63,
+                "y": 64
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_20.png",
+            "frame": {
+                "h": 218,
+                "w": 233,
+                "x": 716,
+                "y": 675
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 218,
+                "w": 233,
+                "x": 63,
+                "y": 56
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_21.png",
+            "frame": {
+                "h": 223,
+                "w": 236,
+                "x": 1585,
+                "y": 226
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 223,
+                "w": 236,
+                "x": 63,
+                "y": 51
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_22.png",
+            "frame": {
+                "h": 224,
+                "w": 238,
+                "x": 1104,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 224,
+                "w": 238,
+                "x": 61,
+                "y": 50
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_23.png",
+            "frame": {
+                "h": 223,
+                "w": 239,
+                "x": 1344,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 223,
+                "w": 239,
+                "x": 60,
+                "y": 51
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_24.png",
+            "frame": {
+                "h": 220,
+                "w": 238,
+                "x": 1344,
+                "y": 227
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 238,
+                "x": 60,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_25.png",
+            "frame": {
+                "h": 216,
+                "w": 235,
+                "x": 240,
+                "y": 689
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 216,
+                "w": 235,
+                "x": 60,
+                "y": 58
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_26.png",
+            "frame": {
+                "h": 215,
+                "w": 233,
+                "x": 2055,
+                "y": 702
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 215,
+                "w": 233,
+                "x": 61,
+                "y": 59
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_27.png",
+            "frame": {
+                "h": 216,
+                "w": 233,
+                "x": 477,
+                "y": 691
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 216,
+                "w": 233,
+                "x": 62,
+                "y": 58
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_28.png",
+            "frame": {
+                "h": 219,
+                "w": 235,
+                "x": 1818,
+                "y": 671
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 219,
+                "w": 235,
+                "x": 62,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_29.png",
+            "frame": {
+                "h": 221,
+                "w": 236,
+                "x": 1104,
+                "y": 228
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 221,
+                "w": 236,
+                "x": 62,
+                "y": 53
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_30.png",
+            "frame": {
+                "h": 222,
+                "w": 238,
+                "x": 1827,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 222,
+                "w": 238,
+                "x": 61,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_31.png",
+            "frame": {
+                "h": 221,
+                "w": 237,
+                "x": 1823,
+                "y": 226
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 221,
+                "w": 237,
+                "x": 61,
+                "y": 53
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_32.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 2062,
+                "y": 226
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_33.png",
+            "frame": {
+                "h": 218,
+                "w": 235,
+                "x": 1329,
+                "y": 671
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 218,
+                "w": 235,
+                "x": 61,
+                "y": 56
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_34.png",
+            "frame": {
+                "h": 218,
+                "w": 235,
+                "x": 1566,
+                "y": 673
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 218,
+                "w": 235,
+                "x": 61,
+                "y": 56
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_35.png",
+            "frame": {
+                "h": 218,
+                "w": 235,
+                "x": 1079,
+                "y": 673
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 218,
+                "w": 235,
+                "x": 61,
+                "y": 56
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_36.png",
+            "frame": {
+                "h": 219,
+                "w": 236,
+                "x": 841,
+                "y": 454
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 219,
+                "w": 236,
+                "x": 61,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_37.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 354,
+                "y": 246
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_38.png",
+            "frame": {
+                "h": 220,
+                "w": 237,
+                "x": 852,
+                "y": 232
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 237,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_39.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 2,
+                "y": 306
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_40.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 1823,
+                "y": 449
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_41.png",
+            "frame": {
+                "h": 219,
+                "w": 236,
+                "x": 240,
+                "y": 468
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 219,
+                "w": 236,
+                "x": 61,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_42.png",
+            "frame": {
+                "h": 219,
+                "w": 236,
+                "x": 478,
+                "y": 470
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 219,
+                "w": 236,
+                "x": 61,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_43.png",
+            "frame": {
+                "h": 219,
+                "w": 236,
+                "x": 2061,
+                "y": 464
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 219,
+                "w": 236,
+                "x": 61,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_44.png",
+            "frame": {
+                "h": 219,
+                "w": 236,
+                "x": 2,
+                "y": 528
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 219,
+                "w": 236,
+                "x": 61,
+                "y": 55
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_45.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 1342,
+                "y": 449
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_46.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 1580,
+                "y": 451
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "adnjlhsb_1661339265_47.png",
+            "frame": {
+                "h": 220,
+                "w": 236,
+                "x": 1091,
+                "y": 451
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 302,
+                "w": 350
+            },
+            "spriteSourceSize": {
+                "h": 220,
+                "w": 236,
+                "x": 61,
+                "y": 54
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 1153,
+            "w": 2284
+        }
+    }
+}

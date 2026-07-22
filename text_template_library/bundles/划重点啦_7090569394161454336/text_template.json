@@ -1,0 +1,207 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:21",
+  "identity": "resource_id:7090569394161454336",
+  "name": "划重点啦",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "D95BAB56-1C0A-4864-9BD2-801B1DC62688",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "text-template",
+    "current_word_info": {},
+    "effect_id": "7090569394161454336",
+    "id": "D10A8BD8-FFD0-4a18-A5FA-AB2700B03C9D",
+    "name": "划重点啦",
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7090569394161454336/a313042a15ec50867a0c52d8ca857cbd",
+    "resource_id": "7090569394161454336",
+    "resources": [
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+        "resource_id": "7068208151488631309"
+      },
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1568854/b129b0e6bed4f9835f871848db646763",
+        "resource_id": "7065208406633615909"
+      },
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363012/0e78b0124ab9f615c54ee6794f850d4a",
+        "resource_id": "6764189482871689742"
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {},
+        "extra_material_refs": [
+          "E2C4861D-262B-4c92-BA63-B76318152BE6"
+        ],
+        "text_material_id": "459A0659-6051-48fc-9175-DD312C663233"
+      }
+    ],
+    "type": "text_template"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "E2C4861D-262B-4c92-BA63-B76318152BE6"
+    ],
+    "id": "F74E1B30-02A7-4613-8422-1A55EE70714D",
+    "material_id": "D10A8BD8-FFD0-4a18-A5FA-AB2700B03C9D",
+    "render_index": 14021,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 63000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "459A0659-6051-48fc-9175-DD312C663233",
+      "text": "",
+      "text_info_resource": {
+        "attach_info": {},
+        "extra_material_refs": [
+          "E2C4861D-262B-4c92-BA63-B76318152BE6"
+        ],
+        "text_material_id": "459A0659-6051-48fc-9175-DD312C663233"
+      },
+      "text_material": {
+        "border_color": "#414594FF",
+        "border_width": 0.0299999993294477,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 47,
+        "combo_info": {},
+        "content": "划重点啦！",
+        "current_words": {},
+        "font_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+        "font_resource_id": "7068208151488631309",
+        "font_size": 20.0,
+        "has_shadow": true,
+        "id": "459A0659-6051-48fc-9175-DD312C663233",
+        "initial_scale": 1.0,
+        "italic_degree": 10,
+        "ktv_color": "#FF0000FF",
+        "layer_weight": 1,
+        "letter_spacing": 0.0500000007450581,
+        "line_spacing": 0.0,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "shadow_alpha": 1.0,
+        "shadow_angle": -45.0,
+        "shadow_color": "#414594FF",
+        "shadow_distance": 8.0,
+        "shadow_point": {
+          "x": -0.7199999839067459,
+          "y": -1.0799999758601189
+        },
+        "text_color": "#FFFEFEFF",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {}
+    }
+  ],
+  "reference_ids": [
+    "E2C4861D-262B-4c92-BA63-B76318152BE6"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 3000000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1568854/b129b0e6bed4f9835f871848db646763",
+            "resource_id": "7065208406633615909",
+            "type": "loop"
+          }
+        ],
+        "id": "E2C4861D-262B-4c92-BA63-B76318152BE6",
+        "type": "sticker_animation"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7090569394161454336/a313042a15ec50867a0c52d8ca857cbd",
+      "library_path": "resources/526f607411d4_a313042a15ec50867a0c52d8ca857cbd",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588334/6f0ccd9662b4b0eb41318fd8547699de/造字工房文雅体.ttf",
+      "library_path": "resources/4f964d62b8d3_造字工房文雅体.ttf",
+      "kind": "file",
+      "status": "copied",
+      "locations": [
+        "template.resources[0].path",
+        "text_slots[0].text_material.font_path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1568854/b129b0e6bed4f9835f871848db646763",
+      "library_path": "resources/9b3abc2139ee_b129b0e6bed4f9835f871848db646763",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1363012/0e78b0124ab9f615c54ee6794f850d4a",
+      "library_path": "resources/88050df71a9d_0e78b0124ab9f615c54ee6794f850d4a",
+      "kind": "directory",
+      "status": "copied",
+      "locations": [
+        "template.resources[2].path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 21,
+      "material_id": "D10A8BD8-FFD0-4a18-A5FA-AB2700B03C9D",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 63000000
+      }
+    }
+  ]
+}

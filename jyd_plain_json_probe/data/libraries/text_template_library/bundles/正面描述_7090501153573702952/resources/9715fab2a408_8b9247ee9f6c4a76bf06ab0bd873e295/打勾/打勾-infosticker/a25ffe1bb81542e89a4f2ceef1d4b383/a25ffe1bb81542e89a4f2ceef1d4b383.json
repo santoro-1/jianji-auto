@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "msjzfxop_1646020161_00.png",
+            "frame": {
+                "h": 280,
+                "w": 280,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 280,
+                "w": 280,
+                "x": 0,
+                "y": 0
+            },
+            "trimmed": false
+        },
+        {
+            "filename": "msjzfxop_1646020161_01.png",
+            "frame": {
+                "h": 76,
+                "w": 120,
+                "x": 2,
+                "y": 1392
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 76,
+                "w": 120,
+                "x": 157,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_02.png",
+            "frame": {
+                "h": 76,
+                "w": 274,
+                "x": 1941,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 76,
+                "w": 274,
+                "x": 3,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_03.png",
+            "frame": {
+                "h": 239,
+                "w": 275,
+                "x": 1664,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 239,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_04.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 284,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_05.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 561,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_06.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 838,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_07.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1115,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_08.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1392,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_09.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1669,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_10.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1946,
+                "y": 2
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_11.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 284,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_12.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 561,
+                "y": 279
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_13.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 838,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_14.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1115,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_15.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1392,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_16.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1669,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_17.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1946,
+                "y": 279
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_18.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 284
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_19.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 556
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_20.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 556
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_21.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_22.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_23.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1387,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_24.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1664,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_25.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1941,
+                "y": 556
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_26.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 561
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_27.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 833
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_28.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 833
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_29.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_30.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_31.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1387,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_32.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1664,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_33.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1941,
+                "y": 833
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_34.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 838
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_35.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 1110
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_36.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 1110
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_37.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_38.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_39.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1387,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_40.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1664,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_41.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1941,
+                "y": 1110
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_42.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 1115
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_43.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 279,
+                "y": 1387
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_44.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 556,
+                "y": 1387
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_45.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 833,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_46.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1110,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "msjzfxop_1646020161_47.png",
+            "frame": {
+                "h": 275,
+                "w": 275,
+                "x": 1387,
+                "y": 1387
+            },
+            "rotated": false,
+            "sourceSize": {
+                "h": 280,
+                "w": 280
+            },
+            "spriteSourceSize": {
+                "h": 275,
+                "w": 275,
+                "x": 2,
+                "y": 2
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 1664,
+            "w": 2223
+        }
+    }
+}

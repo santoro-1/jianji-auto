@@ -1,0 +1,13 @@
+{
+	"depend_resource_list":	[{
+			"type":	"text",
+			"resource_id":	"6724927688047333891"
+		}, {
+			"type":	"fonts",
+			"resource_id":	"7068208151488631309"
+		}, {
+			"type":	"sticker",
+			"resource_id":	"6724920136056181256"
+		}],
+	"template_version":	"1.1.0"
+}

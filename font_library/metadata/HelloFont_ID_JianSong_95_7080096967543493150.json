@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7080096967543493150",
+  "name": "HelloFont_ID_JianSong_95",
+  "resource_id": "7080096967543493150",
+  "effect_id": "7080096967543493150",
+  "checksum_sha256": "50ecdf5383638c03316c8ae813446a46f50f84d939c36bc6a5efe1ac42f52cf9",
+  "size_bytes": 2143588,
+  "file": "files/HelloFont_ID_JianSong_95_7080096967543493150.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\HelloFont_ID_JianSong_95_7080096967543493150.ttf",
+  "metadata_file": "metadata/HelloFont_ID_JianSong_95_7080096967543493150.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7080096967543493150\\e5338c6ec760fc059b257d8dc31e7279\\HelloFont_ID_JianSong_95.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 22,
+          "material_id": "BDCF571A-9507-426a-80A1-AE6CFE7B8354",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 22,
+          "material_id": "BDCF571A-9507-426a-80A1-AE6CFE7B8354",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 22,
+          "material_id": "BDCF571A-9507-426a-80A1-AE6CFE7B8354",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "jyd_probe.audio_asset.v1",
+  "exported_at": "2026-07-13T10:51:44",
+  "identity": "music_id:7613266934335408171",
+  "checksum_sha256": "f8f504e9af2268c84adb2928245822f912398edb445901c00908d244cd0a7e37",
+  "file": "files/Peach_7613266934335408171.mp3",
+  "material": {
+    "app_id": 1775,
+    "category_id": "6685253914809338638",
+    "category_name": "抖音热门",
+    "duration": 31400000,
+    "id": "ADBC4454-7ACC-4feb-A1DC-421561F45862",
+    "music_id": "7613266934335408171",
+    "music_source": "pgc",
+    "name": "Peach",
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/music/31ad25df72954bd2ca209ccfcdd17f71.mp3",
+    "request_id": "20260713105046944C38540F39B1156B62",
+    "resource_id": "",
+    "similiar_music_info": {},
+    "type": "music"
+  },
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐测试1",
+      "audio_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 2,
+      "material_id": "ADBC4454-7ACC-4feb-A1DC-421561F45862",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\31ad25df72954bd2ca209ccfcdd17f71.mp3",
+      "source_timerange": {
+        "duration": 31400000
+      },
+      "target_timerange": {
+        "duration": 31400000,
+        "start": 269750000
+      },
+      "volume": 1.0
+    }
+  ]
+}

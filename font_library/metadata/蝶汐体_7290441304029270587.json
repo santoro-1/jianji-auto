@@ -1,0 +1,42 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-07-14T15:08:46",
+  "identity": "resource_id:7290441304029270587",
+  "name": "蝶汐体",
+  "resource_id": "7290441304029270587",
+  "effect_id": "7290441304029270587",
+  "checksum_sha256": "fb4666aa7c494bd186971a33de4abcb2655c546ea0ce88be4b12982a9db97081",
+  "size_bytes": 3050060,
+  "file": "files/蝶汐体_7290441304029270587.otf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\蝶汐体_7290441304029270587.otf",
+  "metadata_file": "metadata/蝶汐体_7290441304029270587.json",
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7290441304029270587\\c45854a55e2d3320e47c299633df8c7f\\蝶汐体.otf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 10,
+          "material_id": "667FEA36-6D80-459f-8D2E-4C86C7B805F5",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 10,
+          "material_id": "667FEA36-6D80-459f-8D2E-4C86C7B805F5",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 10,
+          "material_id": "667FEA36-6D80-459f-8D2E-4C86C7B805F5",
+          "json_pointer": "/fonts/0/path"
+        }
+      ]
+    }
+  ]
+}

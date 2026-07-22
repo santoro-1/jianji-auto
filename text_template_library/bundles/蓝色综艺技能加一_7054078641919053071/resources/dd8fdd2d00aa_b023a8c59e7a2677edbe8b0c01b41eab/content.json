@@ -1,0 +1,294 @@
+{
+  "type": "TextTemplate",
+  "root": {
+    "guid": "eefc7c41-3757-4368-a636-535f43a9be64",
+    "size": [
+      400.0,
+      340.0
+    ],
+    "duration": 3.0,
+    "preview_time": 0.3,
+    "children": [
+      {
+        "guid": "cc706dca-0e7d-4c31-ad0b-150274581378",
+        "type": "sticker",
+        "position": [
+          -0.75,
+          -0.1
+        ],
+        "rotation": 0.0,
+        "scale": [
+          0.7,
+          0.7
+        ],
+        "order_in_layer": 0,
+        "start_time": 0.0,
+        "duration": 3.0,
+        "sticker_path": "blue1",
+        "sticker_loop": true,
+        "anim_duration_mode": 0,
+        "anim_duration_scale_min": 0,
+        "anims": [],
+        "children": [
+          {
+            "guid": "71b3e3a7-42a4-44d0-a0af-b642519712b7",
+            "type": "sticker",
+            "position": [
+              1.5,
+              0.1
+            ],
+            "rotation": 0.0,
+            "scale": [
+              0.9,
+              0.9
+            ],
+            "order_in_layer": 0,
+            "start_time": 0.0,
+            "duration": 3.0,
+            "sticker_path": "blue2",
+            "sticker_loop": true,
+            "anim_duration_mode": 0,
+            "anim_duration_scale_min": 0,
+            "anims": [],
+            "children": [],
+            "foldin": false,
+            "children_foldout": true
+          },
+          {
+            "guid": "ed654fa8-ea06-4e3f-9fec-0708a59a8fea",
+            "type": "sticker",
+            "position": [
+              1.0,
+              0.0
+            ],
+            "rotation": 0.0,
+            "scale": [
+              1.0,
+              1.0
+            ],
+            "order_in_layer": 4000,
+            "start_time": 0.0,
+            "duration": 3.0,
+            "sticker_path": "heart",
+            "sticker_loop": true,
+            "anim_duration_mode": 0,
+            "anim_duration_scale_min": 0,
+            "anims": [],
+            "children": [],
+            "foldin": false,
+            "children_foldout": true
+          }
+        ],
+        "foldin": false,
+        "children_foldout": true
+      },
+      {
+        "guid": "9d1c391c-6cf2-41a9-a54b-82591866da7b",
+        "type": "text",
+        "position": [
+          -0.2,
+          -0.1
+        ],
+        "rotation": 0.0,
+        "scale": [
+          1.0,
+          1.0
+        ],
+        "order_in_layer": 0,
+        "start_time": 0.0,
+        "duration": 3.0,
+        "font_resource_id": "6740498474212528644",
+        "effect_text_resource_id": "",
+        "limit_size_enable": true,
+        "limit_size": [
+          220.0,
+          130.0
+        ],
+        "char_bgs": [],
+        "text_params": {
+          "version": "1",
+          "text": "技能",
+          "fontSize": 20.0,
+          "alignType": 1,
+          "typeSettingKind": 0,
+          "textColor": [
+            0.878,
+            0.968,
+            0.992,
+            1.0
+          ],
+          "background": false,
+          "backgroundColor": [
+            0,
+            0,
+            1,
+            1
+          ],
+          "shadow": false,
+          "shadowColor": [
+            0,
+            0,
+            0,
+            1
+          ],
+          "shadowSmoothing": 0,
+          "shadowOffset": [
+            0.1,
+            -0.1
+          ],
+          "outline": true,
+          "outlineWidth": 0.04,
+          "outlineColor": [
+            0.282,
+            0.756,
+            1.0,
+            1.0
+          ],
+          "ktvColor": [
+            1.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvOutlineColor": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "ktvShadowColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+          ],
+          "boldWidth": 0.0,
+          "italicDegree": 0.0,
+          "lineGap": 0.0,
+          "useEffectDefaultColor": true,
+          "charSpacing": 0.05,
+          "innerPadding": 0.1,
+          "lineMaxWidth": -1,
+          "fontPath": "",
+          "fallbackFontPath": "",
+          "fallbackFontPathList": [],
+          "effectPath": "",
+          "shapePath": ""
+        },
+        "anim_duration_mode": 0,
+        "anim_duration_scale_min": 0,
+        "anims": [],
+        "children": [
+          {
+            "guid": "0c03ea97-e0c1-4242-aab9-e86bd21b1880",
+            "type": "text",
+            "position": [
+              0.85,
+              0.1
+            ],
+            "rotation": 0.0,
+            "scale": [
+              1.0,
+              1.0
+            ],
+            "order_in_layer": 0,
+            "start_time": 0.0,
+            "duration": 3.0,
+            "font_resource_id": "6740498474212528644",
+            "effect_text_resource_id": "",
+            "limit_size_enable": true,
+            "limit_size": [
+              120.0,
+              320.0
+            ],
+            "char_bgs": [],
+            "text_params": {
+              "version": "1",
+              "text": "+1",
+              "fontSize": 20.0,
+              "alignType": 0,
+              "typeSettingKind": 0,
+              "textColor": [
+                0.878,
+                0.968,
+                0.992,
+                1.0
+              ],
+              "background": false,
+              "backgroundColor": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "shadow": false,
+              "shadowColor": [
+                0,
+                0,
+                0,
+                1
+              ],
+              "shadowSmoothing": 0,
+              "shadowOffset": [
+                0.1,
+                -0.1
+              ],
+              "outline": true,
+              "outlineWidth": 0.06,
+              "outlineColor": [
+                0.282,
+                0.756,
+                1.0,
+                1.0
+              ],
+              "ktvColor": [
+                1.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "ktvOutlineColor": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "ktvShadowColor": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "boldWidth": 0.0,
+              "italicDegree": 0.0,
+              "lineGap": 0.0,
+              "useEffectDefaultColor": true,
+              "charSpacing": 0.0,
+              "innerPadding": 0.0,
+              "lineMaxWidth": -1,
+              "fontPath": "",
+              "fallbackFontPath": "",
+              "fallbackFontPathList": [],
+              "effectPath": "",
+              "shapePath": ""
+            },
+            "anim_duration_mode": 0,
+            "anim_duration_scale_min": 0,
+            "anims": [
+              {
+                "anim_type": "loop",
+                "anim_resource_id": "6915269706769240583",
+                "duration": 1.5
+              }
+            ],
+            "children": [],
+            "foldin": false,
+            "children_foldout": true
+          }
+        ],
+        "foldin": false,
+        "children_foldout": true
+      }
+    ]
+  }
+}

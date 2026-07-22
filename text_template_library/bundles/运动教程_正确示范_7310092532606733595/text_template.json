@@ -1,0 +1,451 @@
+{
+  "schema": "jyd_probe.text_template.v1",
+  "exported_at": "2026-07-13T20:46:21",
+  "identity": "resource_id:7310092532606733595",
+  "name": "运动教程 正确示范",
+  "template": {
+    "aigc_config": {
+      "font_item": {
+        "id": "4A450B58-F6BF-466b-9133-1BE011A9D8D9",
+        "path": "",
+        "resource_id": ""
+      }
+    },
+    "category_id": "100001",
+    "category_name": "文字模板",
+    "current_word_info": {},
+    "effect_id": "7310092532606733595",
+    "id": "D969E431-728C-43c5-A711-CDEFA8700C6E",
+    "name": "运动教程 正确示范",
+    "non_text_info_resources": [
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "rotation": -3.6167843341827393,
+            "scale": {
+              "x": 0.666545569896698,
+              "y": 0.666545033454895
+            },
+            "transform": {
+              "x": -229.62628173828125,
+              "y": -18.934288024902344
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 278.0,
+          "original_size_width": 325.0
+        },
+        "extra_material_refs": [
+          "08C6233F-536A-4445-842B-A8DD443A7C95"
+        ],
+        "name": "514D1B74-3D8D-40a1-B5DE-87D4C3C40150",
+        "shape_param": {},
+        "type": "sticker"
+      },
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 0.6745405197143555,
+              "y": 0.6460530757904053
+            },
+            "transform": {
+              "x": 59.0,
+              "y": -24.999998092651367
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 256.0,
+          "original_size_width": 805.0
+        },
+        "extra_material_refs": [
+          "C40CDD5E-D107-43e5-A15B-AC1B691D69DA"
+        ],
+        "name": "A1BC82FF-F36B-42c8-BE48-C6AC0FF36BB4",
+        "shape_param": {},
+        "type": "sticker"
+      }
+    ],
+    "origin_word_info": {},
+    "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310092532606733595/ef1ef7b36abcdba58b5f4acffdb85f25",
+    "resource_id": "7310092532606733595",
+    "resources": [
+      {
+        "panel": "default",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093917876194569/a3ab9ed6a12b13a93057d0fa105fb007",
+        "resource_id": "7310093917876194569",
+        "source_platform": 1
+      },
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1369358/0533e3aeb2cda562cdd8a86693815443",
+        "resource_id": "6887482184844710413"
+      },
+      {
+        "panel": "fonts",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+        "resource_id": "7068207165277737502"
+      },
+      {
+        "panel": "text",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644311/7d23b7a68a1bf21c7692a35ffa6ddcdc",
+        "resource_id": "6872642189260755463"
+      },
+      {
+        "panel": "default",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310092469750877466/6d77aa357fd65682c19b3b3b57dca494",
+        "resource_id": "7310092469750877466",
+        "source_platform": 1
+      },
+      {
+        "panel": "sticker",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1369357/f1fe37e1c583a466f62328fca9630ad6",
+        "resource_id": "6884154692398486023"
+      },
+      {
+        "panel": "flower",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc",
+        "resource_id": "7310093916974419210",
+        "source_platform": 1
+      }
+    ],
+    "source_platform": 1,
+    "text_info_resources": [
+      {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 1.951395869255066,
+              "y": 2.125227451324463
+            },
+            "transform": {
+              "x": 64.0,
+              "y": -21.0
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 87.5,
+          "original_size_width": 255.0
+        },
+        "extra_material_refs": [
+          "F5AC1120-90E0-4705-AFF8-A4008DDFFFA2",
+          "84C0D7BF-AEC8-4b56-AE09-192056A6F77B"
+        ],
+        "text_material_id": "BED7AF93-1C6A-4072-9A87-7EAA549B28F2"
+      }
+    ],
+    "type": "text_template",
+    "version": "1.0.0"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "extra_material_refs": [
+      "84C0D7BF-AEC8-4b56-AE09-192056A6F77B",
+      "F5AC1120-90E0-4705-AFF8-A4008DDFFFA2",
+      "08C6233F-536A-4445-842B-A8DD443A7C95",
+      "C40CDD5E-D107-43e5-A15B-AC1B691D69DA"
+    ],
+    "id": "C1BD923E-5624-4337-994A-0BDA6980D82A",
+    "material_id": "D969E431-728C-43c5-A711-CDEFA8700C6E",
+    "render_index": 14005,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 15000000
+    },
+    "track_render_index": 1
+  },
+  "text_slots": [
+    {
+      "slot_index": 0,
+      "text_material_id": "BED7AF93-1C6A-4072-9A87-7EAA549B28F2",
+      "text": "正确示范",
+      "text_info_resource": {
+        "attach_info": {
+          "clip": {
+            "flip": {},
+            "scale": {
+              "x": 1.951395869255066,
+              "y": 2.125227451324463
+            },
+            "transform": {
+              "x": 64.0,
+              "y": -21.0
+            }
+          },
+          "duration": 3000000,
+          "original_size_height": 87.5,
+          "original_size_width": 255.0
+        },
+        "extra_material_refs": [
+          "F5AC1120-90E0-4705-AFF8-A4008DDFFFA2",
+          "84C0D7BF-AEC8-4b56-AE09-192056A6F77B"
+        ],
+        "text_material_id": "BED7AF93-1C6A-4072-9A87-7EAA549B28F2"
+      },
+      "text_material": {
+        "bold_width": 0.008,
+        "border_alpha": 0.0,
+        "border_width": 0.0,
+        "caption_template_info": {
+          "path": "",
+          "resource_id": ""
+        },
+        "check_flag": 47,
+        "combo_info": {},
+        "content": "{\"text\":\"正确示范\",\"styles\":[{\"fill\":{\"content\":{\"texture\":{\"range\":1,\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc/1701219786577.jpg\",\"scale\":0.71084338426589966,\"angle\":90},\"render_type\":\"texture\"}},\"font\":{\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf\",\"id\":\"7068207165277737502\"},\"size\":15,\"effectStyle\":{\"path\":\"C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc\",\"id\":\"7310093916974419210\"},\"range\":[0,4]}]}",
+        "current_words": {},
+        "fonts": [
+          {
+            "id": "67FDA73E-7FFF-46d8-BC88-5DE10ADF3DEC",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+            "resource_id": "7068207165277737502"
+          }
+        ],
+        "id": "BED7AF93-1C6A-4072-9A87-7EAA549B28F2",
+        "initial_scale": 1.0,
+        "italic_degree": 10,
+        "layer_weight": 1,
+        "line_spacing": -0.15,
+        "lyrics_template": {
+          "path": "",
+          "resource_id": ""
+        },
+        "name": "5B848725-3329-449c-B6D7-EC427D93D2DA",
+        "shadow_alpha": 0.0,
+        "shadow_angle": -45.0,
+        "shadow_distance": 5.0,
+        "shadow_point": {
+          "x": 0.0,
+          "y": 0.0
+        },
+        "text_color": "#ffffffff",
+        "type": "text",
+        "words": {}
+      },
+      "text_content": {
+        "text": "正确示范",
+        "styles": [
+          {
+            "fill": {
+              "content": {
+                "texture": {
+                  "range": 1,
+                  "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc/1701219786577.jpg",
+                  "scale": 0.7108433842658997,
+                  "angle": 90
+                },
+                "render_type": "texture"
+              }
+            },
+            "font": {
+              "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+              "id": "7068207165277737502"
+            },
+            "size": 15,
+            "effectStyle": {
+              "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc",
+              "id": "7310093916974419210"
+            },
+            "range": [
+              0,
+              4
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "reference_ids": [
+    "08C6233F-536A-4445-842B-A8DD443A7C95",
+    "84C0D7BF-AEC8-4b56-AE09-192056A6F77B",
+    "C40CDD5E-D107-43e5-A15B-AC1B691D69DA",
+    "F5AC1120-90E0-4705-AFF8-A4008DDFFFA2"
+  ],
+  "referenced_materials": {
+    "material_animations": [
+      {
+        "animations": [
+          {
+            "duration": 1000000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1369357/f1fe37e1c583a466f62328fca9630ad6",
+            "resource_id": "6884154692398486023",
+            "type": "in"
+          }
+        ],
+        "id": "08C6233F-536A-4445-842B-A8DD443A7C95",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 1200000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644311/7d23b7a68a1bf21c7692a35ffa6ddcdc",
+            "resource_id": "6872642189260755463",
+            "type": "in"
+          }
+        ],
+        "id": "84C0D7BF-AEC8-4b56-AE09-192056A6F77B",
+        "type": "sticker_animation"
+      },
+      {
+        "animations": [
+          {
+            "duration": 500000,
+            "id": "",
+            "material_type": "sticker",
+            "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1369358/0533e3aeb2cda562cdd8a86693815443",
+            "resource_id": "6887482184844710413",
+            "type": "in"
+          }
+        ],
+        "id": "C40CDD5E-D107-43e5-A15B-AC1B691D69DA",
+        "type": "sticker_animation"
+      }
+    ],
+    "effects": [
+      {
+        "id": "F5AC1120-90E0-4705-AFF8-A4008DDFFFA2",
+        "multi_language_current": "",
+        "path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc",
+        "resource_id": "7310093916974419210",
+        "source_platform": 1,
+        "sub_type": "none",
+        "type": "text_effect"
+      }
+    ]
+  },
+  "unresolved_reference_ids": [],
+  "resources": [
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310092532606733595/ef1ef7b36abcdba58b5f4acffdb85f25",
+      "library_path": "resources/1eeed255a3bb_ef1ef7b36abcdba58b5f4acffdb85f25",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093917876194569/a3ab9ed6a12b13a93057d0fa105fb007",
+      "library_path": "resources/43e63b586fc7_a3ab9ed6a12b13a93057d0fa105fb007",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.resources[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1369358/0533e3aeb2cda562cdd8a86693815443",
+      "library_path": "resources/34b56c82a751_0533e3aeb2cda562cdd8a86693815443",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.resources[1].path",
+        "referenced_materials.material_animations[2].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1588336/d9f1238f50005595eff5f545aa54776c/优设标题黑.ttf",
+      "library_path": "resources/037754e975ca_优设标题黑.ttf",
+      "kind": "file",
+      "status": "existing",
+      "locations": [
+        "template.resources[2].path",
+        "text_slots[0].text_material.fonts[0].path",
+        "text_slots[0].text_content.styles[0].font.path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1644311/7d23b7a68a1bf21c7692a35ffa6ddcdc",
+      "library_path": "resources/9ba3a1a448d4_7d23b7a68a1bf21c7692a35ffa6ddcdc",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.resources[3].path",
+        "referenced_materials.material_animations[1].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310092469750877466/6d77aa357fd65682c19b3b3b57dca494",
+      "library_path": "resources/f49d238c2f26_6d77aa357fd65682c19b3b3b57dca494",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.resources[4].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/effect/1369357/f1fe37e1c583a466f62328fca9630ad6",
+      "library_path": "resources/b398e355548a_f1fe37e1c583a466f62328fca9630ad6",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.resources[5].path",
+        "referenced_materials.material_animations[0].animations[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc",
+      "library_path": "resources/dfe78cddfdb6_4631b3c54aa66c8927412c1f03f829cc",
+      "kind": "directory",
+      "status": "existing",
+      "locations": [
+        "template.resources[6].path",
+        "text_slots[0].text_content.styles[0].effectStyle.path",
+        "referenced_materials.effects[0].path"
+      ]
+    },
+    {
+      "original_path": "C:/Users/san/AppData/Local/JianyingPro/User Data/Cache/artistEffect/7310093916974419210/4631b3c54aa66c8927412c1f03f829cc/1701219786577.jpg",
+      "library_path": "resources/4755d4e70448_1701219786577.jpg",
+      "kind": "file",
+      "status": "existing",
+      "locations": [
+        "text_slots[0].text_content.styles[0].fill.content.texture.path"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\花字测试",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 0,
+      "material_id": "7F932278-8A34-467c-987A-900A8313238F",
+      "target_timerange": {
+        "duration": 18550000
+      }
+    },
+    {
+      "label": "D:\\剪映草稿\\JianyingPro Drafts\\模板采集草稿",
+      "text_track_index": 0,
+      "raw_track_index": 1,
+      "segment_index": 5,
+      "material_id": "D969E431-728C-43c5-A711-CDEFA8700C6E",
+      "target_timerange": {
+        "duration": 3000000,
+        "start": 15000000
+      }
+    }
+  ]
+}

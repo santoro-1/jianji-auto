@@ -1,0 +1,1020 @@
+{
+    "frames": [
+        {
+            "filename": "kbamairh_1645020866_00.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 2,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 3,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_01.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 483,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_02.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 551,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_03.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 619,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_04.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 687,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_05.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 755,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_06.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 823,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_07.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 891,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_08.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 959,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_09.png",
+            "frame": {
+                "h": 66,
+                "w": 59,
+                "x": 1027,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 59,
+                "x": 2,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_10.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 71,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 3,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_11.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 140,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 7,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_12.png",
+            "frame": {
+                "h": 67,
+                "w": 59,
+                "x": 345,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 59,
+                "x": 13,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_13.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 209,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 20,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_14.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 278,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 29,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_15.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 347,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 39,
+                "y": 51
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_16.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 416,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 50,
+                "y": 49
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_17.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 485,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 60,
+                "y": 45
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_18.png",
+            "frame": {
+                "h": 66,
+                "w": 60,
+                "x": 209,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 60,
+                "x": 70,
+                "y": 41
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_19.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 554,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 79,
+                "y": 34
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_20.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 623,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 86,
+                "y": 27
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_21.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 692,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 91,
+                "y": 19
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_22.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 761,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 94,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_23.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 830,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 96,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_24.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 899,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_25.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 968,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_26.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 1037,
+                "y": 2
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_27.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 2,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_28.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 71,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_29.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 140,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_30.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 209,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_31.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 278,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_32.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 347,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_33.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 416,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 2
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_34.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 485,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 98,
+                "y": 3
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_35.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 554,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 96,
+                "y": 7
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_36.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 623,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 94,
+                "y": 12
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_37.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 692,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 91,
+                "y": 19
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_38.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 761,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 86,
+                "y": 27
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_39.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 830,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 79,
+                "y": 34
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_40.png",
+            "frame": {
+                "h": 66,
+                "w": 60,
+                "x": 277,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 66,
+                "w": 60,
+                "x": 70,
+                "y": 41
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_41.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 899,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 60,
+                "y": 45
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_42.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 968,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 50,
+                "y": 49
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_43.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 1037,
+                "y": 64
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 39,
+                "y": 51
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_44.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 2,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 29,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_45.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 71,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 20,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_46.png",
+            "frame": {
+                "h": 67,
+                "w": 59,
+                "x": 414,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 59,
+                "x": 13,
+                "y": 52
+            },
+            "trimmed": true
+        },
+        {
+            "filename": "kbamairh_1645020866_47.png",
+            "frame": {
+                "h": 67,
+                "w": 60,
+                "x": 140,
+                "y": 126
+            },
+            "rotated": true,
+            "sourceSize": {
+                "h": 121,
+                "w": 162
+            },
+            "spriteSourceSize": {
+                "h": 67,
+                "w": 60,
+                "x": 7,
+                "y": 52
+            },
+            "trimmed": true
+        }
+    ],
+    "meta": {
+        "format": "RGBA8888",
+        "scale": "1",
+        "size": {
+            "h": 188,
+            "w": 1106
+        }
+    }
+}

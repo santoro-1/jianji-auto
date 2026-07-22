@@ -1,0 +1,1133 @@
+{
+  "schema": "jyd_probe.font_library_manifest.v1",
+  "updated_at": "2026-07-14T15:39:07",
+  "fonts": [
+    {
+      "identity": "sha256:23c4c2392431725af8a8cf23b8e355c181ead687a43e79e842c9ae1647b293b2",
+      "name": "zh-hans",
+      "resource_id": "",
+      "effect_id": "",
+      "checksum_sha256": "23c4c2392431725af8a8cf23b8e355c181ead687a43e79e842c9ae1647b293b2",
+      "size_bytes": 10227544,
+      "file": "files/zh-hans_23c4c2392431725af8a8cf23.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\zh-hans_23c4c2392431725af8a8cf23.ttf",
+      "metadata_file": "metadata/zh-hans_23c4c2392431725af8a8cf23.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\d4ad83d477ae44ddb141e534793db162_YZ-数字人_00001_p87-",
+          "source_path": "D:\\BaiduNetdiskDownload\\剪映会员版Win电脑「点击进来下载」\\剪映会员版6.0.1「不用卸载当前版本剪映」\\剪映会员版6.0.1\\6.0.1.11779\\Resources\\Font\\SystemFont\\zh-hans.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 0,
+              "material_id": "6baa2bb3431a428b83ade6d5716363c5",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 1,
+              "material_id": "dc7a84187f8d4f85afc8bd73da8299eb",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 2,
+              "material_id": "a95e2e587edb421f9715a25ab067ed9f",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 3,
+              "material_id": "c1ce60b395d14369ad220a0773f083de",
+              "json_pointer": "/font_path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:6807742980271641102",
+      "name": "SourceHanSerifCN-Heavy",
+      "resource_id": "6807742980271641102",
+      "effect_id": "6807742980271641102",
+      "checksum_sha256": "115ee030d66716f7294f82c0c3e63f405a25c74a75705ba7e79fad42114b04de",
+      "size_bytes": 13528216,
+      "file": "files/SourceHanSerifCN-Heavy_6807742980271641102.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\SourceHanSerifCN-Heavy_6807742980271641102.otf",
+      "metadata_file": "metadata/SourceHanSerifCN-Heavy_6807742980271641102.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\6807742980271641102\\e4387517f584be39bb2e1ca4ede6cbe3\\SourceHanSerifCN-Heavy.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 7,
+              "material_id": "3AD3B802-B72E-44b1-B0CD-B28D28E2E2CA",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 7,
+              "material_id": "3AD3B802-B72E-44b1-B0CD-B28D28E2E2CA",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 7,
+              "material_id": "3AD3B802-B72E-44b1-B0CD-B28D28E2E2CA",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7020729846334493215",
+      "name": "NotoSerifJP-Black",
+      "resource_id": "7020729846334493215",
+      "effect_id": "7020729846334493215",
+      "checksum_sha256": "a54d7409c7702b5aee0276d0179660271e3d8107db3d201de4536694edaf09e0",
+      "size_bytes": 6334936,
+      "file": "files/NotoSerifJP-Black_7020729846334493215.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\NotoSerifJP-Black_7020729846334493215.otf",
+      "metadata_file": "metadata/NotoSerifJP-Black_7020729846334493215.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7020729846334493215\\569bf7220b9170da8dd45c2241740140\\NotoSerifJP-Black.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 3,
+              "material_id": "1B93234A-A3CC-4310-A78A-40F2B9001543",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 3,
+              "material_id": "1B93234A-A3CC-4310-A78A-40F2B9001543",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 3,
+              "material_id": "1B93234A-A3CC-4310-A78A-40F2B9001543",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7043772438898807304",
+      "name": "字由墩墩体",
+      "resource_id": "7043772438898807304",
+      "effect_id": "7043772438898807304",
+      "checksum_sha256": "815a7d32ac38018fd0189481f4f2897949a975d1f6cb175a24d069e451142e4f",
+      "size_bytes": 2695632,
+      "file": "files/字由墩墩体_7043772438898807304.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字由墩墩体_7043772438898807304.ttf",
+      "metadata_file": "metadata/字由墩墩体_7043772438898807304.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7043772438898807304\\223892af1e691ccffc9e33decda4d09a\\字由墩墩体.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 12,
+              "material_id": "9BF48F1E-3D50-48eb-9B8D-EF076BF8952E",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 12,
+              "material_id": "9BF48F1E-3D50-48eb-9B8D-EF076BF8952E",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 12,
+              "material_id": "9BF48F1E-3D50-48eb-9B8D-EF076BF8952E",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7068207165277737502",
+      "name": "优设标题黑",
+      "resource_id": "7068207165277737502",
+      "effect_id": "7068207165277737502",
+      "checksum_sha256": "dab883d69fb713233ea5d9aff8d1f27ccc2b71e249143edf6ea08367784c5dba",
+      "size_bytes": 1414784,
+      "file": "files/优设标题黑_7068207165277737502.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\优设标题黑_7068207165277737502.ttf",
+      "metadata_file": "metadata/优设标题黑_7068207165277737502.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7068207165277737502\\d9f1238f50005595eff5f545aa54776c\\优设标题黑.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 0,
+              "material_id": "223484C1-2BDA-4cf6-86E7-1D5EA5595BF4",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 0,
+              "material_id": "223484C1-2BDA-4cf6-86E7-1D5EA5595BF4",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 0,
+              "material_id": "223484C1-2BDA-4cf6-86E7-1D5EA5595BF4",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7080096967543493150",
+      "name": "HelloFont_ID_JianSong_95",
+      "resource_id": "7080096967543493150",
+      "effect_id": "7080096967543493150",
+      "checksum_sha256": "50ecdf5383638c03316c8ae813446a46f50f84d939c36bc6a5efe1ac42f52cf9",
+      "size_bytes": 2143588,
+      "file": "files/HelloFont_ID_JianSong_95_7080096967543493150.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\HelloFont_ID_JianSong_95_7080096967543493150.ttf",
+      "metadata_file": "metadata/HelloFont_ID_JianSong_95_7080096967543493150.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7080096967543493150\\e5338c6ec760fc059b257d8dc31e7279\\HelloFont_ID_JianSong_95.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 22,
+              "material_id": "BDCF571A-9507-426a-80A1-AE6CFE7B8354",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 22,
+              "material_id": "BDCF571A-9507-426a-80A1-AE6CFE7B8354",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 22,
+              "material_id": "BDCF571A-9507-426a-80A1-AE6CFE7B8354",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7080097079397192228",
+      "name": "HelloFont ID JiangHuTi",
+      "resource_id": "7080097079397192228",
+      "effect_id": "7080097079397192228",
+      "checksum_sha256": "a238c6302de19fe5a7297aa1e13ff5aa7c9984c4bfecd1f61f3843bdb6d54220",
+      "size_bytes": 5552340,
+      "file": "files/HelloFont_ID_JiangHuTi_7080097079397192228.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\HelloFont_ID_JiangHuTi_7080097079397192228.ttf",
+      "metadata_file": "metadata/HelloFont_ID_JiangHuTi_7080097079397192228.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7080097079397192228\\50957d5102cb4f2ea1459e140826eb0c\\HelloFont ID JiangHuTi.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 9,
+              "material_id": "05E2C769-0C29-4619-833B-90F7D25895AF",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 9,
+              "material_id": "05E2C769-0C29-4619-833B-90F7D25895AF",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 9,
+              "material_id": "05E2C769-0C29-4619-833B-90F7D25895AF",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7244518590332801592",
+      "name": "DouyinSansBold",
+      "resource_id": "7244518590332801592",
+      "effect_id": "7244518590332801592",
+      "checksum_sha256": "575beb5f23791ff4d0efb3f53fbad57f010ae63592bcb21a902d281efe6ebd92",
+      "size_bytes": 2082964,
+      "file": "files/DouyinSansBold_7244518590332801592.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\DouyinSansBold_7244518590332801592.otf",
+      "metadata_file": "metadata/DouyinSansBold_7244518590332801592.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7244518590332801592\\1a9c90e65d4ac34436d90a1b19d94d5a\\DouyinSansBold.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 6,
+              "material_id": "1D6A63D6-408F-4ff5-B5C5-E74350C8EE10",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 6,
+              "material_id": "1D6A63D6-408F-4ff5-B5C5-E74350C8EE10",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 6,
+              "material_id": "1D6A63D6-408F-4ff5-B5C5-E74350C8EE10",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7265529923547173413",
+      "name": "GenWanMinJP-SemiBold（源云明体）",
+      "resource_id": "7265529923547173413",
+      "effect_id": "7265529923547173413",
+      "checksum_sha256": "fd4a19f95f3a7be49392c88acf34d108ee502c9cdd7a7985231b49e9abbe97f9",
+      "size_bytes": 17975352,
+      "file": "files/GenWanMinJP-SemiBold（源云明体）_7265529923547173413.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\GenWanMinJP-SemiBold（源云明体）_7265529923547173413.ttf",
+      "metadata_file": "metadata/GenWanMinJP-SemiBold（源云明体）_7265529923547173413.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265529923547173413\\f8f73f5b108d3a2ada9b8bdb5ba230ce\\GenWanMinJP-SemiBold（源云明体）.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 11,
+              "material_id": "54D96053-60A5-4c93-AB84-A66C9FDDDD1A",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 11,
+              "material_id": "54D96053-60A5-4c93-AB84-A66C9FDDDD1A",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 11,
+              "material_id": "54D96053-60A5-4c93-AB84-A66C9FDDDD1A",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7265536455655559739",
+      "name": "装甲明朝",
+      "resource_id": "7265536455655559739",
+      "effect_id": "7265536455655559739",
+      "checksum_sha256": "2d2e3b72bb426dd7f7324f11374d911c869d946ca587e33e6eb2b00fbc34d740",
+      "size_bytes": 9374068,
+      "file": "files/装甲明朝_7265536455655559739.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\装甲明朝_7265536455655559739.ttf",
+      "metadata_file": "metadata/装甲明朝_7265536455655559739.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265536455655559739\\3f334186c4522694108e7ab9534201fd\\装甲明朝.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 5,
+              "material_id": "5EFD71F4-9789-48b3-BBA1-015F862109A5",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 5,
+              "material_id": "5EFD71F4-9789-48b3-BBA1-015F862109A5",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 5,
+              "material_id": "5EFD71F4-9789-48b3-BBA1-015F862109A5",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7265595050145354295",
+      "name": "HarmonyOS_Sans_SC_Light",
+      "resource_id": "7265595050145354295",
+      "effect_id": "7265595050145354295",
+      "checksum_sha256": "dd366290b40861bc6ced85801e850ab66d6fe4c5b33bc43095a9747fa29288d8",
+      "size_bytes": 8336364,
+      "file": "files/HarmonyOS_Sans_SC_Light_7265595050145354295.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\HarmonyOS_Sans_SC_Light_7265595050145354295.ttf",
+      "metadata_file": "metadata/HarmonyOS_Sans_SC_Light_7265595050145354295.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265595050145354295\\049f4b5a6101391d7e4b67654a5ba00b\\HarmonyOS_Sans_SC_Light.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 23,
+              "material_id": "9079DC04-3862-481e-A50B-A49DBCC5D599",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 23,
+              "material_id": "9079DC04-3862-481e-A50B-A49DBCC5D599",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 23,
+              "material_id": "9079DC04-3862-481e-A50B-A49DBCC5D599",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7265598654294004281",
+      "name": "SourceHanSerifCN-SemiBold",
+      "resource_id": "7265598654294004281",
+      "effect_id": "7265598654294004281",
+      "checksum_sha256": "d6533c6c0b1ca2a958a820114473b8ea54a87ff0cfc3276f6c7af32797b00001",
+      "size_bytes": 12943444,
+      "file": "files/SourceHanSerifCN-SemiBold_7265598654294004281.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\SourceHanSerifCN-SemiBold_7265598654294004281.otf",
+      "metadata_file": "metadata/SourceHanSerifCN-SemiBold_7265598654294004281.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265598654294004281\\f1b0ad6ceca5ec6bd47b0dacae9fbf97\\SourceHanSerifCN-SemiBold.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 8,
+              "material_id": "EFDF00D7-D3EE-4772-932D-CD3AAA9EDB16",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 8,
+              "material_id": "EFDF00D7-D3EE-4772-932D-CD3AAA9EDB16",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 8,
+              "material_id": "EFDF00D7-D3EE-4772-932D-CD3AAA9EDB16",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7265609366311539237",
+      "name": "站酷仓耳渔阳体-W02",
+      "resource_id": "7265609366311539237",
+      "effect_id": "7265609366311539237",
+      "checksum_sha256": "3fe4d0d53fa429b4b663d8c401a83bb0c6a40a3814c081b0ba313e27d18020fa",
+      "size_bytes": 1584316,
+      "file": "files/站酷仓耳渔阳体-W02_7265609366311539237.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\站酷仓耳渔阳体-W02_7265609366311539237.ttf",
+      "metadata_file": "metadata/站酷仓耳渔阳体-W02_7265609366311539237.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7265609366311539237\\9a845e092fe17de221ac868374d9744b\\站酷仓耳渔阳体-W02.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 20,
+              "material_id": "C16B1BE5-806A-4180-B85D-61C8C5F9846E",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 20,
+              "material_id": "C16B1BE5-806A-4180-B85D-61C8C5F9846E",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 20,
+              "material_id": "C16B1BE5-806A-4180-B85D-61C8C5F9846E",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7290441304029270587",
+      "name": "蝶汐体",
+      "resource_id": "7290441304029270587",
+      "effect_id": "7290441304029270587",
+      "checksum_sha256": "fb4666aa7c494bd186971a33de4abcb2655c546ea0ce88be4b12982a9db97081",
+      "size_bytes": 3050060,
+      "file": "files/蝶汐体_7290441304029270587.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\蝶汐体_7290441304029270587.otf",
+      "metadata_file": "metadata/蝶汐体_7290441304029270587.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7290441304029270587\\c45854a55e2d3320e47c299633df8c7f\\蝶汐体.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 10,
+              "material_id": "667FEA36-6D80-459f-8D2E-4C86C7B805F5",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 10,
+              "material_id": "667FEA36-6D80-459f-8D2E-4C86C7B805F5",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 10,
+              "material_id": "667FEA36-6D80-459f-8D2E-4C86C7B805F5",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7290445705578025529",
+      "name": "温宁体",
+      "resource_id": "7290445705578025529",
+      "effect_id": "7290445705578025529",
+      "checksum_sha256": "edb4eb24039b75326e06c8904d0ba2fafa5f81260c2229c5dc4457514a400906",
+      "size_bytes": 1412824,
+      "file": "files/温宁体_7290445705578025529.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\温宁体_7290445705578025529.otf",
+      "metadata_file": "metadata/温宁体_7290445705578025529.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7290445705578025529\\fdc9d5eb51a0e4f9e1dedc0091402ff5\\温宁体.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 21,
+              "material_id": "A8863DB3-6752-4ac8-B9AF-CD612A7B749A",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 21,
+              "material_id": "A8863DB3-6752-4ac8-B9AF-CD612A7B749A",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 21,
+              "material_id": "A8863DB3-6752-4ac8-B9AF-CD612A7B749A",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7290456514370736698",
+      "name": "山雁体",
+      "resource_id": "7290456514370736698",
+      "effect_id": "7290456514370736698",
+      "checksum_sha256": "4e70ecb9ca4c5d00d9025540b3e8bd2c178bfc26d2b28d9c439665f6246147ed",
+      "size_bytes": 2362304,
+      "file": "files/山雁体_7290456514370736698.otf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\山雁体_7290456514370736698.otf",
+      "metadata_file": "metadata/山雁体_7290456514370736698.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7290456514370736698\\c29a5195061ec2b2f72aa4fe97e04f43\\山雁体.otf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 1,
+              "material_id": "9549616F-FA4F-496d-8FF3-13231BC09E29",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 1,
+              "material_id": "9549616F-FA4F-496d-8FF3-13231BC09E29",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 1,
+              "material_id": "9549616F-FA4F-496d-8FF3-13231BC09E29",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7311913734081876506",
+      "name": "字由青楷",
+      "resource_id": "7311913734081876506",
+      "effect_id": "7311913734081876506",
+      "checksum_sha256": "4341804a3e4032c0f3dba2988e140bffdd90252b9f1c34cc6c83bcfaa5323fa6",
+      "size_bytes": 6182424,
+      "file": "files/字由青楷_7311913734081876506.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字由青楷_7311913734081876506.ttf",
+      "metadata_file": "metadata/字由青楷_7311913734081876506.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7311913734081876506\\8de5c66831c1c08a3a0db17abffdc090\\字由青楷.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 18,
+              "material_id": "9F42309E-0B87-4d82-9F39-9AE4D1C004C8",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 18,
+              "material_id": "9F42309E-0B87-4d82-9F39-9AE4D1C004C8",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 18,
+              "material_id": "9F42309E-0B87-4d82-9F39-9AE4D1C004C8",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7312719210373714459",
+      "name": "字语咏楷体",
+      "resource_id": "7312719210373714459",
+      "effect_id": "7312719210373714459",
+      "checksum_sha256": "bc3b63fa50dbff4842ec237211cfae36b22cffcba3e8f9a02053de192071af8f",
+      "size_bytes": 3694412,
+      "file": "files/字语咏楷体_7312719210373714459.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字语咏楷体_7312719210373714459.ttf",
+      "metadata_file": "metadata/字语咏楷体_7312719210373714459.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7312719210373714459\\06ab9abe9d2e6f4d10152bafe691738c\\字语咏楷体.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 14,
+              "material_id": "8A9706E4-1CF7-48be-8542-C3F5E4AD2409",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 14,
+              "material_id": "8A9706E4-1CF7-48be-8542-C3F5E4AD2409",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 14,
+              "material_id": "8A9706E4-1CF7-48be-8542-C3F5E4AD2409",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7312719367769166386",
+      "name": "字语咏宋体",
+      "resource_id": "7312719367769166386",
+      "effect_id": "7312719367769166386",
+      "checksum_sha256": "424dfdcdcbfa69db0648f0636e3090a2ceb0a969a716359f77c240eb1345b3ae",
+      "size_bytes": 2036140,
+      "file": "files/字语咏宋体_7312719367769166386.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\字语咏宋体_7312719367769166386.ttf",
+      "metadata_file": "metadata/字语咏宋体_7312719367769166386.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7312719367769166386\\12fe695be021ad4406276e85f32de4be\\字语咏宋体.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 16,
+              "material_id": "A8E041C4-6E15-4045-8574-C796D14D21DB",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 16,
+              "material_id": "A8E041C4-6E15-4045-8574-C796D14D21DB",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 16,
+              "material_id": "A8E041C4-6E15-4045-8574-C796D14D21DB",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7312719852194501158",
+      "name": "三极黑宋体 中粗",
+      "resource_id": "7312719852194501158",
+      "effect_id": "7312719852194501158",
+      "checksum_sha256": "c59ae8ba3d4362a80a208deba570d8dcf5f73a4dc28572e447c2d2d74ff9fda1",
+      "size_bytes": 4907220,
+      "file": "files/三极黑宋体_中粗_7312719852194501158.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\三极黑宋体_中粗_7312719852194501158.ttf",
+      "metadata_file": "metadata/三极黑宋体_中粗_7312719852194501158.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7312719852194501158\\4577355bc0adeb1763ad581f05e7c5ea\\三极黑宋体 中粗.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 13,
+              "material_id": "13AF2CA1-CC8A-455d-8BB1-8CE0E5660F25",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 13,
+              "material_id": "13AF2CA1-CC8A-455d-8BB1-8CE0E5660F25",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 13,
+              "material_id": "13AF2CA1-CC8A-455d-8BB1-8CE0E5660F25",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7316819223840297481",
+      "name": "励字志向黑简 特粗",
+      "resource_id": "7316819223840297481",
+      "effect_id": "7316819223840297481",
+      "checksum_sha256": "c720f4e89d2fd2cdfae5ae89844f4d076444fda3f15ef8cd67496090029c4e0f",
+      "size_bytes": 1582100,
+      "file": "files/励字志向黑简_特粗_7316819223840297481.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\励字志向黑简_特粗_7316819223840297481.ttf",
+      "metadata_file": "metadata/励字志向黑简_特粗_7316819223840297481.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7316819223840297481\\ba409eae71d9d99f370175f283002307\\励字志向黑简 特粗.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 2,
+              "material_id": "79FE7F01-5DFD-4679-B729-72C9536CF04E",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 2,
+              "material_id": "79FE7F01-5DFD-4679-B729-72C9536CF04E",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 2,
+              "material_id": "79FE7F01-5DFD-4679-B729-72C9536CF04E",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7410300778990015027",
+      "name": "三极榜楷简体",
+      "resource_id": "7410300778990015027",
+      "effect_id": "7410300778990015027",
+      "checksum_sha256": "64ff5b86898a6b64ee2c9915854e75ad09ad403ede03c5ece2616bb293c5db9b",
+      "size_bytes": 10115380,
+      "file": "files/三极榜楷简体_7410300778990015027.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\三极榜楷简体_7410300778990015027.ttf",
+      "metadata_file": "metadata/三极榜楷简体_7410300778990015027.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7410300778990015027\\1b1aadca917f42578fb41d5d95c6539c\\三极榜楷简体.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 25,
+              "material_id": "DC1FCE59-15B9-4168-BB31-338D5512B555",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 25,
+              "material_id": "DC1FCE59-15B9-4168-BB31-338D5512B555",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 25,
+              "material_id": "DC1FCE59-15B9-4168-BB31-338D5512B555",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7410326723318780453",
+      "name": "华光楷体二",
+      "resource_id": "7410326723318780453",
+      "effect_id": "7410326723318780453",
+      "checksum_sha256": "d44363c0d8f21e138d3ac68b3e3e4f7f2b6ca9aba97f4f01e756176612e922a1",
+      "size_bytes": 19907408,
+      "file": "files/华光楷体二_7410326723318780453.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\华光楷体二_7410326723318780453.ttf",
+      "metadata_file": "metadata/华光楷体二_7410326723318780453.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7410326723318780453\\b2f9d6b81eff2e0e2eaef0f3a46890fd\\华光楷体二.TTF",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 17,
+              "material_id": "C1541FB2-3DFC-414b-89BE-524B724C14DB",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 17,
+              "material_id": "C1541FB2-3DFC-414b-89BE-524B724C14DB",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 17,
+              "material_id": "C1541FB2-3DFC-414b-89BE-524B724C14DB",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7423616268764189234",
+      "name": "雅月体",
+      "resource_id": "7423616268764189234",
+      "effect_id": "7423616268764189234",
+      "checksum_sha256": "d4e2afc439f3608d8d17400778e64618e591caf33c6ec21559055f0addaa098e",
+      "size_bytes": 1627236,
+      "file": "files/雅月体_7423616268764189234.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\雅月体_7423616268764189234.ttf",
+      "metadata_file": "metadata/雅月体_7423616268764189234.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7423616268764189234\\0f70f20df8d9be821e294a862be67304\\雅月体.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 4,
+              "material_id": "EC454949-9CD6-44c4-8B2E-42DD651D4E38",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 4,
+              "material_id": "EC454949-9CD6-44c4-8B2E-42DD651D4E38",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 4,
+              "material_id": "EC454949-9CD6-44c4-8B2E-42DD651D4E38",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7503750223118847271",
+      "name": "HelloFont JianSong 95",
+      "resource_id": "7503750223118847271",
+      "effect_id": "7503750223118847271",
+      "checksum_sha256": "072c3816ef4938b23b90be72fd94284282bb7b8bbb7661f31abb823e1f0f0273",
+      "size_bytes": 2142960,
+      "file": "files/font_7503750223118847271.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7503750223118847271.ttf",
+      "metadata_file": "metadata/font_7503750223118847271.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7503750223118847271\\0a7f2568c1441a4a50a5ea12f3b3c818\\font.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 15,
+              "material_id": "9EC9C0D9-AD69-413b-A87E-B0EF991A10A7",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 15,
+              "material_id": "9EC9C0D9-AD69-413b-A87E-B0EF991A10A7",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 15,
+              "material_id": "9EC9C0D9-AD69-413b-A87E-B0EF991A10A7",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7504566891344596235",
+      "name": "HelloFont BangKeTi",
+      "resource_id": "7504566891344596235",
+      "effect_id": "7504566891344596235",
+      "checksum_sha256": "37734b0d86a9e3af3fa7cc47ef371bcf1e1f4e6542e46da0780500b4dc291926",
+      "size_bytes": 7634076,
+      "file": "files/font_7504566891344596235.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7504566891344596235.ttf",
+      "metadata_file": "metadata/font_7504566891344596235.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7504566891344596235\\720ea6fd50924d19580b48d69b95de52\\font.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 26,
+              "material_id": "2C6FCD9D-03D9-4fad-91B1-5182C5FA87B1",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 26,
+              "material_id": "2C6FCD9D-03D9-4fad-91B1-5182C5FA87B1",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 26,
+              "material_id": "2C6FCD9D-03D9-4fad-91B1-5182C5FA87B1",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7504569031081430335",
+      "name": "HelloFont ChangHei 95",
+      "resource_id": "7504569031081430335",
+      "effect_id": "7504569031081430335",
+      "checksum_sha256": "2185d360acc2ba2dcfe0227f9f78595aa64f18867e6f92ec9068734eba691db5",
+      "size_bytes": 1971912,
+      "file": "files/font_7504569031081430335.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7504569031081430335.ttf",
+      "metadata_file": "metadata/font_7504569031081430335.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7504569031081430335\\44baf591bff2fc83def02ddce3542cf7\\font.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 19,
+              "material_id": "80555EC0-9C9F-4833-BA58-CD8FDE419B03",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 19,
+              "material_id": "80555EC0-9C9F-4833-BA58-CD8FDE419B03",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 19,
+              "material_id": "80555EC0-9C9F-4833-BA58-CD8FDE419B03",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": "resource_id:7504924433966976293",
+      "name": "HelloFont LieHei 75",
+      "resource_id": "7504924433966976293",
+      "effect_id": "7504924433966976293",
+      "checksum_sha256": "4b36fdbc3693f9145a7a021956706264e9a8a76664b13f354e756bd54e46f949",
+      "size_bytes": 2814472,
+      "file": "files/font_7504924433966976293.ttf",
+      "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\font_7504924433966976293.ttf",
+      "metadata_file": "metadata/font_7504924433966976293.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\字体草稿",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7504924433966976293\\0d5daf5db2a1172e5afc9042be3b0bae\\font.ttf",
+          "references": [
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 24,
+              "material_id": "AB53890D-F7BB-4310-BE24-B816429D85C8",
+              "json_pointer": "/content$json/styles/0/font/path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 24,
+              "material_id": "AB53890D-F7BB-4310-BE24-B816429D85C8",
+              "json_pointer": "/font_path"
+            },
+            {
+              "scope": "top",
+              "material_collection": "texts",
+              "material_index": 24,
+              "material_id": "AB53890D-F7BB-4310-BE24-B816429D85C8",
+              "json_pointer": "/fonts/0/path"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

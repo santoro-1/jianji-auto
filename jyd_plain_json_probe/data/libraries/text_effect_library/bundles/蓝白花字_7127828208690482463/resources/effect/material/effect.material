@@ -1,0 +1,24 @@
+%YAML 1.1
+--- !Material &1
+name: sprite_mat
+xshader: {localId: 1, path: xshader/effect.xshader}
+properties:
+  __class: PropertySheet
+  name: sprite_propertySheet
+  floatmap:
+    __class: Map
+  vec4map:
+    __class: Map
+  vec3map:
+    __class: Map
+  vec2map:
+    __class: Map
+  mat4map:
+    __class: Map
+  texmap:
+    __class: Map
+  intmap:
+    __class: Map
+renderQueue: 3050
+enabledMacros:
+  __class: Map
