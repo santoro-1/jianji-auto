@@ -44,6 +44,18 @@ class NewFrontendTest(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
+    def test_new_workspace_uses_real_script_and_image_input_apis(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('href="/api/new/script-template"', html)
+        self.assertIn("/api/new/script-imports/preview", html)
+        self.assertIn("/image-mapping", html)
+        self.assertIn("uploadProjectImage", html)
+        self.assertIn("initializeProjectInputs", html)
+        self.assertNotIn("simulateExcelParsing", html)
+        self.assertNotIn("loadSampleData", html)
+        self.assertNotIn("const sampleImages", html)
+        self.assertTrue((FRONTEND_ROOT / "project-script-template.xlsx").is_file())
+
     def test_new_pages_require_login_but_login_and_logo_are_public(self) -> None:
         with TestClient(create_app(self.settings)) as client:
             for path in ("/app/new", "/app/new/gallery", "/app/new/voices"):

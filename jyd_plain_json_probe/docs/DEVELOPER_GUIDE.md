@@ -94,6 +94,9 @@ release/                      最终交付 ZIP
 `control.db`，但只创建 `project_*` 表和独立的 `project_schema_meta`，不会修改既有
 `schema_meta`、`batches`、`jobs` 或 `agents`。`Project` 包含多条 `ProjectItem`；
 音频、原始片段、画面合成视频、上传视频和变体都按不可覆盖的素材版本保存。
+模块 2 把 `project_schema_meta` 升级到版本 2：为脚本行增加当前输入图片指针，并增加
+`project_input_images` 项目图片池。升级只执行 `CREATE TABLE IF NOT EXISTS` 和缺失列
+`ALTER TABLE ADD COLUMN`，不会重建或清空既有项目及剪映任务表。
 
 不要把以下数据混为一类：
 
@@ -332,6 +335,8 @@ data/template_library/<template_id>/
 - `/api/jobs/*`、`/api/batches/*`：状态、结果、重试、取消和下载。
 - `/api/agents/*`：处理机注册、心跳、领取和回传。
 - `/api/new/projects*`：新版统一项目、脚本行、素材版本、状态和可执行操作。
+- `/api/new/script-imports/preview`：严格解析两列 `.xlsx`/`.csv` 脚本。
+- `/api/new/projects/{id}/images*`、`image-mapping`：项目图片池、逐行图片版本和后端分配策略。
 
 新版浏览器入口为 `/app/new`，成果库为 `/app/new/gallery`，声音中心为
 `/app/new/voices`。三页均受普通站点会话保护；公开的 `/app/new/login` 调用现有
@@ -344,8 +349,8 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 新版项目 API 只允许普通数字人账号访问，技术管理员会话不能代替普通账号成为项目
 所有者。项目详情中的 `allowed_actions` 是页面按钮权限的唯一业务来源；前端不得根据
 显示文本或本地定时器自行推进项目状态。当前公共骨架只负责持久化和聚合；新版页面
-目前只完成登录、会话、导航和退出，其他原型模拟逻辑按后续模块逐项替换，不会提前调用
-MiniMax、RunningHub 或剪映。
+目前已经完成登录、会话、导航、脚本和图片输入；声音及后续原型模拟逻辑按后续模块逐项
+替换，不会提前调用 MiniMax、RunningHub 或剪映。
 
 ## 9. 自动化测试
 

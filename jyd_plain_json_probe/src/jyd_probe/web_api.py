@@ -37,6 +37,7 @@ from .draft_crypto import is_plain_json_file
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .project_store import ProjectRevisionConflict, ProjectStore
+from .project_inputs import detect_project_image, parse_project_script_file
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
 from .subtitles import (
@@ -1913,6 +1914,167 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/new/script-template")
+    def download_new_script_template() -> FileResponse:
+        path = NEW_FRONTEND_ROOT / "project-script-template.xlsx"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="脚本导入模板不存在")
+        return FileResponse(
+            path,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename="数字人脚本导入模板.xlsx",
+        )
+
+    @app.post("/api/new/script-imports/preview")
+    async def preview_new_project_scripts(
+        request: Request, filename: str = ""
+    ) -> dict[str, Any]:
+        current_project_user(request)
+        original_filename = filename or request.headers.get("x-filename", "")
+        try:
+            return parse_project_script_file(await request.body(), original_filename)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/inputs")
+    def replace_new_project_inputs(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.replace_inputs(
+                user["user_id"],
+                project_id,
+                payload.get("items") if isinstance(payload.get("items"), list) else [],
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete("/api/new/projects/{project_id}")
+    def delete_new_project(project_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            paths = project_store.delete_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        for path in paths:
+            _unlink_if_exists(Path(path))
+        return {"ok": True, "project_id": project_id}
+
+    @app.post("/api/new/projects/{project_id}/images", status_code=201)
+    async def upload_new_project_image(
+        project_id: str, request: Request, filename: str = ""
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        content = await request.body()
+        original_filename = filename or request.headers.get("x-filename", "")
+        try:
+            content_type, detected_suffix = detect_project_image(
+                content, original_filename
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        safe_name = _safe_filename(original_filename or f"image{detected_suffix}")
+        stem = Path(safe_name).stem[:120] or "image"
+        stored_filename = f"{uuid.uuid4().hex}_{stem}{detected_suffix}"
+        directory = settings.storage_root / "new_projects" / project_id / "input_images"
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / stored_filename
+        path.write_bytes(content)
+        try:
+            return project_store.register_input_image(
+                owner_user_id=user["user_id"],
+                project_id=project_id,
+                filename=safe_name,
+                content_type=content_type,
+                size_bytes=len(content),
+                sha256=hashlib.sha256(content).hexdigest(),
+                managed_path=str(path),
+            )
+        except KeyError as exc:
+            _unlink_if_exists(path)
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ValueError as exc:
+            _unlink_if_exists(path)
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/images/{image_id}")
+    def get_new_project_image(
+        project_id: str, image_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            image = project_store.get_input_image(
+                user["user_id"], project_id, image_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目图片不存在") from exc
+        path = Path(str(image["managed_path"]))
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="项目图片文件不存在")
+        return FileResponse(path, media_type=str(image["content_type"]))
+
+    @app.delete("/api/new/projects/{project_id}/images/{image_id}")
+    def delete_new_project_image(
+        project_id: str, image_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            image = project_store.remove_input_image(
+                user["user_id"], project_id, image_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目图片不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        _unlink_if_exists(Path(str(image["managed_path"])))
+        return {"ok": True, "image_id": image_id}
+
+    @app.put("/api/new/projects/{project_id}/image-mapping")
+    def apply_new_project_image_mapping(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.apply_image_strategy(
+                user["user_id"],
+                project_id,
+                strategy=str(payload.get("strategy") or ""),
+                reuse_count=int(payload.get("reuse_count") or 1),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/items/{item_id}/image")
+    def replace_new_project_item_image(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.replace_item_image(
+                user["user_id"],
+                project_id,
+                item_id,
+                str(payload.get("image_id") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目、脚本行或图片不存在") from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

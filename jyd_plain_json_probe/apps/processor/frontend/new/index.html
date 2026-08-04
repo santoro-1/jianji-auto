@@ -496,19 +496,19 @@
                             <span class="w-6 h-6 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs"><i class="fa-solid fa-file-excel"></i></span>
                             1. 脚本导入 (Excel/CSV)
                         </h3>
-                        <button onclick="loadSampleData()" class="text-xs text-brand-accent hover:text-white font-medium hover:underline transition-all">
-                            <i class="fa-solid fa-magic-wand-sparkles mr-1"></i>载入演示脚本
-                        </button>
+                        <a href="/api/new/script-template" class="text-xs text-brand-accent hover:text-white font-medium hover:underline transition-all">
+                            <i class="fa-solid fa-download mr-1"></i>下载示例模板
+                        </a>
                     </div>
 
                     <!-- Dropzone -->
                     <div id="excel-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-brand-primary/60 bg-slate-950/20 hover:bg-brand-primary/5 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300" onclick="triggerFileInput('excel-file-input')">
-                        <input type="file" id="excel-file-input" class="hidden" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)">
+                        <input type="file" id="excel-file-input" class="hidden" accept=".xlsx,.csv" onchange="handleExcelUpload(event)">
                         <div class="w-12 h-12 rounded-full bg-slate-900/60 border border-slate-800/80 flex items-center justify-center text-slate-400 mb-3 shadow-inner" id="excel-icon-box">
                             <i class="fa-solid fa-cloud-arrow-up text-lg text-brand-primary"></i>
                         </div>
                         <p class="text-xs font-semibold text-gray-300" id="excel-upload-status">点击选择或拖拽文件到这里</p>
-                        <p class="text-[10px] text-gray-500 mt-1">支持 .xlsx, .xls, .csv 等格式（必须包含 ID、脚本内容两列）</p>
+                        <p class="text-[10px] text-gray-500 mt-1">支持 .xlsx、.csv（固定两列：任务ID、脚本内容）</p>
                     </div>
 
                     <!-- Parsed indicator -->
@@ -608,7 +608,7 @@
                                     <span class="text-[10px] text-gray-400 font-medium select-none whitespace-nowrap">生成数量</span>
                                     <input type="number" id="strategy-count-val" value="1" min="1" max="100" class="w-full bg-transparent border-none text-xs text-white focus:ring-0 p-0 text-right font-extrabold focus:outline-none" onchange="applyStrategyChange()">
                                 </div>
-                                <p class="text-[10px] text-gray-500 mt-1">每个导入的图片将顺次匹配并复制生成上述数量 of 视频分段</p>
+                                <p class="text-[10px] text-gray-500 mt-1">每张图片会连续复用到上述数量的脚本行，超出后循环</p>
                             </div>
                         </label>
 
@@ -652,7 +652,7 @@
                         <table class="w-full border-collapse text-left text-xs min-w-[1420px]">
                             <thead class="bg-slate-950/50 text-[10px] text-gray-400 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
-                                    <th scope="col" class="px-4 py-3.5 w-16 text-center whitespace-nowrap">序号</th>
+                                    <th scope="col" class="px-4 py-3.5 w-16 text-center whitespace-nowrap">任务ID</th>
                                     <th scope="col" class="px-4 py-3.5 min-w-[200px]">脚本内容 (双击可修改)</th>
                                     <th scope="col" class="px-4 py-3.5 w-32">声音原型</th>
                                     <th scope="col" class="px-4 py-3.5 w-36">声音预览</th>
@@ -673,7 +673,7 @@
                                         <div class="flex flex-col items-center justify-center">
                                             <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
                                             <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
-                                            <p class="text-[11px] text-gray-500 mt-1 max-w-sm">请在左侧导入 Excel 脚本表格，或点击顶部的“载入演示脚本”快速体验极速合成流程。</p>
+                                            <p class="text-[11px] text-gray-500 mt-1 max-w-sm">请在左侧下载模板并导入 Excel/CSV 脚本表格，导入结果会保存到当前项目。</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -741,16 +741,6 @@
             { id: 'male2', name: '阿聪 - 活力带货主播', desc: '适合快节奏带货/广告短视频', avatar: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=100&auto=format&fit=crop&q=80' }
         ];
 
-        // Sample Images (Unsplash high quality creative)
-        const sampleImages = [
-            'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=300&auto=format&fit=crop&q=80',
-            'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=80',
-            'https://images.unsplash.com/photo-1518770660439-4636190af475?w=300&auto=format&fit=crop&q=80',
-            'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&auto=format&fit=crop&q=80',
-            'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=300&auto=format&fit=crop&q=80',
-            'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=300&auto=format&fit=crop&q=80'
-        ];
-
         // BGM Options
         const bgmPresets = [
             { id: 'none', name: '无背景音乐' },
@@ -761,8 +751,9 @@
         ];
 
         // System State
-        let uploadedScripts = []; // List of scripts
-        let uploadedImages = []; // List of uploaded images
+        let activeProject = null;
+        let uploadedScripts = [];
+        let uploadedImages = [];
         let selectedDefaultVoiceIndex = 0; // Index of voicePresets
         let currentStrategy = 'count'; // 'count' or 'loop'
         let currentStrategyCountVal = 1; // Count per image
@@ -784,6 +775,12 @@
             strokeColor: '#000000',
             align: 'center'
         };
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+            })[character]);
+        }
 
         // UI Toast Utility
         function showToast(title, message, iconType = 'info') {
@@ -851,62 +848,128 @@
             document.getElementById(id).click();
         }
 
-        // Handle Excel / CSV Selection & Import
-        function handleExcelUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            simulateExcelParsing(file.name);
+        async function workspaceApi(path, options = {}) {
+            const response = await fetch(path, { credentials: 'same-origin', ...options });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.detail || `请求失败（HTTP ${response.status}）`);
+            return result;
         }
 
-        // Simulation script parsing
-        function simulateExcelParsing(fileName) {
-            showToast("正在解析脚本表格", `文件 ${fileName} 已上传，正在提取分段数据...`);
-            
-            // Simulating a delay for processing
-            setTimeout(() => {
-                const parsed = [
-                    { id: '1', text: '在数字洪流奔涌的今天，人工智能正悄然重塑着我们的视频创作范式。' },
-                    { id: '2', text: '传统的剪辑与音频合成往往需要繁琐的多软件联动，而现在，一切尽在一键之间。' },
-                    { id: '3', text: '公域闪剪，通过深度神经网络算法，将文案和画面实现像素级的无缝缝合。' },
-                    { id: '4', text: '只需上传脚本与配音原型，数秒内即可智能推理出高保真的人声与相对应的画面。' },
-                    { id: '5', text: '不仅支持海量的高清图片集按需智能排序，还能为您自动匹配最动听的BGM。' },
-                    { id: '6', text: '现在点击开始画面合成，属于您的爆款智能视频即刻渲染出炉！' }
-                ];
-                
-                uploadedScripts = parsed;
-                globalVariantConfig = null;
-                updateTableLayout();
-                
-                // Show indicator
-                document.getElementById('excel-dropzone').classList.add('hidden');
-                const parsedIndicator = document.getElementById('parsed-indicator');
-                parsedIndicator.classList.remove('hidden');
-                document.getElementById('parsed-count-text').textContent = `成功解析 ${uploadedScripts.length} 行脚本数据`;
-
-                showToast("解析成功", `已成功导入并解析 ${uploadedScripts.length} 段脚本文案，表格数据已更新！`, "success");
-            }, 1000);
+        function projectNameFromFile(filename) {
+            const stem = String(filename || '').replace(/\.(xlsx|csv)$/i, '').trim();
+            return (stem || `数字人项目_${new Date().toLocaleDateString('zh-CN')}`).slice(0, 120);
         }
 
-        // Loading Preset Demo Data
-        function loadSampleData() {
-            simulateExcelParsing("演示脚本模板_视频营销方案.xlsx");
-            // Auto preload some mock images as well
-            if (uploadedImages.length === 0) {
-                uploadedImages = [...sampleImages];
-                renderImageThumbnails();
+        function syncProjectInputs(project) {
+            activeProject = project;
+            const mapping = project?.settings?.image_mapping || {};
+            currentStrategy = mapping.strategy === 'loop' ? 'loop' : 'count';
+            currentStrategyCountVal = Number(mapping.reuse_count) || 1;
+            document.getElementById('strategy-count-val').value = currentStrategyCountVal;
+            document.getElementById('strategy-count').checked = currentStrategy === 'count';
+            document.getElementById('strategy-loop').checked = currentStrategy === 'loop';
+            uploadedImages = Array.isArray(project?.input_images) ? project.input_images : [];
+            uploadedScripts = Array.isArray(project?.items) ? project.items.map((item) => ({
+                id: item.item_id,
+                rowKey: item.row_key,
+                text: item.script_text,
+                image: item.inputs?.image || null,
+                allowedActions: item.allowed_actions || {}
+            })) : [];
+
+            const hasScripts = uploadedScripts.length > 0;
+            document.getElementById('excel-dropzone').classList.toggle('hidden', hasScripts);
+            document.getElementById('parsed-indicator').classList.toggle('hidden', !hasScripts);
+            if (hasScripts) {
+                document.getElementById('parsed-count-text').textContent =
+                    `${project.project_no} · 已保存 ${uploadedScripts.length} 行脚本`;
+            }
+            renderImageThumbnails();
+            updateTableLayout();
+        }
+
+        async function initializeProjectInputs() {
+            try {
+                const listing = await workspaceApi('/api/new/projects?limit=1&offset=0');
+                if (listing.projects?.length) syncProjectInputs(listing.projects[0]);
+            } catch (error) {
+                showToast('项目加载失败', error.message, 'warning');
             }
         }
 
-        // Clear parsed scripts
+        async function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            showToast('正在解析脚本表格', `正在校验 ${file.name} 的任务ID和脚本内容...`);
+            try {
+                const preview = await workspaceApi(
+                    `/api/new/script-imports/preview?filename=${encodeURIComponent(file.name)}`,
+                    { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file }
+                );
+                const items = preview.rows.map((row, index) => ({
+                    item_id: activeProject?.items?.[index]?.item_id || undefined,
+                    row_key: row.row_key,
+                    script_text: row.script_text
+                }));
+                let project;
+                if (activeProject?.project_id && activeProject.allowed_actions?.edit_inputs) {
+                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/inputs`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items })
+                    });
+                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: projectNameFromFile(file.name) })
+                    });
+                } else {
+                    project = await workspaceApi('/api/new/projects', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: projectNameFromFile(file.name), items })
+                    });
+                }
+                if (project.input_images?.length) {
+                    project = await workspaceApi(`/api/new/projects/${project.project_id}/image-mapping`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ strategy: currentStrategy, reuse_count: currentStrategyCountVal })
+                    });
+                }
+                globalVariantConfig = null;
+                syncProjectInputs(project);
+                showToast('解析并保存成功', `已保存 ${preview.total_rows} 行脚本，刷新页面数据不会丢失。`, 'success');
+            } catch (error) {
+                showToast('脚本导入失败', error.message, 'warning');
+            } finally {
+                event.target.value = '';
+            }
+        }
+
         function clearParsedData() {
-            uploadedScripts = [];
-            globalVariantConfig = null;
-            document.getElementById('excel-dropzone').classList.remove('hidden');
-            document.getElementById('parsed-indicator').classList.add('hidden');
-            document.getElementById('excel-file-input').value = '';
-            updateTableLayout();
-            showToast("数据已清空", "所有导入的脚本分段已清除。");
+            if (!activeProject) return;
+            openConfirmModal({
+                title: '清除当前草稿项目？',
+                message: '这会删除当前尚未进入生成流程的脚本和上传图片。',
+                confirmText: '确认清除',
+                onConfirm: async () => {
+                    try {
+                        await workspaceApi(`/api/new/projects/${activeProject.project_id}`, { method: 'DELETE' });
+                        activeProject = null;
+                        uploadedScripts = [];
+                        uploadedImages = [];
+                        globalVariantConfig = null;
+                        document.getElementById('excel-dropzone').classList.remove('hidden');
+                        document.getElementById('parsed-indicator').classList.add('hidden');
+                        renderImageThumbnails();
+                        updateTableLayout();
+                        showToast('数据已清空', '当前草稿项目及其输入图片已删除。', 'success');
+                    } catch (error) {
+                        showToast('无法清除项目', error.message, 'warning');
+                    }
+                }
+            });
         }
 
         // Manage Default Voice selection in Left Panel
@@ -962,23 +1025,34 @@
             }
         }
 
-        // Images File Selection Handler
-        function handleImagesUpload(event) {
+        async function uploadProjectImage(file) {
+            if (!activeProject?.project_id) throw new Error('请先导入脚本，再上传图片');
+            return workspaceApi(
+                `/api/new/projects/${activeProject.project_id}/images?filename=${encodeURIComponent(file.name)}`,
+                { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file }
+            );
+        }
+
+        async function handleImagesUpload(event) {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
-
-            showToast("正在导入图片集", `已捕获到 ${files.length} 张图片，正在进行智能对齐计算...`);
-
-            // Use URL.createObjectURL to showcase the uploaded images
-            files.forEach((file) => {
-                const url = URL.createObjectURL(file);
-                uploadedImages.push(url);
-            });
-
-            setTimeout(() => {
-                renderImageThumbnails();
-                showToast("图片导入成功", `成功载入并分析了 ${files.length} 张图片！表格分配方案已更新。`, "success");
-            }, 800);
+            if (!activeProject) {
+                showToast('请先导入脚本', '图片必须保存到项目中，请先上传 Excel/CSV。', 'warning');
+                event.target.value = '';
+                return;
+            }
+            showToast('正在导入图片集', `正在上传并校验 ${files.length} 张图片...`);
+            try {
+                for (const file of files) await uploadProjectImage(file);
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                await applyStrategyChange(false);
+                showToast('图片导入成功', `${files.length} 张图片已保存并按当前策略完成分配。`, 'success');
+            } catch (error) {
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                showToast('部分图片未能导入', error.message, 'warning');
+            } finally {
+                event.target.value = '';
+            }
         }
 
         // Render Image Thumbnails under drag-and-drop area
@@ -993,28 +1067,26 @@
             container.classList.remove('hidden');
             container.innerHTML = '';
 
-            uploadedImages.forEach((imgSrc, index) => {
+            uploadedImages.forEach((image) => {
                 const wrapper = document.createElement('div');
                 wrapper.className = "relative group aspect-square rounded-lg overflow-hidden border border-slate-700 bg-slate-900";
                 wrapper.innerHTML = `
-                    <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="uploaded img">
-                    <button onclick="removeImage(${index}, event)" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-xmark"></i></button>
+                    <img src="${image.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="${escapeHtml(image.filename)}">
+                    <button onclick="removeImage('${image.image_id}', event)" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-xmark"></i></button>
                 `;
                 container.appendChild(wrapper);
             });
-
-            // Adjust table mappings based on images
-            if (uploadedScripts.length > 0) {
-                applyImageMappingToTable();
-            }
         }
 
-        // Remove single image from list
-        function removeImage(index, event) {
+        async function removeImage(imageId, event) {
             event.stopPropagation();
-            uploadedImages.splice(index, 1);
-            renderImageThumbnails();
-            showToast("已移除图片", "该图片已移出待渲染图片集。");
+            try {
+                await workspaceApi(`/api/new/projects/${activeProject.project_id}/images/${imageId}`, { method: 'DELETE' });
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                showToast('已移除图片', '该图片已从当前项目图片池移除。', 'success');
+            } catch (error) {
+                showToast('无法移除图片', error.message, 'warning');
+            }
         }
 
         // Switch strategy logic
@@ -1030,14 +1102,21 @@
             applyStrategyChange();
         }
 
-        function applyStrategyChange() {
+        async function applyStrategyChange(showNotice = true) {
             if (currentStrategy === 'count') {
                 currentStrategyCountVal = parseInt(document.getElementById('strategy-count-val').value) || 1;
             }
-            
-            if (uploadedScripts.length > 0) {
-                applyImageMappingToTable();
-                showToast("分配规则变更", "系统已为您即时重构了配图分配逻辑，并在表格右侧即刻生效！", "info");
+            if (!activeProject || uploadedScripts.length === 0 || uploadedImages.length === 0) return;
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/image-mapping`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ strategy: currentStrategy, reuse_count: currentStrategyCountVal })
+                });
+                syncProjectInputs(project);
+                if (showNotice) showToast('分配规则已保存', '后端已重新计算并保存全部脚本的当前图片。', 'success');
+            } catch (error) {
+                showToast('图片分配失败', error.message, 'warning');
             }
         }
 
@@ -1048,36 +1127,19 @@
         function applyImageMappingToTable() {
             if (uploadedScripts.length === 0) return;
 
-            const tbody = document.getElementById('synthesis-table-body');
-            const rows = tbody.querySelectorAll('.table-data-row');
+            const rows = document.querySelectorAll('#synthesis-table-body .table-data-row');
             
             rows.forEach((row, i) => {
                 const imgEl = row.querySelector('.row-thumbnail-img');
                 const indexBadge = row.querySelector('.row-thumbnail-badge');
 
-                if (row.getAttribute('data-image-override') === 'true') {
-                    indexBadge.textContent = '本地';
-                    indexBadge.classList.remove('hidden');
-                    return;
-                }
-                
-                let targetImgSrc = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80"; // default placeholder
-                let imgIndex = -1;
-
-                if (uploadedImages.length > 0) {
-                    if (currentStrategy === 'count') {
-                        // Option 1: generate X videos per image
-                        imgIndex = Math.floor(i / currentStrategyCountVal) % uploadedImages.length;
-                    } else {
-                        // Option 2: loop sequential
-                        imgIndex = i % uploadedImages.length;
-                    }
-                    targetImgSrc = uploadedImages[imgIndex];
-                }
-
-                imgEl.src = targetImgSrc;
-                if (imgIndex !== -1) {
-                    indexBadge.textContent = `P-${imgIndex + 1}`;
+                const image = uploadedScripts[i]?.image;
+                imgEl.src = image?.url || '';
+                imgEl.classList.toggle('opacity-0', !image?.url);
+                if (image) {
+                    indexBadge.textContent = image.metadata?.mapping_source === 'manual'
+                        ? '替换'
+                        : `P-${image.metadata?.pool_position || '?'}`;
                     indexBadge.classList.remove('hidden');
                 } else {
                     indexBadge.classList.add('hidden');
@@ -1146,10 +1208,10 @@
                 });
 
                 tr.innerHTML = `
-                    <td class="px-4 py-4 text-center font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors whitespace-nowrap">${idx + 1}</td>
+                    <td class="px-4 py-4 text-center font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors whitespace-nowrap">${escapeHtml(script.rowKey)}</td>
                     <td class="px-4 py-4 font-medium text-gray-300">
                         <div class="focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
-                            <span class="row-script-editor outline-none block w-full max-h-20 overflow-y-auto pr-2 whitespace-pre-wrap leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(${script.id}, this)">${script.text}</span>
+                            <span class="row-script-editor outline-none block w-full max-h-20 overflow-y-auto pr-2 whitespace-pre-wrap leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</span>
                         </div>
                     </td>
                     <td class="px-4 py-4">
@@ -1202,7 +1264,7 @@
                     <td class="px-4 py-4 text-center">
                         <div class="flex flex-col items-center gap-1.5">
                             <button type="button" class="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-800 bg-slate-950 group/thumb cursor-zoom-in shadow-lg hover:border-brand-secondary transition-colors" onclick="previewImageZoom(this)" title="点击放大画面">
-                                <img class="row-thumbnail-img w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80" alt="当前画面">
+                                <img class="row-thumbnail-img w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300 opacity-0" src="" alt="当前画面">
                                 <span class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
                                     <i class="fa-solid fa-expand text-[10px] text-white"></i>
                                 </span>
@@ -1217,7 +1279,7 @@
                         </select>
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
-                        <button onclick="openSubtitleModal(${script.id})" class="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-[10px] font-semibold text-gray-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center gap-1.5 mx-auto whitespace-nowrap">
+                        <button onclick="openSubtitleModal('${script.id}')" class="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-[10px] font-semibold text-gray-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center gap-1.5 mx-auto whitespace-nowrap">
                             <i class="fa-solid fa-font text-brand-accent"></i>
                             样式配置
                         </button>
@@ -1288,29 +1350,58 @@
             refreshVariantActionAvailability();
         }
 
-        // Add a single custom row manually
-        function simulateAddRow() {
-            const newId = uploadedScripts.length > 0 ? Math.max(...uploadedScripts.map(s => parseInt(s.id))) + 1 : 1;
-            const newRow = {
-                id: newId.toString(),
-                text: '在此处输入您想要生成视频的新分段文案。'
-            };
-            uploadedScripts.push(newRow);
-            updateTableLayout();
-            showToast("添加分段", `已成功添加序号为 ${newId} 的脚本分段。`, "success");
+        async function simulateAddRow() {
+            if (!activeProject) {
+                showToast('请先导入脚本', '请先通过 Excel/CSV 创建项目。', 'warning');
+                return;
+            }
+            const numericKeys = uploadedScripts.map((script) => Number(script.rowKey)).filter(Number.isInteger);
+            let newKey = String(numericKeys.length ? Math.max(...numericKeys) + 1 : uploadedScripts.length + 1);
+            while (uploadedScripts.some((script) => script.rowKey === newKey)) newKey = String(Number(newKey) + 1);
+            const items = uploadedScripts.map((script) => ({
+                item_id: script.id,
+                row_key: script.rowKey,
+                script_text: script.text
+            }));
+            items.push({ row_key: newKey, script_text: '在此处输入新的脚本文案。' });
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/inputs`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ items })
+                });
+                syncProjectInputs(project);
+                showToast('添加分段', `任务ID ${newKey} 已保存。`, 'success');
+            } catch (error) {
+                showToast('添加失败', error.message, 'warning');
+            }
         }
 
-        // Blur script text cell save
-        function handleScriptBlur(id, element) {
+        async function handleScriptBlur(element) {
+            const row = element.closest('tr');
+            const id = row?.getAttribute('data-id');
             const updatedText = element.innerText.trim();
             const index = uploadedScripts.findIndex(s => s.id == id);
-            if (index !== -1) {
-                const hasChanged = uploadedScripts[index].text !== updatedText;
-                uploadedScripts[index].text = updatedText;
-                if (hasChanged) {
-                    const row = element.closest('tr');
-                    resetRowAudioPreview(row);
-                }
+            if (index === -1 || uploadedScripts[index].text === updatedText) return;
+            if (!updatedText) {
+                element.textContent = uploadedScripts[index].text;
+                showToast('脚本不能为空', '请输入脚本内容后再保存。', 'warning');
+                return;
+            }
+            try {
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${id}`,
+                    {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ script_text: updatedText })
+                    }
+                );
+                syncProjectInputs(project);
+                showToast('脚本已保存', `任务ID ${uploadedScripts[index]?.rowKey || ''} 已更新。`, 'success');
+            } catch (error) {
+                element.textContent = uploadedScripts[index].text;
+                showToast('脚本保存失败', error.message, 'warning');
             }
         }
 
@@ -1821,7 +1912,7 @@
             input.click();
         }
 
-        function handleRowImageReplacement(event) {
+        async function handleRowImageReplacement(event) {
             const file = event.target.files[0];
             const row = activeImageRow;
             if (!file || !row) return;
@@ -1830,21 +1921,25 @@
                 return;
             }
 
-            const previousObjectUrl = row.getAttribute('data-image-object-url');
-            if (previousObjectUrl) URL.revokeObjectURL(previousObjectUrl);
-            const imageUrl = URL.createObjectURL(file);
-            row.setAttribute('data-image-override', 'true');
-            row.setAttribute('data-image-object-url', imageUrl);
-            row.querySelector('.row-thumbnail-img').src = imageUrl;
-            const badge = row.querySelector('.row-thumbnail-badge');
-            badge.textContent = '本地';
-            badge.classList.remove('hidden');
-            document.getElementById('image-zoom-src').src = imageUrl;
-
-            if (row.getAttribute('data-video-status') === 'ready' || row.getAttribute('data-variant-status') === 'ready') {
-                resetRowVideoPreview(row);
+            const itemId = row.getAttribute('data-id');
+            try {
+                const image = await uploadProjectImage(file);
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${itemId}/image`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image_id: image.image_id })
+                    }
+                );
+                syncProjectInputs(project);
+                document.getElementById('image-zoom-src').src = image.url;
+                showToast('画面替换成功', `当前脚本已改用图片「${file.name}」，旧图片版本仍保留。`, 'success');
+            } catch (error) {
+                showToast('画面替换失败', error.message, 'warning');
+            } finally {
+                event.target.value = '';
             }
-            showToast('画面替换成功', `第 ${row.getAttribute('data-id')} 条视频已改用图片「${file.name}」。`, 'success');
         }
 
         // Variant configuration modal managers
@@ -2219,6 +2314,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', ensureAuthenticatedSession);
+        document.addEventListener('DOMContentLoaded', initializeProjectInputs);
     </script>
 </body>
 </html>

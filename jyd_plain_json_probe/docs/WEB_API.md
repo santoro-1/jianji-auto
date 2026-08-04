@@ -20,6 +20,48 @@ HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登
 本模块只替换登录、会话、导航和退出。脚本导入、声音、画面合成、变体和成果库数据仍按
 后续模块接入，不能把现有原型定时器的显示结果当成后端业务状态。
 
+## 脚本与图片输入（模块 2）
+
+脚本文件固定为两列：`任务ID`、`脚本内容`。可从新版页面下载模板：
+
+```text
+GET  /api/new/script-template
+POST /api/new/script-imports/preview?filename=脚本.xlsx
+```
+
+预览接口使用原始请求体接收 `.xlsx` 或 `.csv`，不创建项目。服务端验证文件大小、XLSX
+压缩包路径和解压大小、固定表头、空 ID、空脚本、重复 ID、额外列和 500 行上限。任何
+一行失败时整体返回 `422`，不会产生半个项目。旧版 `.xls` 需先另存为 `.xlsx` 或 `.csv`。
+
+解析通过后使用模块 0 的 `POST /api/new/projects` 创建项目；重新导入或调整脚本行使用：
+
+```text
+PUT    /api/new/projects/{project_id}/inputs
+PATCH  /api/new/projects/{project_id}/items/{item_id}
+DELETE /api/new/projects/{project_id}
+```
+
+`PUT inputs` 在一个数据库事务内完成 ID、脚本内容和顺序的整体替换，失败时保留更新前
+数据。只有全部脚本行仍为 `DRAFT` 才能修改；清除项目也只允许尚未进入生成流程的草稿。
+
+项目图片池和映射接口：
+
+```text
+POST   /api/new/projects/{project_id}/images?filename=画面.png
+GET    /api/new/projects/{project_id}/images/{image_id}
+DELETE /api/new/projects/{project_id}/images/{image_id}
+PUT    /api/new/projects/{project_id}/image-mapping
+PUT    /api/new/projects/{project_id}/items/{item_id}/image
+```
+
+图片上传使用原始请求体，单张最大 20 MB，只接受内容与扩展名一致的 JPG、PNG、WEBP。
+`image-mapping` 由后端按图片上传顺序计算：`count` 表示每张图片连续复用 `reuse_count`
+行，脚本超出后从第一张继续；`loop` 表示每行依次取下一张并循环。最终映射保存为每条
+脚本的 `input_image` 素材版本，页面刷新只读取后端结果。单行替换创建新版本并切换当前
+图片，不覆盖旧版本。考虑到图片由本地工作台管理，只要图片当前没有被任何脚本使用，
+就可以从图片池删除；删除时同时清理对应的旧输入图片版本和本地文件。当前正在使用的
+图片必须先重新分配后才能删除。
+
 ## 新版统一项目接口（模块 0）
 
 新版页面统一使用工作台后端的 `/api/new/*`。模块 0 只建立项目、脚本行、素材版本、

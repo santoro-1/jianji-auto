@@ -210,7 +210,7 @@ class ProjectApiTest(unittest.TestCase):
                 "SELECT value FROM project_schema_meta WHERE key='version'"
             ).fetchone()[0]
         self.assertEqual(render_schema_version, "1")
-        self.assertEqual(project_schema_version, "1")
+        self.assertEqual(project_schema_version, "2")
 
     def test_operations_are_idempotent_and_external_links_are_preserved(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")

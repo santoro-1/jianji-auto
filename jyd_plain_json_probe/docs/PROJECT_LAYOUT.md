@@ -22,7 +22,9 @@ apps/
 ```text
 src/jyd_probe/                    共用核心代码
 src/jyd_probe/project_store.py    新版统一项目、素材版本、操作和外部批次关联
+src/jyd_probe/project_inputs.py   新版两列 Excel/CSV 解析及输入图片校验
 tests/test_new_frontend.py        新版路由、登录会话、退出和安全返回测试
+tests/test_project_inputs.py      脚本导入、图片池、映射策略和刷新恢复测试
 tests/                            自动测试
 examples/                         job.json 示例
 tools/library/                    音乐、字体、贴纸、花字等提取工具

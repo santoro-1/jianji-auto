@@ -10,7 +10,7 @@ from typing import Any, Iterator
 import uuid
 
 
-PROJECT_SCHEMA_VERSION = 1
+PROJECT_SCHEMA_VERSION = 2
 MAX_PROJECT_ITEMS = 500
 
 PROJECT_ITEM_STATUSES = {
@@ -189,6 +189,7 @@ class ProjectStore:
                     position INTEGER NOT NULL,
                     script_text TEXT NOT NULL,
                     status TEXT NOT NULL,
+                    current_image_asset_id TEXT,
                     current_audio_asset_id TEXT,
                     current_video_asset_id TEXT,
                     subtitles_json TEXT NOT NULL DEFAULT '{}',
@@ -227,6 +228,24 @@ class ProjectStore:
 
                 CREATE INDEX IF NOT EXISTS idx_project_assets_item_type
                     ON project_assets(item_id, asset_type, version);
+
+                CREATE TABLE IF NOT EXISTS project_input_images (
+                    image_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    managed_path TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(project_id) REFERENCES projects(project_id)
+                        ON DELETE CASCADE,
+                    UNIQUE(project_id, position)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_project_input_images_project
+                    ON project_input_images(project_id, position);
 
                 CREATE TABLE IF NOT EXISTS project_operations (
                     operation_id TEXT PRIMARY KEY,
@@ -281,6 +300,14 @@ class ProjectStore:
                     ON project_links(project_id, system, relation);
                 """
             )
+            item_columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(project_items)").fetchall()
+            }
+            if "current_image_asset_id" not in item_columns:
+                connection.execute(
+                    "ALTER TABLE project_items ADD COLUMN current_image_asset_id TEXT"
+                )
             connection.execute(
                 "INSERT OR REPLACE INTO project_schema_meta(key, value) VALUES('version', ?)",
                 (str(PROJECT_SCHEMA_VERSION),),
@@ -576,6 +603,329 @@ class ProjectStore:
             ).fetchone()
             return self._asset_payload(row)
 
+    def replace_inputs(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not isinstance(items, list) or not items:
+            raise ValueError("项目至少需要一条脚本")
+        if len(items) > MAX_PROJECT_ITEMS:
+            raise ValueError(f"单个项目最多包含 {MAX_PROJECT_ITEMS} 条脚本")
+        normalized: list[dict[str, Any]] = []
+        row_keys: set[str] = set()
+        supplied_ids: set[str] = set()
+        for position, raw in enumerate(items, start=1):
+            if not isinstance(raw, dict):
+                raise ValueError(f"第 {position} 条脚本格式无效")
+            item_id = str(raw.get("item_id") or "").strip()
+            if item_id and item_id in supplied_ids:
+                raise ValueError("同一脚本行不能重复提交")
+            if item_id:
+                supplied_ids.add(item_id)
+            row_key = _clean_row_key(raw.get("row_key"), position)
+            if row_key in row_keys:
+                raise ValueError(f"脚本行编号重复: {row_key}")
+            row_keys.add(row_key)
+            normalized.append(
+                {
+                    "item_id": item_id or uuid.uuid4().hex,
+                    "is_new": not bool(item_id),
+                    "row_key": row_key,
+                    "position": position,
+                    "script_text": _clean_script(raw.get("script_text")),
+                }
+            )
+
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            existing_rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            if any(str(row["status"]) != "DRAFT" for row in existing_rows):
+                raise ValueError("项目已进入生成流程，不能替换脚本输入")
+            existing = {str(row["item_id"]): row for row in existing_rows}
+            unknown = supplied_ids.difference(existing)
+            if unknown:
+                raise KeyError("项目脚本行不存在")
+
+            now = _now()
+            for offset, row in enumerate(existing_rows, start=1):
+                connection.execute(
+                    "UPDATE project_items SET row_key=?, position=? WHERE item_id=?",
+                    (f"__updating__{row['item_id']}", -offset, row["item_id"]),
+                )
+            retained = {item["item_id"] for item in normalized if not item["is_new"]}
+            for item_id in set(existing).difference(retained):
+                connection.execute("DELETE FROM project_items WHERE item_id=?", (item_id,))
+
+            for item in normalized:
+                if item["is_new"]:
+                    connection.execute(
+                        """
+                        INSERT INTO project_items(
+                            item_id, project_id, row_key, position, script_text,
+                            status, subtitles_json, settings_json, created_at, updated_at
+                        ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, '{}', ?, ?)
+                        """,
+                        (
+                            item["item_id"],
+                            project_id,
+                            item["row_key"],
+                            item["position"],
+                            item["script_text"],
+                            _json(_default_subtitles()),
+                            now,
+                            now,
+                        ),
+                    )
+                else:
+                    connection.execute(
+                        """
+                        UPDATE project_items
+                        SET row_key=?, position=?, script_text=?, updated_at=?
+                        WHERE item_id=?
+                        """,
+                        (
+                            item["row_key"],
+                            item["position"],
+                            item["script_text"],
+                            now,
+                            item["item_id"],
+                        ),
+                    )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+        return self.get_project(owner_user_id, project_id)
+
+    def register_input_image(
+        self,
+        *,
+        owner_user_id: str,
+        project_id: str,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        sha256: str,
+        managed_path: str,
+    ) -> dict[str, Any]:
+        image_id = uuid.uuid4().hex
+        now = _now()
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            self._require_editable_inputs(connection, project_id)
+            position = int(
+                connection.execute(
+                    "SELECT COALESCE(MAX(position), 0) + 1 FROM project_input_images WHERE project_id=?",
+                    (project_id,),
+                ).fetchone()[0]
+            )
+            connection.execute(
+                """
+                INSERT INTO project_input_images(
+                    image_id, project_id, position, filename, content_type,
+                    size_bytes, sha256, managed_path, created_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    image_id,
+                    project_id,
+                    position,
+                    str(filename or "").strip()[:255],
+                    str(content_type or "").strip(),
+                    max(0, int(size_bytes)),
+                    str(sha256 or "").strip(),
+                    str(managed_path or "").strip(),
+                    now,
+                ),
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+            row = connection.execute(
+                "SELECT * FROM project_input_images WHERE image_id=?", (image_id,)
+            ).fetchone()
+            return self._input_image_payload(row)
+
+    def get_input_image(
+        self, owner_user_id: str, project_id: str, image_id: str
+    ) -> dict[str, Any]:
+        with self._connect() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            row = connection.execute(
+                "SELECT * FROM project_input_images WHERE image_id=? AND project_id=?",
+                (str(image_id or "").strip(), project_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError("项目图片不存在")
+            return self._input_image_payload(row)
+
+    def remove_input_image(
+        self, owner_user_id: str, project_id: str, image_id: str
+    ) -> dict[str, Any]:
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            self._require_editable_inputs(connection, project_id)
+            row = connection.execute(
+                "SELECT * FROM project_input_images WHERE image_id=? AND project_id=?",
+                (str(image_id or "").strip(), project_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError("项目图片不存在")
+            referenced_assets = connection.execute(
+                """
+                SELECT asset_id, external_ref_json
+                FROM project_assets
+                WHERE project_id=? AND asset_type='input_image'
+                """,
+                (project_id,),
+            ).fetchall()
+            matching_asset_ids = [
+                str(asset["asset_id"])
+                for asset in referenced_assets
+                if _object(asset["external_ref_json"], {}).get("input_image_id")
+                == image_id
+            ]
+            current_asset_ids = {
+                str(item["current_image_asset_id"])
+                for item in connection.execute(
+                    """
+                    SELECT current_image_asset_id
+                    FROM project_items
+                    WHERE project_id=? AND current_image_asset_id IS NOT NULL
+                    """,
+                    (project_id,),
+                ).fetchall()
+            }
+            if any(asset_id in current_asset_ids for asset_id in matching_asset_ids):
+                raise ValueError("图片当前正在被脚本使用，请先重新分配图片")
+            for asset_id in matching_asset_ids:
+                connection.execute(
+                    "DELETE FROM project_assets WHERE asset_id=?", (asset_id,)
+                )
+            connection.execute("DELETE FROM project_input_images WHERE image_id=?", (image_id,))
+            remaining = connection.execute(
+                "SELECT image_id FROM project_input_images WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            for offset, remaining_row in enumerate(remaining, start=1):
+                connection.execute(
+                    "UPDATE project_input_images SET position=? WHERE image_id=?",
+                    (-offset, remaining_row["image_id"]),
+                )
+            for position, remaining_row in enumerate(remaining, start=1):
+                connection.execute(
+                    "UPDATE project_input_images SET position=? WHERE image_id=?",
+                    (position, remaining_row["image_id"]),
+                )
+            now = _now()
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+            return self._input_image_payload(row)
+
+    def apply_image_strategy(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        strategy: str,
+        reuse_count: int = 1,
+    ) -> dict[str, Any]:
+        clean_strategy = str(strategy or "").strip().lower()
+        if clean_strategy not in {"count", "loop"}:
+            raise ValueError("图片分配策略必须是 count 或 loop")
+        safe_count = int(reuse_count)
+        if safe_count < 1 or safe_count > 100:
+            raise ValueError("每张图片复用次数必须在 1 到 100 之间")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            self._require_editable_inputs(connection, project_id)
+            images = connection.execute(
+                "SELECT * FROM project_input_images WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            if not images:
+                raise ValueError("请先上传至少一张图片")
+            items = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            now = _now()
+            for index, item in enumerate(items):
+                image_index = index % len(images)
+                if clean_strategy == "count":
+                    image_index = (index // safe_count) % len(images)
+                self._assign_input_image(
+                    connection,
+                    item,
+                    images[image_index],
+                    mapping_source="strategy",
+                    now=now,
+                )
+            settings = _object(project["settings_json"], {})
+            settings["image_mapping"] = {
+                "strategy": clean_strategy,
+                "reuse_count": safe_count,
+            }
+            connection.execute(
+                """
+                UPDATE projects
+                SET settings_json=?, revision=revision+1, updated_at=?
+                WHERE project_id=?
+                """,
+                (_json(settings), now, project_id),
+            )
+        return self.get_project(owner_user_id, project_id)
+
+    def replace_item_image(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        image_id: str,
+    ) -> dict[str, Any]:
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            self._require_editable_inputs(connection, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            image = connection.execute(
+                "SELECT * FROM project_input_images WHERE image_id=? AND project_id=?",
+                (str(image_id or "").strip(), project_id),
+            ).fetchone()
+            if image is None:
+                raise KeyError("项目图片不存在")
+            now = _now()
+            self._assign_input_image(
+                connection, item, image, mapping_source="manual", now=now
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+        return self.get_project(owner_user_id, project_id)
+
+    def delete_project(self, owner_user_id: str, project_id: str) -> list[str]:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            self._require_editable_inputs(connection, project_id)
+            paths = [
+                str(row["managed_path"])
+                for row in connection.execute(
+                    "SELECT managed_path FROM project_input_images WHERE project_id=?",
+                    (project_id,),
+                ).fetchall()
+                if row["managed_path"]
+            ]
+            connection.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
+            return paths
+
     def create_operation(
         self,
         *,
@@ -738,6 +1088,81 @@ class ProjectStore:
             raise KeyError("项目脚本行不存在")
         return row
 
+    @staticmethod
+    def _require_editable_inputs(
+        connection: sqlite3.Connection, project_id: str
+    ) -> None:
+        rows = connection.execute(
+            "SELECT status FROM project_items WHERE project_id=?", (project_id,)
+        ).fetchall()
+        if not rows or any(str(row["status"]) != "DRAFT" for row in rows):
+            raise ValueError("项目已进入生成流程，不能修改脚本或图片")
+
+    def _assign_input_image(
+        self,
+        connection: sqlite3.Connection,
+        item: sqlite3.Row,
+        image: sqlite3.Row,
+        *,
+        mapping_source: str,
+        now: str,
+    ) -> None:
+        current_asset_id = str(item["current_image_asset_id"] or "")
+        if current_asset_id:
+            current = connection.execute(
+                "SELECT external_ref_json FROM project_assets WHERE asset_id=?",
+                (current_asset_id,),
+            ).fetchone()
+            if current is not None and _object(
+                current["external_ref_json"], {}
+            ).get("input_image_id") == image["image_id"]:
+                return
+        version = int(
+            connection.execute(
+                """
+                SELECT COALESCE(MAX(version), 0) + 1
+                FROM project_assets
+                WHERE item_id=? AND asset_type='input_image'
+                """,
+                (item["item_id"],),
+            ).fetchone()[0]
+        )
+        asset_id = uuid.uuid4().hex
+        connection.execute(
+            """
+            INSERT INTO project_assets(
+                asset_id, project_id, item_id, asset_type, version,
+                status, source_type, filename, managed_path,
+                external_ref_json, metadata_json, created_at, updated_at
+            ) VALUES(?, ?, ?, 'input_image', ?, 'READY', 'project_upload',
+                     ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                asset_id,
+                item["project_id"],
+                item["item_id"],
+                version,
+                image["filename"],
+                image["managed_path"],
+                _json({"input_image_id": image["image_id"]}),
+                _json(
+                    {
+                        "mapping_source": mapping_source,
+                        "pool_position": int(image["position"]),
+                        "content_type": image["content_type"],
+                        "size_bytes": int(image["size_bytes"]),
+                        "sha256": image["sha256"],
+                    }
+                ),
+                now,
+                now,
+            ),
+        )
+        connection.execute(
+            "UPDATE project_items SET current_image_asset_id=?, updated_at=? WHERE item_id=?",
+            (asset_id, now, item["item_id"]),
+        )
+
     def _set_current_asset(
         self,
         connection: sqlite3.Connection,
@@ -865,12 +1290,24 @@ class ProjectStore:
             """,
             (project_id,),
         ).fetchall()
+        input_image_rows = connection.execute(
+            """
+            SELECT * FROM project_input_images
+            WHERE project_id=? ORDER BY position
+            """,
+            (project_id,),
+        ).fetchall()
 
         assets_by_item: dict[str, list[dict[str, Any]]] = {}
         for row in asset_rows:
-            assets_by_item.setdefault(str(row["item_id"]), []).append(
-                self._asset_payload(row)
-            )
+            asset = self._asset_payload(row)
+            if asset["asset_type"] == "input_image":
+                input_image_id = str(asset["external_ref"].get("input_image_id") or "")
+                if input_image_id:
+                    asset["url"] = (
+                        f"/api/new/projects/{project_id}/images/{input_image_id}"
+                    )
+            assets_by_item.setdefault(str(row["item_id"]), []).append(asset)
 
         items: list[dict[str, Any]] = []
         for row in item_rows:
@@ -881,6 +1318,7 @@ class ProjectStore:
                 history.setdefault(asset["asset_type"], []).append(asset)
             current_audio = by_id.get(str(row["current_audio_asset_id"] or ""))
             current_video = by_id.get(str(row["current_video_asset_id"] or ""))
+            current_image = by_id.get(str(row["current_image_asset_id"] or ""))
             variants = [
                 asset
                 for asset in assets
@@ -899,6 +1337,7 @@ class ProjectStore:
                 "script_text": row["script_text"],
                 "status": row["status"],
                 "settings": _object(row["settings_json"], {}),
+                "inputs": {"image": current_image},
                 "outputs": {
                     "audio": current_audio,
                     "composition_video": current_video,
@@ -925,6 +1364,9 @@ class ProjectStore:
                 "username": project["owner_username"],
             },
             "settings": _object(project["settings_json"], {}),
+            "input_images": [
+                self._input_image_payload(row) for row in input_image_rows
+            ],
             "items": items,
             "operations": [
                 self._operation_payload(row) for row in operation_rows
@@ -945,6 +1387,7 @@ class ProjectStore:
         active = status in ACTIVE_ITEM_STATUSES
         return {
             "edit_inputs": status == "DRAFT",
+            "replace_image": status == "DRAFT",
             "generate_audio": status in {"DRAFT", "AUDIO_FAILED"},
             "retry_audio": status == "AUDIO_FAILED",
             "download_audio": audio_ready,
@@ -964,6 +1407,11 @@ class ProjectStore:
         items = project["items"]
         return {
             "edit_inputs": bool(items)
+            and all(item["allowed_actions"]["edit_inputs"] for item in items),
+            "manage_input_images": bool(items)
+            and all(item["allowed_actions"]["edit_inputs"] for item in items),
+            "apply_image_mapping": bool(project.get("input_images"))
+            and bool(items)
             and all(item["allowed_actions"]["edit_inputs"] for item in items),
             "generate_audio": any(
                 item["allowed_actions"]["generate_audio"] for item in items
@@ -1007,6 +1455,20 @@ class ProjectStore:
             "metadata": _object(row["metadata_json"], {}),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
+        }
+
+    @staticmethod
+    def _input_image_payload(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "image_id": row["image_id"],
+            "position": int(row["position"]),
+            "filename": row["filename"],
+            "content_type": row["content_type"],
+            "size_bytes": int(row["size_bytes"]),
+            "sha256": row["sha256"],
+            "managed_path": row["managed_path"],
+            "url": f"/api/new/projects/{row['project_id']}/images/{row['image_id']}",
+            "created_at": row["created_at"],
         }
 
     @staticmethod
