@@ -56,6 +56,32 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("const sampleImages", html)
         self.assertTrue((FRONTEND_ROOT / "project-script-template.xlsx").is_file())
 
+    def test_new_workspace_and_voice_center_use_real_voice_apis(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        voice_center = (FRONTEND_ROOT / "voice-library.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("/api/new/voices", workspace)
+        self.assertIn("/audio/generate", workspace)
+        self.assertIn("/audio/status", workspace)
+        self.assertIn("/items/${rowId}/audio/retry", workspace)
+        self.assertIn("/projects/${activeProject.project_id}/voice", workspace)
+        self.assertIn("/api/new/voice-creations", voice_center)
+        self.assertIn("submitVoiceCreation", voice_center)
+        self.assertIn("saveCreatedVoice", voice_center)
+        self.assertIn("生成克隆试听", voice_center)
+        self.assertIn("保存到音色库", voice_center)
+        self.assertIn("activateSavedVoice", voice_center)
+        self.assertIn("deleteSavedVoice", voice_center)
+        self.assertIn('id="voice-source-preview"', voice_center)
+        self.assertIn("使用该音色生成试听语音，是否继续？", voice_center)
+        self.assertIn("使用该音色生成试听语音，是否继续？", workspace)
+        self.assertNotIn("首次试听将调用 MiniMax", voice_center)
+        self.assertNotIn("提取并注入原型库", voice_center)
+        self.assertEqual(voice_center.count('id="voice-task-list"'), 1)
+        self.assertNotIn("actions.google.com/sounds", workspace)
+        self.assertNotIn("actions.google.com/sounds", voice_center)
+
     def test_new_pages_require_login_but_login_and_logo_are_public(self) -> None:
         with TestClient(create_app(self.settings)) as client:
             for path in ("/app/new", "/app/new/gallery", "/app/new/voices"):

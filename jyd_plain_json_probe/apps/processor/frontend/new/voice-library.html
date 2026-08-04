@@ -155,9 +155,9 @@
                 <div class="glass-panel rounded-2xl p-5 shadow-lg border border-white/5">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-2">
                         <span class="w-6 h-6 rounded bg-brand-accent/20 text-brand-accent flex items-center justify-center text-xs"><i class="fa-solid fa-plus"></i></span>
-                        极速音色提取
+                        生成并试听自定义音色
                     </h3>
-                    <p class="text-[10px] text-gray-400 mb-4">上传一段 10 至 30 秒的优质人声干声音频，或通过麦克风即时朗读，我们的 AI 算法能在短时间内精准克隆目标音色特征。</p>
+                    <p class="text-[10px] text-gray-400 mb-4">先生成克隆或融合试听，试听满意后再保存到音色库。只有已保存音色才会出现在核心工作台。</p>
                     
                     <!-- Trigger Dragzone -->
                     <div id="voice-dropzone" class="border-2 border-dashed border-slate-700 hover:border-brand-accent/60 bg-slate-950/20 hover:bg-brand-accent/5 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 mb-4" onclick="triggerFileInput('voice-file-input')">
@@ -167,38 +167,51 @@
                         </div>
                         <p class="text-xs font-semibold text-gray-300" id="voice-upload-status">点击选择或拖拽人声音频</p>
                         <p class="text-[10px] text-gray-500 mt-1">支持 WAV, MP3, M4A 格式，建议底噪低且人声清晰</p>
+                        <audio id="voice-source-preview" controls class="hidden w-full mt-3 h-8" onclick="event.stopPropagation()"></audio>
                     </div>
 
-                    <!-- Input custom voice name -->
+                    <div class="grid grid-cols-2 gap-2 mb-4">
+                        <button id="voice-method-clone" type="button" onclick="selectVoiceMethod('clone')" class="py-2 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium">声音克隆</button>
+                        <button id="voice-method-mix" type="button" onclick="selectVoiceMethod('mix')" class="py-2 bg-slate-950 border border-slate-800 text-gray-400 rounded-lg text-xs font-medium">音色融合</button>
+                    </div>
+
+                    <div id="voice-source-b-box" class="hidden border-2 border-dashed border-slate-700 hover:border-brand-accent/60 bg-slate-950/20 rounded-xl p-4 text-center cursor-pointer mb-4" onclick="triggerFileInput('voice-file-input-b')">
+                        <input type="file" id="voice-file-input-b" class="hidden" accept="audio/*" onchange="handleSecondVoiceUpload(event)">
+                        <p class="text-xs font-semibold text-gray-300" id="voice-upload-status-b"><i class="fa-solid fa-microphone-lines text-brand-accent mr-1.5"></i>选择声音样本 B</p>
+                        <audio id="voice-source-preview-b" controls class="hidden w-full mt-3 h-8" onclick="event.stopPropagation()"></audio>
+                    </div>
+
                     <div class="space-y-3 mb-4">
                         <div>
                             <label class="block text-[10px] font-bold text-gray-400 mb-1.5">克隆音色名称</label>
                             <input type="text" id="custom-voice-name" value="我的定制化克隆声音" placeholder="给这个声音起个酷炫的名字" class="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-brand-accent rounded-lg px-3 py-2 text-xs text-gray-200 outline-none transition-colors">
                         </div>
                         <div>
-                            <label class="block text-[10px] font-bold text-gray-400 mb-1.5">克隆特征性别</label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <button onclick="selectGender('male')" id="gender-male" class="py-1.5 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium transition-colors">男声男音</button>
-                                <button onclick="selectGender('female')" id="gender-female" class="py-1.5 bg-slate-950 border border-slate-800 text-gray-400 hover:bg-slate-800 rounded-lg text-xs font-medium transition-colors">女声女音</button>
-                            </div>
+                            <label class="block text-[10px] font-bold text-gray-400 mb-1.5">试听文案</label>
+                            <textarea id="voice-preview-text" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-gray-200 outline-none">你好，这是一段声音制作试听内容。</textarea>
                         </div>
+                        <div id="voice-mix-weight-box" class="hidden">
+                            <label class="flex justify-between text-[10px] font-bold text-gray-400 mb-1.5"><span>声音 A 比例</span><span id="voice-weight-label">50%</span></label>
+                            <input id="voice-weight-a" type="range" min="1" max="99" value="50" oninput="document.getElementById('voice-weight-label').textContent=`${this.value}%`" class="w-full">
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-[10px] text-gray-400">
+                            <label class="flex items-center gap-2"><input id="voice-noise-reduction" type="checkbox" checked>降噪</label>
+                            <label class="flex items-center gap-2"><input id="voice-volume-normalization" type="checkbox" checked>音量归一化</label>
+                        </div>
+                        <label class="flex items-start gap-2 text-[10px] text-amber-300 leading-relaxed">
+                            <input id="voice-cost-confirmed" type="checkbox" class="mt-0.5">
+                            <span>生成试听会产生少量试听字符费；保存不收费；首次激活自定义音色会产生 MiniMax 音色复刻费及本次合成费。</span>
+                        </label>
                     </div>
 
-                    <!-- Voice cloning progression simulation -->
-                    <div id="cloning-progress-box" class="hidden bg-slate-950/50 border border-slate-800/80 rounded-xl p-3.5 mb-4">
-                        <div class="flex items-center justify-between mb-1.5">
-                            <span class="text-[10px] font-bold text-brand-accent"><i class="fa-solid fa-gears fa-spin mr-1"></i> AI 正在进行特征学习与重构...</span>
-                            <span class="text-[10px] font-mono text-gray-400" id="cloning-progress-text">0%</span>
-                        </div>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                            <div id="cloning-progress-bar" class="h-full bg-gradient-to-r from-brand-accent to-brand-primary w-0 transition-all"></div>
-                        </div>
-                    </div>
-
-                    <button onclick="startCloningProgress()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-accent to-brand-primary hover:brightness-110 text-white font-bold text-xs shadow-lg shadow-brand-accent/15 tracking-wider uppercase transition-all">
+                    <button id="submit-voice-creation" onclick="submitVoiceCreation()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-accent to-brand-primary hover:brightness-110 text-white font-bold text-xs shadow-lg shadow-brand-accent/15 tracking-wider uppercase transition-all">
                         <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>
-                        提取并注入原型库
+                        生成克隆试听
                     </button>
+
+                    <div id="voice-task-list" class="mt-5 space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                        <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[10px] text-gray-500">还没有声音制作记录。提交后会在这里显示真实任务状态、试听和保存按钮。</div>
+                    </div>
                 </div>
 
                 <!-- Tips panel -->
@@ -226,11 +239,11 @@
                             <h2 class="font-extrabold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-microphone-lines text-brand-primary"></i> 官方预置声音与克隆音色库</h2>
                             <p class="text-[10px] text-gray-400 mt-0.5">您可以针对各个音色进行声学特征的微调，设定全局默认，或测试声音试听。</p>
                         </div>
-                        <span class="px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-full text-[10px] text-gray-400 font-semibold" id="voice-count-badge">共 3 个声音原型</span>
+                        <span class="px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-full text-[10px] text-gray-400 font-semibold" id="voice-count-badge">正在加载声音...</span>
                     </div>
 
                     <!-- Voice Cards grid -->
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="voice-library-grid">
+                    <div class="hidden" id="legacy-voice-library-grid" aria-hidden="true">
                         
                         <!-- Card 1 -->
                         <div class="voice-detail-card border border-brand-primary/40 bg-brand-primary/5 rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-brand-primary/80">
@@ -425,6 +438,9 @@
                         </div>
 
                     </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="voice-library-grid">
+                        <div class="sm:col-span-2 p-6 border border-slate-800 rounded-xl text-xs text-gray-400">正在从数字人账号加载声音...</div>
+                    </div>
                 </div>
             </section>
         </div>
@@ -445,15 +461,16 @@
         </div>
     </footer>
 
-    <!-- Audio Mock Nodes (Hidden) -->
-    <audio id="audio-male1" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
-    <audio id="audio-female1" src="https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg" preload="auto"></audio>
-    <audio id="audio-male2" src="https://actions.google.com/sounds/v1/science_fiction/beam_me_up.ogg" preload="auto"></audio>
-
     <!-- Core Logic -->
     <script>
         let selectedGenderType = 'male';
         let customVoiceFile = null;
+        let customVoiceFileB = null;
+        let customVoiceFileUrl = null;
+        let customVoiceFileBUrl = null;
+        let selectedVoiceMethod = 'clone';
+        let voiceCenterState = { voices: [], creation_tasks: [], preferences: {} };
+        let voiceTaskPollTimer = null;
         let selectedActiveVoiceAudio = null;
         let activeVoicePlayingEl = null;
 
@@ -512,8 +529,13 @@
             if (!file) return;
 
             customVoiceFile = file;
-            document.getElementById('voice-upload-status').innerHTML = `<i class="fa-solid fa-file-audio mr-1.5 text-brand-accent"></i> ${file.name}`;
-            showToast("音频文件就绪", "成功载入您的提取源样本！请录入声音名称并点击「提取并注入原型库」。", "success");
+            document.getElementById('voice-upload-status').innerHTML = `<i class="fa-solid fa-file-audio mr-1.5 text-brand-accent"></i> ${safeVoiceText(file.name)}`;
+            if (customVoiceFileUrl) URL.revokeObjectURL(customVoiceFileUrl);
+            customVoiceFileUrl = URL.createObjectURL(file);
+            const preview = document.getElementById('voice-source-preview');
+            preview.src = customVoiceFileUrl;
+            preview.classList.remove('hidden');
+            showToast("音频文件就绪", "声音样本已载入。请填写名称和试听文案，然后点击「生成克隆试听」。", "success");
         }
 
         // Simulated voice cloning progress
@@ -723,6 +745,256 @@
             showToast("参数应用成功", "该声音原型的声学推理特征（语调高低、流利程度等）已成功存入本地快照。", "success");
         }
 
+        async function voiceApi(path, options = {}) {
+            const response = await fetch(path, { credentials: 'same-origin', ...options });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.detail || `请求失败（HTTP ${response.status}）`);
+            return result;
+        }
+
+        function safeVoiceText(value) {
+            return String(value ?? '').replace(/[&<>"']/g, (character) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+            })[character]);
+        }
+
+        function selectVoiceMethod(method) {
+            selectedVoiceMethod = method === 'mix' ? 'mix' : 'clone';
+            const isMix = selectedVoiceMethod === 'mix';
+            document.getElementById('voice-source-b-box').classList.toggle('hidden', !isMix);
+            document.getElementById('voice-mix-weight-box').classList.toggle('hidden', !isMix);
+            document.getElementById('voice-method-clone').className = isMix
+                ? 'py-2 bg-slate-950 border border-slate-800 text-gray-400 rounded-lg text-xs font-medium'
+                : 'py-2 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium';
+            document.getElementById('voice-method-mix').className = isMix
+                ? 'py-2 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium'
+                : 'py-2 bg-slate-950 border border-slate-800 text-gray-400 rounded-lg text-xs font-medium';
+            updateVoiceSubmitButton();
+        }
+
+        function updateVoiceSubmitButton() {
+            const button = document.getElementById('submit-voice-creation');
+            if (!button || button.disabled) return;
+            const label = selectedVoiceMethod === 'mix' ? '生成融合试听' : '生成克隆试听';
+            button.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>${label}`;
+        }
+
+        function handleSecondVoiceUpload(event) {
+            customVoiceFileB = event.target.files[0] || null;
+            document.getElementById('voice-upload-status-b').innerHTML = customVoiceFileB
+                ? `<i class="fa-solid fa-file-audio mr-1.5 text-brand-accent"></i>${safeVoiceText(customVoiceFileB.name)}`
+                : '<i class="fa-solid fa-microphone-lines text-brand-accent mr-1.5"></i>选择声音样本 B';
+            if (customVoiceFileBUrl) URL.revokeObjectURL(customVoiceFileBUrl);
+            customVoiceFileBUrl = customVoiceFileB ? URL.createObjectURL(customVoiceFileB) : null;
+            const preview = document.getElementById('voice-source-preview-b');
+            preview.src = customVoiceFileBUrl || '';
+            preview.classList.toggle('hidden', !customVoiceFileBUrl);
+        }
+
+        async function submitVoiceCreation() {
+            if (!customVoiceFile) {
+                showToast('请上传声音样本', '声音制作必须使用真实的本地音频文件。', 'warning');
+                return;
+            }
+            if (selectedVoiceMethod === 'mix' && !customVoiceFileB) {
+                showToast('请上传声音样本 B', '音色融合需要 A、B 两份声音样本。', 'warning');
+                return;
+            }
+            if (!document.getElementById('voice-cost-confirmed').checked) {
+                showToast('请确认费用', '提交前需要确认声音制作和试听可能产生费用。', 'warning');
+                return;
+            }
+            const button = document.getElementById('submit-voice-creation');
+            const form = new FormData();
+            form.append('method', selectedVoiceMethod);
+            form.append('name', document.getElementById('custom-voice-name').value.trim());
+            form.append('preview_text', document.getElementById('voice-preview-text').value.trim());
+            form.append('model', 'speech-2.8-turbo');
+            form.append('weight_a', document.getElementById('voice-weight-a').value);
+            form.append('noise_reduction', document.getElementById('voice-noise-reduction').checked);
+            form.append('volume_normalization', document.getElementById('voice-volume-normalization').checked);
+            form.append('cost_confirmed', 'true');
+            form.append('source_a', customVoiceFile, customVoiceFile.name);
+            if (customVoiceFileB) form.append('source_b', customVoiceFileB, customVoiceFileB.name);
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>正在提交声音任务';
+            try {
+                await voiceApi('/api/new/voice-creations', { method: 'POST', body: form });
+                customVoiceFile = null;
+                customVoiceFileB = null;
+                document.getElementById('voice-file-input').value = '';
+                document.getElementById('voice-file-input-b').value = '';
+                document.getElementById('voice-upload-status').textContent = '点击选择或拖拽人声音频';
+                const sourcePreview = document.getElementById('voice-source-preview');
+                sourcePreview.pause();
+                sourcePreview.removeAttribute('src');
+                sourcePreview.classList.add('hidden');
+                if (customVoiceFileUrl) URL.revokeObjectURL(customVoiceFileUrl);
+                customVoiceFileUrl = null;
+                handleSecondVoiceUpload({ target: { files: [] } });
+                showToast('声音任务已提交', '数字人后端正在生成真实试听，完成后可试听并保存。', 'success');
+                await loadVoiceCenter();
+            } catch (error) {
+                showToast('声音任务提交失败', error.message, 'warning');
+            } finally {
+                button.disabled = false;
+                updateVoiceSubmitButton();
+            }
+        }
+
+        function renderVoiceCards() {
+            const grid = document.getElementById('voice-library-grid');
+            const defaultId = voiceCenterState.preferences?.default_voice_asset_id;
+            grid.innerHTML = voiceCenterState.voices.map((voice) => {
+                const isDefault = voice.voice_asset_id === defaultId;
+                const isCustom = voice.source !== 'official';
+                const isActivated = voice.selectable !== false;
+                const sourceLabel = voice.source === 'official' ? 'MiniMax 官方音色' : (voice.method === 'mix' ? '自定义融合音色' : '自定义克隆音色');
+                const topAction = !isActivated
+                    ? '<span class="text-[9px] text-amber-300 font-bold whitespace-nowrap"><i class="fa-solid fa-circle-exclamation mr-1"></i>未激活</span>'
+                    : (isDefault ? '<span class="text-[9px] text-gray-400 font-bold whitespace-nowrap"><i class="fa-solid fa-circle-check text-brand-accent mr-1"></i>默认配音</span>' : `<button onclick="setRealDefaultVoice('${safeVoiceText(voice.voice_asset_id)}')" class="text-[9px] text-brand-accent hover:underline font-bold whitespace-nowrap">设为默认</button>`);
+                return `
+                    <div class="voice-detail-card border ${isDefault ? 'border-brand-primary/50 bg-brand-primary/5' : 'border-slate-800 bg-slate-950/20'} rounded-2xl p-4 flex flex-col justify-between" data-voice-id="${safeVoiceText(voice.voice_asset_id)}">
+                        <div>
+                            <div class="flex items-start justify-between gap-3 mb-3">
+                                <div class="flex gap-3 min-w-0">
+                                    <div class="w-11 h-11 shrink-0 rounded-full bg-brand-primary/15 border border-brand-primary/30 flex items-center justify-center text-brand-accent"><i class="fa-solid fa-wave-square"></i></div>
+                                    <div class="min-w-0"><h4 class="font-bold text-xs text-white truncate">${safeVoiceText(voice.name)}</h4><span class="px-1.5 py-0.5 bg-brand-primary/15 text-brand-accent rounded text-[8px] mt-1 inline-block font-semibold">${sourceLabel}</span></div>
+                                </div>
+                                ${topAction}
+                            </div>
+                            <p class="text-[10px] text-gray-400 leading-relaxed min-h-[30px]">${safeVoiceText(voice.description || '')}</p>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                            <span class="text-[9px] text-gray-500 truncate">${safeVoiceText(voice.provider_voice_id || '')}</span>
+                            <div class="flex items-center gap-2 shrink-0">
+                                ${isCustom && !isActivated ? `<button onclick="activateSavedVoice('${safeVoiceText(voice.voice_asset_id)}')" class="px-2.5 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[9px] font-bold text-amber-300 hover:bg-amber-500/20"><i class="fa-solid fa-bolt mr-1"></i>激活</button>` : ''}
+                                ${isCustom ? `<button onclick="deleteSavedVoice('${safeVoiceText(voice.voice_asset_id)}')" class="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20" title="删除音色"><i class="fa-solid fa-trash-can text-[10px]"></i></button>` : ''}
+                                <button onclick="playRealVoicePreview('${safeVoiceText(voice.voice_asset_id)}', ${voice.preview_available ? 'true' : 'false'}, this)" class="w-8 h-8 rounded-full bg-brand-primary/20 text-brand-accent hover:bg-brand-primary/30"><i class="fa-solid fa-play"></i></button>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join('');
+            document.getElementById('voice-count-badge').textContent = `共 ${voiceCenterState.voices.length} 个声音原型`;
+        }
+
+        function renderVoiceTasks() {
+            const active = new Set(['PENDING', 'CLONING', 'SYNTHESIZING', 'SAVE_PENDING', 'SAVING']);
+            const list = document.getElementById('voice-task-list');
+            const statusLabels = {
+                PENDING: '等待生成试听',
+                CLONING: '正在克隆声音',
+                SYNTHESIZING: '正在生成试听',
+                PREVIEW_READY: '试听已生成，等待确认保存',
+                SAVE_PENDING: '等待保存到音色库',
+                SAVING: '正在保存到音色库',
+                SAVED: '已保存到音色库，等待激活',
+                FAILED: '制作失败',
+                EXPIRED: '试听已过期'
+            };
+            if (!voiceCenterState.creation_tasks.length) {
+                list.innerHTML = '<div class="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[10px] text-gray-500">还没有声音制作记录。提交后会在这里显示真实任务状态、试听和保存按钮。</div>';
+                return false;
+            }
+            list.innerHTML = '<div><h3 class="text-xs font-bold text-white">制作进度与试听</h3><p class="text-[9px] text-gray-500 mt-1">生成试听不会自动加入音色库；请先试听，再点击保存。</p></div>' + voiceCenterState.creation_tasks.map((task) => `
+                <div class="border border-slate-800 rounded-xl px-3 py-3 flex flex-col gap-2 text-[10px] bg-slate-950/25">
+                    <div><div class="text-gray-200 font-semibold">${safeVoiceText(task.name)}</div><div class="text-gray-500 mt-0.5">${task.method === 'mix' ? '音色融合' : '声音克隆'} · ${safeVoiceText(statusLabels[task.status] || task.status)}</div>${task.error_message ? `<div class="text-red-300 mt-1">${safeVoiceText(task.error_message)}</div>` : ''}</div>
+                    <div class="flex flex-wrap gap-2">
+                        ${task.preview_available ? `<button onclick="playCreationPreview('${safeVoiceText(task.task_id)}', this)" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-brand-accent"><i class="fa-solid fa-play mr-1"></i>试听生成结果</button>` : ''}
+                        ${task.status === 'PREVIEW_READY' ? `<button onclick="saveCreatedVoice('${safeVoiceText(task.task_id)}')" class="px-3 py-1.5 rounded-lg bg-brand-primary/20 border border-brand-primary/30 text-brand-accent"><i class="fa-solid fa-floppy-disk mr-1"></i>保存到音色库</button>` : ''}
+                        ${task.status === 'SAVED' ? '<span class="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-300"><i class="fa-solid fa-circle-check mr-1"></i>已保存到音色库</span>' : ''}
+                    </div>
+                </div>`).join('');
+            return voiceCenterState.creation_tasks.some((task) => active.has(task.status));
+        }
+
+        async function loadVoiceCenter() {
+            try {
+                voiceCenterState = await voiceApi('/api/new/voices');
+                renderVoiceCards();
+                const hasActive = renderVoiceTasks();
+                clearTimeout(voiceTaskPollTimer);
+                if (hasActive) voiceTaskPollTimer = setTimeout(loadVoiceCenter, 3000);
+            } catch (error) {
+                document.getElementById('voice-library-grid').innerHTML = `<div class="sm:col-span-2 p-6 border border-amber-500/30 rounded-xl text-xs text-amber-300">${safeVoiceText(error.message)}</div>`;
+            }
+        }
+
+        async function setRealDefaultVoice(voiceAssetId) {
+            try {
+                const result = await voiceApi('/api/new/voices/default', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voice_asset_id: voiceAssetId })
+                });
+                voiceCenterState.preferences = result.preferences;
+                renderVoiceCards();
+                showToast('默认声音已保存', '核心工作台将优先使用这个声音。', 'success');
+            } catch (error) { showToast('默认声音保存失败', error.message, 'warning'); }
+        }
+
+        async function playRealVoicePreview(voiceAssetId, previewAvailable, button) {
+            try {
+                if (!previewAvailable) {
+                    if (!window.confirm('使用该音色生成试听语音，是否继续？')) return;
+                    await voiceApi(`/api/new/voices/${encodeURIComponent(voiceAssetId)}/preview`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cost_confirmed: true, preview_text: '你好，这是一段官方声音的试听内容。' })
+                    });
+                    const voice = voiceCenterState.voices.find((item) => item.voice_asset_id === voiceAssetId);
+                    if (voice) voice.preview_available = true;
+                }
+                playRemoteAudio(`/api/new/voices/${encodeURIComponent(voiceAssetId)}/preview`, button);
+            } catch (error) { showToast('试听失败', error.message, 'warning'); }
+        }
+
+        function playCreationPreview(taskId, button) {
+            playRemoteAudio(`/api/new/voice-creations/${encodeURIComponent(taskId)}/preview`, button);
+        }
+
+        function playRemoteAudio(url, button) {
+            if (selectedActiveVoiceAudio) selectedActiveVoiceAudio.pause();
+            const audio = new Audio(`${url}?t=${Date.now()}`);
+            selectedActiveVoiceAudio = audio;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            audio.addEventListener('playing', () => { button.innerHTML = '<i class="fa-solid fa-pause"></i>'; });
+            audio.addEventListener('ended', () => { button.innerHTML = '<i class="fa-solid fa-play"></i>'; selectedActiveVoiceAudio = null; });
+            audio.addEventListener('error', () => { button.innerHTML = '<i class="fa-solid fa-play"></i>'; showToast('试听失败', '音频文件暂时无法播放。', 'warning'); });
+            audio.play();
+        }
+
+        async function saveCreatedVoice(taskId) {
+            try {
+                await voiceApi(`/api/new/voice-creations/${encodeURIComponent(taskId)}/save`, { method: 'POST' });
+                showToast('正在保存声音', '保存任务已进入数字人声音队列。', 'success');
+                await loadVoiceCenter();
+            } catch (error) { showToast('保存失败', error.message, 'warning'); }
+        }
+
+        async function activateSavedVoice(voiceAssetId) {
+            const voiceName = voiceCenterState.voices.find((voice) => voice.voice_asset_id === voiceAssetId)?.name || '未命名音色';
+            const confirmed = window.confirm(`确定激活音色“${voiceName}”吗？\n\n激活会将该音色用于第一次正式语音合成，并触发 MiniMax ¥9.9 音色复刻费及本次少量语音合成费。`);
+            if (!confirmed) return;
+            try {
+                await voiceApi(`/api/new/voices/${encodeURIComponent(voiceAssetId)}/activate`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cost_confirmed: true })
+                });
+                showToast('音色已激活', `「${voiceName}」现在可以在核心工作台使用。`, 'success');
+                await loadVoiceCenter();
+            } catch (error) { showToast('激活失败', error.message, 'warning'); }
+        }
+
+        async function deleteSavedVoice(voiceAssetId) {
+            const voiceName = voiceCenterState.voices.find((voice) => voice.voice_asset_id === voiceAssetId)?.name || '未命名音色';
+            const confirmed = window.confirm(`确定从音色库删除“${voiceName}”吗？\n\n删除后音色卡将消失，已经生成的历史音频和任务记录仍会保留。`);
+            if (!confirmed) return;
+            try {
+                await voiceApi(`/api/new/voices/${encodeURIComponent(voiceAssetId)}`, { method: 'DELETE' });
+                showToast('音色已删除', `「${voiceName}」已从音色库移除。`, 'success');
+                await loadVoiceCenter();
+            } catch (error) { showToast('删除失败', error.message, 'warning'); }
+        }
+
         // Toggle User profile dropdown
         function toggleUserDropdown(event) {
             event.stopPropagation();
@@ -761,7 +1033,10 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', ensureAuthenticatedSession);
+        document.addEventListener('DOMContentLoaded', async () => {
+            await ensureAuthenticatedSession();
+            await loadVoiceCenter();
+        });
     </script>
 </body>
 </html>

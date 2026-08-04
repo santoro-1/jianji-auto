@@ -95,7 +95,9 @@ release/                      最终交付 ZIP
 `schema_meta`、`batches`、`jobs` 或 `agents`。`Project` 包含多条 `ProjectItem`；
 音频、原始片段、画面合成视频、上传视频和变体都按不可覆盖的素材版本保存。
 模块 2 把 `project_schema_meta` 升级到版本 2：为脚本行增加当前输入图片指针，并增加
-`project_input_images` 项目图片池。升级只执行 `CREATE TABLE IF NOT EXISTS` 和缺失列
+`project_input_images` 项目图片池。模块 3 升级到版本 3，增加按数字人账号保存的默认
+音色和语音参数；逐行音色、音频素材版本、MiniMax 时间戳、数字人批次关联和异步操作
+继续复用现有项目表。升级只执行 `CREATE TABLE IF NOT EXISTS` 和缺失列
 `ALTER TABLE ADD COLUMN`，不会重建或清空既有项目及剪映任务表。
 
 不要把以下数据混为一类：
@@ -337,6 +339,11 @@ data/template_library/<template_id>/
 - `/api/new/projects*`：新版统一项目、脚本行、素材版本、状态和可执行操作。
 - `/api/new/script-imports/preview`：严格解析两列 `.xlsx`/`.csv` 脚本。
 - `/api/new/projects/{id}/images*`、`image-mapping`：项目图片池、逐行图片版本和后端分配策略。
+- `/api/new/voices*`、`/api/new/voice-creations*`：当前数字人账号的官方/自定义音色、试听和声音制作。
+- `/api/new/voices/{id}/activate`、`DELETE /api/new/voices/{id}`：显式激活或移除自定义音色卡。
+- `/api/new/projects/{id}/voice`：原子地把已保存音色设为项目默认值并应用到全部脚本行。
+- `/api/new/projects/{id}/items/{item_id}/voice`：覆盖单个脚本行的音色。
+- `/api/new/projects/{id}/audio*`：项目声音生成、状态同步、单行重试、试听和下载。
 
 新版浏览器入口为 `/app/new`，成果库为 `/app/new/gallery`，声音中心为
 `/app/new/voices`。三页均受普通站点会话保护；公开的 `/app/new/login` 调用现有
@@ -348,9 +355,17 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 
 新版项目 API 只允许普通数字人账号访问，技术管理员会话不能代替普通账号成为项目
 所有者。项目详情中的 `allowed_actions` 是页面按钮权限的唯一业务来源；前端不得根据
-显示文本或本地定时器自行推进项目状态。当前公共骨架只负责持久化和聚合；新版页面
-目前已经完成登录、会话、导航、脚本和图片输入；声音及后续原型模拟逻辑按后续模块逐项
-替换，不会提前调用 MiniMax、RunningHub 或剪映。
+显示文本或本地定时器自行推进项目状态。新版页面已经完成登录、脚本/图片输入和声音
+模块。声音编排由 `project_audio.py` 完成：工作台把图片和脚本提交给数字人后端已有
+MiniMax 批次能力，强制停在 `AWAITING_REVIEW`，下载音频和原始时间戳后创建本地不可
+覆盖素材版本。它不会在本模块自动创建 RunningHub 视频任务；画面合成及后续能力按
+后续模块逐项替换。
+
+核心工作台只能选择数字人账号中已经保存的音色。项目默认音色由后端统一写入全部脚本
+行，前端逐行下拉框只负责展示和提交单行覆盖。声音中心的克隆/融合是两阶段流程：先生成
+可试听结果，用户试听确认后再保存。保存后的自定义音色仍是 `READY`，必须由用户二次
+确认激活，后端执行第一次正式 TTS 并切换到 `ACTIVE` 后才能进入核心工作台。删除音色卡
+只从可用音色库移除，不破坏历史任务和历史音频；当前项目仍引用时拒绝删除。
 
 ## 9. 自动化测试
 

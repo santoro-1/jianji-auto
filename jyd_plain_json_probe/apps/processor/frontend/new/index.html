@@ -525,10 +525,11 @@
                 <div class="glass-panel rounded-2xl p-5 shadow-lg">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
                         <span class="w-6 h-6 rounded bg-brand-primary/20 text-brand-primary flex items-center justify-center text-xs"><i class="fa-solid fa-microphone-lines"></i></span>
-                        2. 选择默认配音声音
+                        2. 选择项目默认配音声音
                     </h3>
+                    <p class="text-[10px] text-gray-400 mb-3">这里仅显示声音中心已保存的音色。选择后会同步应用到右侧全部脚本行，仍可在单行下拉框中单独覆盖。</p>
                     
-                    <div class="space-y-2 max-h-[175px] overflow-y-auto pr-1 narrow-scrollbar" id="voice-preset-container">
+                    <div class="hidden" id="legacy-voice-preset-container" aria-hidden="true">
                         <!-- Preset 1 (Mini card) -->
                         <div class="voice-card border border-brand-primary/40 bg-brand-primary/5 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-brand-primary/80 transition-all" onclick="selectDefaultVoice(0, this)">
                             <div class="flex items-center gap-2">
@@ -570,6 +571,10 @@
                                 <i class="fa-solid fa-play"></i>
                             </button>
                         </div>
+                    </div>
+
+                    <div class="space-y-2 max-h-[175px] overflow-y-auto pr-1 narrow-scrollbar" id="voice-preset-container">
+                        <div class="p-3 rounded-xl border border-slate-800 text-[10px] text-gray-400">正在从数字人账号加载声音...</div>
                     </div>
                 </div>
 
@@ -727,19 +732,11 @@
 
 
 
-    <!-- Audio Mock Nodes (Hidden) -->
-    <audio id="audio-male1" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
-    <audio id="audio-female1" src="https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg" preload="auto"></audio>
-    <audio id="audio-male2" src="https://actions.google.com/sounds/v1/science_fiction/beam_me_up.ogg" preload="auto"></audio>
-
     <!-- Core Javascript Code -->
     <script>
         // Preset Voices Info
-        const voicePresets = [
-            { id: 'male1', name: '陈老师 - 磁性男解说', desc: '适合科普/历史/解说类视频', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
-            { id: 'female1', name: '小雅 - 温柔情感女声', desc: '适合情感/故事/散文类视频', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80' },
-            { id: 'male2', name: '阿聪 - 活力带货主播', desc: '适合快节奏带货/广告短视频', avatar: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=100&auto=format&fit=crop&q=80' }
-        ];
+        let voicePresets = [];
+        let voicePreferences = {};
 
         // BGM Options
         const bgmPresets = [
@@ -763,6 +760,7 @@
         let globalVariantConfig = null;
         let isGeneratingAllVoicePreviews = false;
         let isGeneratingVariants = false;
+        let audioStatusPollTimer = null;
         let activeVariantPreviewRow = null;
         let pendingConfirmAction = null;
         let activeImageRow = null;
@@ -874,6 +872,9 @@
                 rowKey: item.row_key,
                 text: item.script_text,
                 image: item.inputs?.image || null,
+                voiceAssetId: item.settings?.voice_asset_id || null,
+                voiceStatus: item.status,
+                audio: item.outputs?.audio || null,
                 allowedActions: item.allowed_actions || {}
             })) : [];
 
@@ -886,6 +887,7 @@
             }
             renderImageThumbnails();
             updateTableLayout();
+            scheduleAudioStatusPoll();
         }
 
         async function initializeProjectInputs() {
@@ -972,57 +974,93 @@
             });
         }
 
-        // Manage Default Voice selection in Left Panel
-        function selectDefaultVoice(index, el) {
-            selectedDefaultVoiceIndex = index;
-            
-            // Remove border of other voice cards
-            const cards = document.querySelectorAll('.voice-card');
-            cards.forEach(card => {
-                card.classList.remove('border-brand-primary/40', 'bg-brand-primary/5', 'border-brand-primary/80');
-                card.classList.add('border-slate-800/80', 'bg-slate-950/20');
-            });
+        function renderVoicePresetCards() {
+            const container = document.getElementById('voice-preset-container');
+            if (!voicePresets.length) {
+                container.innerHTML = '<div class="p-3 border border-amber-500/30 rounded-lg text-[10px] text-amber-300">当前账号没有可用声音，请先进入声音克隆中心。</div>';
+                return;
+            }
+            container.innerHTML = voicePresets.map((voice, index) => {
+                const selected = index === selectedDefaultVoiceIndex;
+                return `<div class="voice-card border ${selected ? 'border-brand-primary/40 bg-brand-primary/5' : 'border-slate-800/80 bg-slate-950/20'} rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-brand-primary/80 transition-all" onclick="selectDefaultVoice(${index}, this)">
+                    <div class="flex items-center gap-2 min-w-0"><div class="w-8 h-8 rounded-full bg-brand-primary/15 text-brand-accent flex items-center justify-center shrink-0"><i class="fa-solid fa-wave-square text-[10px]"></i></div><div class="min-w-0"><h4 class="font-bold text-[11px] text-white truncate">${escapeHtml(voice.name)}</h4><p class="text-[8px] text-gray-500 truncate">${escapeHtml(voice.desc)}</p></div></div>
+                    <button onclick="playVoiceSample('${escapeHtml(voice.id)}', event)" class="w-7 h-7 rounded-full bg-brand-primary/10 text-brand-accent hover:bg-brand-primary/20 shrink-0"><i class="fa-solid fa-play text-[9px]"></i></button>
+                </div>`;
+            }).join('');
+        }
 
-            // Set active class to clicked card
-            el.classList.remove('border-slate-800/80', 'bg-slate-950/20');
-            el.classList.add('border-brand-primary/40', 'bg-brand-primary/5', 'border-brand-primary/80');
-
-            showToast("默认声音已更改", `已选择「${voicePresets[index].name}」作为所有行未自定义分配的默认配音方案。`, "info");
-
-            // Apply voice to table rows which doesn't have custom override
-            if (uploadedScripts.length > 0) {
-                updateTableRowVoices();
+        async function loadWorkspaceVoices() {
+            try {
+                const result = await workspaceApi('/api/new/voices');
+                voicePreferences = result.preferences || {};
+                voicePresets = (result.voices || []).filter((voice) => voice.selectable !== false).map((voice) => ({
+                    id: voice.voice_asset_id,
+                    name: voice.name,
+                    desc: voice.description || (voice.source === 'official' ? 'MiniMax 官方音色' : '自定义声音'),
+                    previewAvailable: voice.preview_available === true,
+                    source: voice.source
+                }));
+                const preferred = voicePreferences.default_voice_asset_id;
+                const preferredIndex = voicePresets.findIndex((voice) => voice.id === preferred);
+                selectedDefaultVoiceIndex = preferredIndex >= 0 ? preferredIndex : 0;
+                renderVoicePresetCards();
+                if (activeProject) syncProjectInputs(activeProject);
+            } catch (error) {
+                voicePresets = [];
+                renderVoicePresetCards();
+                showToast('声音列表加载失败', error.message, 'warning');
             }
         }
 
-        // Play short sound preview on Left voice card
-        function playVoiceSample(type, event) {
-            event.stopPropagation(); // Avoid triggering card selection
-            
-            // Stop previous playing node
-            if (selectedActiveVoiceAudio) {
-                selectedActiveVoiceAudio.pause();
-                selectedActiveVoiceAudio.currentTime = 0;
-            }
+        async function selectDefaultVoice(index, el) {
+            const voice = voicePresets[index];
+            if (!voice) return;
+            try {
+                if (activeProject) {
+                    const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/voice`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ voice_asset_id: voice.id })
+                    });
+                    voicePreferences = result.preferences || voicePreferences;
+                    syncProjectInputs(result.project);
+                } else {
+                    const result = await workspaceApi('/api/new/voices/default', {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ voice_asset_id: voice.id })
+                    });
+                    voicePreferences = result.preferences || voicePreferences;
+                }
+                selectedDefaultVoiceIndex = index;
+                renderVoicePresetCards();
+                showToast('项目默认声音已更改', activeProject
+                    ? `已将「${voice.name}」应用到当前项目全部脚本行，右侧仍可逐行覆盖。`
+                    : `已选择「${voice.name}」作为后续项目的默认配音。`, 'success');
+            } catch (error) { showToast('默认声音保存失败', error.message, 'warning'); }
+        }
 
-            const audioEl = document.getElementById(`audio-${type}`);
-            const btn = event.currentTarget;
-            const originalIcon = btn.innerHTML;
-
-            if (selectedActiveVoiceAudio === audioEl && !audioEl.paused) {
-                audioEl.pause();
-                btn.innerHTML = '<i class="fa-solid fa-play"></i>';
-                selectedActiveVoiceAudio = null;
-            } else {
-                audioEl.play().catch(e => console.log('Mock audio preview executed'));
-                btn.innerHTML = '<i class="fa-solid fa-pause text-brand-secondary pulse-soft"></i>';
-                selectedActiveVoiceAudio = audioEl;
-
-                audioEl.onended = () => {
-                    btn.innerHTML = '<i class="fa-solid fa-play"></i>';
-                    selectedActiveVoiceAudio = null;
-                };
-            }
+        async function playVoiceSample(voiceAssetId, event) {
+            event.stopPropagation();
+            const voice = voicePresets.find((item) => item.id === voiceAssetId);
+            if (!voice) return;
+            try {
+                if (!voice.previewAvailable) {
+                    if (!window.confirm('使用该音色生成试听语音，是否继续？')) return;
+                    await workspaceApi(`/api/new/voices/${encodeURIComponent(voiceAssetId)}/preview`, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cost_confirmed: true })
+                    });
+                    voice.previewAvailable = true;
+                }
+                if (selectedActiveVoiceAudio) selectedActiveVoiceAudio.pause();
+                const button = event.currentTarget;
+                const audio = new Audio(`/api/new/voices/${encodeURIComponent(voiceAssetId)}/preview?t=${Date.now()}`);
+                selectedActiveVoiceAudio = audio;
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[9px]"></i>';
+                audio.onplaying = () => { button.innerHTML = '<i class="fa-solid fa-pause text-[9px]"></i>'; };
+                audio.onended = () => { button.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>'; selectedActiveVoiceAudio = null; };
+                audio.onerror = () => { button.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>'; showToast('试听失败', '音频暂时无法播放。', 'warning'); };
+                await audio.play();
+            } catch (error) { showToast('试听失败', error.message, 'warning'); }
         }
 
         async function uploadProjectImage(file) {
@@ -1147,18 +1185,6 @@
             });
         }
 
-        // Sync default voice to table rows
-        function updateTableRowVoices() {
-            const defaultVoice = voicePresets[selectedDefaultVoiceIndex];
-            const selectors = document.querySelectorAll('.row-voice-selector');
-            selectors.forEach(select => {
-                // If it wasn't modified manually, override with default
-                if (select.getAttribute('data-override') !== 'true') {
-                    select.value = defaultVoice.id;
-                }
-            });
-        }
-
         // Create HTML table layout from scratch based on uploadedScripts
         function updateTableLayout() {
             const tbody = document.getElementById('synthesis-table-body');
@@ -1189,16 +1215,20 @@
                 tr.setAttribute('data-id', script.id);
                 
                 // Audio generation status inside the row: 'wait' / 'loading' / 'ready'
-                tr.setAttribute('data-voice-status', 'wait');
+                const voiceStatus = script.voiceStatus === 'AUDIO_READY'
+                    ? 'ready'
+                    : (['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(script.voiceStatus) ? 'loading' : (script.voiceStatus === 'AUDIO_FAILED' ? 'failed' : 'wait'));
+                tr.setAttribute('data-voice-status', voiceStatus);
                 tr.setAttribute('data-video-status', 'wait');
                 tr.setAttribute('data-variant-status', 'wait');
                 tr.setAttribute('data-variant-generated', '0');
 
                 // Render voice selection inside table
                 let voiceOptionsHTML = '';
-                voicePresets.forEach((v, index) => {
-                    const selected = index === selectedDefaultVoiceIndex ? 'selected' : '';
-                    voiceOptionsHTML += `<option value="${v.id}" ${selected}>${v.name.split(' - ')[0]}</option>`;
+                const selectedVoiceId = script.voiceAssetId || voicePresets[selectedDefaultVoiceIndex]?.id;
+                voicePresets.forEach((v) => {
+                    const selected = v.id === selectedVoiceId ? 'selected' : '';
+                    voiceOptionsHTML += `<option value="${v.id}" ${selected}>${escapeHtml(v.name)}</option>`;
                 });
 
                 // Render BGM options
@@ -1343,6 +1373,8 @@
                 `;
                 
                 tbody.appendChild(tr);
+                toggleRowAudioStatusUI(tr, voiceStatus);
+                if (voiceStatus === 'ready') markRowAudioPreviewReady(tr);
             });
 
             applyImageMappingToTable();
@@ -1406,39 +1438,47 @@
         }
 
         // Voice selection manual change in table row
-        function handleRowVoiceChange(selectEl) {
+        async function handleRowVoiceChange(selectEl) {
             selectEl.setAttribute('data-override', 'true');
             const row = selectEl.closest('tr');
             const voiceId = selectEl.value;
-            const voiceName = voicePresets.find(v => v.id === voiceId).name;
-            
-            // If already generated, flag to allow regenerations
-            const status = row.getAttribute('data-voice-status');
-            if (status === 'ready') {
-                resetRowAudioPreview(row);
-                showToast("声音变动", `已切换为「${voiceName}」，请重新生成这一行的声音预览。`, "warning");
+            const voice = voicePresets.find(v => v.id === voiceId);
+            if (!voice || !activeProject) return;
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${row.getAttribute('data-id')}/voice`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voice_asset_id: voiceId })
+                });
+                syncProjectInputs(project);
+                showToast('声音选择已保存', `任务已切换为「${voice.name}」。旧音频仍保留在历史版本中。`, 'success');
+            } catch (error) {
+                showToast('声音切换失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
             }
         }
 
         // Individual Retry button click -> regenerates sound clone for specific row
-        function retryCloningAudio(buttonEl) {
+        async function retryCloningAudio(buttonEl) {
             const row = buttonEl.closest('tr');
             const rowId = row.getAttribute('data-id');
-            const voiceSelector = row.querySelector('.row-voice-selector');
-            const selectedVoice = voicePresets.find(v => v.id === voiceSelector.value);
-
-            resetRowVideoPreview(row);
-
-            // Change UI State to Loading
+            const script = uploadedScripts.find((item) => item.id === rowId);
+            if (!script || !activeProject) return;
+            if (!['AUDIO_READY', 'AUDIO_FAILED'].includes(script.voiceStatus)) {
+                showToast('请使用批量生成', '尚未创建声音批次的脚本，请点击下方“生成声音预览”。', 'warning');
+                return;
+            }
+            if (!window.confirm('重新生成声音可能再次产生 MiniMax 费用，是否继续？')) return;
             row.setAttribute('data-voice-status', 'loading');
             toggleRowAudioStatusUI(row, 'loading');
-
-            // Simulate server-side AI voice clone reasoning latency
-            setTimeout(() => {
-                markRowAudioPreviewReady(row);
-
-                showToast("语音生成成功", `已使用「${selectedVoice.name.split(' - ')[0]}」克隆完成第 ${rowId} 行文案音频！`, "success");
-            }, 1200);
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/audio/retry`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cost_confirmed: true, idempotency_key: `audio-retry-${rowId}-${Date.now()}` })
+                });
+                syncProjectInputs(project);
+                scheduleAudioStatusPoll();
+                showToast('声音重新生成已提交', '旧音频版本会保留，新版本完成后自动成为当前音频。', 'success');
+            } catch (error) { showToast('声音重试失败', error.message, 'warning'); syncProjectInputs(activeProject); }
         }
 
         function markRowAudioPreviewReady(row) {
@@ -1484,40 +1524,87 @@
             const allReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
             const btnCompose = document.getElementById('btn-start-composition');
 
-            setVoicePreviewButtonState(rows.length > 0, isGeneratingAllVoicePreviews);
+            const hasPendingRows = rows.some(row => ['idle', 'failed'].includes(row.getAttribute('data-voice-status')));
+            const canGenerate = Boolean(activeProject?.allowed_actions?.generate_audio) && hasPendingRows && voicePresets.length > 0;
+            setVoicePreviewButtonState(canGenerate, isGeneratingAllVoicePreviews);
             btnCompose.disabled = !allReady;
             btnCompose.className = allReady
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
         }
 
-        function generateAllVoicePreviews() {
+        async function generateAllVoicePreviews() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            if (rows.length === 0) return;
+            if (rows.length === 0 || !activeProject) return;
+            const targetRows = rows.filter(row => ['idle', 'failed'].includes(row.getAttribute('data-voice-status')));
+            if (targetRows.length === 0) return;
+            const defaultVoice = voicePresets[selectedDefaultVoiceIndex];
+            if (!defaultVoice) {
+                showToast('没有可用声音', '请先进入声音克隆中心配置声音。', 'warning');
+                return;
+            }
+            if (!window.confirm(`将为 ${targetRows.length} 条待处理脚本调用 MiniMax 生成声音并产生费用，是否继续？`)) return;
 
             isGeneratingAllVoicePreviews = true;
             setVoicePreviewButtonState(false, true);
             const btnCompose = document.getElementById('btn-start-composition');
             btnCompose.disabled = true;
             btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
-            rows.forEach(row => {
+            targetRows.forEach(row => {
                 resetRowVideoPreview(row);
                 row.setAttribute('data-voice-status', 'loading');
                 toggleRowAudioStatusUI(row, 'loading');
             });
 
-            showToast("正在生成声音预览", `已提交 ${rows.length} 条脚本，声音生成完成后即可试听并开始画面合成。`, "info");
-
-            rows.forEach((row, index) => {
-                setTimeout(() => {
-                    markRowAudioPreviewReady(row);
-                    if (index === rows.length - 1) {
-                        isGeneratingAllVoicePreviews = false;
-                        refreshAudioStageActions();
-                        showToast("声音预览已生成", "全部脚本声音已准备完成，现在可以试听或开始画面合成。", "success");
-                    }
-                }, 700 + index * 220);
+            showToast('正在提交声音生成', `正在为 ${targetRows.length} 条脚本创建真实声音任务。`, 'info');
+            const assignments = {};
+            targetRows.forEach((row) => {
+                const select = row.querySelector('.row-voice-selector');
+                if (select?.value) assignments[row.getAttribute('data-id')] = select.value;
             });
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        default_voice_asset_id: defaultVoice.id,
+                        voice_assignments: assignments,
+                        voice_settings: voicePreferences.voice_settings || {},
+                        idempotency_key: `audio-${activeProject.project_id}-${Date.now()}`,
+                        cost_confirmed: true
+                    })
+                });
+                syncProjectInputs(project);
+                scheduleAudioStatusPoll();
+                showToast('声音任务已进入队列', '完成后页面会自动显示真实音频和下载按钮。', 'success');
+            } catch (error) {
+                showToast('声音生成提交失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            } finally {
+                isGeneratingAllVoicePreviews = false;
+                refreshAudioStageActions();
+            }
+        }
+
+        function scheduleAudioStatusPoll() {
+            clearTimeout(audioStatusPollTimer);
+            const active = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
+            if (!active || !activeProject) return;
+            audioStatusPollTimer = setTimeout(async () => {
+                try {
+                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/status`);
+                    const wasActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
+                    syncProjectInputs(project);
+                    const isActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
+                    if (wasActive && !isActive) {
+                        const failed = uploadedScripts.filter((item) => item.voiceStatus === 'AUDIO_FAILED').length;
+                        showToast(failed ? '声音生成部分失败' : '声音预览已生成', failed ? `${failed} 条声音失败，可逐行重试。` : '全部真实音频已准备完成，可以试听或下载。', failed ? 'warning' : 'success');
+                    }
+                    scheduleAudioStatusPoll();
+                } catch (error) {
+                    showToast('声音状态更新失败', error.message, 'warning');
+                    audioStatusPollTimer = setTimeout(scheduleAudioStatusPoll, 5000);
+                }
+            }, 3000);
         }
 
         // Set row voice DOM visibility
@@ -1527,22 +1614,33 @@
             const loadDiv = container.querySelector('.row-audio-status-loading');
             const readyDiv = container.querySelector('.row-audio-status-ready');
 
+            waitDiv.classList.remove('text-rose-400');
+            waitDiv.classList.add('text-gray-500');
+            waitDiv.querySelector('i').className = 'fa-solid fa-microphone-slash text-[10px]';
+
             waitDiv.classList.add('hidden');
             loadDiv.classList.add('hidden');
             readyDiv.classList.add('hidden');
 
             if (status === 'wait') {
                 waitDiv.classList.remove('hidden');
+                waitDiv.querySelector('span').textContent = '未生成，等待预览';
             } else if (status === 'loading') {
                 loadDiv.classList.remove('hidden');
             } else if (status === 'ready') {
                 readyDiv.classList.remove('hidden');
+            } else if (status === 'failed') {
+                waitDiv.classList.remove('hidden');
+                waitDiv.classList.remove('text-gray-500');
+                waitDiv.classList.add('text-rose-400');
+                waitDiv.querySelector('i').className = 'fa-solid fa-circle-exclamation text-[10px]';
+                waitDiv.querySelector('span').textContent = '声音生成失败';
             }
         }
 
         // Play/Pause individual cloned voice row
         let currentlyPlayingRowAudioBtn = null;
-        let clonedMockInterval = null;
+        let currentRowAudio = null;
         function togglePlayRowAudio(btnEl) {
             const row = btnEl.closest('tr');
             const waveformSpan = row.querySelectorAll('.row-audio-waveform span');
@@ -1551,7 +1649,8 @@
             if (currentlyPlayingRowAudioBtn === btnEl) {
                 btnEl.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
                 currentlyPlayingRowAudioBtn = null;
-                clearInterval(clonedMockInterval);
+                if (currentRowAudio) currentRowAudio.pause();
+                currentRowAudio = null;
                 waveformSpan.forEach(span => {
                     span.className = "w-[2px] bg-slate-800 h-1";
                     span.style.animation = "none";
@@ -1564,9 +1663,11 @@
                 currentlyPlayingRowAudioBtn.click();
             }
 
-            // Play state
-            btnEl.innerHTML = '<i class="fa-solid fa-pause text-[9px] text-brand-secondary"></i>';
+            const itemId = row.getAttribute('data-id');
+            const audio = new Audio(`/api/new/projects/${activeProject.project_id}/items/${itemId}/audio?t=${Date.now()}`);
+            btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[9px]"></i>';
             currentlyPlayingRowAudioBtn = btnEl;
+            currentRowAudio = audio;
 
             // Trigger visual waveform animations
             waveformSpan.forEach((span, i) => {
@@ -1574,8 +1675,8 @@
                 span.style.animationDelay = `${i * 0.15}s`;
             });
 
-            // Simulate audio finish in 4 seconds
-            setTimeout(() => {
+            audio.onplaying = () => { btnEl.innerHTML = '<i class="fa-solid fa-pause text-[9px] text-brand-secondary"></i>'; };
+            audio.onended = () => {
                 if (currentlyPlayingRowAudioBtn === btnEl) {
                     currentlyPlayingRowAudioBtn.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
                     currentlyPlayingRowAudioBtn = null;
@@ -1584,7 +1685,15 @@
                         span.style.animation = "none";
                     });
                 }
-            }, 4000);
+                currentRowAudio = null;
+            };
+            audio.onerror = () => {
+                btnEl.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
+                currentlyPlayingRowAudioBtn = null;
+                currentRowAudio = null;
+                showToast('播放失败', '当前音频文件无法读取。', 'warning');
+            };
+            audio.play();
         }
 
         // Export individual audio click
@@ -1592,7 +1701,13 @@
             if (btnEl.hasAttribute('disabled')) return;
             const row = btnEl.closest('tr');
             const rowId = row.getAttribute('data-id');
-            showToast("音频导出", `正在打包第 ${rowId} 行音频，请注意浏览器下载提示。`, "success");
+            const link = document.createElement('a');
+            link.href = `/api/new/projects/${activeProject.project_id}/items/${rowId}/audio`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast('音频下载', '浏览器已经开始下载当前真实音频。', 'success');
         }
 
         function toggleRowVideoStatusUI(row, status) {
@@ -2313,8 +2428,11 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', ensureAuthenticatedSession);
-        document.addEventListener('DOMContentLoaded', initializeProjectInputs);
+        document.addEventListener('DOMContentLoaded', async () => {
+            await ensureAuthenticatedSession();
+            await loadWorkspaceVoices();
+            await initializeProjectInputs();
+        });
     </script>
 </body>
 </html>

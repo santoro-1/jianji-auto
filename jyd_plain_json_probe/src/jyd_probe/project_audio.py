@@ -1,0 +1,440 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from pathlib import Path
+from typing import Any
+
+from .auth_center import AuthCenterClient
+from .project_store import ProjectStore
+
+
+REMOTE_AUDIO_ACTIVE = {
+    "PENDING",
+    "CLONING",
+    "SYNTHESIZING",
+    "REMOTE_PENDING",
+    "ALIGNING",
+    "SEGMENTING",
+    "HANDOFF",
+}
+
+
+def _current_audio_links(
+    links: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Select only the newest remote audio item link for each project item."""
+
+    newest_by_item: dict[str, dict[str, Any]] = {}
+    for link in links:
+        if (
+            link.get("system") == "runninghub"
+            and link.get("relation") == "digital_human_audio_item"
+            and link.get("item_id")
+        ):
+            newest_by_item[str(link["item_id"])] = link
+    current_items = {
+        str(link["external_id"]): link for link in newest_by_item.values()
+    }
+    current_batch_ids = {
+        str(link.get("metadata", {}).get("batch_id") or "")
+        for link in newest_by_item.values()
+    }
+    batches = [
+        link
+        for link in links
+        if link.get("system") == "runninghub"
+        and link.get("relation") == "digital_human_audio_batch"
+        and str(link.get("external_id") or "") in current_batch_ids
+    ]
+    return batches, current_items
+
+
+def _speech_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
+    value = raw if isinstance(raw, dict) else {}
+    model = str(value.get("model") or "speech-2.8-hd").strip()
+    speed = float(value.get("speed", 1.0))
+    volume = float(value.get("volume", 1.0))
+    pitch = int(value.get("pitch", 0))
+    if model not in {"speech-2.8-hd", "speech-2.8-turbo"}:
+        raise ValueError("语音模型只能使用 speech-2.8-hd 或 speech-2.8-turbo")
+    if not 0.5 <= speed <= 2.0:
+        raise ValueError("语速必须在 0.5–2.0 之间")
+    if not 0 < volume <= 10:
+        raise ValueError("音量必须大于 0 且不超过 10")
+    if not -12 <= pitch <= 12:
+        raise ValueError("音调必须在 -12–12 之间")
+    return {
+        "model": model,
+        "speed": speed,
+        "volume": volume,
+        "pitch": pitch,
+        "languageBoost": str(value.get("language_boost") or "Chinese"),
+        "outputFormat": "mp3",
+        "costConfirmed": True,
+    }
+
+
+class ProjectAudioCoordinator:
+    """Orchestrate real MiniMax audio while keeping project state local."""
+
+    def __init__(
+        self,
+        store: ProjectStore,
+        client: AuthCenterClient,
+        *,
+        storage_root: Path,
+        max_audio_bytes: int,
+    ) -> None:
+        self.store = store
+        self.client = client
+        self.storage_root = Path(storage_root).resolve()
+        self.max_audio_bytes = int(max_audio_bytes)
+
+    def start(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        default_voice_asset_id: str,
+        voice_assignments: dict[str, str] | None,
+        settings: dict[str, Any] | None,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        if not project["allowed_actions"]["generate_audio"]:
+            raise ValueError("当前项目状态不能开始声音生成")
+        if not idempotency_key.strip():
+            raise ValueError("声音生成请求缺少幂等键")
+        library = self.client.list_workbench_voices(token)
+        available_ids = {
+            str(voice.get("voice_asset_id") or "")
+            for voice in library.get("voices", [])
+            if isinstance(voice, dict)
+        }
+        default_voice = str(default_voice_asset_id or "").strip()
+        if default_voice not in available_ids:
+            raise ValueError("默认声音不属于当前数字人账号")
+        assignments = voice_assignments if isinstance(voice_assignments, dict) else {}
+        speech = _speech_settings(settings)
+        self.store.set_voice_preferences(
+            owner_user_id,
+            default_voice_asset_id=default_voice,
+            voice_settings={
+                "model": speech["model"],
+                "speed": speech["speed"],
+                "volume": speech["volume"],
+                "pitch": speech["pitch"],
+                "language_boost": speech["languageBoost"],
+                "output_format": speech["outputFormat"],
+            },
+        )
+
+        target_items = [
+            item
+            for item in project["items"]
+            if item.get("status") in {"DRAFT", "AUDIO_FAILED"}
+        ]
+        if not target_items:
+            raise ValueError("当前项目没有待生成或失败待重建的声音")
+
+        grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        for item in target_items:
+            image = item.get("inputs", {}).get("image")
+            if not isinstance(image, dict) or not image.get("managed_path"):
+                raise ValueError(f"任务 {item['row_key']} 尚未分配图片")
+            voice_id = str(assignments.get(item["item_id"]) or default_voice).strip()
+            if voice_id not in available_ids:
+                raise ValueError(f"任务 {item['row_key']} 选择了不可用声音")
+            self.store.configure_item_voice(
+                owner_user_id,
+                project_id,
+                item["item_id"],
+                voice_asset_id=voice_id,
+            )
+            operation = self.store.create_operation(
+                owner_user_id=owner_user_id,
+                project_id=project_id,
+                item_id=item["item_id"],
+                operation_type="AUDIO_GENERATE",
+                idempotency_key=idempotency_key,
+                payload={"voice_asset_id": voice_id, "speech_settings": speech},
+            )
+            grouped[voice_id].append({**item, "operation": operation, "image": image})
+
+        project = self.store.get_project(owner_user_id, project_id)
+        for group_index, (voice_id, items) in enumerate(grouped.items(), start=1):
+            try:
+                staged_by_path: dict[str, dict[str, Any]] = {}
+                for item in items:
+                    image_path = Path(str(item["image"]["managed_path"])).resolve()
+                    if not image_path.is_file():
+                        raise ValueError(f"任务 {item['row_key']} 的图片文件不存在")
+                    key = str(image_path).casefold()
+                    if key not in staged_by_path:
+                        staged_by_path[key] = self.client.upload_workbench_batch_asset(
+                            token,
+                            image_path,
+                            kind="image",
+                            filename=str(item["image"].get("filename") or image_path.name),
+                        )
+                rows = []
+                for item in items:
+                    image_path = Path(str(item["image"]["managed_path"])).resolve()
+                    staged = staged_by_path[str(image_path).casefold()]
+                    rows.append(
+                        {
+                            "row_id": item["row_key"],
+                            "image_asset_id": staged["asset_id"],
+                            "image_file": staged["original_name"],
+                            "speech_script": item["script_text"],
+                            "prompt": "人物自然地说话",
+                        }
+                    )
+                remote = self.client.create_workbench_audio_batch(
+                    token,
+                    {
+                        "name": f"{project['project_no']} 声音批次 {group_index}",
+                        "request_key": f"{idempotency_key}:voice:{voice_id}",
+                        "asset_ids": [
+                            item["asset_id"] for item in staged_by_path.values()
+                        ],
+                        "rows": rows,
+                        "speech_options": {
+                            **speech,
+                            "voiceAssetId": voice_id,
+                        },
+                    },
+                )
+                batch_id = str(remote.get("batch_id") or "")
+                if not batch_id:
+                    raise ValueError("数字人后端没有返回声音批次编号")
+                self.store.add_link(
+                    owner_user_id=owner_user_id,
+                    project_id=project_id,
+                    system="runninghub",
+                    relation="digital_human_audio_batch",
+                    external_id=batch_id,
+                    metadata={"voice_asset_id": voice_id},
+                )
+                remote_by_row = {
+                    str(row.get("row_key") or ""): row
+                    for row in remote.get("items", [])
+                    if isinstance(row, dict)
+                }
+                for item in items:
+                    remote_item = remote_by_row.get(str(item["row_key"]))
+                    if not remote_item or not remote_item.get("item_id"):
+                        raise ValueError(f"数字人后端缺少任务 {item['row_key']} 的声音记录")
+                    remote_item_id = str(remote_item["item_id"])
+                    self.store.add_link(
+                        owner_user_id=owner_user_id,
+                        project_id=project_id,
+                        item_id=item["item_id"],
+                        system="runninghub",
+                        relation="digital_human_audio_item",
+                        external_id=remote_item_id,
+                        metadata={"batch_id": batch_id},
+                    )
+                    self.store.transition_audio_operation(
+                        owner_user_id,
+                        project_id,
+                        item["item_id"],
+                        status="RUNNING",
+                        item_status="AUDIO_QUEUED",
+                        result={
+                            "batch_id": batch_id,
+                            "item_id": remote_item_id,
+                            "provider_status": remote_item.get("status"),
+                        },
+                    )
+            except Exception as exc:
+                for item in items:
+                    self.store.transition_audio_operation(
+                        owner_user_id,
+                        project_id,
+                        item["item_id"],
+                        status="FAILED",
+                        item_status="AUDIO_FAILED",
+                        error_code=type(exc).__name__,
+                        error_message=str(exc),
+                    )
+                raise
+        return self.sync(owner_user_id, project_id, token)
+
+    def sync(
+        self, owner_user_id: str, project_id: str, token: str
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        batch_links, item_links = _current_audio_links(project["links"])
+        local_by_item = {item["item_id"]: item for item in project["items"]}
+        for batch_link in batch_links:
+            remote = self.client.get_workbench_audio_batch(
+                token, batch_link["external_id"]
+            )
+            batch_id = str(remote.get("batch_id") or batch_link["external_id"])
+            for remote_item in remote.get("items", []):
+                if not isinstance(remote_item, dict):
+                    continue
+                remote_item_id = str(remote_item.get("item_id") or "")
+                link = item_links.get(remote_item_id)
+                if link is None or not link.get("item_id"):
+                    continue
+                local_item_id = str(link["item_id"])
+                provider_status = str(remote_item.get("status") or "")
+                if provider_status == "FAILED":
+                    self.store.transition_audio_operation(
+                        owner_user_id,
+                        project_id,
+                        local_item_id,
+                        status="FAILED",
+                        item_status="AUDIO_FAILED",
+                        result={"batch_id": batch_id, "item_id": remote_item_id},
+                        error_code=str(remote_item.get("error_code") or "REMOTE_FAILED"),
+                        error_message=str(remote_item.get("error_message") or "声音生成失败"),
+                    )
+                    continue
+                if provider_status == "AWAITING_REVIEW" and remote_item.get("audio_ready"):
+                    local_item = local_by_item[local_item_id]
+                    generation_version = int(remote_item.get("generation_version") or 1)
+                    current = local_item.get("outputs", {}).get("audio")
+                    current_ref = current.get("external_ref", {}) if isinstance(current, dict) else {}
+                    already_downloaded = (
+                        current_ref.get("remote_item_id") == remote_item_id
+                        and int(current_ref.get("generation_version") or 0) == generation_version
+                    )
+                    if not already_downloaded:
+                        directory = (
+                            self.storage_root
+                            / "projects"
+                            / str(owner_user_id)
+                            / project_id
+                            / local_item_id
+                            / "audio"
+                        )
+                        target = directory / f"v{generation_version}.mp3"
+                        temporary = target.with_suffix(".mp3.tmp")
+                        try:
+                            self.client.download_workbench_audio(
+                                token,
+                                batch_id,
+                                remote_item_id,
+                                temporary,
+                                max_bytes=self.max_audio_bytes,
+                            )
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            temporary.replace(target)
+                        except BaseException:
+                            temporary.unlink(missing_ok=True)
+                            raise
+                        asset = self.store.add_asset(
+                            owner_user_id=owner_user_id,
+                            project_id=project_id,
+                            item_id=local_item_id,
+                            asset_type="audio",
+                            source_type="minimax",
+                            status="READY",
+                            filename=f"{local_item['row_key']}.mp3",
+                            managed_path=str(target),
+                            external_ref={
+                                "batch_id": batch_id,
+                                "remote_item_id": remote_item_id,
+                                "generation_version": generation_version,
+                            },
+                            metadata={"provider_status": provider_status},
+                            make_current=True,
+                        )
+                        captions = remote_item.get("captions")
+                        if isinstance(captions, dict):
+                            cues = captions.get("cues")
+                            self.store.set_item_subtitles(
+                                owner_user_id,
+                                project_id,
+                                local_item_id,
+                                {
+                                    "source": "minimax_timestamps",
+                                    "raw_cues": cues if isinstance(cues, list) else [],
+                                    "render_cues": cues if isinstance(cues, list) else [],
+                                    "bound_audio_asset_id": asset["asset_id"],
+                                    "bound_video_asset_id": None,
+                                    "style": local_item.get("subtitles", {}).get("style", {}),
+                                    "status": "READY",
+                                    "overflow_risk": False,
+                                },
+                            )
+                        project = self.store.get_project(owner_user_id, project_id)
+                        local_by_item = {item["item_id"]: item for item in project["items"]}
+                    self.store.transition_audio_operation(
+                        owner_user_id,
+                        project_id,
+                        local_item_id,
+                        status="SUCCEEDED",
+                        item_status="AUDIO_READY",
+                        result={
+                            "batch_id": batch_id,
+                            "item_id": remote_item_id,
+                            "generation_version": generation_version,
+                        },
+                    )
+                elif provider_status in REMOTE_AUDIO_ACTIVE:
+                    self.store.transition_audio_operation(
+                        owner_user_id,
+                        project_id,
+                        local_item_id,
+                        status="RUNNING",
+                        item_status=(
+                            "AUDIO_QUEUED"
+                            if provider_status == "PENDING"
+                            else "AUDIO_RUNNING"
+                        ),
+                        result={
+                            "batch_id": batch_id,
+                            "item_id": remote_item_id,
+                            "provider_status": provider_status,
+                        },
+                    )
+        return self.store.get_project(owner_user_id, project_id)
+
+    def retry(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        token: str,
+        *,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        matching_links = [
+            link
+            for link in project["links"]
+            if link.get("item_id") == item_id
+            and link["system"] == "runninghub"
+            and link["relation"] == "digital_human_audio_item"
+        ]
+        link = matching_links[-1] if matching_links else None
+        if link is None:
+            raise ValueError("当前脚本行没有数字人声音任务")
+        batch_id = str(link.get("metadata", {}).get("batch_id") or "")
+        if not batch_id:
+            raise ValueError("声音任务缺少数字人批次编号")
+        self.store.create_operation(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            operation_type="AUDIO_GENERATE",
+            idempotency_key=idempotency_key,
+            payload={"retry": True, "remote_item_id": link["external_id"]},
+        )
+        self.client.retry_workbench_audio(
+            token, batch_id, str(link["external_id"])
+        )
+        self.store.transition_audio_operation(
+            owner_user_id,
+            project_id,
+            item_id,
+            status="RUNNING",
+            item_status="AUDIO_QUEUED",
+            result={"batch_id": batch_id, "item_id": link["external_id"]},
+        )
+        return self.sync(owner_user_id, project_id, token)

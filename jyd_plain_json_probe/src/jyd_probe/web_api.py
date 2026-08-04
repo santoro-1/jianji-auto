@@ -37,6 +37,7 @@ from .draft_crypto import is_plain_json_file
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .project_store import ProjectRevisionConflict, ProjectStore
+from .project_audio import ProjectAudioCoordinator
 from .project_inputs import detect_project_image, parse_project_script_file
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
@@ -2085,6 +2086,405 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if not token:
             raise HTTPException(status_code=401, detail="请先使用数字人账号登录")
         return auth_center, token
+
+    def project_audio_coordinator(client: AuthCenterClient) -> ProjectAudioCoordinator:
+        return ProjectAudioCoordinator(
+            project_store,
+            client,
+            storage_root=settings.storage_root,
+            max_audio_bytes=settings.max_audio_upload_bytes,
+        )
+
+    def selectable_voice_ids(library: dict[str, Any]) -> set[str]:
+        return {
+            str(item.get("voice_asset_id") or "")
+            for item in library.get("voices", [])
+            if isinstance(item, dict) and item.get("selectable") is not False
+        }
+
+    @app.get("/api/new/voices")
+    def list_new_voices(request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            result = client.list_workbench_voices(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        voices = result.get("voices") if isinstance(result.get("voices"), list) else []
+        available_ids = selectable_voice_ids({"voices": voices})
+        selectable_voices = [
+            voice
+            for voice in voices
+            if isinstance(voice, dict) and voice.get("selectable") is not False
+        ]
+        preferences = project_store.get_voice_preferences(user["user_id"])
+        if (
+            preferences["default_voice_asset_id"] not in available_ids
+            and selectable_voices
+        ):
+            preferences = project_store.set_voice_preferences(
+                user["user_id"],
+                default_voice_asset_id=str(
+                    selectable_voices[0].get("voice_asset_id") or ""
+                ),
+            )
+        return {
+            "schema": "jyd.workbench-voices.v1",
+            "voices": voices,
+            "creation_tasks": result.get("creation_tasks", []),
+            "preferences": preferences,
+        }
+
+    @app.put("/api/new/voices/default")
+    def set_new_default_voice(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        voice_asset_id = str(payload.get("voice_asset_id") or "").strip()
+        try:
+            library = client.list_workbench_voices(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        available = selectable_voice_ids(library)
+        if voice_asset_id not in available:
+            raise HTTPException(status_code=422, detail="音色未激活或不属于当前账号")
+        try:
+            preferences = project_store.set_voice_preferences(
+                user["user_id"],
+                default_voice_asset_id=voice_asset_id,
+                voice_settings=(
+                    payload.get("voice_settings")
+                    if isinstance(payload.get("voice_settings"), dict)
+                    else None
+                ),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"ok": True, "preferences": preferences}
+
+    @app.post("/api/new/voices/{voice_asset_id}/preview")
+    def create_new_voice_preview(
+        voice_asset_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        try:
+            client.create_official_voice_preview(
+                token,
+                voice_asset_id,
+                preview_text=str(
+                    payload.get("preview_text")
+                    or "你好，这是一段官方声音的试听内容。"
+                ),
+                cost_confirmed=payload.get("cost_confirmed") is True,
+            )
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "preview_url": f"/api/new/voices/{quote(voice_asset_id, safe='')}/preview",
+        }
+
+    @app.get("/api/new/voices/{voice_asset_id}/preview")
+    def download_new_voice_preview(voice_asset_id: str, request: Request) -> FileResponse:
+        client, token = digital_human_access(request)
+        temporary = settings.storage_root / "temporary_downloads" / f"{uuid.uuid4().hex}.mp3"
+        try:
+            client.download_voice_preview(
+                token,
+                voice_asset_id,
+                temporary,
+                max_bytes=settings.max_audio_upload_bytes,
+            )
+        except AuthCenterError as exc:
+            _unlink_if_exists(temporary)
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        return FileResponse(
+            temporary,
+            media_type="audio/mpeg",
+            filename="voice-preview.mp3",
+            background=BackgroundTask(_unlink_if_exists, temporary),
+        )
+
+    @app.post("/api/new/voices/{voice_asset_id}/activate")
+    def activate_new_voice(
+        voice_asset_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        try:
+            return client.activate_workbench_voice(
+                token,
+                voice_asset_id,
+                cost_confirmed=payload.get("cost_confirmed") is True,
+            )
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.delete("/api/new/voices/{voice_asset_id}")
+    def delete_new_voice(voice_asset_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        references = project_store.projects_using_voice(
+            user["user_id"], voice_asset_id
+        )
+        if references:
+            labels = "、".join(
+                str(item.get("project_no") or item.get("name") or "项目")
+                for item in references[:5]
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=f"该音色仍被项目 {labels} 使用，请先更换项目音色",
+            )
+        client, token = digital_human_access(request)
+        try:
+            return client.delete_workbench_voice(token, voice_asset_id)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.post("/api/new/voice-creations", status_code=201)
+    async def create_new_voice_creation(request: Request) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        form = await request.form()
+        source_a = form.get("source_a")
+        source_b = form.get("source_b")
+        if source_a is None or not hasattr(source_a, "read"):
+            raise HTTPException(status_code=422, detail="请上传声音样本 A")
+        source_a_bytes = await source_a.read()
+        if len(source_a_bytes) > settings.max_audio_upload_bytes:
+            raise HTTPException(status_code=413, detail="声音样本 A 超过上传大小限制")
+        source_b_bytes = None
+        if source_b is not None and hasattr(source_b, "read"):
+            source_b_bytes = await source_b.read()
+            if len(source_b_bytes) > settings.max_audio_upload_bytes:
+                raise HTTPException(status_code=413, detail="声音样本 B 超过上传大小限制")
+        fields = {
+            "method": str(form.get("method") or "clone"),
+            "name": str(form.get("name") or ""),
+            "preview_text": str(form.get("preview_text") or ""),
+            "model": str(form.get("model") or "speech-2.8-turbo"),
+            "weight_a": str(form.get("weight_a") or "50"),
+            "noise_reduction": str(form.get("noise_reduction") or "false"),
+            "volume_normalization": str(form.get("volume_normalization") or "false"),
+            "cost_confirmed": str(form.get("cost_confirmed") or "false"),
+        }
+        try:
+            return client.create_voice_creation(
+                token,
+                fields=fields,
+                source_a_name=str(getattr(source_a, "filename", None) or "voice-a.mp3"),
+                source_a=source_a_bytes,
+                source_a_content_type=str(
+                    getattr(source_a, "content_type", None) or "application/octet-stream"
+                ),
+                source_b_name=(
+                    str(getattr(source_b, "filename", None) or "voice-b.mp3")
+                    if source_b_bytes is not None
+                    else None
+                ),
+                source_b=source_b_bytes,
+                source_b_content_type=(
+                    str(getattr(source_b, "content_type", None) or "application/octet-stream")
+                    if source_b_bytes is not None
+                    else None
+                ),
+            )
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.post("/api/new/voice-creations/{task_id}/save")
+    def save_new_voice_creation(task_id: str, request: Request) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        try:
+            return client.save_voice_creation(token, task_id)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.get("/api/new/voice-creations/{task_id}/preview")
+    def download_new_voice_creation_preview(task_id: str, request: Request) -> FileResponse:
+        client, token = digital_human_access(request)
+        temporary = settings.storage_root / "temporary_downloads" / f"{uuid.uuid4().hex}.mp3"
+        try:
+            client.download_voice_creation_preview(
+                token,
+                task_id,
+                temporary,
+                max_bytes=settings.max_audio_upload_bytes,
+            )
+        except AuthCenterError as exc:
+            _unlink_if_exists(temporary)
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        return FileResponse(
+            temporary,
+            media_type="audio/mpeg",
+            filename="voice-creation-preview.mp3",
+            background=BackgroundTask(_unlink_if_exists, temporary),
+        )
+
+    @app.put("/api/new/projects/{project_id}/items/{item_id}/voice")
+    def configure_new_project_item_voice(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        voice_asset_id = str(payload.get("voice_asset_id") or "").strip()
+        try:
+            library = client.list_workbench_voices(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        if voice_asset_id not in selectable_voice_ids(library):
+            raise HTTPException(status_code=422, detail="音色未激活或不属于当前账号")
+        try:
+            return project_store.configure_item_voice(
+                user["user_id"],
+                project_id,
+                item_id,
+                voice_asset_id=voice_asset_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/voice")
+    def configure_new_project_voice(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        voice_asset_id = str(payload.get("voice_asset_id") or "").strip()
+        try:
+            library = client.list_workbench_voices(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        if voice_asset_id not in selectable_voice_ids(library):
+            raise HTTPException(status_code=422, detail="音色未激活或不属于当前账号")
+        try:
+            project = project_store.configure_project_voice(
+                user["user_id"],
+                project_id,
+                voice_asset_id=voice_asset_id,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {
+            "ok": True,
+            "project": project,
+            "preferences": project_store.get_voice_preferences(user["user_id"]),
+        }
+
+    @app.post("/api/new/projects/{project_id}/audio/generate")
+    def generate_new_project_audio(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(status_code=409, detail="请确认声音生成会产生 MiniMax 费用")
+        coordinator = project_audio_coordinator(client)
+        try:
+            return coordinator.start(
+                user["user_id"],
+                project_id,
+                token,
+                default_voice_asset_id=str(payload.get("default_voice_asset_id") or ""),
+                voice_assignments=(
+                    payload.get("voice_assignments")
+                    if isinstance(payload.get("voice_assignments"), dict)
+                    else {}
+                ),
+                settings=(
+                    payload.get("voice_settings")
+                    if isinstance(payload.get("voice_settings"), dict)
+                    else {}
+                ),
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/audio/status")
+    def sync_new_project_audio(project_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_audio_coordinator(client).sync(
+                user["user_id"], project_id, token
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/items/{item_id}/audio/retry")
+    def retry_new_project_audio(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(status_code=409, detail="请确认重新生成声音可能再次产生费用")
+        try:
+            return project_audio_coordinator(client).retry(
+                user["user_id"],
+                project_id,
+                item_id,
+                token,
+                idempotency_key=str(payload.get("idempotency_key") or uuid.uuid4().hex),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或声音任务不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/items/{item_id}/audio")
+    def download_new_project_audio(
+        project_id: str, item_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next((value for value in project["items"] if value["item_id"] == item_id), None)
+        audio = item.get("outputs", {}).get("audio") if item else None
+        if not isinstance(audio, dict) or not audio.get("managed_path"):
+            raise HTTPException(status_code=404, detail="生成音频尚未准备完成")
+        path = Path(str(audio["managed_path"])).resolve()
+        try:
+            path.relative_to(settings.storage_root.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="生成音频文件不存在") from exc
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="生成音频文件不存在")
+        return FileResponse(
+            path,
+            media_type="audio/mpeg",
+            filename=str(audio.get("filename") or f"{item['row_key']}.mp3"),
+        )
 
     @app.get("/api/digital-human/tasks")
     def list_digital_human_tasks(request: Request, limit: int = 50) -> dict[str, Any]:

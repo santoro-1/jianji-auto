@@ -182,6 +182,63 @@ class ProjectApiTest(unittest.TestCase):
         self.assertEqual([asset["version"] for asset in history], [1, 2])
         self.assertTrue(detail["allowed_actions"]["generate_variants"])
 
+    def test_project_voice_applies_atomically_and_preserves_old_audio_history(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="项目默认音色测试",
+            items=[
+                {"row_key": "001", "script_text": "第一条。"},
+                {"row_key": "002", "script_text": "第二条。"},
+            ],
+        )
+        first_item_id = project["items"][0]["item_id"]
+        selected = store.configure_project_voice(
+            "user-1",
+            project["project_id"],
+            voice_asset_id="saved-voice-1",
+        )
+        self.assertEqual(
+            [item["settings"]["voice_asset_id"] for item in selected["items"]],
+            ["saved-voice-1", "saved-voice-1"],
+        )
+        self.assertEqual(
+            selected["settings"]["default_voice_asset_id"], "saved-voice-1"
+        )
+        self.assertEqual(
+            store.get_voice_preferences("user-1")["default_voice_asset_id"],
+            "saved-voice-1",
+        )
+
+        old_audio = store.add_asset(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=first_item_id,
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename="old.mp3",
+            make_current=True,
+        )
+        changed = store.configure_project_voice(
+            "user-1",
+            project["project_id"],
+            voice_asset_id="saved-voice-2",
+        )
+        first = changed["items"][0]
+        self.assertEqual(first["status"], "DRAFT")
+        self.assertIsNone(first["outputs"]["audio"])
+        self.assertEqual(
+            first["asset_history"]["audio"][0]["asset_id"], old_audio["asset_id"]
+        )
+        self.assertTrue(
+            all(
+                item["settings"]["voice_asset_id"] == "saved-voice-2"
+                for item in changed["items"]
+            )
+        )
+
     def test_project_tables_do_not_modify_existing_render_queue_schema_or_rows(self) -> None:
         database = self.settings.storage_root / "control.db"
         task_store = SQLiteTaskStore(database)
@@ -210,7 +267,7 @@ class ProjectApiTest(unittest.TestCase):
                 "SELECT value FROM project_schema_meta WHERE key='version'"
             ).fetchone()[0]
         self.assertEqual(render_schema_version, "1")
-        self.assertEqual(project_schema_version, "2")
+        self.assertEqual(project_schema_version, "3")
 
     def test_operations_are_idempotent_and_external_links_are_preserved(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")

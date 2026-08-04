@@ -10,7 +10,7 @@ from typing import Any, Iterator
 import uuid
 
 
-PROJECT_SCHEMA_VERSION = 2
+PROJECT_SCHEMA_VERSION = 3
 MAX_PROJECT_ITEMS = 500
 
 PROJECT_ITEM_STATUSES = {
@@ -298,6 +298,13 @@ class ProjectStore:
 
                 CREATE INDEX IF NOT EXISTS idx_project_links_project
                     ON project_links(project_id, system, relation);
+
+                CREATE TABLE IF NOT EXISTS project_user_preferences (
+                    owner_user_id TEXT PRIMARY KEY,
+                    default_voice_asset_id TEXT,
+                    voice_settings_json TEXT NOT NULL DEFAULT '{}',
+                    updated_at TEXT NOT NULL
+                );
                 """
             )
             item_columns = {
@@ -521,6 +528,253 @@ class ProjectStore:
                     (now, project["project_id"]),
                 )
         return self.get_project(owner_user_id, project_id)
+
+    def get_voice_preferences(self, owner_user_id: str) -> dict[str, Any]:
+        owner_id = str(owner_user_id or "").strip()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM project_user_preferences WHERE owner_user_id=?",
+                (owner_id,),
+            ).fetchone()
+        if row is None:
+            return {
+                "default_voice_asset_id": None,
+                "voice_settings": {
+                    "model": "speech-2.8-hd",
+                    "speed": 1.0,
+                    "volume": 1.0,
+                    "pitch": 0,
+                    "language_boost": "Chinese",
+                    "output_format": "mp3",
+                },
+            }
+        return {
+            "default_voice_asset_id": row["default_voice_asset_id"],
+            "voice_settings": _object(row["voice_settings_json"], {}),
+        }
+
+    def set_voice_preferences(
+        self,
+        owner_user_id: str,
+        *,
+        default_voice_asset_id: str,
+        voice_settings: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        owner_id = str(owner_user_id or "").strip()
+        voice_id = str(default_voice_asset_id or "").strip()
+        if not owner_id or not voice_id:
+            raise ValueError("默认声音编号不能为空")
+        if voice_settings is not None and not isinstance(voice_settings, dict):
+            raise ValueError("声音参数必须是对象")
+        current = self.get_voice_preferences(owner_id)
+        resolved_settings = (
+            voice_settings
+            if voice_settings is not None
+            else current["voice_settings"]
+        )
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO project_user_preferences(
+                    owner_user_id, default_voice_asset_id,
+                    voice_settings_json, updated_at
+                ) VALUES(?, ?, ?, ?)
+                ON CONFLICT(owner_user_id) DO UPDATE SET
+                    default_voice_asset_id=excluded.default_voice_asset_id,
+                    voice_settings_json=excluded.voice_settings_json,
+                    updated_at=excluded.updated_at
+                """,
+                (owner_id, voice_id, _json(resolved_settings), _now()),
+            )
+        return self.get_voice_preferences(owner_id)
+
+    def configure_item_voice(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        voice_asset_id: str,
+    ) -> dict[str, Any]:
+        voice_id = str(voice_asset_id or "").strip()
+        if not voice_id:
+            raise ValueError("声音原型不能为空")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            settings = _object(item["settings_json"], {})
+            if settings.get("voice_asset_id") == voice_id:
+                changed = False
+            else:
+                changed = True
+            if changed and item["status"] not in {"DRAFT", "AUDIO_READY", "AUDIO_FAILED"}:
+                raise ValueError("当前脚本行已进入声音生成，不能更换声音")
+            now = _now()
+            if changed:
+                settings["voice_asset_id"] = voice_id
+            if changed and item["status"] in {"AUDIO_READY", "AUDIO_FAILED"}:
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET settings_json=?, current_audio_asset_id=NULL,
+                        current_video_asset_id=NULL, subtitles_json=?,
+                        status='DRAFT', updated_at=?
+                    WHERE item_id=?
+                    """,
+                    (_json(settings), _json(_default_subtitles()), now, item_id),
+                )
+            elif changed:
+                connection.execute(
+                    "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
+                    (_json(settings), now, item_id),
+                )
+            if changed:
+                connection.execute(
+                    "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                    (now, project["project_id"]),
+                )
+        return self.get_project(owner_user_id, project_id)
+
+    def configure_project_voice(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        voice_asset_id: str,
+    ) -> dict[str, Any]:
+        """Atomically apply one saved voice to every item and the user default."""
+
+        voice_id = str(voice_asset_id or "").strip()
+        if not voice_id:
+            raise ValueError("声音原型不能为空")
+        owner_id = str(owner_user_id or "").strip()
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_id, project_id)
+            items = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            changed_items = []
+            for item in items:
+                settings = _object(item["settings_json"], {})
+                if settings.get("voice_asset_id") != voice_id:
+                    changed_items.append((item, settings))
+            blocked = [
+                item["row_key"]
+                for item, _settings in changed_items
+                if item["status"] not in {"DRAFT", "AUDIO_READY", "AUDIO_FAILED"}
+            ]
+            if blocked:
+                raise ValueError(
+                    "以下脚本行已进入声音生成，不能批量更换声音："
+                    + "、".join(str(value) for value in blocked[:10])
+                )
+
+            now = _now()
+            for item, settings in changed_items:
+                settings["voice_asset_id"] = voice_id
+                if item["status"] in {"AUDIO_READY", "AUDIO_FAILED"}:
+                    connection.execute(
+                        """
+                        UPDATE project_items
+                        SET settings_json=?, current_audio_asset_id=NULL,
+                            current_video_asset_id=NULL, subtitles_json=?,
+                            status='DRAFT', updated_at=?
+                        WHERE item_id=?
+                        """,
+                        (_json(settings), _json(_default_subtitles()), now, item["item_id"]),
+                    )
+                else:
+                    connection.execute(
+                        "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
+                        (_json(settings), now, item["item_id"]),
+                    )
+
+            project_settings = _object(project["settings_json"], {})
+            project_default_changed = (
+                project_settings.get("default_voice_asset_id") != voice_id
+            )
+            project_settings["default_voice_asset_id"] = voice_id
+            connection.execute(
+                """
+                INSERT INTO project_user_preferences(
+                    owner_user_id, default_voice_asset_id,
+                    voice_settings_json, updated_at
+                ) VALUES(?, ?, ?, ?)
+                ON CONFLICT(owner_user_id) DO UPDATE SET
+                    default_voice_asset_id=excluded.default_voice_asset_id,
+                    updated_at=excluded.updated_at
+                """,
+                (
+                    owner_id,
+                    voice_id,
+                    _json(
+                        {
+                            "model": "speech-2.8-hd",
+                            "speed": 1.0,
+                            "volume": 1.0,
+                            "pitch": 0,
+                            "language_boost": "Chinese",
+                            "output_format": "mp3",
+                        }
+                    ),
+                    now,
+                ),
+            )
+            if changed_items or project_default_changed:
+                connection.execute(
+                    """
+                    UPDATE projects
+                    SET settings_json=?, revision=revision+1, updated_at=?
+                    WHERE project_id=?
+                    """,
+                    (_json(project_settings), now, project_id),
+                )
+                self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_id, project_id)
+
+    def projects_using_voice(
+        self, owner_user_id: str, voice_asset_id: str
+    ) -> list[dict[str, str]]:
+        """Return current projects whose default or item settings select a voice."""
+
+        owner_id = str(owner_user_id or "").strip()
+        voice_id = str(voice_asset_id or "").strip()
+        if not owner_id or not voice_id:
+            return []
+        used: dict[str, dict[str, str]] = {}
+        with self._connect() as connection:
+            projects = connection.execute(
+                "SELECT project_id, project_no, name, settings_json "
+                "FROM projects WHERE owner_user_id=?",
+                (owner_id,),
+            ).fetchall()
+            for project in projects:
+                settings = _object(project["settings_json"], {})
+                if settings.get("default_voice_asset_id") == voice_id:
+                    used[project["project_id"]] = {
+                        "project_id": project["project_id"],
+                        "project_no": project["project_no"],
+                        "name": project["name"],
+                    }
+            rows = connection.execute(
+                """
+                SELECT p.project_id, p.project_no, p.name, i.settings_json
+                FROM projects p
+                JOIN project_items i ON i.project_id=p.project_id
+                WHERE p.owner_user_id=?
+                """,
+                (owner_id,),
+            ).fetchall()
+            for row in rows:
+                settings = _object(row["settings_json"], {})
+                if settings.get("voice_asset_id") == voice_id:
+                    used[row["project_id"]] = {
+                        "project_id": row["project_id"],
+                        "project_no": row["project_no"],
+                        "name": row["name"],
+                    }
+        return list(used.values())
 
     def add_asset(
         self,
@@ -992,6 +1246,96 @@ class ProjectStore:
                 (operation_id,),
             ).fetchone()
             return self._operation_payload(row)
+
+    def transition_audio_operation(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        status: str,
+        item_status: str,
+        result: dict[str, Any] | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        operation_status = str(status or "").strip().upper()
+        resolved_item_status = _clean_status(
+            item_status, allowed=PROJECT_ITEM_STATUSES, label="项目行状态"
+        )
+        if operation_status not in {"PENDING", "RUNNING", "SUCCEEDED", "FAILED"}:
+            raise ValueError("声音操作状态无效")
+        now = _now()
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            self._owned_item(connection, project_id, item_id)
+            operation = connection.execute(
+                """
+                SELECT * FROM project_operations
+                WHERE project_id=? AND item_id=? AND operation_type='AUDIO_GENERATE'
+                ORDER BY rowid DESC LIMIT 1
+                """,
+                (project_id, item_id),
+            ).fetchone()
+            if operation is None:
+                raise KeyError("声音生成操作不存在")
+            started_at = operation["started_at"] or (
+                now if operation_status == "RUNNING" else None
+            )
+            finished_at = (
+                now if operation_status in {"SUCCEEDED", "FAILED"} else None
+            )
+            connection.execute(
+                """
+                UPDATE project_operations
+                SET status=?, attempt_count=CASE
+                        WHEN ?='RUNNING' AND status!='RUNNING'
+                        THEN attempt_count+1 ELSE attempt_count END,
+                    error_code=?, error_message=?, result_json=?,
+                    updated_at=?, started_at=?, finished_at=?
+                WHERE operation_id=?
+                """,
+                (
+                    operation_status,
+                    operation_status,
+                    error_code,
+                    error_message,
+                    _json(result or {}),
+                    now,
+                    started_at,
+                    finished_at,
+                    operation["operation_id"],
+                ),
+            )
+            connection.execute(
+                "UPDATE project_items SET status=?, updated_at=? WHERE item_id=?",
+                (resolved_item_status, now, item_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_item_subtitles(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        subtitles: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(subtitles, dict):
+            raise ValueError("字幕数据必须是对象")
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            self._owned_item(connection, project_id, item_id)
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET subtitles_json=?, updated_at=? WHERE item_id=?",
+                (_json(subtitles), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?",
+                (now, project_id),
+            )
+        return self.get_project(owner_user_id, project_id)
 
     def add_link(
         self,

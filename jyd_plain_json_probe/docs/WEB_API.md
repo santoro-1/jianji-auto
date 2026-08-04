@@ -17,8 +17,8 @@ POST /api/auth/logout
 HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登录页面额外把返回范围
 限制在 `/app/new` 内，避免开放跳转。静态页面不得保存数字人访问令牌。
 
-本模块只替换登录、会话、导航和退出。脚本导入、声音、画面合成、变体和成果库数据仍按
-后续模块接入，不能把现有原型定时器的显示结果当成后端业务状态。
+模块 1 只负责登录、会话、导航和退出；脚本/图片与声音分别已由模块 2、3 接入。画面
+合成、变体和成果库仍按后续模块接入，不能把原型定时器的显示结果当成后端业务状态。
 
 ## 脚本与图片输入（模块 2）
 
@@ -61,6 +61,71 @@ PUT    /api/new/projects/{project_id}/items/{item_id}/image
 图片，不覆盖旧版本。考虑到图片由本地工作台管理，只要图片当前没有被任何脚本使用，
 就可以从图片池删除；删除时同时清理对应的旧输入图片版本和本地文件。当前正在使用的
 图片必须先重新分配后才能删除。
+
+## 音色与声音生成（模块 3）
+
+浏览器始终只访问工作台。工作台使用 HTTP-only 会话中的短期令牌代理数字人后端，
+MiniMax Key、官方 voice ID 校验、声音制作任务和付费音频任务仍由数字人后端管理。
+
+```text
+GET  /api/new/voices
+PUT  /api/new/voices/default
+POST /api/new/voices/{voice_asset_id}/preview
+GET  /api/new/voices/{voice_asset_id}/preview
+POST /api/new/voices/{voice_asset_id}/activate
+DELETE /api/new/voices/{voice_asset_id}
+
+POST /api/new/voice-creations
+POST /api/new/voice-creations/{task_id}/save
+GET  /api/new/voice-creations/{task_id}/preview
+
+PUT  /api/new/projects/{project_id}/voice
+PUT  /api/new/projects/{project_id}/items/{item_id}/voice
+POST /api/new/projects/{project_id}/audio/generate
+GET  /api/new/projects/{project_id}/audio/status
+POST /api/new/projects/{project_id}/items/{item_id}/audio/retry
+GET  /api/new/projects/{project_id}/items/{item_id}/audio
+```
+
+`GET /api/new/voices` 返回三个经产品确认且当前 MiniMax 账号实际可用的官方音色、账号
+已保存的克隆/融合音色、最近声音制作任务和工作台默认音色。三个官方 voice ID 为：
+
+```text
+Chinese (Mandarin)_Reliable_Executive
+Chinese (Mandarin)_Warm_Girl
+Chinese (Mandarin)_Unrestrained_Young_Man
+```
+
+官方音色首次试听是一次真实 MiniMax 合成，必须提交 `cost_confirmed: true`；成功后缓存，
+以后直接读取缓存。声音制作使用 `multipart/form-data`，克隆需要 `source_a`，融合还需要
+`source_b`；费用确认、时长、格式、保存状态和失败恢复继续执行数字人后端既有规则。
+
+`PUT /api/new/projects/{project_id}/voice` 接收 `voice_asset_id`，验证它属于当前数字人账号
+且已保存，然后原子地写入项目默认音色和全部脚本行。若任一需要修改的脚本行正在异步
+处理中，整次请求返回 `409`，不会只更新一部分。已生成音频的脚本行切换音色后会清空
+当前音频指针并回到 `DRAFT`，但历史素材版本仍保留。单行下拉框使用
+`PUT /api/new/projects/{project_id}/items/{item_id}/voice` 覆盖项目默认值。
+
+声音制作任务生成成功后进入 `PREVIEW_READY`，此时可通过 preview 接口试听；只有调用
+save 接口成功并进入 `SAVED` 后，才会生成自定义音色卡。新卡最初为 `READY` 且
+`selectable: false`；`POST /api/new/voices/{voice_asset_id}/activate` 必须携带
+`cost_confirmed: true`，数字人后端用该克隆音色执行一次短 TTS，成功后标记 `ACTIVE`
+和 `selectable: true`。这次调用是 MiniMax 的首次正式使用，会触发音色复刻费和短文本
+合成费。保存本身不触发首次使用费用。
+
+`DELETE /api/new/voices/{voice_asset_id}` 只允许删除自定义音色卡，并由前端二次确认。
+若工作台任一当前项目的默认音色或脚本行仍引用该音色，返回 `409`；删除后历史声音制作
+任务及已生成音频继续保留。MiniMax 官方音色不可从声音中心删除。
+
+项目声音生成请求至少包含 `default_voice_asset_id`、`idempotency_key` 和
+`cost_confirmed: true`，可用 `voice_assignments` 按脚本行覆盖默认音色。工作台按音色
+分组创建数字人音频批次，保存批次/批次行关联和 `AUDIO_GENERATE` 操作。后端只处理
+`DRAFT` 或 `AUDIO_FAILED` 行，不重新生成已就绪音频。
+
+数字人音频批次强制启用审核门：MiniMax 成功后停在 `AWAITING_REVIEW`，不会自动创建
+RunningHub 画面任务。状态同步会把 MP3 下载到工作台项目目录，创建新的 `audio` 素材
+版本并切换当前音频，同时保存 MiniMax 原始 cue 为 `raw_cues` 和第一版
+`render_cues`。重新生成显式确认可能再次计费，旧音频版本不覆盖、不删除。
 
 ## 新版统一项目接口（模块 0）
 
