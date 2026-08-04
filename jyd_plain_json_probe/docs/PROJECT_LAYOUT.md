@@ -14,6 +14,7 @@ apps/
    ├─ run_web_api.py              源码运行入口
    ├─ processor_config.example.json
    └─ frontend/                   用户页和管理后台
+      └─ new/                     `/app/new` 新版工作台、成果库、声音中心和登录页
 ```
 
 ## 核心源码、工具和测试
@@ -21,6 +22,7 @@ apps/
 ```text
 src/jyd_probe/                    共用核心代码
 src/jyd_probe/project_store.py    新版统一项目、素材版本、操作和外部批次关联
+tests/test_new_frontend.py        新版路由、登录会话、退出和安全返回测试
 tests/                            自动测试
 examples/                         job.json 示例
 tools/library/                    音乐、字体、贴纸、花字等提取工具

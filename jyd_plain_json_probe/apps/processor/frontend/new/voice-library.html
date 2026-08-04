@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>声线克隆中心 - 声音原型管理套件</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdn.staticfile.net/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'Noto Sans SC', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            deep: '#030712',
+                            dark: '#0b0f19',
+                            card: 'rgba(17, 24, 39, 0.65)',
+                            primary: '#6366f1',
+                            secondary: '#a855f7',
+                            accent: '#06b6d4',
+                            success: '#10b981',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: radial-gradient(circle at 50% 0%, #171d3d 0%, #0a0e24 50%, #030712 100%);
+            min-height: 100vh;
+            color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-panel-heavy {
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .pulse-accent {
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(6, 182, 212, 0.4); box-shadow: 0 0 10px rgba(6, 182, 212, 0.1); }
+            50% { border-color: rgba(6, 182, 212, 0.9); box-shadow: 0 0 20px rgba(6, 182, 212, 0.3); }
+        }
+        .wave-animation {
+            display: inline-flex;
+            align-items: flex-end;
+            gap: 2.5px;
+        }
+        .wave-bar-static {
+            width: 2px;
+            background-color: rgba(99, 102, 241, 0.3);
+            border-radius: 99px;
+            transition: all 0.3s ease;
+        }
+        .wave-active .wave-bar-static {
+            background-color: #06b6d4;
+            animation: wave-dynamic 1s ease-in-out infinite alternate;
+        }
+        @keyframes wave-dynamic {
+            0% { height: 6px; }
+            100% { height: 26px; }
+        }
+        .page-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="font-sans antialiased">
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-6 right-6 z-50 transform translate-x-80 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="glass-panel-heavy px-5 py-4 rounded-xl shadow-2xl border-l-4 border-brand-accent flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent" id="toast-icon">
+                <i class="fa-solid fa-circle-info"></i>
+            </div>
+            <div>
+                <h4 class="font-bold text-sm text-white" id="toast-title">提示信息</h4>
+                <p class="text-xs text-gray-400 mt-0.5" id="toast-message">这是通知的内容描述。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Navigation Header -->
+    <header class="glass-panel sticky top-0 z-40 border-b border-white/5 px-6 py-4 shadow-xl">
+        <div class="max-w-[1680px] mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="/app-static/new/logo.png" alt="Logo" class="w-10 h-10 object-contain rounded-xl shadow-lg" onerror="this.outerHTML='<div class=\'w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-secondary flex items-center justify-center shadow-lg shadow-brand-primary/30\'><i class=\'fa-solid fa-wand-magic-sparkles text-lg text-white\'></i></div>'">
+                <div>
+                    <h1 class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brand-accent bg-clip-text text-transparent">公域闪剪视频</h1>
+                    <p class="text-[10px] text-brand-accent font-semibold tracking-widest uppercase">Video Synthesis Platform</p>
+                </div>
+            </div>
+
+            <!-- Header Menu -->
+            <nav class="hidden md:flex items-center gap-1">
+                <a href="/app/new" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-sliders mr-1.5"></i>核心工作台</a>
+                <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
+                <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-primary/10 border border-brand-primary/30 text-white transition-all shadow-inner"><i class="fa-solid fa-microphone-lines mr-1.5 text-brand-accent"></i>声音克隆中心</a>
+            </nav>
+
+            <!-- Profile -->
+            <div class="flex items-center gap-4 relative">
+                <div class="hidden lg:flex flex-col text-right">
+                    <span class="text-xs font-semibold text-gray-300">超级 VIP 会员</span>
+                    <span class="text-[10px] text-brand-accent font-semibold">今日算力额度：无限</span>
+                </div>
+                <div class="relative">
+                    <div onclick="toggleUserDropdown(event)" class="w-9 h-9 rounded-full border border-brand-primary/40 p-0.5 shadow-lg shadow-brand-primary/10 cursor-pointer hover:border-brand-accent transition-colors">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar" class="w-full h-full rounded-full object-cover">
+                    </div>
+                    <!-- User dropdown menu -->
+                    <div id="user-dropdown" class="hidden absolute right-0 mt-2.5 w-40 glass-panel-heavy rounded-xl border border-white/10 shadow-2xl overflow-hidden py-1 z-50">
+                        <div class="px-3.5 py-2 border-b border-white/5">
+                            <p class="text-xs font-bold text-white">VIP 创作者</p>
+                            <p class="current-user-name text-[9px] text-gray-400 mt-0.5">当前账号</p>
+                        </div>
+                        <a href="#" onclick="showToast('系统设置', '原型演示暂不支持修改个人信息。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
+                        <a href="/app/new/login" onclick="handleLogout(event)" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"><i class="fa-solid fa-right-from-bracket"></i>退出登录</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="max-w-[1680px] mx-auto px-4 py-6 md:py-8 page-fade-in">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- Left Panel: Create Custom Voice Clone (Upload/Record) -->
+            <section class="lg:col-span-4 flex flex-col gap-6">
+                
+                <!-- Voice Cloning Box -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg border border-white/5">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-2">
+                        <span class="w-6 h-6 rounded bg-brand-accent/20 text-brand-accent flex items-center justify-center text-xs"><i class="fa-solid fa-plus"></i></span>
+                        极速音色提取
+                    </h3>
+                    <p class="text-[10px] text-gray-400 mb-4">上传一段 10 至 30 秒的优质人声干声音频，或通过麦克风即时朗读，我们的 AI 算法能在短时间内精准克隆目标音色特征。</p>
+                    
+                    <!-- Trigger Dragzone -->
+                    <div id="voice-dropzone" class="border-2 border-dashed border-slate-700 hover:border-brand-accent/60 bg-slate-950/20 hover:bg-brand-accent/5 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 mb-4" onclick="triggerFileInput('voice-file-input')">
+                        <input type="file" id="voice-file-input" class="hidden" accept="audio/*" onchange="handleVoiceUpload(event)">
+                        <div class="w-12 h-12 rounded-full bg-slate-900/60 border border-slate-800 flex items-center justify-center text-slate-400 mb-3 shadow-inner">
+                            <i class="fa-solid fa-microphone text-lg text-brand-accent"></i>
+                        </div>
+                        <p class="text-xs font-semibold text-gray-300" id="voice-upload-status">点击选择或拖拽人声音频</p>
+                        <p class="text-[10px] text-gray-500 mt-1">支持 WAV, MP3, M4A 格式，建议底噪低且人声清晰</p>
+                    </div>
+
+                    <!-- Input custom voice name -->
+                    <div class="space-y-3 mb-4">
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 mb-1.5">克隆音色名称</label>
+                            <input type="text" id="custom-voice-name" value="我的定制化克隆声音" placeholder="给这个声音起个酷炫的名字" class="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-brand-accent rounded-lg px-3 py-2 text-xs text-gray-200 outline-none transition-colors">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-gray-400 mb-1.5">克隆特征性别</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="selectGender('male')" id="gender-male" class="py-1.5 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium transition-colors">男声男音</button>
+                                <button onclick="selectGender('female')" id="gender-female" class="py-1.5 bg-slate-950 border border-slate-800 text-gray-400 hover:bg-slate-800 rounded-lg text-xs font-medium transition-colors">女声女音</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Voice cloning progression simulation -->
+                    <div id="cloning-progress-box" class="hidden bg-slate-950/50 border border-slate-800/80 rounded-xl p-3.5 mb-4">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-bold text-brand-accent"><i class="fa-solid fa-gears fa-spin mr-1"></i> AI 正在进行特征学习与重构...</span>
+                            <span class="text-[10px] font-mono text-gray-400" id="cloning-progress-text">0%</span>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                            <div id="cloning-progress-bar" class="h-full bg-gradient-to-r from-brand-accent to-brand-primary w-0 transition-all"></div>
+                        </div>
+                    </div>
+
+                    <button onclick="startCloningProgress()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-accent to-brand-primary hover:brightness-110 text-white font-bold text-xs shadow-lg shadow-brand-accent/15 tracking-wider uppercase transition-all">
+                        <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>
+                        提取并注入原型库
+                    </button>
+                </div>
+
+                <!-- Tips panel -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg border border-white/5">
+                    <h4 class="font-bold text-xs text-white flex items-center gap-2 mb-3">
+                        <i class="fa-solid fa-circle-question text-brand-accent"></i>
+                        如何录制优质的音频特征？
+                    </h4>
+                    <ul class="space-y-2 text-[10px] text-gray-400 leading-relaxed list-disc list-inside">
+                        <li>朗读声音请尽量保持语调平和，减少大幅度语气波动。</li>
+                        <li>尽量避免在有回声、风声、街道嘈杂的嘈杂环境下录音。</li>
+                        <li>干声音频请保持在 15秒 以上，以便 AI 学习多重元音特质。</li>
+                        <li>不要使用带有伴奏、混响或变音特效的人声样本。</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Right Panel: Voice Prototype Library list -->
+            <section class="lg:col-span-8 flex flex-col gap-6">
+                
+                <!-- Prototype Header -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg flex flex-col">
+                    <div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5">
+                        <div>
+                            <h2 class="font-extrabold text-sm text-white flex items-center gap-2"><i class="fa-solid fa-microphone-lines text-brand-primary"></i> 官方预置声音与克隆音色库</h2>
+                            <p class="text-[10px] text-gray-400 mt-0.5">您可以针对各个音色进行声学特征的微调，设定全局默认，或测试声音试听。</p>
+                        </div>
+                        <span class="px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-full text-[10px] text-gray-400 font-semibold" id="voice-count-badge">共 3 个声音原型</span>
+                    </div>
+
+                    <!-- Voice Cards grid -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" id="voice-library-grid">
+                        
+                        <!-- Card 1 -->
+                        <div class="voice-detail-card border border-brand-primary/40 bg-brand-primary/5 rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-brand-primary/80">
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-11 h-11 rounded-full bg-cover bg-center shadow-lg border border-white/10" style="background-image: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80');"></div>
+                                        <div>
+                                            <h4 class="font-bold text-xs text-white">陈老师 - 磁性男解说</h4>
+                                            <span class="px-1.5 py-0.5 bg-brand-primary/20 text-brand-accent rounded text-[8px] mt-1 inline-block font-semibold">系统内置</span>
+                                        </div>
+                                    </div>
+                                    <span class="text-[9px] text-gray-400 font-bold"><i class="fa-solid fa-circle-check text-brand-accent mr-1"></i>默认配音</span>
+                                </div>
+
+                                <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/80 space-y-2 mb-4">
+                                    <div class="flex items-center justify-between text-[9px] text-gray-400">
+                                        <span>声波预览</span>
+                                        <span>00:04</span>
+                                    </div>
+                                    <!-- Player -->
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleVoicePlay('male1', this)" class="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-accent flex items-center justify-center text-[10px] hover:bg-brand-primary/30 transition-colors"><i class="fa-solid fa-play"></i></button>
+                                        <!-- Waveform visualizer -->
+                                        <div class="wave-animation h-5 flex-1 items-end">
+                                            <span class="wave-bar-static h-2 flex-1"></span>
+                                            <span class="wave-bar-static h-3 flex-1"></span>
+                                            <span class="wave-bar-static h-1.5 flex-1"></span>
+                                            <span class="wave-bar-static h-4.5 flex-1"></span>
+                                            <span class="wave-bar-static h-3 flex-1"></span>
+                                            <span class="wave-bar-static h-1 flex-1"></span>
+                                            <span class="wave-bar-static h-4 flex-1"></span>
+                                            <span class="wave-bar-static h-2 flex-1"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Feature parameters sliders mockup -->
+                                <div class="space-y-2.5">
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">音高 (Pitch)</span>
+                                        <span class="text-gray-300 font-mono">1.00 (标准)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
+
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">语速 (Speed)</span>
+                                        <span class="text-gray-300 font-mono">1.10 (较快)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[60%]"></div></div>
+
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">情绪张力 (Emotion)</span>
+                                        <span class="text-gray-300 font-mono">0.85 (沉稳)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[42%]"></div></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                                <span class="text-[9px] text-gray-500">参数最后修改：今日 14:02</span>
+                                <div class="flex gap-2">
+                                    <button onclick="saveVoiceParams()" class="px-2.5 py-1 bg-slate-900 border border-slate-800 text-[10px] text-gray-300 hover:text-white rounded-lg transition-colors">应用参数</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 2 -->
+                        <div class="voice-detail-card border border-slate-800 bg-slate-950/20 rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-slate-700">
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-11 h-11 rounded-full bg-cover bg-center shadow-lg border border-white/10" style="background-image: url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80');"></div>
+                                        <div>
+                                            <h4 class="font-bold text-xs text-white">小雅 - 温柔情感女声</h4>
+                                            <span class="px-1.5 py-0.5 bg-brand-primary/20 text-brand-accent rounded text-[8px] mt-1 inline-block font-semibold">系统内置</span>
+                                        </div>
+                                    </div>
+                                    <button onclick="setAsDefaultVoice(1, this)" class="text-[9px] text-brand-accent hover:underline font-bold">设为默认</button>
+                                </div>
+
+                                <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/80 space-y-2 mb-4">
+                                    <div class="flex items-center justify-between text-[9px] text-gray-400">
+                                        <span>声波预览</span>
+                                        <span>00:03</span>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleVoicePlay('female1', this)" class="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-accent flex items-center justify-center text-[10px] hover:bg-brand-primary/30 transition-colors"><i class="fa-solid fa-play"></i></button>
+                                        <div class="wave-animation h-5 flex-1 items-end">
+                                            <span class="wave-bar-static h-1.5 flex-1"></span>
+                                            <span class="wave-bar-static h-2 flex-1"></span>
+                                            <span class="wave-bar-static h-3 flex-1"></span>
+                                            <span class="wave-bar-static h-1 flex-1"></span>
+                                            <span class="wave-bar-static h-4.5 flex-1"></span>
+                                            <span class="wave-bar-static h-2 flex-1"></span>
+                                            <span class="wave-bar-static h-1.5 flex-1"></span>
+                                            <span class="wave-bar-static h-3 flex-1"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2.5">
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">音高 (Pitch)</span>
+                                        <span class="text-gray-300 font-mono">1.15 (清脆)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[65%]"></div></div>
+
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">语速 (Speed)</span>
+                                        <span class="text-gray-300 font-mono">0.95 (平缓)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[47%]"></div></div>
+
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">情绪张力 (Emotion)</span>
+                                        <span class="text-gray-300 font-mono">1.25 (富有情感)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[70%]"></div></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                                <span class="text-[9px] text-gray-500">参数最后修改：三日前</span>
+                                <div class="flex gap-2">
+                                    <button onclick="saveVoiceParams()" class="px-2.5 py-1 bg-slate-900 border border-slate-800 text-[10px] text-gray-300 hover:text-white rounded-lg transition-colors">应用参数</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card 3 -->
+                        <div class="voice-detail-card border border-slate-800 bg-slate-950/20 rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-slate-700">
+                            <div>
+                                <div class="flex items-center justify-between mb-3">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-11 h-11 rounded-full bg-cover bg-center shadow-lg border border-white/10" style="background-image: url('https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=100&auto=format&fit=crop&q=80');"></div>
+                                        <div>
+                                            <h4 class="font-bold text-xs text-white">阿聪 - 活力带货主播</h4>
+                                            <span class="px-1.5 py-0.5 bg-brand-primary/20 text-brand-accent rounded text-[8px] mt-1 inline-block font-semibold">系统内置</span>
+                                        </div>
+                                    </div>
+                                    <button onclick="setAsDefaultVoice(2, this)" class="text-[9px] text-brand-accent hover:underline font-bold">设为默认</button>
+                                </div>
+
+                                <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/80 space-y-2 mb-4">
+                                    <div class="flex items-center justify-between text-[9px] text-gray-400">
+                                        <span>声波预览</span>
+                                        <span>00:03</span>
+                                    </div>
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleVoicePlay('male2', this)" class="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-accent flex items-center justify-center text-[10px] hover:bg-brand-primary/30 transition-colors"><i class="fa-solid fa-play"></i></button>
+                                        <div class="wave-animation h-5 flex-1 items-end">
+                                            <span class="wave-bar-static h-3.5 flex-1"></span>
+                                            <span class="wave-bar-static h-1.5 flex-1"></span>
+                                            <span class="wave-bar-static h-4.5 flex-1"></span>
+                                            <span class="wave-bar-static h-2 flex-1"></span>
+                                            <span class="wave-bar-static h-4 flex-1"></span>
+                                            <span class="wave-bar-static h-1 flex-1"></span>
+                                            <span class="wave-bar-static h-3 flex-1"></span>
+                                            <span class="wave-bar-static h-2.5 flex-1"></span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2.5">
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">音高 (Pitch)</span>
+                                        <span class="text-gray-300 font-mono">1.05 (洪亮)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[54%]"></div></div>
+
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">语速 (Speed)</span>
+                                        <span class="text-gray-300 font-mono">1.30 (飞快)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[78%]"></div></div>
+
+                                    <div class="flex items-center justify-between text-[9px]">
+                                        <span class="text-gray-400">情绪张力 (Emotion)</span>
+                                        <span class="text-gray-300 font-mono">1.40 (热情昂扬)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[85%]"></div></div>
+                                </div>
+                            </div>
+
+                            <div class="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                                <span class="text-[9px] text-gray-500">参数最后修改：昨晚 19:42</span>
+                                <div class="flex gap-2">
+                                    <button onclick="saveVoiceParams()" class="px-2.5 py-1 bg-slate-900 border border-slate-800 text-[10px] text-gray-300 hover:text-white rounded-lg transition-colors">应用参数</button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="mt-20 border-t border-white/5 bg-slate-950 py-10 px-6">
+        <div class="max-w-[1680px] mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-gray-500 text-xs">
+            <div class="flex items-center gap-3">
+                <i class="fa-solid fa-wand-magic-sparkles text-brand-primary"></i>
+                <span>© 2026 公域闪剪视频合成系统. 保留所有权利.</span>
+            </div>
+            <div class="flex items-center gap-6">
+                <a href="#" class="hover:text-gray-300 transition-colors">使用条款</a>
+                <a href="#" class="hover:text-gray-300 transition-colors">隐私政策</a>
+                <a href="#" class="hover:text-gray-300 transition-colors">API文档</a>
+                <a href="#" class="hover:text-gray-300 transition-colors">联系技术支持</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Audio Mock Nodes (Hidden) -->
+    <audio id="audio-male1" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
+    <audio id="audio-female1" src="https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg" preload="auto"></audio>
+    <audio id="audio-male2" src="https://actions.google.com/sounds/v1/science_fiction/beam_me_up.ogg" preload="auto"></audio>
+
+    <!-- Core Logic -->
+    <script>
+        let selectedGenderType = 'male';
+        let customVoiceFile = null;
+        let selectedActiveVoiceAudio = null;
+        let activeVoicePlayingEl = null;
+
+        // UI Toast Utility
+        function showToast(title, message, iconType = 'info') {
+            const toast = document.getElementById('toast');
+            const iconBox = document.getElementById('toast-icon');
+            const titleEl = document.getElementById('toast-title');
+            const messageEl = document.getElementById('toast-message');
+
+            if (iconType === 'success') {
+                iconBox.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+                iconBox.className = "w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400";
+            } else if (iconType === 'warning') {
+                iconBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                iconBox.className = "w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400";
+            } else {
+                iconBox.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+                iconBox.className = "w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent";
+            }
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+
+            toast.classList.remove('translate-x-80', 'opacity-0');
+            toast.classList.add('translate-x-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-x-0', 'opacity-100');
+                toast.classList.add('translate-x-80', 'opacity-0');
+            }, 3000);
+        }
+
+        function triggerFileInput(id) {
+            document.getElementById(id).click();
+        }
+
+        // Gender selectors
+        function selectGender(type) {
+            selectedGenderType = type;
+            const btnMale = document.getElementById('gender-male');
+            const btnFemale = document.getElementById('gender-female');
+
+            if (type === 'male') {
+                btnMale.className = "py-1.5 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium transition-colors";
+                btnFemale.className = "py-1.5 bg-slate-950 border border-slate-800 text-gray-400 hover:bg-slate-800 rounded-lg text-xs font-medium transition-colors";
+            } else {
+                btnFemale.className = "py-1.5 bg-brand-primary/20 text-brand-accent border border-brand-primary/40 rounded-lg text-xs font-medium transition-colors";
+                btnMale.className = "py-1.5 bg-slate-950 border border-slate-800 text-gray-400 hover:bg-slate-800 rounded-lg text-xs font-medium transition-colors";
+            }
+        }
+
+        // Voice upload simulation
+        function handleVoiceUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            customVoiceFile = file;
+            document.getElementById('voice-upload-status').innerHTML = `<i class="fa-solid fa-file-audio mr-1.5 text-brand-accent"></i> ${file.name}`;
+            showToast("音频文件就绪", "成功载入您的提取源样本！请录入声音名称并点击「提取并注入原型库」。", "success");
+        }
+
+        // Simulated voice cloning progress
+        function startCloningProgress() {
+            if (!customVoiceFile) {
+                // Preload mock file to make prototype easy to try
+                customVoiceFile = { name: "本地录制测试样本.mp3" };
+                showToast("未检测到上传音频", "为您自动加载录音室演示特征以供原型体验...");
+            }
+
+            const voiceName = document.getElementById('custom-voice-name').value.trim() || "未命名自定义音色";
+            const progressBox = document.getElementById('cloning-progress-box');
+            const progressBar = document.getElementById('cloning-progress-bar');
+            const progressText = document.getElementById('cloning-progress-text');
+
+            progressBox.classList.remove('hidden');
+            let progress = 0;
+
+            const interval = setInterval(() => {
+                progress += 10;
+                progressBar.style.width = `${progress}%`;
+                progressText.textContent = `${progress}%`;
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    
+                    // Add new sound prototype card to list
+                    addNewVoiceCard(voiceName);
+
+                    // Reset uploading box
+                    progressBox.classList.add('hidden');
+                    progressBar.style.width = '0%';
+                    progressText.textContent = '0%';
+                    customVoiceFile = null;
+                    document.getElementById('voice-upload-status').textContent = '点击选择或拖拽人声音频';
+                    document.getElementById('custom-voice-name').value = '我的定制化克隆声音';
+
+                    showToast("克隆成功", `音色「${voiceName}」已被成功合成并加载至系统，您可以在核心工作台中选用它。`, "success");
+                }
+            }, 250);
+        }
+
+        // Dynamically add a voice card
+        function addNewVoiceCard(name) {
+            const grid = document.getElementById('voice-library-grid');
+            const card = document.createElement('div');
+            
+            // Randomize profile pictures for cloned voice
+            const avatars = [
+                'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+                'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80'
+            ];
+            const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
+
+            card.className = "voice-detail-card border border-slate-800 bg-slate-950/20 rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-slate-700";
+            card.innerHTML = `
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-11 h-11 rounded-full bg-cover bg-center shadow-lg border border-white/10" style="background-image: url('${randomAvatar}');"></div>
+                            <div>
+                                <h4 class="font-bold text-xs text-white">${name}</h4>
+                                <span class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-[8px] mt-1 inline-block font-semibold">自创克隆音色</span>
+                            </div>
+                        </div>
+                        <button onclick="setAsDefaultVoice(3, this)" class="text-[9px] text-brand-accent hover:underline font-bold">设为默认</button>
+                    </div>
+
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/80 space-y-2 mb-4">
+                        <div class="flex items-center justify-between text-[9px] text-gray-400">
+                            <span>声波预览</span>
+                            <span>00:04</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button onclick="toggleVoicePlay('female1', this)" class="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-accent flex items-center justify-center text-[10px] hover:bg-brand-primary/30 transition-colors"><i class="fa-solid fa-play"></i></button>
+                            <div class="wave-animation h-5 flex-1 items-end">
+                                <span class="wave-bar-static h-2 flex-1"></span>
+                                <span class="wave-bar-static h-4.5 flex-1"></span>
+                                <span class="wave-bar-static h-1.5 flex-1"></span>
+                                <span class="wave-bar-static h-3 flex-1"></span>
+                                <span class="wave-bar-static h-2 flex-1"></span>
+                                <span class="wave-bar-static h-3.5 flex-1"></span>
+                                <span class="wave-bar-static h-1 flex-1"></span>
+                                <span class="wave-bar-static h-3 flex-1"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between text-[9px]">
+                            <span class="text-gray-400">音高 (Pitch)</span>
+                            <span class="text-gray-300 font-mono">1.00 (默认)</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
+
+                        <div class="flex items-center justify-between text-[9px]">
+                            <span class="text-gray-400">语速 (Speed)</span>
+                            <span class="text-gray-300 font-mono">1.00 (默认)</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
+
+                        <div class="flex items-center justify-between text-[9px]">
+                            <span class="text-gray-400">情绪张力 (Emotion)</span>
+                            <span class="text-gray-300 font-mono">1.00 (默认)</span>
+                        </div>
+                        <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                    <span class="text-[9px] text-gray-500">参数最后修改：刚刚</span>
+                    <div class="flex gap-2">
+                        <button onclick="saveVoiceParams()" class="px-2.5 py-1 bg-slate-900 border border-slate-800 text-[10px] text-gray-300 hover:text-white rounded-lg transition-colors">应用参数</button>
+                    </div>
+                </div>
+            `;
+
+            grid.appendChild(card);
+            
+            // Increment statistics count
+            const currentCountText = document.getElementById('voice-count-badge').textContent;
+            const currentCount = parseInt(currentCountText.match(/\d+/)[0]) + 1;
+            document.getElementById('voice-count-badge').textContent = `共 ${currentCount} 个声音原型`;
+        }
+
+        // Toggle sound play on cards
+        function toggleVoicePlay(type, btn) {
+            const container = btn.closest('.bg-slate-950\/40');
+            const waveWrap = container.querySelector('.wave-animation');
+            const bars = waveWrap.querySelectorAll('.wave-bar-static');
+            const icon = btn.querySelector('i');
+
+            // Stop previous active audio
+            if (selectedActiveVoiceAudio) {
+                selectedActiveVoiceAudio.pause();
+                selectedActiveVoiceAudio.currentTime = 0;
+            }
+            if (activeVoicePlayingEl && activeVoicePlayingEl !== btn) {
+                activeVoicePlayingEl.querySelector('i').className = "fa-solid fa-play";
+                activeVoicePlayingEl.closest('.bg-slate-950\/40').querySelector('.wave-animation').classList.remove('wave-active');
+                activeVoicePlayingEl.closest('.bg-slate-950\/40').querySelector('.wave-animation').querySelectorAll('.wave-bar-static').forEach(bar => bar.style.height = '');
+            }
+
+            const audioEl = document.getElementById(`audio-${type}`);
+
+            if (selectedActiveVoiceAudio === audioEl && !audioEl.paused) {
+                audioEl.pause();
+                icon.className = "fa-solid fa-play";
+                waveWrap.classList.remove('wave-active');
+                bars.forEach(bar => bar.style.height = '');
+                selectedActiveVoiceAudio = null;
+                activeVoicePlayingEl = null;
+            } else {
+                audioEl.play().catch(e => console.log('Preview audio triggered'));
+                icon.className = "fa-solid fa-pause text-brand-secondary";
+                waveWrap.classList.add('wave-active');
+                
+                // Animate bars delays
+                bars.forEach((bar, index) => {
+                    bar.style.animationDelay = `${index * 0.15}s`;
+                });
+
+                selectedActiveVoiceAudio = audioEl;
+                activeVoicePlayingEl = btn;
+
+                audioEl.onended = () => {
+                    icon.className = "fa-solid fa-play";
+                    waveWrap.classList.remove('wave-active');
+                    bars.forEach(bar => bar.style.height = '');
+                    selectedActiveVoiceAudio = null;
+                    activeVoicePlayingEl = null;
+                };
+            }
+        }
+
+        function setAsDefaultVoice(id, btn) {
+            // Remove previous default tag and replace with action button
+            const cards = document.querySelectorAll('.voice-detail-card');
+            cards.forEach(card => {
+                const headerRight = card.querySelector('div > div.flex.items-center.justify-between.mb-3 > span');
+                if (headerRight && headerRight.tagName === 'SPAN') {
+                    // Create set default button instead
+                    const parent = headerRight.parentElement;
+                    headerRight.remove();
+                    const newBtn = document.createElement('button');
+                    newBtn.className = "text-[9px] text-brand-accent hover:underline font-bold";
+                    newBtn.textContent = "设为默认";
+                    newBtn.onclick = function() { setAsDefaultVoice(999, newBtn); }; // simple dynamic rebinding
+                    parent.appendChild(newBtn);
+                }
+            });
+
+            // Adjust this card to default
+            const parent = btn.parentElement;
+            btn.remove();
+            
+            const badge = document.createElement('span');
+            badge.className = "text-[9px] text-gray-400 font-bold";
+            badge.innerHTML = '<i class="fa-solid fa-circle-check text-brand-accent mr-1"></i>默认配音';
+            parent.appendChild(badge);
+
+            showToast("成功设定默认音色", "视频合成工作台在初始导入脚本后将优先应用该音色配置。", "success");
+        }
+
+        function saveVoiceParams() {
+            showToast("参数应用成功", "该声音原型的声学推理特征（语调高低、流利程度等）已成功存入本地快照。", "success");
+        }
+
+        // Toggle User profile dropdown
+        function toggleUserDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('user-dropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', () => {
+            const dropdown = document.getElementById('user-dropdown');
+            if (dropdown && !dropdown.classList.contains('hidden')) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        async function ensureAuthenticatedSession() {
+            try {
+                const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
+                const session = response.ok ? await response.json() : { authenticated: false };
+                if (!session.authenticated) throw new Error('unauthenticated');
+                document.querySelectorAll('.current-user-name').forEach((element) => {
+                    element.textContent = session.username || '已登录用户';
+                });
+            } catch (_) {
+                const next = encodeURIComponent(window.location.pathname);
+                window.location.replace(`/app/new/login?next=${next}`);
+            }
+        }
+
+        async function handleLogout(event) {
+            event.preventDefault();
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+            } finally {
+                window.location.replace('/app/new/login');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', ensureAuthenticatedSession);
+    </script>
+</body>
+</html>

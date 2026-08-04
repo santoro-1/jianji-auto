@@ -54,6 +54,7 @@ from .user_auth import UserAuth
 PROJECT_ROOT = project_root()
 LIBRARIES_ROOT = libraries_root()
 FRONTEND_ROOT = resource_path("apps", "processor", "frontend")
+NEW_FRONTEND_ROOT = FRONTEND_ROOT / "new"
 LAN_WEBSITE_ORIGIN_REGEX = (
     r"^https?://(?:"
     r"localhost|127(?:\.\d{1,3}){3}|"
@@ -1414,6 +1415,8 @@ def _is_admin_protected_path(path: str) -> bool:
 
 
 def _is_site_protected_path(path: str) -> bool:
+    if path == "/app/new/login":
+        return False
     if path in {
         "/api/health",
         "/api/admin/login",
@@ -1430,7 +1433,12 @@ def _is_site_protected_path(path: str) -> bool:
         return False
     if path.startswith("/api/agents/"):
         return False
-    return path == "/app" or path.startswith("/api/")
+    return (
+        path == "/app"
+        or path == "/app/new"
+        or path.startswith("/app/new/")
+        or path.startswith("/api/")
+    )
 
 
 def _safe_admin_next(value: str) -> str:
@@ -1647,8 +1655,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             except AuthCenterError as exc:
                 if path.startswith("/api/"):
                     return JSONResponse({"detail": str(exc)}, status_code=503)
+                login_path = "/app/new/login" if path.startswith("/app/new") else "/login"
                 return RedirectResponse(
-                    f"/login?next={quote(path, safe='/')}&center=offline", status_code=303
+                    f"{login_path}?next={quote(path, safe='/')}&center=offline", status_code=303
                 )
         collector_token = request.headers.get("x-jyd-access-token", "")
         if (
@@ -1660,7 +1669,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if path.startswith("/api/") or path == "/openapi.json":
             return JSONResponse({"detail": "需要管理员登录"}, status_code=401)
         next_path = quote(path, safe="/")
-        login_path = "/local-admin/login" if admin_required else "/login"
+        login_path = (
+            "/local-admin/login"
+            if admin_required
+            else ("/app/new/login" if path.startswith("/app/new") else "/login")
+        )
         return RedirectResponse(f"{login_path}?next={next_path}", status_code=303)
 
     @app.on_event("shutdown")
@@ -1689,6 +1702,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "name": "Jianying Render API",
             "docs": "/docs",
             "app": "/app",
+            "new_app": "/app/new",
             "health": "/api/health",
         }
 
@@ -1698,6 +1712,43 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if not index_path.exists():
             raise HTTPException(status_code=404, detail=f"前端文件不存在: {index_path}")
         return FileResponse(index_path)
+
+    def new_frontend_file(filename: str) -> FileResponse:
+        index_path = NEW_FRONTEND_ROOT / filename
+        if not index_path.exists():
+            raise HTTPException(status_code=404, detail=f"新版前端文件不存在: {index_path}")
+        return FileResponse(index_path)
+
+    @app.get("/app/new")
+    def new_frontend() -> FileResponse:
+        return new_frontend_file("index.html")
+
+    @app.get("/app/new/")
+    def new_frontend_trailing_slash() -> RedirectResponse:
+        return RedirectResponse("/app/new", status_code=303)
+
+    @app.get("/app/new/gallery")
+    def new_gallery_frontend() -> FileResponse:
+        return new_frontend_file("gallery.html")
+
+    @app.get("/app/new/voices")
+    def new_voice_frontend() -> FileResponse:
+        return new_frontend_file("voice-library.html")
+
+    @app.get("/app/new/login")
+    def new_login_frontend(request: Request):
+        site_token = request.cookies.get(site_auth.cookie_name, "")
+        admin_token = request.cookies.get(admin_auth.cookie_name, "")
+        try:
+            site_user = verify_site_token(site_token)
+        except AuthCenterError:
+            site_user = None
+        if site_user is not None or admin_auth.verify_token(admin_token):
+            next_path = _safe_site_next(request.query_params.get("next", "/app/new"))
+            if not next_path.startswith("/app/new"):
+                next_path = "/app/new"
+            return RedirectResponse(next_path, status_code=303)
+        return new_frontend_file("login.html")
 
     @app.get("/login")
     def site_login_frontend(request: Request):

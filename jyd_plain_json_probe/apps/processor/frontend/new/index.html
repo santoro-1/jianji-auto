@@ -1,0 +1,2224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公域闪剪视频合成工作台 - AI 视频生产力套件</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdn.staticfile.net/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'Noto Sans SC', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            deep: '#030712',
+                            dark: '#0b0f19',
+                            card: 'rgba(17, 24, 39, 0.65)',
+                            primary: '#6366f1',
+                            secondary: '#a855f7',
+                            accent: '#06b6d4',
+                            success: '#10b981',
+                        }
+                    },
+                    backdropBlur: {
+                        xs: '2px',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f0b29 50%, #030712 100%);
+            height: 100vh;
+            color: #f3f4f6;
+            overflow: hidden;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.3);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 99px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.7);
+        }
+        /* Narrow scrollbar style */
+        .narrow-scrollbar::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .narrow-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.1);
+        }
+        .narrow-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 99px;
+        }
+        .narrow-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.6);
+        }
+        /* Hide HTML5 Up/Down spin buttons for number inputs */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-panel-heavy {
+            background: rgba(10, 15, 30, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .text-glow {
+            text-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+        }
+        .border-glow:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+            outline: none;
+        }
+        .glow-button {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .glow-button::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 60%);
+            transform: scale(0);
+            transition: transform 0.5s ease-out;
+        }
+        .glow-button:hover::after {
+            transform: scale(1);
+        }
+        .pulse-soft {
+            animation: pulse-soft 2s infinite;
+        }
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        /* Waveform Animation */
+        .wave-bar {
+            animation: wave 1.2s ease-in-out infinite alternate;
+        }
+        @keyframes wave {
+            0% { height: 4px; }
+            100% { height: 20px; }
+        }
+        /* Page Transition Mock */
+        .page-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Sticky Table Column Hover Fix */
+        tr.table-data-row:hover td.sticky {
+            background-color: #12162b !important;
+        }
+        tr.table-data-row.bg-emerald-950\/10 td.sticky {
+            background-color: #0c1a16 !important;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased h-screen overflow-hidden flex flex-col">
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-6 right-6 z-50 transform translate-x-80 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="glass-panel-heavy px-5 py-4 rounded-xl shadow-2xl border-l-4 border-brand-accent flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent" id="toast-icon">
+                <i class="fa-solid fa-circle-info"></i>
+            </div>
+            <div>
+                <h4 class="font-bold text-sm text-white" id="toast-title">提示信息</h4>
+                <p class="text-xs text-gray-400 mt-0.5" id="toast-message">这是通知的内容描述。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subtitle Editor Modal -->
+    <div id="subtitle-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300">
+        <div class="glass-panel-heavy w-full max-w-md p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-closed-captioning text-brand-primary mr-2"></i>编辑字幕样式</h3>
+                <button onclick="closeSubtitleModal()" class="text-gray-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-2">字幕字体</label>
+                    <select id="modal-font" class="w-full bg-slate-900/60 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-gray-200 border-glow">
+                        <option value="Noto Sans SC">思源黑体 (默认)</option>
+                        <option value="Arial">系统无衬线 (Arial)</option>
+                        <option value="Georgia">经典衬线 (Georgia)</option>
+                        <option value="Outfit">潮流活力 (Outfit)</option>
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 mb-2">文字颜色</label>
+                        <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-1">
+                            <input type="color" id="modal-text-color" value="#ffffff" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer">
+                            <span class="text-xs text-gray-300 font-mono" id="modal-text-color-hex">#FFFFFF</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 mb-2">描边/底色</label>
+                        <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-1">
+                            <input type="color" id="modal-stroke-color" value="#000000" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer">
+                            <span class="text-xs text-gray-300 font-mono" id="modal-stroke-color-hex">#000000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-2">字幕对齐方式</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="py-1.5 px-3 bg-slate-800 rounded-lg text-xs font-medium border border-slate-700/60 hover:bg-slate-700 transition-colors text-white" onclick="selectAlignment('left')">居左</button>
+                        <button class="py-1.5 px-3 bg-brand-primary/30 rounded-lg text-xs font-medium border border-brand-primary/50 hover:bg-brand-primary/40 transition-colors text-white" onclick="selectAlignment('center')">居中</button>
+                        <button class="py-1.5 px-3 bg-slate-800 rounded-lg text-xs font-medium border border-slate-700/60 hover:bg-slate-700 transition-colors text-white" onclick="selectAlignment('right')">居右</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-400 mb-2">字幕预览</label>
+                    <div class="bg-black/85 rounded-xl h-24 flex items-center justify-center relative overflow-hidden border border-white/5">
+                        <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80" class="absolute inset-0 w-full h-full object-cover opacity-45" alt="Preview Background">
+                        <p id="modal-preview-text" class="relative z-10 text-white font-bold text-center tracking-wider text-sm px-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" style="font-family: 'Noto Sans SC'; color: #ffffff; text-shadow: 0 0 4px #000000;">用于字体测试观看</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button onclick="closeSubtitleModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
+                <button onclick="saveSubtitleStyles()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white shadow-lg transition-all">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variant Configuration Modal -->
+    <div id="variant-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300 px-4" role="dialog" aria-modal="true" aria-labelledby="variant-modal-title">
+        <div class="glass-panel-heavy w-full max-w-2xl max-h-[88vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
+            <div class="flex justify-between items-start gap-4 mb-5">
+                <div>
+                    <h3 id="variant-modal-title" class="text-lg font-bold text-white"><i class="fa-solid fa-code-branch text-brand-primary mr-2"></i>生成变体设置</h3>
+                    <p class="text-[11px] text-gray-400 mt-1">全局设置，将应用到本次所有变体任务</p>
+                </div>
+                <button type="button" onclick="closeVariantModal()" aria-label="关闭生成变体设置" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="space-y-5">
+                <section>
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-bold text-gray-300">变体生成方式</h4>
+                        <span class="text-[10px] text-gray-500">不设置时自动使用后端算法</span>
+                    </div>
+                    <div class="grid sm:grid-cols-2 gap-3">
+                        <label class="cursor-pointer rounded-xl border border-slate-700/70 bg-slate-950/40 p-3 flex items-start gap-3 hover:border-brand-primary/50 transition-colors">
+                            <input type="radio" name="variant-mode" value="default" checked onchange="updateVariantModeUI()" class="mt-0.5 accent-indigo-500">
+                            <span><strong class="block text-xs text-white">使用默认算法</strong><small class="block text-[10px] text-gray-400 mt-1 leading-relaxed">不提交自定义后期参数，由后端决定特效与画面变化。</small></span>
+                        </label>
+                        <label class="cursor-pointer rounded-xl border border-slate-700/70 bg-slate-950/40 p-3 flex items-start gap-3 hover:border-brand-primary/50 transition-colors">
+                            <input type="radio" name="variant-mode" value="custom" onchange="updateVariantModeUI()" class="mt-0.5 accent-indigo-500">
+                            <span><strong class="block text-xs text-white">自定义变体</strong><small class="block text-[10px] text-gray-400 mt-1 leading-relaxed">指定参与组合的剪映特效、贴纸和画面变化。</small></span>
+                        </label>
+                    </div>
+                </section>
+
+                <section id="variant-custom-settings" class="hidden space-y-3">
+                    <div class="rounded-xl border border-slate-800 bg-slate-950/35 p-4">
+                        <label class="flex items-center justify-between gap-4 cursor-pointer">
+                            <span><strong class="block text-xs text-white">视频特效</strong><small class="block text-[10px] text-gray-400 mt-1">使用剪映特效库中的全部可用特效参与轮换</small></span>
+                            <input id="variant-use-effects" type="checkbox" checked class="w-4 h-4 accent-indigo-500">
+                        </label>
+                        <div class="flex flex-wrap gap-1.5 mt-3">
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">泡泡</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">水彩晕染</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">雪花细闪</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">金色星星</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">萤火</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">樱花飘落</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">星火</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">浪漫氛围</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">光斑飘落</span>
+                            <span class="px-2 py-1 rounded-md bg-brand-primary/10 border border-brand-primary/20 text-[9px] text-brand-accent">拽酷红眼</span>
+                        </div>
+                    </div>
+
+                    <label class="rounded-xl border border-slate-800 bg-slate-950/35 p-4 flex items-center justify-between gap-4 cursor-pointer">
+                        <span><strong class="block text-xs text-white">全屏贴纸</strong><small class="block text-[10px] text-gray-400 mt-1">每个变体自动轮换一个可用的全屏装饰贴纸</small></span>
+                        <input id="variant-use-stickers" type="checkbox" class="w-4 h-4 accent-indigo-500">
+                    </label>
+
+                    <div class="rounded-xl border border-slate-800 bg-slate-950/35 p-4">
+                        <label class="flex items-center justify-between gap-4 cursor-pointer">
+                            <span><strong class="block text-xs text-white">画面变化套装</strong><small class="block text-[10px] text-gray-400 mt-1">镜像、人物定位、裁剪填色与四角贴纸组合变化</small></span>
+                            <input id="variant-use-visual" type="checkbox" checked onchange="updateVariantVisualUI()" class="w-4 h-4 accent-indigo-500">
+                        </label>
+                        <div id="variant-visual-settings" class="grid sm:grid-cols-2 gap-3 mt-3 pt-3 border-t border-white/5">
+                            <label class="block">
+                                <span class="block text-[10px] text-gray-400 mb-1.5">镜像间隔</span>
+                                <div class="relative"><input id="variant-mirror-interval" type="number" min="1" max="3600" value="10" class="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none focus:border-brand-primary/60"><span class="absolute right-3 top-2 text-[10px] text-gray-500">秒</span></div>
+                            </label>
+                            <fieldset>
+                                <legend class="text-[10px] text-gray-400 mb-1.5">裁剪比例</legend>
+                                <div class="flex gap-2">
+                                    <label class="flex-1 px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-700/60 text-[10px] text-gray-300 text-center cursor-pointer"><input id="variant-ratio-square" type="checkbox" checked class="mr-1.5 accent-indigo-500">1:1</label>
+                                    <label class="flex-1 px-3 py-2 rounded-lg bg-slate-900/70 border border-slate-700/60 text-[10px] text-gray-300 text-center cursor-pointer"><input id="variant-ratio-portrait" type="checkbox" checked class="mr-1.5 accent-indigo-500">3:4</label>
+                                </div>
+                            </fieldset>
+                            <label class="flex items-center gap-2 text-[10px] text-gray-300 cursor-pointer"><input id="variant-face-centered" type="checkbox" checked class="accent-indigo-500">人物自动居中</label>
+                            <label class="flex items-center gap-2 text-[10px] text-gray-300 cursor-pointer"><input id="variant-corner-stickers" type="checkbox" checked class="accent-indigo-500">自动轮换四角贴纸</label>
+                            <fieldset class="sm:col-span-2">
+                                <legend class="text-[10px] text-gray-400 mb-1.5">背景填充色</legend>
+                                <div class="flex gap-2">
+                                    <input id="variant-color-1" type="color" value="#000000" aria-label="背景颜色一" class="w-10 h-8 rounded-md bg-slate-900 border border-slate-700 cursor-pointer">
+                                    <input id="variant-color-2" type="color" value="#ffffff" aria-label="背景颜色二" class="w-10 h-8 rounded-md bg-slate-900 border border-slate-700 cursor-pointer">
+                                    <input id="variant-color-3" type="color" value="#dbe7f5" aria-label="背景颜色三" class="w-10 h-8 rounded-md bg-slate-900 border border-slate-700 cursor-pointer">
+                                    <input id="variant-color-4" type="color" value="#f2dddd" aria-label="背景颜色四" class="w-10 h-8 rounded-md bg-slate-900 border border-slate-700 cursor-pointer">
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
+
+                    <label class="rounded-xl border border-slate-800 bg-slate-950/35 p-4 flex items-center justify-between gap-4 cursor-pointer">
+                        <span><strong class="block text-xs text-white">字幕样式参与变化</strong><small class="block text-[10px] text-gray-400 mt-1">使用可用字体和字幕样式生成不同版本</small></span>
+                        <input id="variant-use-subtitles" type="checkbox" class="w-4 h-4 accent-indigo-500">
+                    </label>
+
+                    <p class="text-[10px] text-amber-300/80 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-info mr-1"></i>自定义变体至少需要两个核心变化；画面变化套装本身包含多个核心变化。</p>
+                </section>
+
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" onclick="closeVariantModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
+                <button type="button" onclick="saveVariantSettings()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white shadow-lg shadow-brand-primary/20 transition-all">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variant Results Preview Modal -->
+    <div id="variant-preview-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300 px-4" role="dialog" aria-modal="true" aria-labelledby="variant-preview-title">
+        <div class="glass-panel-heavy w-full max-w-4xl max-h-[88vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
+            <div class="flex items-start justify-between gap-4 mb-5">
+                <div>
+                    <h3 id="variant-preview-title" class="text-lg font-bold text-white"><i class="fa-solid fa-photo-film text-brand-primary mr-2"></i>变体预览</h3>
+                    <p id="variant-preview-summary" class="text-[11px] text-gray-400 mt-1">第 1 条视频 · 共 0 个变体</p>
+                </div>
+                <button type="button" onclick="closeVariantPreviewModal()" aria-label="关闭变体预览" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="variant-preview-grid" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+            <div class="mt-5 flex justify-end">
+                <button type="button" onclick="closeVariantPreviewModal()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white shadow-lg transition-all">完成查看</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared confirmation modal -->
+    <div id="confirm-action-modal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="confirm-action-title">
+        <div class="glass-panel-heavy w-full max-w-md rounded-2xl border border-white/10 p-6 shadow-2xl transform scale-95 transition-all duration-200">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 shrink-0 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-center">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div class="min-w-0">
+                    <h3 id="confirm-action-title" class="text-base font-bold text-white">请确认操作</h3>
+                    <p id="confirm-action-message" class="mt-2 text-xs leading-6 text-gray-400"></p>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
+                <button id="confirm-action-button" type="button" onclick="confirmPendingAction()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/20 transition-all">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row image zoom modal -->
+    <div id="image-zoom-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="image-zoom-title">
+        <div class="w-full max-w-4xl transform scale-95 transition-all duration-200">
+            <div class="mb-3 flex items-center justify-between">
+                <div>
+                    <h3 id="image-zoom-title" class="text-sm font-bold text-white"><i class="fa-solid fa-image text-brand-accent mr-2"></i>画面大图预览</h3>
+                    <p id="image-zoom-summary" class="mt-1 text-[10px] text-gray-400">第 1 条视频画面</p>
+                </div>
+                <button type="button" onclick="closeImageZoomModal()" aria-label="关闭画面预览" class="w-9 h-9 rounded-full glass-panel flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="glass-panel-heavy rounded-2xl border border-white/10 p-3 shadow-2xl">
+                <div class="h-[65vh] min-h-[320px] rounded-xl overflow-hidden bg-slate-950 flex items-center justify-center">
+                    <img id="image-zoom-src" src="" alt="当前视频画面大图" class="max-w-full max-h-full object-contain">
+                </div>
+                <div class="mt-3 flex justify-end">
+                    <button type="button" onclick="triggerActiveRowImageReplace()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-xs font-semibold text-white shadow-lg transition-all"><i class="fa-solid fa-image mr-2"></i>替换这张图片</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Preview Modal (For Generated Videos) -->
+    <div id="video-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300">
+        <div class="w-full max-w-4xl px-4 transform scale-95 transition-all duration-300 flex flex-col items-center">
+            <div class="w-full flex justify-end mb-3">
+                <button onclick="closeVideoModal()" class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-white hover:bg-white/20 transition-all shadow-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="glass-panel w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl relative aspect-video bg-slate-950 flex items-center justify-center">
+                <!-- Mock Video Player -->
+                <div class="absolute inset-0 flex items-center justify-center bg-cover bg-center" id="video-preview-bg" style="background-image: url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1200&auto=format&fit=crop&q=80');">
+                    <div class="absolute inset-0 bg-black/30"></div>
+                </div>
+                <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
+                
+                <!-- Inner play controller simulation -->
+                <div class="relative z-10 w-full h-full flex flex-col justify-between p-6">
+                    <div class="flex items-center justify-between">
+                        <span id="video-modal-file-name" class="px-3 py-1 bg-brand-primary/20 backdrop-blur-md border border-brand-primary/40 rounded-full text-xs text-brand-accent font-semibold tracking-wide"><i class="fa-solid fa-circle-play mr-1"></i> 合成预览.mp4</span>
+                        <span id="video-modal-id" class="text-xs text-gray-400 font-mono">ID: 001</span>
+                    </div>
+
+                    <!-- Centered Large Play Button -->
+                    <button class="self-center w-16 h-16 rounded-full bg-brand-primary/95 text-white flex items-center justify-center text-2xl hover:scale-110 shadow-lg shadow-brand-primary/40 transition-transform cursor-pointer" onclick="togglePlayPreviewVideo(this)">
+                        <i class="fa-solid fa-play ml-1"></i>
+                    </button>
+
+                    <!-- Player bottom bar -->
+                    <div class="bg-slate-900/80 backdrop-blur-md rounded-xl p-3 border border-white/5 flex flex-col gap-2">
+                        <!-- Progress bar -->
+                        <div class="w-full h-1 bg-white/20 rounded-full relative cursor-pointer overflow-hidden">
+                            <div class="absolute top-0 left-0 h-full w-[45%] bg-gradient-to-r from-brand-primary to-brand-accent rounded-full"></div>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-gray-400">
+                            <span>00:12 / 00:28</span>
+                            <div class="flex items-center gap-3">
+                                <i class="fa-solid fa-volume-high cursor-pointer hover:text-white transition-colors"></i>
+                                <i class="fa-solid fa-expand cursor-pointer hover:text-white transition-colors"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 flex flex-wrap justify-center gap-3">
+                <button type="button" onclick="downloadPreviewVideo()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-download mr-2"></i>下载此视频</button>
+                <button type="button" onclick="downloadOriginalMaterial()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-box-archive mr-2"></i>下载原始素材</button>
+                <button type="button" onclick="triggerLocalVideoUpload()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-sm font-semibold text-white shadow-lg transition-all"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>上传本地视频</button>
+                <input id="local-video-input" type="file" accept="video/*" class="hidden" onchange="handleLocalVideoUpload(event)">
+            </div>
+        </div>
+    </div>
+
+    <input id="row-image-replace-input" type="file" accept="image/*" class="hidden" onchange="handleRowImageReplacement(event)">
+
+    <!-- Main Navigation Header -->
+    <header class="glass-panel sticky top-0 z-40 border-b border-white/5 px-6 py-4 shadow-xl">
+        <div class="max-w-[1680px] mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="/app-static/new/logo.png" alt="Logo" class="w-10 h-10 object-contain rounded-xl shadow-lg" onerror="this.outerHTML='<div class=\'w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-secondary flex items-center justify-center shadow-lg shadow-brand-primary/30\'><i class=\'fa-solid fa-wand-magic-sparkles text-lg text-white\'></i></div>'">
+                <div>
+                    <h1 class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brand-accent bg-clip-text text-transparent">公域闪剪视频</h1>
+                    <p class="text-[10px] text-brand-accent font-semibold tracking-widest uppercase">Video Synthesis Platform</p>
+                </div>
+            </div>
+
+            <!-- Header Menu -->
+            <nav class="hidden md:flex items-center gap-1">
+                <a href="/app/new" class="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-primary/10 border border-brand-primary/30 text-white transition-all shadow-inner"><i class="fa-solid fa-sliders mr-1.5 text-brand-accent"></i>核心工作台</a>
+                <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
+                <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-microphone-lines mr-1.5"></i>声音克隆中心</a>
+            </nav>
+
+            <!-- User profile & Quick Stats -->
+            <div class="flex items-center gap-4 relative">
+                <div class="hidden lg:flex flex-col text-right">
+                    <span class="text-xs font-semibold text-gray-300">超级 VIP 会员</span>
+                    <span class="text-[10px] text-brand-accent font-semibold">今日算力额度：无限</span>
+                </div>
+                <div class="relative">
+                    <div onclick="toggleUserDropdown(event)" class="w-9 h-9 rounded-full border border-brand-primary/40 p-0.5 shadow-lg shadow-brand-primary/10 cursor-pointer hover:border-brand-accent transition-colors">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar" class="w-full h-full rounded-full object-cover">
+                    </div>
+                    <!-- User dropdown menu -->
+                    <div id="user-dropdown" class="hidden absolute right-0 mt-2.5 w-40 glass-panel-heavy rounded-xl border border-white/10 shadow-2xl overflow-hidden py-1 z-50">
+                        <div class="px-3.5 py-2 border-b border-white/5">
+                            <p class="text-xs font-bold text-white">VIP 创作者</p>
+                            <p class="current-user-name text-[9px] text-gray-400 mt-0.5">当前账号</p>
+                        </div>
+                        <a href="#" onclick="showToast('系统设置', '原型演示暂不支持修改个人信息。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
+                        <a href="/app/new/login" onclick="handleLogout(event)" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"><i class="fa-solid fa-right-from-bracket"></i>退出登录</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 max-w-[1680px] w-full mx-auto px-4 py-4 md:py-6 overflow-hidden page-fade-in flex flex-col">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1 overflow-hidden h-full">
+            
+            <!-- Left Side Control Panel (Inputs) with local scrolling -->
+            <section class="lg:col-span-4 flex flex-col gap-5 h-full overflow-y-auto pr-2 narrow-scrollbar pb-6">
+                
+                <!-- Input 1: Excel/CSV Import -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-sm text-white flex items-center gap-2">
+                            <span class="w-6 h-6 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs"><i class="fa-solid fa-file-excel"></i></span>
+                            1. 脚本导入 (Excel/CSV)
+                        </h3>
+                        <button onclick="loadSampleData()" class="text-xs text-brand-accent hover:text-white font-medium hover:underline transition-all">
+                            <i class="fa-solid fa-magic-wand-sparkles mr-1"></i>载入演示脚本
+                        </button>
+                    </div>
+
+                    <!-- Dropzone -->
+                    <div id="excel-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-brand-primary/60 bg-slate-950/20 hover:bg-brand-primary/5 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300" onclick="triggerFileInput('excel-file-input')">
+                        <input type="file" id="excel-file-input" class="hidden" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)">
+                        <div class="w-12 h-12 rounded-full bg-slate-900/60 border border-slate-800/80 flex items-center justify-center text-slate-400 mb-3 shadow-inner" id="excel-icon-box">
+                            <i class="fa-solid fa-cloud-arrow-up text-lg text-brand-primary"></i>
+                        </div>
+                        <p class="text-xs font-semibold text-gray-300" id="excel-upload-status">点击选择或拖拽文件到这里</p>
+                        <p class="text-[10px] text-gray-500 mt-1">支持 .xlsx, .xls, .csv 等格式（必须包含 ID、脚本内容两列）</p>
+                    </div>
+
+                    <!-- Parsed indicator -->
+                    <div id="parsed-indicator" class="hidden mt-3 p-3 bg-emerald-950/20 border border-emerald-800/30 rounded-xl flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-emerald-400">
+                            <i class="fa-solid fa-circle-check text-xs"></i>
+                            <span class="text-xs font-semibold" id="parsed-count-text">成功解析 6 行脚本</span>
+                        </div>
+                        <button onclick="clearParsedData()" class="text-[10px] text-red-400 hover:text-red-300 font-medium"><i class="fa-solid fa-trash-can mr-1"></i>清除</button>
+                    </div>
+                </div>
+
+                <!-- Input 2: Voice Prototype Selector (Compact layout with inner scroll) -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
+                        <span class="w-6 h-6 rounded bg-brand-primary/20 text-brand-primary flex items-center justify-center text-xs"><i class="fa-solid fa-microphone-lines"></i></span>
+                        2. 选择默认配音声音
+                    </h3>
+                    
+                    <div class="space-y-2 max-h-[175px] overflow-y-auto pr-1 narrow-scrollbar" id="voice-preset-container">
+                        <!-- Preset 1 (Mini card) -->
+                        <div class="voice-card border border-brand-primary/40 bg-brand-primary/5 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-brand-primary/80 transition-all" onclick="selectDefaultVoice(0, this)">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-cover bg-center shadow shadow-brand-primary/20 flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop&q=80');"></div>
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-[11px] text-white truncate">陈老师 - 磁性男解说</h4>
+                                    <p class="text-[9px] text-gray-400 mt-0.5 truncate max-w-[170px]">浑厚磁性，适合科普解说</p>
+                                </div>
+                            </div>
+                            <button onclick="playVoiceSample('male1', event)" class="w-6 h-6 rounded-full bg-slate-900/60 border border-slate-700/60 flex items-center justify-center text-[9px] text-brand-accent hover:bg-slate-800 transition-colors flex-shrink-0 ml-1">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        </div>
+
+                        <!-- Preset 2 (Mini card) -->
+                        <div class="voice-card border border-slate-800/80 bg-slate-950/20 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-slate-700 transition-all" onclick="selectDefaultVoice(1, this)">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-cover bg-center shadow flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&auto=format&fit=crop&q=80');"></div>
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-[11px] text-white truncate">小雅 - 温柔情感女声</h4>
+                                    <p class="text-[9px] text-gray-400 mt-0.5 truncate max-w-[170px]">温柔深情，适合情感语录</p>
+                                </div>
+                            </div>
+                            <button onclick="playVoiceSample('female1', event)" class="w-6 h-6 rounded-full bg-slate-900/60 border border-slate-700/60 flex items-center justify-center text-[9px] text-brand-accent hover:bg-slate-800 transition-colors flex-shrink-0 ml-1">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        </div>
+
+                        <!-- Preset 3 (Mini card) -->
+                        <div class="voice-card border border-slate-800/80 bg-slate-950/20 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-slate-700 transition-all" onclick="selectDefaultVoice(2, this)">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-cover bg-center shadow flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=80&auto=format&fit=crop&q=80');"></div>
+                                <div class="min-w-0">
+                                    <h4 class="font-bold text-[11px] text-white truncate">阿聪 - 活力带货主播</h4>
+                                    <p class="text-[9px] text-gray-400 mt-0.5 truncate max-w-[170px]">高亢热情，适合带货广告</p>
+                                </div>
+                            </div>
+                            <button onclick="playVoiceSample('male2', event)" class="w-6 h-6 rounded-full bg-slate-900/60 border border-slate-700/60 flex items-center justify-center text-[9px] text-brand-accent hover:bg-slate-800 transition-colors flex-shrink-0 ml-1">
+                                <i class="fa-solid fa-play"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input 3: Images Upload & Distribution Strategy -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
+                        <span class="w-6 h-6 rounded bg-brand-secondary/20 text-brand-secondary flex items-center justify-center text-xs"><i class="fa-solid fa-images"></i></span>
+                        3. 导入图片集与分配策略
+                    </h3>
+
+                    <!-- Image Dropzone -->
+                    <div id="images-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-brand-secondary/60 bg-slate-950/20 hover:bg-brand-secondary/5 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300 mb-4" onclick="triggerFileInput('images-file-input')">
+                        <input type="file" id="images-file-input" class="hidden" accept="image/*" multiple onchange="handleImagesUpload(event)">
+                        <div class="w-12 h-12 rounded-full bg-slate-900/60 border border-slate-800/80 flex items-center justify-center text-slate-400 mb-3 shadow-inner" id="image-icon-box">
+                            <i class="fa-solid fa-image-portrait text-lg text-brand-secondary"></i>
+                        </div>
+                        <p class="text-xs font-semibold text-gray-300" id="image-upload-status">批量上传图片 (可多选)</p>
+                        <p class="text-[10px] text-gray-500 mt-1">支持 JPG, PNG, WEBP 等格式，可上传多张作为视频画面</p>
+                    </div>
+
+                    <!-- Image Thumbnail Preview Grid -->
+                    <div id="image-preview-grid" class="hidden grid grid-cols-5 gap-2 bg-slate-950/40 border border-slate-800/80 rounded-xl p-3 mb-4">
+                        <!-- Will be dynamically populated -->
+                    </div>
+
+                    <!-- Mapping Strategy Selector -->
+                    <div class="bg-slate-950/40 border border-slate-800/80 rounded-xl p-4 space-y-4">
+                        <label class="block text-xs font-bold text-gray-300">图片匹配脚本分配策略：</label>
+                        
+                        <!-- Option 1: Generate X videos per image -->
+                        <label class="flex items-center gap-3 cursor-pointer group" onclick="switchStrategy('count')">
+                            <input type="radio" name="image-strategy" id="strategy-count" checked class="rounded-full border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-900">
+                            <div>
+                                <span class="text-xs font-semibold text-white group-hover:text-brand-accent transition-colors">每个画面生成视频段</span>
+                                <div class="flex items-center gap-2 mt-2 bg-slate-900/70 border border-slate-800 rounded-lg px-2.5 py-1 w-40 focus-within:border-brand-primary/50 transition-colors">
+                                    <span class="text-[10px] text-gray-400 font-medium select-none whitespace-nowrap">生成数量</span>
+                                    <input type="number" id="strategy-count-val" value="1" min="1" max="100" class="w-full bg-transparent border-none text-xs text-white focus:ring-0 p-0 text-right font-extrabold focus:outline-none" onchange="applyStrategyChange()">
+                                </div>
+                                <p class="text-[10px] text-gray-500 mt-1">每个导入的图片将顺次匹配并复制生成上述数量 of 视频分段</p>
+                            </div>
+                        </label>
+
+                        <div class="h-px bg-slate-800/60 my-2"></div>
+
+                        <!-- Option 2: Loop sequential -->
+                        <label class="flex items-center gap-3 cursor-pointer group" onclick="switchStrategy('loop')">
+                            <input type="radio" name="image-strategy" id="strategy-loop" class="rounded-full border-slate-700 text-brand-primary focus:ring-brand-primary bg-slate-900">
+                            <div>
+                                <span class="text-xs font-semibold text-white group-hover:text-brand-accent transition-colors">依次循环匹配</span>
+                                <p class="text-[10px] text-gray-400 mt-1">将上传的图片集按顺序匹配脚本分段。如果脚本行数大于图片总数，图片集将重新开始循环。</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Side Generation Processing Area (Table) -->
+            <section class="lg:col-span-8 flex flex-col h-full overflow-hidden">
+                
+                <!-- Main processing table panel -->
+                <div class="glass-panel rounded-2xl overflow-hidden shadow-xl flex flex-col h-full">
+                    <div class="px-5 py-4 border-b border-white/5 bg-slate-900/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2 class="font-extrabold text-sm text-white flex items-center gap-2">
+                                <i class="fa-solid fa-list-check text-brand-accent"></i>
+                                视频片段生成配置表
+                            </h2>
+                            <p class="text-[10px] text-gray-400 mt-0.5">请校对脚本与配音素材。您可以双击编辑内容，对生成的克隆语音进行预览或重试。</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-full text-[10px] text-gray-400 font-semibold" id="table-row-count-badge">共 0 行数据</span>
+                            <button onclick="simulateAddRow()" class="px-3 py-1 bg-brand-primary/20 hover:bg-brand-primary/30 border border-brand-primary/40 rounded-lg text-xs font-semibold text-brand-accent transition-all">
+                                <i class="fa-solid fa-plus mr-1"></i>添加分段
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
+                    <div class="overflow-x-auto relative flex-1 overflow-y-auto">
+                        <table class="w-full border-collapse text-left text-xs min-w-[1420px]">
+                            <thead class="bg-slate-950/50 text-[10px] text-gray-400 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
+                                <tr>
+                                    <th scope="col" class="px-4 py-3.5 w-16 text-center whitespace-nowrap">序号</th>
+                                    <th scope="col" class="px-4 py-3.5 min-w-[200px]">脚本内容 (双击可修改)</th>
+                                    <th scope="col" class="px-4 py-3.5 w-32">声音原型</th>
+                                    <th scope="col" class="px-4 py-3.5 w-36">声音预览</th>
+                                    <th scope="col" class="px-4 py-3.5 w-24 text-center">生成控制</th>
+                                    <th scope="col" class="px-4 py-3.5 w-16 text-center">画面</th>
+                                    <th scope="col" class="px-4 py-3.5 w-28 text-center">背景音乐</th>
+                                    <th scope="col" class="px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
+                                    <th scope="col" class="px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>
+                                    <th scope="col" class="px-4 py-3.5 w-24 text-center whitespace-nowrap">变体数</th>
+                                    <th scope="col" class="px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>
+                                    <th scope="col" class="px-4 py-3.5 w-28 text-center whitespace-nowrap">再补 X 个变体</th>
+                                </tr>
+                            </thead>
+                            <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
+                                <!-- Placeholders when empty -->
+                                <tr id="empty-table-placeholder">
+                                    <td colspan="12" class="px-6 py-20 text-center text-gray-500">
+                                        <div class="flex flex-col items-center justify-center">
+                                            <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
+                                            <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
+                                            <p class="text-[11px] text-gray-500 mt-1 max-w-sm">请在左侧导入 Excel 脚本表格，或点击顶部的“载入演示脚本”快速体验极速合成流程。</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Bottom floating composition action bar -->
+                    <div class="p-5 border-t border-white/5 bg-slate-950/40 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div class="flex flex-col gap-1 w-full md:w-auto">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-white">总合成功率估计:</span>
+                                <span class="text-xs font-bold text-brand-accent">100% (极佳)</span>
+                            </div>
+                            <p class="text-[10px] text-gray-400">我们将采用多核并发渲染，预计完成整体合成需要 15 秒</p>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+                            <div id="composition-progress-container" class="hidden flex-1 md:w-48 max-w-[200px] flex items-center gap-2">
+                                <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden border border-white/5">
+                                    <div id="composition-progress-bar" class="bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent h-full w-0 transition-all duration-300"></div>
+                                </div>
+                                <span class="text-[10px] font-bold text-brand-accent font-mono" id="composition-progress-text">0%</span>
+                            </div>
+
+                            <button id="btn-generate-voice-preview" disabled onclick="generateAllVoicePreviews()" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                                <i class="fa-solid fa-wave-square"></i>
+                                <span>生成声音预览</span>
+                            </button>
+                            
+                            <button id="btn-start-composition" disabled onclick="startGlobalComposition()" class="w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                开始画面合成
+                            </button>
+
+                            <div class="flex w-full md:w-auto" aria-label="生成变体控制">
+                                <button id="btn-generate-variants" disabled onclick="startGlobalVariantGeneration()" class="flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                                    <i class="fa-solid fa-code-branch"></i>
+                                    <span>生成变体</span>
+                                </button>
+                                <button id="btn-variant-settings" disabled onclick="openVariantModal()" title="生成变体设置" aria-label="打开生成变体设置" class="px-3 py-3 rounded-r-xl bg-slate-800 border-y border-r border-slate-700/60 text-slate-500 cursor-not-allowed transition-all">
+                                    <i class="fa-solid fa-gear"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+
+
+    <!-- Audio Mock Nodes (Hidden) -->
+    <audio id="audio-male1" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
+    <audio id="audio-female1" src="https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg" preload="auto"></audio>
+    <audio id="audio-male2" src="https://actions.google.com/sounds/v1/science_fiction/beam_me_up.ogg" preload="auto"></audio>
+
+    <!-- Core Javascript Code -->
+    <script>
+        // Preset Voices Info
+        const voicePresets = [
+            { id: 'male1', name: '陈老师 - 磁性男解说', desc: '适合科普/历史/解说类视频', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80' },
+            { id: 'female1', name: '小雅 - 温柔情感女声', desc: '适合情感/故事/散文类视频', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80' },
+            { id: 'male2', name: '阿聪 - 活力带货主播', desc: '适合快节奏带货/广告短视频', avatar: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=100&auto=format&fit=crop&q=80' }
+        ];
+
+        // Sample Images (Unsplash high quality creative)
+        const sampleImages = [
+            'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=300&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1518770660439-4636190af475?w=300&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=300&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=300&auto=format&fit=crop&q=80',
+            'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=300&auto=format&fit=crop&q=80'
+        ];
+
+        // BGM Options
+        const bgmPresets = [
+            { id: 'none', name: '无背景音乐' },
+            { id: 'tech', name: '科技感电子 (默认)' },
+            { id: 'lofi', name: '舒缓 Lofi 暖流' },
+            { id: 'epic', name: '宏伟史诗交响' },
+            { id: 'happy', name: '轻快活力节奏' }
+        ];
+
+        // System State
+        let uploadedScripts = []; // List of scripts
+        let uploadedImages = []; // List of uploaded images
+        let selectedDefaultVoiceIndex = 0; // Index of voicePresets
+        let currentStrategy = 'count'; // 'count' or 'loop'
+        let currentStrategyCountVal = 1; // Count per image
+
+        let selectedActiveVoiceAudio = null; // Storing active voice playing node
+        let editingRowId = null; // Row id for subtitle custom formatting
+        let globalVariantConfig = null;
+        let isGeneratingAllVoicePreviews = false;
+        let isGeneratingVariants = false;
+        let activeVariantPreviewRow = null;
+        let pendingConfirmAction = null;
+        let activeImageRow = null;
+        let activeVideoPreviewRow = null;
+
+        // Global Subtitle Template Config
+        let subtitleGlobalConfig = {
+            font: 'Noto Sans SC',
+            textColor: '#ffffff',
+            strokeColor: '#000000',
+            align: 'center'
+        };
+
+        // UI Toast Utility
+        function showToast(title, message, iconType = 'info') {
+            const toast = document.getElementById('toast');
+            const iconBox = document.getElementById('toast-icon');
+            const titleEl = document.getElementById('toast-title');
+            const messageEl = document.getElementById('toast-message');
+
+            // Configure Icons
+            if (iconType === 'success') {
+                iconBox.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+                iconBox.className = "w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400";
+                toast.firstElementChild.className = "glass-panel-heavy px-5 py-4 rounded-xl shadow-2xl border-l-4 border-emerald-500 flex items-center gap-3";
+            } else if (iconType === 'warning') {
+                iconBox.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                iconBox.className = "w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400";
+                toast.firstElementChild.className = "glass-panel-heavy px-5 py-4 rounded-xl shadow-2xl border-l-4 border-amber-500 flex items-center gap-3";
+            } else {
+                iconBox.innerHTML = '<i class="fa-solid fa-circle-info"></i>';
+                iconBox.className = "w-8 h-8 rounded-full bg-brand-accent/20 flex items-center justify-center text-brand-accent";
+                toast.firstElementChild.className = "glass-panel-heavy px-5 py-4 rounded-xl shadow-2xl border-l-4 border-brand-accent flex items-center gap-3";
+            }
+
+            titleEl.textContent = title;
+            messageEl.textContent = message;
+
+            toast.classList.remove('translate-x-80', 'opacity-0');
+            toast.classList.add('translate-x-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-x-0', 'opacity-100');
+                toast.classList.add('translate-x-80', 'opacity-0');
+            }, 3500);
+        }
+
+        function openConfirmModal({ title, message, confirmText = '确认', onConfirm }) {
+            pendingConfirmAction = typeof onConfirm === 'function' ? onConfirm : null;
+            document.getElementById('confirm-action-title').textContent = title;
+            document.getElementById('confirm-action-message').textContent = message;
+            document.getElementById('confirm-action-button').textContent = confirmText;
+            const modal = document.getElementById('confirm-action-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-action-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            pendingConfirmAction = null;
+        }
+
+        function confirmPendingAction() {
+            const action = pendingConfirmAction;
+            closeConfirmModal();
+            if (action) action();
+        }
+
+        // File Selection Triggers
+        function triggerFileInput(id) {
+            document.getElementById(id).click();
+        }
+
+        // Handle Excel / CSV Selection & Import
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            simulateExcelParsing(file.name);
+        }
+
+        // Simulation script parsing
+        function simulateExcelParsing(fileName) {
+            showToast("正在解析脚本表格", `文件 ${fileName} 已上传，正在提取分段数据...`);
+            
+            // Simulating a delay for processing
+            setTimeout(() => {
+                const parsed = [
+                    { id: '1', text: '在数字洪流奔涌的今天，人工智能正悄然重塑着我们的视频创作范式。' },
+                    { id: '2', text: '传统的剪辑与音频合成往往需要繁琐的多软件联动，而现在，一切尽在一键之间。' },
+                    { id: '3', text: '公域闪剪，通过深度神经网络算法，将文案和画面实现像素级的无缝缝合。' },
+                    { id: '4', text: '只需上传脚本与配音原型，数秒内即可智能推理出高保真的人声与相对应的画面。' },
+                    { id: '5', text: '不仅支持海量的高清图片集按需智能排序，还能为您自动匹配最动听的BGM。' },
+                    { id: '6', text: '现在点击开始画面合成，属于您的爆款智能视频即刻渲染出炉！' }
+                ];
+                
+                uploadedScripts = parsed;
+                globalVariantConfig = null;
+                updateTableLayout();
+                
+                // Show indicator
+                document.getElementById('excel-dropzone').classList.add('hidden');
+                const parsedIndicator = document.getElementById('parsed-indicator');
+                parsedIndicator.classList.remove('hidden');
+                document.getElementById('parsed-count-text').textContent = `成功解析 ${uploadedScripts.length} 行脚本数据`;
+
+                showToast("解析成功", `已成功导入并解析 ${uploadedScripts.length} 段脚本文案，表格数据已更新！`, "success");
+            }, 1000);
+        }
+
+        // Loading Preset Demo Data
+        function loadSampleData() {
+            simulateExcelParsing("演示脚本模板_视频营销方案.xlsx");
+            // Auto preload some mock images as well
+            if (uploadedImages.length === 0) {
+                uploadedImages = [...sampleImages];
+                renderImageThumbnails();
+            }
+        }
+
+        // Clear parsed scripts
+        function clearParsedData() {
+            uploadedScripts = [];
+            globalVariantConfig = null;
+            document.getElementById('excel-dropzone').classList.remove('hidden');
+            document.getElementById('parsed-indicator').classList.add('hidden');
+            document.getElementById('excel-file-input').value = '';
+            updateTableLayout();
+            showToast("数据已清空", "所有导入的脚本分段已清除。");
+        }
+
+        // Manage Default Voice selection in Left Panel
+        function selectDefaultVoice(index, el) {
+            selectedDefaultVoiceIndex = index;
+            
+            // Remove border of other voice cards
+            const cards = document.querySelectorAll('.voice-card');
+            cards.forEach(card => {
+                card.classList.remove('border-brand-primary/40', 'bg-brand-primary/5', 'border-brand-primary/80');
+                card.classList.add('border-slate-800/80', 'bg-slate-950/20');
+            });
+
+            // Set active class to clicked card
+            el.classList.remove('border-slate-800/80', 'bg-slate-950/20');
+            el.classList.add('border-brand-primary/40', 'bg-brand-primary/5', 'border-brand-primary/80');
+
+            showToast("默认声音已更改", `已选择「${voicePresets[index].name}」作为所有行未自定义分配的默认配音方案。`, "info");
+
+            // Apply voice to table rows which doesn't have custom override
+            if (uploadedScripts.length > 0) {
+                updateTableRowVoices();
+            }
+        }
+
+        // Play short sound preview on Left voice card
+        function playVoiceSample(type, event) {
+            event.stopPropagation(); // Avoid triggering card selection
+            
+            // Stop previous playing node
+            if (selectedActiveVoiceAudio) {
+                selectedActiveVoiceAudio.pause();
+                selectedActiveVoiceAudio.currentTime = 0;
+            }
+
+            const audioEl = document.getElementById(`audio-${type}`);
+            const btn = event.currentTarget;
+            const originalIcon = btn.innerHTML;
+
+            if (selectedActiveVoiceAudio === audioEl && !audioEl.paused) {
+                audioEl.pause();
+                btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                selectedActiveVoiceAudio = null;
+            } else {
+                audioEl.play().catch(e => console.log('Mock audio preview executed'));
+                btn.innerHTML = '<i class="fa-solid fa-pause text-brand-secondary pulse-soft"></i>';
+                selectedActiveVoiceAudio = audioEl;
+
+                audioEl.onended = () => {
+                    btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+                    selectedActiveVoiceAudio = null;
+                };
+            }
+        }
+
+        // Images File Selection Handler
+        function handleImagesUpload(event) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            showToast("正在导入图片集", `已捕获到 ${files.length} 张图片，正在进行智能对齐计算...`);
+
+            // Use URL.createObjectURL to showcase the uploaded images
+            files.forEach((file) => {
+                const url = URL.createObjectURL(file);
+                uploadedImages.push(url);
+            });
+
+            setTimeout(() => {
+                renderImageThumbnails();
+                showToast("图片导入成功", `成功载入并分析了 ${files.length} 张图片！表格分配方案已更新。`, "success");
+            }, 800);
+        }
+
+        // Render Image Thumbnails under drag-and-drop area
+        function renderImageThumbnails() {
+            const container = document.getElementById('image-preview-grid');
+            if (uploadedImages.length === 0) {
+                container.classList.add('hidden');
+                document.getElementById('images-dropzone').classList.remove('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            container.innerHTML = '';
+
+            uploadedImages.forEach((imgSrc, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = "relative group aspect-square rounded-lg overflow-hidden border border-slate-700 bg-slate-900";
+                wrapper.innerHTML = `
+                    <img src="${imgSrc}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="uploaded img">
+                    <button onclick="removeImage(${index}, event)" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-xmark"></i></button>
+                `;
+                container.appendChild(wrapper);
+            });
+
+            // Adjust table mappings based on images
+            if (uploadedScripts.length > 0) {
+                applyImageMappingToTable();
+            }
+        }
+
+        // Remove single image from list
+        function removeImage(index, event) {
+            event.stopPropagation();
+            uploadedImages.splice(index, 1);
+            renderImageThumbnails();
+            showToast("已移除图片", "该图片已移出待渲染图片集。");
+        }
+
+        // Switch strategy logic
+        function switchStrategy(strategy) {
+            currentStrategy = strategy;
+            if (strategy === 'count') {
+                document.getElementById('strategy-count').checked = true;
+                document.getElementById('strategy-loop').checked = false;
+            } else {
+                document.getElementById('strategy-count').checked = false;
+                document.getElementById('strategy-loop').checked = true;
+            }
+            applyStrategyChange();
+        }
+
+        function applyStrategyChange() {
+            if (currentStrategy === 'count') {
+                currentStrategyCountVal = parseInt(document.getElementById('strategy-count-val').value) || 1;
+            }
+            
+            if (uploadedScripts.length > 0) {
+                applyImageMappingToTable();
+                showToast("分配规则变更", "系统已为您即时重构了配图分配逻辑，并在表格右侧即刻生效！", "info");
+            }
+        }
+
+        // Apply Image mapping algorithm
+        // Table matching strategy:
+        // Option 1: each picture generates X video clips (duplicate image X times, then shift to next).
+        // Option 2: loop images sequentially. If images run out, wrap around.
+        function applyImageMappingToTable() {
+            if (uploadedScripts.length === 0) return;
+
+            const tbody = document.getElementById('synthesis-table-body');
+            const rows = tbody.querySelectorAll('.table-data-row');
+            
+            rows.forEach((row, i) => {
+                const imgEl = row.querySelector('.row-thumbnail-img');
+                const indexBadge = row.querySelector('.row-thumbnail-badge');
+
+                if (row.getAttribute('data-image-override') === 'true') {
+                    indexBadge.textContent = '本地';
+                    indexBadge.classList.remove('hidden');
+                    return;
+                }
+                
+                let targetImgSrc = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80"; // default placeholder
+                let imgIndex = -1;
+
+                if (uploadedImages.length > 0) {
+                    if (currentStrategy === 'count') {
+                        // Option 1: generate X videos per image
+                        imgIndex = Math.floor(i / currentStrategyCountVal) % uploadedImages.length;
+                    } else {
+                        // Option 2: loop sequential
+                        imgIndex = i % uploadedImages.length;
+                    }
+                    targetImgSrc = uploadedImages[imgIndex];
+                }
+
+                imgEl.src = targetImgSrc;
+                if (imgIndex !== -1) {
+                    indexBadge.textContent = `P-${imgIndex + 1}`;
+                    indexBadge.classList.remove('hidden');
+                } else {
+                    indexBadge.classList.add('hidden');
+                }
+            });
+        }
+
+        // Sync default voice to table rows
+        function updateTableRowVoices() {
+            const defaultVoice = voicePresets[selectedDefaultVoiceIndex];
+            const selectors = document.querySelectorAll('.row-voice-selector');
+            selectors.forEach(select => {
+                // If it wasn't modified manually, override with default
+                if (select.getAttribute('data-override') !== 'true') {
+                    select.value = defaultVoice.id;
+                }
+            });
+        }
+
+        // Create HTML table layout from scratch based on uploadedScripts
+        function updateTableLayout() {
+            const tbody = document.getElementById('synthesis-table-body');
+            const emptyEl = document.getElementById('empty-table-placeholder');
+            const btnCompose = document.getElementById('btn-start-composition');
+
+            // Clear old rows
+            const oldRows = tbody.querySelectorAll('.table-data-row');
+            oldRows.forEach(row => row.remove());
+
+            if (uploadedScripts.length === 0) {
+                emptyEl.classList.remove('hidden');
+                setVoicePreviewButtonState(false);
+                btnCompose.disabled = true;
+                btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
+                document.getElementById('table-row-count-badge').textContent = `共 0 行数据`;
+                refreshVariantActionAvailability();
+                return;
+            }
+
+            emptyEl.classList.add('hidden');
+
+            document.getElementById('table-row-count-badge').textContent = `共 ${uploadedScripts.length} 行数据`;
+
+            uploadedScripts.forEach((script, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "table-data-row group hover:bg-slate-900/30 transition-colors";
+                tr.setAttribute('data-id', script.id);
+                
+                // Audio generation status inside the row: 'wait' / 'loading' / 'ready'
+                tr.setAttribute('data-voice-status', 'wait');
+                tr.setAttribute('data-video-status', 'wait');
+                tr.setAttribute('data-variant-status', 'wait');
+                tr.setAttribute('data-variant-generated', '0');
+
+                // Render voice selection inside table
+                let voiceOptionsHTML = '';
+                voicePresets.forEach((v, index) => {
+                    const selected = index === selectedDefaultVoiceIndex ? 'selected' : '';
+                    voiceOptionsHTML += `<option value="${v.id}" ${selected}>${v.name.split(' - ')[0]}</option>`;
+                });
+
+                // Render BGM options
+                let bgmOptionsHTML = '';
+                bgmPresets.forEach(b => {
+                    bgmOptionsHTML += `<option value="${b.id}">${b.name}</option>`;
+                });
+
+                tr.innerHTML = `
+                    <td class="px-4 py-4 text-center font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors whitespace-nowrap">${idx + 1}</td>
+                    <td class="px-4 py-4 font-medium text-gray-300">
+                        <div class="focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
+                            <span class="row-script-editor outline-none block w-full max-h-20 overflow-y-auto pr-2 whitespace-pre-wrap leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(${script.id}, this)">${script.text}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4">
+                        <select onchange="handleRowVoiceChange(this)" class="row-voice-selector bg-slate-950/60 border border-slate-800/80 hover:border-slate-700 rounded-lg py-1.5 px-2 text-xs text-gray-300 w-full focus:ring-1 focus:ring-brand-primary/40 focus:outline-none">
+                            ${voiceOptionsHTML}
+                        </select>
+                    </td>
+                    <td class="px-4 py-4">
+                        <!-- Play state controller container -->
+                        <div class="row-audio-player-container flex items-center gap-2">
+                            <!-- Status 1: Wait to clone -->
+                            <div class="row-audio-status-wait flex items-center gap-1.5 text-gray-500 font-medium text-[11px]">
+                                <i class="fa-solid fa-microphone-slash text-[10px]"></i>
+                                <span>未生成，等待预览</span>
+                            </div>
+                            
+                            <!-- Status 2: Cloning in progress -->
+                            <div class="row-audio-status-loading hidden flex items-center gap-1.5 text-brand-primary font-medium text-[11px]">
+                                <i class="fa-solid fa-spinner fa-spin text-[10px]"></i>
+                                <span>正在克隆音频...</span>
+                            </div>
+
+                            <!-- Status 3: Audio Ready to listen -->
+                            <div class="row-audio-status-ready hidden flex-1 flex items-center gap-2">
+                                <button onclick="togglePlayRowAudio(this)" class="btn-play-row-audio w-7 h-7 rounded-full bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/30 flex items-center justify-center text-brand-accent transition-colors">
+                                    <i class="fa-solid fa-play text-[9px]"></i>
+                                </button>
+                                <!-- Visual Waveform simulation -->
+                                <div class="row-audio-waveform flex items-end gap-[2px] h-5 w-16 overflow-hidden py-0.5">
+                                    <span class="w-[2px] bg-slate-800 h-1"></span>
+                                    <span class="w-[2px] bg-slate-800 h-2"></span>
+                                    <span class="w-[2px] bg-slate-800 h-1.5"></span>
+                                    <span class="w-[2px] bg-slate-800 h-3"></span>
+                                    <span class="w-[2px] bg-slate-800 h-2.5"></span>
+                                    <span class="w-[2px] bg-slate-800 h-1"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="retryCloningAudio(this)" title="生成/重新生成声音预览" class="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-gray-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center justify-center">
+                                <i class="fa-solid fa-rotate"></i>
+                            </button>
+                            <button onclick="downloadClonedAudio(this)" title="导出音频" disabled class="btn-download-audio w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed">
+                                <i class="fa-solid fa-download"></i>
+                            </button>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        <div class="flex flex-col items-center gap-1.5">
+                            <button type="button" class="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-800 bg-slate-950 group/thumb cursor-zoom-in shadow-lg hover:border-brand-secondary transition-colors" onclick="previewImageZoom(this)" title="点击放大画面">
+                                <img class="row-thumbnail-img w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300" src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=200&auto=format&fit=crop&q=80" alt="当前画面">
+                                <span class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
+                                    <i class="fa-solid fa-expand text-[10px] text-white"></i>
+                                </span>
+                                <span class="row-thumbnail-badge absolute bottom-0 right-0 bg-slate-950/80 backdrop-blur-xs text-[7px] text-brand-accent px-1 py-[0.5px] rounded-tl font-bold hidden">P-1</span>
+                            </button>
+                            <button type="button" onclick="triggerRowImageReplace(this, event)" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>替换</button>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center">
+                        <select onchange="invalidateRowComposition(this)" class="bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 px-2 text-[11px] text-gray-300 w-full focus:ring-1 focus:ring-brand-primary/40 focus:outline-none">
+                            ${bgmOptionsHTML}
+                        </select>
+                    </td>
+                    <td class="px-4 py-4 text-center whitespace-nowrap">
+                        <button onclick="openSubtitleModal(${script.id})" class="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-[10px] font-semibold text-gray-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center gap-1.5 mx-auto whitespace-nowrap">
+                            <i class="fa-solid fa-font text-brand-accent"></i>
+                            样式配置
+                        </button>
+                    </td>
+                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                        <div class="row-video-preview-container flex flex-col items-center justify-center min-h-[76px]">
+                            <div class="row-video-status-wait flex flex-col items-center gap-1 text-gray-600 text-[9px]">
+                                <i class="fa-solid fa-film text-sm"></i>
+                                <span>等待画面合成</span>
+                            </div>
+                            <div class="row-video-status-loading hidden flex flex-col items-center gap-1 text-brand-primary text-[9px]">
+                                <i class="fa-solid fa-spinner fa-spin text-sm"></i>
+                                <span>正在合成...</span>
+                            </div>
+                            <div class="row-video-status-ready hidden flex-col items-center gap-1.5">
+                                <button onclick="openRowVideoPreview(this)" title="查看完整视频" class="relative w-20 h-11 rounded-lg overflow-hidden border border-brand-primary/35 bg-slate-950 group/video shadow-lg">
+                                    <img src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=240&auto=format&fit=crop&q=80" class="w-full h-full object-cover opacity-65 group-hover/video:scale-110 transition-transform" alt="合成视频预览">
+                                    <span class="absolute inset-0 flex items-center justify-center bg-black/20"><i class="fa-solid fa-play text-[10px] text-white"></i></span>
+                                    <span class="absolute bottom-0 right-0 px-1 py-0.5 bg-black/70 text-[7px] text-brand-accent">成片</span>
+                                </button>
+                                <button onclick="requestRegenerateRowVideo(this)" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重新生成</button>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center whitespace-nowrap">
+                        <div class="relative w-16 mx-auto">
+                            <input type="number" min="1" max="500" value="20" onchange="handleVariantCountChange(this)" class="row-variant-count w-full bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-300 focus:ring-1 focus:ring-brand-primary/40 focus:outline-none">
+                            <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                        <div class="row-variant-preview-container flex flex-col items-center justify-center min-h-[76px]">
+                            <div class="row-variant-status-wait flex flex-col items-center gap-1 text-gray-600 text-[9px]">
+                                <i class="fa-solid fa-photo-film text-sm"></i>
+                                <span>暂无变体</span>
+                            </div>
+                            <div class="row-variant-status-loading hidden flex flex-col items-center gap-1 text-brand-primary text-[9px]">
+                                <i class="fa-solid fa-spinner fa-spin text-sm"></i>
+                                <span>正在生成...</span>
+                            </div>
+                            <button onclick="openVariantPreviewModal(this)" class="row-variant-status-ready hidden flex-col items-center gap-1.5 group/variant" title="查看全部变体">
+                                <span class="relative block w-20 h-11">
+                                    <span class="absolute left-2 top-0 w-16 h-9 rounded-md bg-brand-secondary/25 border border-brand-secondary/35 rotate-3"></span>
+                                    <span class="absolute left-0.5 top-1 w-16 h-9 rounded-md bg-brand-primary/25 border border-brand-primary/35 -rotate-2"></span>
+                                    <span class="absolute left-1 top-1.5 w-16 h-9 rounded-md bg-gradient-to-br from-slate-700 to-slate-950 border border-brand-primary/50 flex items-center justify-center group-hover/variant:border-brand-accent transition-colors"><i class="fa-solid fa-play text-[9px] text-white"></i></span>
+                                </span>
+                                <span class="row-variant-ready-count text-[9px] text-brand-accent font-semibold">0 个变体</span>
+                            </button>
+                        </div>
+                    </td>
+                    <td class="px-4 py-4 text-center whitespace-nowrap">
+                        <div class="flex flex-col items-center gap-1.5">
+                            <div class="relative w-16">
+                                <input type="number" min="1" max="500" value="5" disabled class="row-variant-extra-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[10px] text-center text-gray-600 cursor-not-allowed focus:outline-none">
+                                <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
+                            </div>
+                            <button onclick="addMoreRowVariants(this)" disabled class="row-add-variants-btn px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-900 text-[9px] font-semibold text-gray-600 cursor-not-allowed whitespace-nowrap"><i class="fa-solid fa-plus mr-1"></i>补充生成</button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+
+            applyImageMappingToTable();
+            refreshAudioStageActions();
+            refreshVariantActionAvailability();
+        }
+
+        // Add a single custom row manually
+        function simulateAddRow() {
+            const newId = uploadedScripts.length > 0 ? Math.max(...uploadedScripts.map(s => parseInt(s.id))) + 1 : 1;
+            const newRow = {
+                id: newId.toString(),
+                text: '在此处输入您想要生成视频的新分段文案。'
+            };
+            uploadedScripts.push(newRow);
+            updateTableLayout();
+            showToast("添加分段", `已成功添加序号为 ${newId} 的脚本分段。`, "success");
+        }
+
+        // Blur script text cell save
+        function handleScriptBlur(id, element) {
+            const updatedText = element.innerText.trim();
+            const index = uploadedScripts.findIndex(s => s.id == id);
+            if (index !== -1) {
+                const hasChanged = uploadedScripts[index].text !== updatedText;
+                uploadedScripts[index].text = updatedText;
+                if (hasChanged) {
+                    const row = element.closest('tr');
+                    resetRowAudioPreview(row);
+                }
+            }
+        }
+
+        // Voice selection manual change in table row
+        function handleRowVoiceChange(selectEl) {
+            selectEl.setAttribute('data-override', 'true');
+            const row = selectEl.closest('tr');
+            const voiceId = selectEl.value;
+            const voiceName = voicePresets.find(v => v.id === voiceId).name;
+            
+            // If already generated, flag to allow regenerations
+            const status = row.getAttribute('data-voice-status');
+            if (status === 'ready') {
+                resetRowAudioPreview(row);
+                showToast("声音变动", `已切换为「${voiceName}」，请重新生成这一行的声音预览。`, "warning");
+            }
+        }
+
+        // Individual Retry button click -> regenerates sound clone for specific row
+        function retryCloningAudio(buttonEl) {
+            const row = buttonEl.closest('tr');
+            const rowId = row.getAttribute('data-id');
+            const voiceSelector = row.querySelector('.row-voice-selector');
+            const selectedVoice = voicePresets.find(v => v.id === voiceSelector.value);
+
+            resetRowVideoPreview(row);
+
+            // Change UI State to Loading
+            row.setAttribute('data-voice-status', 'loading');
+            toggleRowAudioStatusUI(row, 'loading');
+
+            // Simulate server-side AI voice clone reasoning latency
+            setTimeout(() => {
+                markRowAudioPreviewReady(row);
+
+                showToast("语音生成成功", `已使用「${selectedVoice.name.split(' - ')[0]}」克隆完成第 ${rowId} 行文案音频！`, "success");
+            }, 1200);
+        }
+
+        function markRowAudioPreviewReady(row) {
+            row.setAttribute('data-voice-status', 'ready');
+            toggleRowAudioStatusUI(row, 'ready');
+
+            const btnDl = row.querySelector('.btn-download-audio');
+            btnDl.removeAttribute('disabled');
+            btnDl.className = "btn-download-audio w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-brand-accent hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center cursor-pointer";
+            refreshAudioStageActions();
+        }
+
+        function resetRowAudioPreview(row) {
+            row.setAttribute('data-voice-status', 'wait');
+            toggleRowAudioStatusUI(row, 'wait');
+            resetRowVideoPreview(row);
+
+            const btnDl = row.querySelector('.btn-download-audio');
+            btnDl.setAttribute('disabled', '');
+            btnDl.className = "btn-download-audio w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed";
+            refreshAudioStageActions();
+        }
+
+        function setVoicePreviewButtonState(enabled, isLoading = false) {
+            const button = document.getElementById('btn-generate-voice-preview');
+            button.disabled = !enabled || isLoading;
+
+            if (isLoading) {
+                button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-brand-primary/10 border border-brand-primary/30 text-brand-accent cursor-wait font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在生成声音...</span>';
+            } else if (enabled) {
+                button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/40 hover:border-brand-primary/70 text-brand-accent hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]";
+                const allReady = Array.from(document.querySelectorAll('.table-data-row')).every(row => row.getAttribute('data-voice-status') === 'ready');
+                button.innerHTML = `<i class="fa-solid fa-wave-square"></i><span>${allReady ? '重新生成声音预览' : '生成声音预览'}</span>`;
+            } else {
+                button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
+                button.innerHTML = '<i class="fa-solid fa-wave-square"></i><span>生成声音预览</span>';
+            }
+        }
+
+        function refreshAudioStageActions() {
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            const allReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
+            const btnCompose = document.getElementById('btn-start-composition');
+
+            setVoicePreviewButtonState(rows.length > 0, isGeneratingAllVoicePreviews);
+            btnCompose.disabled = !allReady;
+            btnCompose.className = allReady
+                ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
+                : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
+        }
+
+        function generateAllVoicePreviews() {
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            if (rows.length === 0) return;
+
+            isGeneratingAllVoicePreviews = true;
+            setVoicePreviewButtonState(false, true);
+            const btnCompose = document.getElementById('btn-start-composition');
+            btnCompose.disabled = true;
+            btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
+            rows.forEach(row => {
+                resetRowVideoPreview(row);
+                row.setAttribute('data-voice-status', 'loading');
+                toggleRowAudioStatusUI(row, 'loading');
+            });
+
+            showToast("正在生成声音预览", `已提交 ${rows.length} 条脚本，声音生成完成后即可试听并开始画面合成。`, "info");
+
+            rows.forEach((row, index) => {
+                setTimeout(() => {
+                    markRowAudioPreviewReady(row);
+                    if (index === rows.length - 1) {
+                        isGeneratingAllVoicePreviews = false;
+                        refreshAudioStageActions();
+                        showToast("声音预览已生成", "全部脚本声音已准备完成，现在可以试听或开始画面合成。", "success");
+                    }
+                }, 700 + index * 220);
+            });
+        }
+
+        // Set row voice DOM visibility
+        function toggleRowAudioStatusUI(row, status) {
+            const container = row.querySelector('.row-audio-player-container');
+            const waitDiv = container.querySelector('.row-audio-status-wait');
+            const loadDiv = container.querySelector('.row-audio-status-loading');
+            const readyDiv = container.querySelector('.row-audio-status-ready');
+
+            waitDiv.classList.add('hidden');
+            loadDiv.classList.add('hidden');
+            readyDiv.classList.add('hidden');
+
+            if (status === 'wait') {
+                waitDiv.classList.remove('hidden');
+            } else if (status === 'loading') {
+                loadDiv.classList.remove('hidden');
+            } else if (status === 'ready') {
+                readyDiv.classList.remove('hidden');
+            }
+        }
+
+        // Play/Pause individual cloned voice row
+        let currentlyPlayingRowAudioBtn = null;
+        let clonedMockInterval = null;
+        function togglePlayRowAudio(btnEl) {
+            const row = btnEl.closest('tr');
+            const waveformSpan = row.querySelectorAll('.row-audio-waveform span');
+            
+            // If already playing, stop
+            if (currentlyPlayingRowAudioBtn === btnEl) {
+                btnEl.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
+                currentlyPlayingRowAudioBtn = null;
+                clearInterval(clonedMockInterval);
+                waveformSpan.forEach(span => {
+                    span.className = "w-[2px] bg-slate-800 h-1";
+                    span.style.animation = "none";
+                });
+                return;
+            }
+
+            // Stop any other row audio that might be playing
+            if (currentlyPlayingRowAudioBtn) {
+                currentlyPlayingRowAudioBtn.click();
+            }
+
+            // Play state
+            btnEl.innerHTML = '<i class="fa-solid fa-pause text-[9px] text-brand-secondary"></i>';
+            currentlyPlayingRowAudioBtn = btnEl;
+
+            // Trigger visual waveform animations
+            waveformSpan.forEach((span, i) => {
+                span.className = "w-[2px] bg-brand-accent wave-bar";
+                span.style.animationDelay = `${i * 0.15}s`;
+            });
+
+            // Simulate audio finish in 4 seconds
+            setTimeout(() => {
+                if (currentlyPlayingRowAudioBtn === btnEl) {
+                    currentlyPlayingRowAudioBtn.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
+                    currentlyPlayingRowAudioBtn = null;
+                    waveformSpan.forEach(span => {
+                        span.className = "w-[2px] bg-slate-800 h-1";
+                        span.style.animation = "none";
+                    });
+                }
+            }, 4000);
+        }
+
+        // Export individual audio click
+        function downloadClonedAudio(btnEl) {
+            if (btnEl.hasAttribute('disabled')) return;
+            const row = btnEl.closest('tr');
+            const rowId = row.getAttribute('data-id');
+            showToast("音频导出", `正在打包第 ${rowId} 行音频，请注意浏览器下载提示。`, "success");
+        }
+
+        function toggleRowVideoStatusUI(row, status) {
+            const container = row.querySelector('.row-video-preview-container');
+            ['wait', 'loading', 'ready'].forEach(item => {
+                const element = container.querySelector(`.row-video-status-${item}`);
+                element.classList.add('hidden');
+                if (item === 'ready') element.classList.remove('flex');
+            });
+
+            const current = container.querySelector(`.row-video-status-${status}`);
+            current.classList.remove('hidden');
+            if (status === 'ready') current.classList.add('flex');
+        }
+
+        function toggleRowVariantStatusUI(row, status) {
+            const container = row.querySelector('.row-variant-preview-container');
+            ['wait', 'loading', 'ready'].forEach(item => {
+                const element = container.querySelector(`.row-variant-status-${item}`);
+                element.classList.add('hidden');
+                if (item === 'ready') element.classList.remove('flex');
+            });
+
+            const current = container.querySelector(`.row-variant-status-${status}`);
+            current.classList.remove('hidden');
+            if (status === 'ready') current.classList.add('flex');
+        }
+
+        function setRowSupplementControls(row, enabled) {
+            const countInput = row.querySelector('.row-variant-extra-count');
+            const button = row.querySelector('.row-add-variants-btn');
+            countInput.disabled = !enabled;
+            button.disabled = !enabled;
+            countInput.className = enabled
+                ? "row-variant-extra-count w-full bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 pl-2 pr-5 text-[10px] text-center text-gray-300 focus:outline-none focus:border-brand-primary/50"
+                : "row-variant-extra-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[10px] text-center text-gray-600 cursor-not-allowed focus:outline-none";
+            button.className = enabled
+                ? "row-add-variants-btn px-2.5 py-1 rounded-lg bg-brand-primary/15 hover:bg-brand-primary/25 border border-brand-primary/30 text-[9px] font-semibold text-brand-accent hover:text-white transition-all whitespace-nowrap"
+                : "row-add-variants-btn px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-900 text-[9px] font-semibold text-gray-600 cursor-not-allowed whitespace-nowrap";
+        }
+
+        function resetRowVariantResults(row) {
+            row.setAttribute('data-variant-status', 'wait');
+            row.setAttribute('data-variant-generated', '0');
+            toggleRowVariantStatusUI(row, 'wait');
+            setRowSupplementControls(row, false);
+        }
+
+        function resetRowVideoPreview(row) {
+            row.setAttribute('data-video-status', 'wait');
+            toggleRowVideoStatusUI(row, 'wait');
+            resetRowVariantResults(row);
+            refreshVariantActionAvailability();
+        }
+
+        function markRowVideoReady(row) {
+            row.setAttribute('data-video-status', 'ready');
+            toggleRowVideoStatusUI(row, 'ready');
+            refreshVariantActionAvailability();
+        }
+
+        function markRowVariantsReady(row, count) {
+            row.setAttribute('data-variant-status', 'ready');
+            row.setAttribute('data-variant-generated', String(count));
+            row.querySelector('.row-variant-ready-count').textContent = `${count} 个变体`;
+            toggleRowVariantStatusUI(row, 'ready');
+            setRowSupplementControls(row, true);
+        }
+
+        function invalidateRowComposition(control) {
+            const row = control.closest('tr');
+            if (row.getAttribute('data-video-status') === 'ready') {
+                resetRowVideoPreview(row);
+                showToast("合成设置已变化", `第 ${row.getAttribute('data-id')} 条视频需要重新进行画面合成。`, "warning");
+            }
+        }
+
+        function regenerateRowVideo(button) {
+            const row = button.closest('tr');
+            const rowId = row.getAttribute('data-id');
+            row.setAttribute('data-video-status', 'loading');
+            toggleRowVideoStatusUI(row, 'loading');
+            resetRowVariantResults(row);
+            refreshVariantActionAvailability();
+            showToast("重新生成视频", `正在重新合成第 ${rowId} 条带 BGM 和字幕的视频。`, "info");
+
+            setTimeout(() => {
+                markRowVideoReady(row);
+                showToast("视频已重新生成", `第 ${rowId} 条视频预览已更新，原变体结果已清空。`, "success");
+            }, 1100);
+        }
+
+        function requestRegenerateRowVideo(button) {
+            const row = button.closest('tr');
+            const rowId = row.getAttribute('data-id');
+            const variantCount = Number(row.getAttribute('data-variant-generated') || 0);
+            const extraNotice = variantCount > 0 ? `，并清空当前 ${variantCount} 个变体结果` : '';
+            openConfirmModal({
+                title: '确认重新生成视频？',
+                message: `重新生成第 ${rowId} 条视频会替换当前成片${extraNotice}。是否继续？`,
+                confirmText: '确认重新生成',
+                onConfirm: () => regenerateRowVideo(button)
+            });
+        }
+
+        function handleVariantCountChange(input) {
+            const value = Number(input.value);
+            if (!Number.isInteger(value) || value < 1 || value > 500) {
+                input.value = 20;
+                showToast("变体数不正确", "每条视频的变体数需要填写 1 到 500 之间的整数。", "warning");
+            }
+        }
+
+        function refreshVariantActionAvailability() {
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            const allVideosReady = rows.length > 0 && rows.every(row => row.getAttribute('data-video-status') === 'ready');
+            const mainButton = document.getElementById('btn-generate-variants');
+            const settingsButton = document.getElementById('btn-variant-settings');
+            const canGenerate = allVideosReady && !isGeneratingVariants;
+            const canConfigure = rows.length > 0 && !isGeneratingVariants;
+
+            mainButton.disabled = !canGenerate;
+            settingsButton.disabled = !canConfigure;
+            mainButton.innerHTML = isGeneratingVariants
+                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在生成变体...</span>'
+                : '<i class="fa-solid fa-code-branch"></i><span>生成变体</span>';
+            mainButton.className = canGenerate
+                ? "flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-gradient-to-r from-brand-secondary to-brand-primary hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer shadow-lg shadow-brand-primary/20 active:scale-[0.98]"
+                : "flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
+            settingsButton.className = canConfigure
+                ? `px-3 py-3 rounded-r-xl border-y border-r transition-all cursor-pointer ${globalVariantConfig ? 'bg-brand-primary/25 border-brand-primary/50 text-brand-accent hover:text-white' : 'bg-slate-800 border-slate-700/60 text-gray-300 hover:bg-slate-700 hover:text-white'}`
+                : "px-3 py-3 rounded-r-xl bg-slate-800 border-y border-r border-slate-700/60 text-slate-500 cursor-not-allowed transition-all";
+            settingsButton.title = globalVariantConfig ? "已使用自定义变体设置" : "使用后端默认算法，点击配置";
+        }
+
+        function startGlobalVariantGeneration() {
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            if (!rows.length || rows.some(row => row.getAttribute('data-video-status') !== 'ready')) {
+                showToast("请先完成画面合成", "生成变体需要使用带 BGM 和字幕的完整视频。", "warning");
+                return;
+            }
+
+            const counts = rows.map(row => Number(row.querySelector('.row-variant-count').value));
+            if (counts.some(count => !Number.isInteger(count) || count < 1 || count > 500)) {
+                showToast("变体数不正确", "请检查每一行的变体数，允许范围为 1 到 500。", "warning");
+                return;
+            }
+
+            isGeneratingVariants = true;
+            rows.forEach(row => {
+                row.setAttribute('data-variant-status', 'loading');
+                toggleRowVariantStatusUI(row, 'loading');
+                setRowSupplementControls(row, false);
+            });
+            refreshVariantActionAvailability();
+
+            const algorithmLabel = globalVariantConfig ? '自定义规则' : '后端默认算法';
+            showToast("开始生成变体", `正在使用${algorithmLabel}为 ${rows.length} 条视频生成变体。`, "info");
+
+            rows.forEach((row, index) => {
+                setTimeout(() => {
+                    markRowVariantsReady(row, counts[index]);
+                    if (index === rows.length - 1) {
+                        isGeneratingVariants = false;
+                        refreshVariantActionAvailability();
+                        showToast("变体生成完成", "全部变体已生成，可在表格中打开小窗查看详情或继续补充。", "success");
+                    }
+                }, 700 + index * 220);
+            });
+        }
+
+        function addMoreRowVariants(button) {
+            const row = button.closest('tr');
+            const input = row.querySelector('.row-variant-extra-count');
+            const extraCount = Number(input.value);
+            if (!Number.isInteger(extraCount) || extraCount < 1 || extraCount > 500) {
+                showToast("补充数量不正确", "补充变体数量需要填写 1 到 500 之间的整数。", "warning");
+                return;
+            }
+
+            const existingCount = Number(row.getAttribute('data-variant-generated') || 0);
+            row.setAttribute('data-variant-status', 'loading');
+            toggleRowVariantStatusUI(row, 'loading');
+            setRowSupplementControls(row, false);
+            showToast("正在补充变体", `第 ${row.getAttribute('data-id')} 条视频将再生成 ${extraCount} 个变体。`, "info");
+
+            setTimeout(() => {
+                markRowVariantsReady(row, existingCount + extraCount);
+                showToast("补充完成", `已新增 ${extraCount} 个变体，当前共 ${existingCount + extraCount} 个。`, "success");
+            }, 900);
+        }
+
+        function openRowVideoPreview(button) {
+            const row = button.closest('tr');
+            const rowId = row.getAttribute('data-id');
+            const imageSrc = row.querySelector('.row-thumbnail-img')?.src;
+            openVideoModal(rowId, imageSrc);
+        }
+
+        function openVariantPreviewModal(button) {
+            activeVariantPreviewRow = button.closest('tr');
+            renderVariantPreviewModal();
+            const modal = document.getElementById('variant-preview-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function renderVariantPreviewModal() {
+            const row = activeVariantPreviewRow;
+            if (!row) return;
+            const rowId = row.getAttribute('data-id');
+            const count = Number(row.getAttribute('data-variant-generated') || 0);
+            const grid = document.getElementById('variant-preview-grid');
+            const effectNames = ['泡泡', '水彩晕染', '雪花细闪', '金色星星', '萤火', '樱花飘落', '星火', '浪漫氛围', '光斑飘落', '拽酷红眼'];
+            const gradients = [
+                'from-indigo-950 via-violet-900 to-fuchsia-900',
+                'from-slate-950 via-cyan-950 to-indigo-950',
+                'from-rose-950 via-orange-950 to-slate-950',
+                'from-emerald-950 via-teal-950 to-slate-950'
+            ];
+
+            grid.innerHTML = '';
+            for (let index = 0; index < count; index++) {
+                const card = document.createElement('div');
+                card.className = "relative rounded-xl overflow-hidden bg-slate-950/50 border border-slate-800 hover:border-brand-primary/50 transition-colors group";
+                const detail = globalVariantConfig
+                    ? `${globalVariantConfig.useEffects ? effectNames[index % effectNames.length] : '画面变化'}${globalVariantConfig.useSubtitles ? ' · 字幕样式' : ''}`
+                    : `默认算法组合 ${String(index + 1).padStart(2, '0')}`;
+                card.innerHTML = `
+                    <button type="button" class="variant-card-preview block w-full text-left">
+                        <span class="relative flex aspect-video items-center justify-center bg-gradient-to-br ${gradients[index % gradients.length]}">
+                            <i class="fa-solid fa-play text-white/90 group-hover:scale-110 transition-transform"></i>
+                            <span class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/45 text-[8px] text-white">V${String(index + 1).padStart(2, '0')}</span>
+                        </span>
+                        <span class="block p-2.5"><strong class="block text-[10px] text-white">变体 ${String(index + 1).padStart(2, '0')}</strong><small class="block text-[9px] text-gray-400 mt-1 truncate">${detail}</small></span>
+                    </button>
+                    <button type="button" class="variant-delete-button absolute top-2 right-2 z-10 w-7 h-7 rounded-lg bg-black/65 border border-red-400/30 text-red-300 hover:bg-red-500 hover:text-white transition-all" title="删除这个变体" aria-label="删除变体 ${index + 1}">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>`;
+                card.querySelector('.variant-card-preview').onclick = () => showToast("播放变体预览", `正在打开第 ${rowId} 条视频的变体 ${index + 1}。`, "info");
+                card.querySelector('.variant-delete-button').onclick = () => requestDeleteVariant(index);
+                grid.appendChild(card);
+            }
+
+            document.getElementById('variant-preview-summary').textContent = `第 ${rowId} 条视频 · 共 ${count} 个变体`;
+        }
+
+        function requestDeleteVariant(index) {
+            const row = activeVariantPreviewRow;
+            if (!row) return;
+            const rowId = row.getAttribute('data-id');
+            openConfirmModal({
+                title: '删除这个变体？',
+                message: `确定删除第 ${rowId} 条视频的变体 ${index + 1} 吗？删除后它不会进入成果视频库。`,
+                confirmText: '确认删除',
+                onConfirm: () => {
+                    const currentCount = Number(row.getAttribute('data-variant-generated') || 0);
+                    const nextCount = Math.max(0, currentCount - 1);
+                    if (nextCount === 0) {
+                        resetRowVariantResults(row);
+                        closeVariantPreviewModal();
+                    } else {
+                        markRowVariantsReady(row, nextCount);
+                        renderVariantPreviewModal();
+                    }
+                    showToast('变体已删除', `第 ${rowId} 条视频当前保留 ${nextCount} 个变体。`, 'success');
+                }
+            });
+        }
+
+        function closeVariantPreviewModal() {
+            const modal = document.getElementById('variant-preview-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            activeVariantPreviewRow = null;
+        }
+
+        // Expand/Zoom Preview Image
+        function previewImageZoom(imgWrapper) {
+            const imgSrc = imgWrapper.querySelector('img').src;
+            activeImageRow = imgWrapper.closest('tr');
+            const rowId = activeImageRow.getAttribute('data-id');
+            document.getElementById('image-zoom-src').src = imgSrc;
+            document.getElementById('image-zoom-summary').textContent = `第 ${rowId} 条视频画面`;
+            const modal = document.getElementById('image-zoom-modal');
+            const modalBox = modal.querySelector('.transform');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function closeImageZoomModal() {
+            const modal = document.getElementById('image-zoom-modal');
+            const modalBox = modal.querySelector('.transform');
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            activeImageRow = null;
+        }
+
+        function triggerRowImageReplace(button, event) {
+            if (event) event.stopPropagation();
+            activeImageRow = button.closest('tr');
+            const input = document.getElementById('row-image-replace-input');
+            input.value = '';
+            input.click();
+        }
+
+        function triggerActiveRowImageReplace() {
+            if (!activeImageRow) return;
+            const input = document.getElementById('row-image-replace-input');
+            input.value = '';
+            input.click();
+        }
+
+        function handleRowImageReplacement(event) {
+            const file = event.target.files[0];
+            const row = activeImageRow;
+            if (!file || !row) return;
+            if (!file.type.startsWith('image/')) {
+                showToast('图片格式不支持', '请选择 JPG、PNG 或 WEBP 等图片文件。', 'warning');
+                return;
+            }
+
+            const previousObjectUrl = row.getAttribute('data-image-object-url');
+            if (previousObjectUrl) URL.revokeObjectURL(previousObjectUrl);
+            const imageUrl = URL.createObjectURL(file);
+            row.setAttribute('data-image-override', 'true');
+            row.setAttribute('data-image-object-url', imageUrl);
+            row.querySelector('.row-thumbnail-img').src = imageUrl;
+            const badge = row.querySelector('.row-thumbnail-badge');
+            badge.textContent = '本地';
+            badge.classList.remove('hidden');
+            document.getElementById('image-zoom-src').src = imageUrl;
+
+            if (row.getAttribute('data-video-status') === 'ready' || row.getAttribute('data-variant-status') === 'ready') {
+                resetRowVideoPreview(row);
+            }
+            showToast('画面替换成功', `第 ${row.getAttribute('data-id')} 条视频已改用图片「${file.name}」。`, 'success');
+        }
+
+        // Variant configuration modal managers
+        function openVariantModal() {
+            const config = globalVariantConfig || {
+                mode: 'default',
+                useEffects: true,
+                useStickers: false,
+                useVisual: true,
+                useSubtitles: false,
+                mirrorInterval: 10,
+                ratios: ['1:1', '3:4'],
+                faceCentered: true,
+                cornerStickers: true,
+                colors: ['#000000', '#ffffff', '#dbe7f5', '#f2dddd']
+            };
+
+            document.querySelector(`input[name="variant-mode"][value="${config.mode}"]`).checked = true;
+            document.getElementById('variant-use-effects').checked = config.useEffects;
+            document.getElementById('variant-use-stickers').checked = config.useStickers;
+            document.getElementById('variant-use-visual').checked = config.useVisual;
+            document.getElementById('variant-use-subtitles').checked = config.useSubtitles;
+            document.getElementById('variant-mirror-interval').value = config.mirrorInterval;
+            document.getElementById('variant-ratio-square').checked = config.ratios.includes('1:1');
+            document.getElementById('variant-ratio-portrait').checked = config.ratios.includes('3:4');
+            document.getElementById('variant-face-centered').checked = config.faceCentered;
+            document.getElementById('variant-corner-stickers').checked = config.cornerStickers;
+            config.colors.forEach((color, index) => {
+                document.getElementById(`variant-color-${index + 1}`).value = color;
+            });
+
+            updateVariantModeUI();
+            updateVariantVisualUI();
+
+            const modal = document.getElementById('variant-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function closeVariantModal() {
+            const modal = document.getElementById('variant-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function updateVariantModeUI() {
+            const isCustom = document.querySelector('input[name="variant-mode"]:checked').value === 'custom';
+            document.getElementById('variant-custom-settings').classList.toggle('hidden', !isCustom);
+        }
+
+        function updateVariantVisualUI() {
+            const enabled = document.getElementById('variant-use-visual').checked;
+            const settings = document.getElementById('variant-visual-settings');
+            settings.classList.toggle('opacity-40', !enabled);
+            settings.querySelectorAll('input').forEach(input => {
+                input.disabled = !enabled;
+            });
+        }
+
+        function saveVariantSettings() {
+            const mode = document.querySelector('input[name="variant-mode"]:checked').value;
+            const useEffects = document.getElementById('variant-use-effects').checked;
+            const useStickers = document.getElementById('variant-use-stickers').checked;
+            const useVisual = document.getElementById('variant-use-visual').checked;
+            const ratios = [];
+            if (document.getElementById('variant-ratio-square').checked) ratios.push('1:1');
+            if (document.getElementById('variant-ratio-portrait').checked) ratios.push('3:4');
+            const mirrorInterval = Number(document.getElementById('variant-mirror-interval').value);
+
+            if (mode === 'custom') {
+                const coreChangeCount = Number(useEffects) + Number(useStickers) + (useVisual ? 3 : 0);
+                if (coreChangeCount < 2) {
+                    showToast("变化内容不足", "请至少选择两个核心变化；画面变化套装本身包含多个核心变化。", "warning");
+                    return;
+                }
+                if (useVisual && (!Number.isFinite(mirrorInterval) || mirrorInterval < 1 || mirrorInterval > 3600)) {
+                    showToast("镜像间隔不正确", "镜像间隔需要填写 1 到 3600 秒。", "warning");
+                    return;
+                }
+                if (useVisual && ratios.length === 0) {
+                    showToast("请选择裁剪比例", "画面变化套装至少需要选择一个裁剪比例。", "warning");
+                    return;
+                }
+            }
+
+            const config = {
+                mode,
+                useEffects,
+                useStickers,
+                useVisual,
+                useSubtitles: document.getElementById('variant-use-subtitles').checked,
+                mirrorInterval,
+                ratios,
+                faceCentered: document.getElementById('variant-face-centered').checked,
+                cornerStickers: document.getElementById('variant-corner-stickers').checked,
+                colors: [1, 2, 3, 4].map(index => document.getElementById(`variant-color-${index}`).value)
+            };
+
+            globalVariantConfig = mode === 'default' ? null : config;
+            refreshVariantActionAvailability();
+            closeVariantModal();
+            showToast("变体设置已保存", globalVariantConfig ? "本次任务将使用自定义变体规则。" : "本次任务将继续使用后端默认算法。", "success");
+        }
+
+        // Subtitle customization Modal managers
+        function openSubtitleModal(rowId) {
+            editingRowId = rowId;
+            const modal = document.getElementById('subtitle-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            
+            // Pre-fill inputs with global config
+            document.getElementById('modal-font').value = subtitleGlobalConfig.font;
+            document.getElementById('modal-text-color').value = subtitleGlobalConfig.textColor;
+            document.getElementById('modal-text-color-hex').textContent = subtitleGlobalConfig.textColor.toUpperCase();
+            document.getElementById('modal-stroke-color').value = subtitleGlobalConfig.strokeColor;
+            document.getElementById('modal-stroke-color-hex').textContent = subtitleGlobalConfig.strokeColor.toUpperCase();
+
+            const previewText = document.getElementById('modal-preview-text');
+            previewText.textContent = '用于字体测试观看';
+            previewText.style.fontFamily = subtitleGlobalConfig.font;
+            previewText.style.color = subtitleGlobalConfig.textColor;
+            previewText.style.textShadow = `0 0 4px ${subtitleGlobalConfig.strokeColor}, 0 0 6px ${subtitleGlobalConfig.strokeColor}`;
+            previewText.style.textAlign = subtitleGlobalConfig.align;
+
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function closeSubtitleModal() {
+            const modal = document.getElementById('subtitle-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function saveSubtitleStyles() {
+            subtitleGlobalConfig.font = document.getElementById('modal-font').value;
+            subtitleGlobalConfig.textColor = document.getElementById('modal-text-color').value;
+            subtitleGlobalConfig.strokeColor = document.getElementById('modal-stroke-color').value;
+
+            const row = document.querySelector(`.table-data-row[data-id="${editingRowId}"]`);
+            if (row && row.getAttribute('data-video-status') === 'ready') {
+                resetRowVideoPreview(row);
+            }
+
+            showToast("字幕样式已保存", `该行字幕将渲染为：字体 ${subtitleGlobalConfig.font}，主色 ${subtitleGlobalConfig.textColor.toUpperCase()}`, "success");
+            closeSubtitleModal();
+        }
+
+        function selectAlignment(align) {
+            subtitleGlobalConfig.align = align;
+            const textEl = document.getElementById('modal-preview-text');
+            textEl.style.textAlign = align;
+            showToast("对齐更新", `对齐样式调整为：${align === 'center' ? '居中' : (align === 'left' ? '靠左' : '靠右')}`);
+        }
+
+        // Live updating colors hex in modal
+        document.getElementById('modal-font').addEventListener('change', (e) => {
+            document.getElementById('modal-preview-text').style.fontFamily = e.target.value;
+        });
+
+        document.getElementById('modal-text-color').addEventListener('input', (e) => {
+            document.getElementById('modal-text-color-hex').textContent = e.target.value.toUpperCase();
+            const previewText = document.getElementById('modal-preview-text');
+            previewText.style.color = e.target.value;
+        });
+
+        document.getElementById('modal-stroke-color').addEventListener('input', (e) => {
+            document.getElementById('modal-stroke-color-hex').textContent = e.target.value.toUpperCase();
+            const previewText = document.getElementById('modal-preview-text');
+            previewText.style.textShadow = `0 0 4px ${e.target.value}, 0 0 6px ${e.target.value}`;
+        });
+
+        // Toggle Video Preview Modal
+        function openVideoModal(rowId = '001', imageSrc = '') {
+            const modal = document.getElementById('video-modal');
+            activeVideoPreviewRow = Array.from(document.querySelectorAll('.table-data-row')).find(row => row.getAttribute('data-id') === String(rowId)) || null;
+            const localVideo = document.getElementById('video-preview-local');
+            const localVideoUrl = activeVideoPreviewRow?.getAttribute('data-local-video-url') || '';
+            const localVideoName = activeVideoPreviewRow?.getAttribute('data-local-video-name') || '';
+            document.getElementById('video-modal-file-name').innerHTML = `<i class="fa-solid fa-circle-play mr-1"></i> ${localVideoName || `第${rowId}条_合成预览.mp4`}`;
+            document.getElementById('video-modal-id').textContent = `ID: ${String(rowId).padStart(3, '0')}`;
+            if (imageSrc) {
+                document.getElementById('video-preview-bg').style.backgroundImage = `url('${imageSrc}')`;
+            }
+            if (localVideoUrl) {
+                localVideo.src = localVideoUrl;
+                localVideo.classList.remove('hidden');
+            } else {
+                localVideo.pause();
+                localVideo.removeAttribute('src');
+                localVideo.classList.add('hidden');
+            }
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modal.querySelector('.transform').classList.remove('scale-95');
+            modal.querySelector('.transform').classList.add('scale-100');
+        }
+
+        // Close Video Preview
+        function closeVideoModal() {
+            const modal = document.getElementById('video-modal');
+            const localVideo = document.getElementById('video-preview-local');
+            localVideo.pause();
+            modal.querySelector('.transform').classList.remove('scale-100');
+            modal.querySelector('.transform').classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            const playIcon = modal.querySelector('button[onclick="togglePlayPreviewVideo(this)"] i');
+            if (playIcon) {
+                playIcon.classList.remove('fa-pause');
+                playIcon.classList.add('fa-play');
+            }
+        }
+
+        function togglePlayPreviewVideo(btn) {
+            const icon = btn.querySelector('i');
+            const localVideo = document.getElementById('video-preview-local');
+            if (icon.classList.contains('fa-play')) {
+                icon.classList.replace('fa-play', 'fa-pause');
+                if (!localVideo.classList.contains('hidden') && localVideo.src) {
+                    localVideo.play().catch(() => showToast('无法播放视频', '浏览器未能读取这个本地视频文件。', 'warning'));
+                } else {
+                    showToast("视频播放中", "正在渲染预览缓存段...");
+                }
+            } else {
+                icon.classList.replace('fa-pause', 'fa-play');
+                localVideo.pause();
+            }
+        }
+
+        function downloadPreviewVideo() {
+            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '当前';
+            showToast('下载此视频', `第 ${rowId} 条完整成片已加入下载队列。`, 'success');
+        }
+
+        function downloadOriginalMaterial() {
+            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '当前';
+            showToast('下载原始素材', `正在打包第 ${rowId} 条视频合成前的画面、声音和脚本素材。`, 'success');
+        }
+
+        function triggerLocalVideoUpload() {
+            const input = document.getElementById('local-video-input');
+            input.value = '';
+            input.click();
+        }
+
+        function handleLocalVideoUpload(event) {
+            const file = event.target.files[0];
+            const row = activeVideoPreviewRow;
+            if (!file || !row) return;
+            if (!file.type.startsWith('video/')) {
+                showToast('视频格式不支持', '请选择 MP4、MOV 或 WebM 等视频文件。', 'warning');
+                return;
+            }
+
+            const previousUrl = row.getAttribute('data-local-video-url');
+            if (previousUrl) URL.revokeObjectURL(previousUrl);
+            const localVideoUrl = URL.createObjectURL(file);
+            row.setAttribute('data-local-video-url', localVideoUrl);
+            row.setAttribute('data-local-video-name', file.name);
+            resetRowVariantResults(row);
+            markRowVideoReady(row);
+
+            const localVideo = document.getElementById('video-preview-local');
+            localVideo.src = localVideoUrl;
+            localVideo.classList.remove('hidden');
+            document.getElementById('video-modal-file-name').innerHTML = `<i class="fa-solid fa-circle-play mr-1"></i> ${file.name}`;
+            showToast('本地视频已上传', `第 ${row.getAttribute('data-id')} 条视频已替换为「${file.name}」，可以继续生成变体。`, 'success');
+        }
+
+        // Global Composition execution action
+        function startGlobalComposition() {
+            const btnCompose = document.getElementById('btn-start-composition');
+            const progressContainer = document.getElementById('composition-progress-container');
+            const progressBar = document.getElementById('composition-progress-bar');
+            const progressText = document.getElementById('composition-progress-text');
+            const tbody = document.getElementById('synthesis-table-body');
+            const rows = Array.from(tbody.querySelectorAll('.table-data-row'));
+
+            const allAudioReady = rows.every(row => row.getAttribute('data-voice-status') === 'ready');
+            if (!allAudioReady) {
+                showToast("请先生成声音预览", "声音与画面已拆分处理，请先确认声音预览，再开始画面合成。", "warning");
+                return;
+            }
+
+            btnCompose.disabled = true;
+            btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
+            progressContainer.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            rows.forEach(row => {
+                row.setAttribute('data-video-status', 'loading');
+                toggleRowVideoStatusUI(row, 'loading');
+                resetRowVariantResults(row);
+            });
+            refreshVariantActionAvailability();
+            
+            showToast("画面合成已启动", "声音预览已确认，正在执行画面并发渲染任务。", "success");
+
+            let progressValue = 0;
+            let currentRowIndex = 0;
+
+            const interval = setInterval(() => {
+                progressValue += 5;
+                progressBar.style.width = `${progressValue}%`;
+                progressText.textContent = `${progressValue}%`;
+
+                const targetReadyCount = Math.ceil((progressValue / 100) * rows.length);
+                while (currentRowIndex < targetReadyCount && currentRowIndex < rows.length) {
+                    const row = rows[currentRowIndex];
+                    markRowVideoReady(row);
+                    row.classList.add('bg-emerald-950/10');
+                    currentRowIndex++;
+                }
+
+                if (progressValue >= 100) {
+                    clearInterval(interval);
+                    progressContainer.classList.add('hidden');
+                    
+                    // Recover Synthesis start button to allow rebuilds
+                    btnCompose.disabled = false;
+                    btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]";
+
+                    refreshVariantActionAvailability();
+                    showToast("合成完成", "所有带 BGM 和字幕的视频已生成，可在表格中预览或继续生成变体。", "success");
+                }
+            }, 250);
+        }
+
+        // Toggle User profile dropdown
+        function toggleUserDropdown(event) {
+            event.stopPropagation();
+            const dropdown = document.getElementById('user-dropdown');
+            dropdown.classList.toggle('hidden');
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', () => {
+            const dropdown = document.getElementById('user-dropdown');
+            if (dropdown && !dropdown.classList.contains('hidden')) {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        async function ensureAuthenticatedSession() {
+            try {
+                const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
+                const session = response.ok ? await response.json() : { authenticated: false };
+                if (!session.authenticated) throw new Error('unauthenticated');
+                document.querySelectorAll('.current-user-name').forEach((element) => {
+                    element.textContent = session.username || '已登录用户';
+                });
+            } catch (_) {
+                const next = encodeURIComponent(window.location.pathname);
+                window.location.replace(`/app/new/login?next=${next}`);
+            }
+        }
+
+        async function handleLogout(event) {
+            event.preventDefault();
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+            } finally {
+                window.location.replace('/app/new/login');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', ensureAuthenticatedSession);
+    </script>
+</body>
+</html>

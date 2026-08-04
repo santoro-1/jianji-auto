@@ -1,5 +1,25 @@
 # Web API
 
+## 新版页面入口与登录（模块 1）
+
+```text
+GET  /app/new
+GET  /app/new/gallery
+GET  /app/new/voices
+GET  /app/new/login
+POST /api/auth/login
+GET  /api/auth/session
+POST /api/auth/logout
+```
+
+前三个页面要求有效的数字人普通账号会话；未登录访问时以 `303` 跳转到
+`/app/new/login?next=原地址`。登录接口仍由工作台代理数字人网站账号验证，并设置
+HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登录页面额外把返回范围
+限制在 `/app/new` 内，避免开放跳转。静态页面不得保存数字人访问令牌。
+
+本模块只替换登录、会话、导航和退出。脚本导入、声音、画面合成、变体和成果库数据仍按
+后续模块接入，不能把现有原型定时器的显示结果当成后端业务状态。
+
 ## 新版统一项目接口（模块 0）
 
 新版页面统一使用工作台后端的 `/api/new/*`。模块 0 只建立项目、脚本行、素材版本、
@@ -113,6 +133,8 @@ GET  /api/digital-human/tasks/{item_id}/videos/{video_index}
 
 ```text
 普通用户生成页：http://127.0.0.1:8010/app
+新版工作台：      http://127.0.0.1:8010/app/new
+新版登录页：      http://127.0.0.1:8010/app/new/login
 管理员登录页：  http://127.0.0.1:8010/admin/login
 高级设置页：    http://127.0.0.1:8010/app/advanced
 素材管理页：    http://127.0.0.1:8010/app/assets

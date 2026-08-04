@@ -71,6 +71,7 @@ Local Collector (:8765)
 ```text
 apps/                         可运行、可打包的应用入口和前端
   processor/frontend/         主工作台、批量编辑器、素材页、登录页
+    new/                      `/app/new` 新版工作台静态页面
   collector/frontend/         独立采集器调试页面
   auth_center/                可选的统一账户服务
 src/jyd_probe/                核心 Python 代码
@@ -332,11 +333,18 @@ data/template_library/<template_id>/
 - `/api/agents/*`：处理机注册、心跳、领取和回传。
 - `/api/new/projects*`：新版统一项目、脚本行、素材版本、状态和可执行操作。
 
+新版浏览器入口为 `/app/new`，成果库为 `/app/new/gallery`，声音中心为
+`/app/new/voices`。三页均受普通站点会话保护；公开的 `/app/new/login` 调用现有
+`/api/auth/login`，由工作台后端向数字人账号中心验证账号并把令牌保存在 HTTP-only
+Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/api/auth/logout`
+退出，不得读取或保存数字人访问令牌。
+
 任务和批次会同时涉及 SQLite 元数据及 `data/web_storage` 下的 JSON/媒体文件。调试数据异常前先停止服务并备份整个 `data/web_storage`，不要只复制或修改 `control.db`。
 
 新版项目 API 只允许普通数字人账号访问，技术管理员会话不能代替普通账号成为项目
 所有者。项目详情中的 `allowed_actions` 是页面按钮权限的唯一业务来源；前端不得根据
-显示文本或本地定时器自行推进项目状态。当前公共骨架只负责持久化和聚合，不会调用
+显示文本或本地定时器自行推进项目状态。当前公共骨架只负责持久化和聚合；新版页面
+目前只完成登录、会话、导航和退出，其他原型模拟逻辑按后续模块逐项替换，不会提前调用
 MiniMax、RunningHub 或剪映。
 
 ## 9. 自动化测试
