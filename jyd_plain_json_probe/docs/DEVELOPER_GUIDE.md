@@ -89,6 +89,11 @@ vendor/jy-draftc/             高版本剪映草稿解密程序
 release/                      最终交付 ZIP
 ```
 
+新版统一项目数据由 `src/jyd_probe/project_store.py` 管理。它与渲染队列共用
+`control.db`，但只创建 `project_*` 表和独立的 `project_schema_meta`，不会修改既有
+`schema_meta`、`batches`、`jobs` 或 `agents`。`Project` 包含多条 `ProjectItem`；
+音频、原始片段、画面合成视频、上传视频和变体都按不可覆盖的素材版本保存。
+
 不要把以下数据混为一类：
 
 - `data/libraries`：公共、长期保留、可随完整安装包分发。
@@ -325,8 +330,14 @@ data/template_library/<template_id>/
 - `/api/render`、`/api/render/batch`：单任务和批量任务。
 - `/api/jobs/*`、`/api/batches/*`：状态、结果、重试、取消和下载。
 - `/api/agents/*`：处理机注册、心跳、领取和回传。
+- `/api/new/projects*`：新版统一项目、脚本行、素材版本、状态和可执行操作。
 
 任务和批次会同时涉及 SQLite 元数据及 `data/web_storage` 下的 JSON/媒体文件。调试数据异常前先停止服务并备份整个 `data/web_storage`，不要只复制或修改 `control.db`。
+
+新版项目 API 只允许普通数字人账号访问，技术管理员会话不能代替普通账号成为项目
+所有者。项目详情中的 `allowed_actions` 是页面按钮权限的唯一业务来源；前端不得根据
+显示文本或本地定时器自行推进项目状态。当前公共骨架只负责持久化和聚合，不会调用
+MiniMax、RunningHub 或剪映。
 
 ## 9. 自动化测试
 

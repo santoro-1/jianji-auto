@@ -1,5 +1,96 @@
 # Web API
 
+## 新版统一项目接口（模块 0）
+
+新版页面统一使用工作台后端的 `/api/new/*`。模块 0 只建立项目、脚本行、素材版本、
+操作记录、外部批次关联、字幕占位和后端可执行操作，不会调用 MiniMax、RunningHub
+或剪映。
+
+```text
+POST  /api/new/projects
+GET   /api/new/projects?limit=50&offset=0
+GET   /api/new/projects/{project_id}
+PATCH /api/new/projects/{project_id}
+PATCH /api/new/projects/{project_id}/items/{item_id}
+```
+
+所有接口要求数字人普通账号登录。项目记录绑定数字人 `user_id`；其他账号查询同一
+项目编号时返回 `404`，避免泄露项目是否存在。工作台技术管理员会话不能代替普通
+账号创建或读取项目。
+
+创建项目示例：
+
+```json
+{
+  "name": "八月数字人口播",
+  "items": [
+    {"row_key": "001", "script_text": "第一条口播。"},
+    {"row_key": "002", "script_text": "第二条口播。"}
+  ],
+  "settings": {}
+}
+```
+
+成功返回 `201` 和 `jyd.project.v1` 项目详情。项目编号格式为
+`DH-YYYYMMDD-0001`，同一天在当前工作台实例内递增。一个项目最多包含 500 条脚本，
+项目内 `row_key` 不能重复。
+
+详情中的每条脚本行包含：
+
+```json
+{
+  "item_id": "...",
+  "row_key": "001",
+  "position": 1,
+  "script_text": "第一条口播。",
+  "status": "DRAFT",
+  "outputs": {
+    "audio": null,
+    "composition_video": null,
+    "original_video_segments": [],
+    "variants": []
+  },
+  "subtitles": {
+    "source": null,
+    "raw_cues": [],
+    "render_cues": [],
+    "bound_audio_asset_id": null,
+    "bound_video_asset_id": null,
+    "style": {
+      "font_id": null,
+      "font_size": 15,
+      "max_width_ratio": 0.82,
+      "max_lines": 2
+    },
+    "status": "NOT_AVAILABLE",
+    "overflow_risk": false
+  },
+  "allowed_actions": {}
+}
+```
+
+项目粗粒度状态为：
+
+```text
+DRAFT
+PROCESSING
+AUDIO_READY
+COMPOSITION_READY
+VARIANT_READY
+PARTIAL_FAILED
+FAILED
+```
+
+声音、RunningHub、拼接、字幕/BGM 和变体的详细阶段以后保存在脚本行与
+`operations` 中。项目只做聚合，不复制第三方状态机。
+
+项目和脚本行都返回 `allowed_actions`，包括输入编辑、音频生成/重试/下载、画面合成、
+当前视频下载、原始片段下载、上传当前视频和生成/重试变体。按钮是否可用必须以该
+字段为准。
+
+项目更新支持 `expected_revision` 乐观并发检查。版本过期返回 `409`；格式或状态不
+允许返回 `422`。当前模块只允许 `DRAFT` 脚本行直接修改脚本和行编号。
+
 ## 数字人任务收件箱
 
 普通用户账号由数字人网站统一验证。工作台使用服务端保存的短期会话令牌拉取当前用户自己的任务：

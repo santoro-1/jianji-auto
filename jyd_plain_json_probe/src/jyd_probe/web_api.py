@@ -36,6 +36,7 @@ from .admin_auth import AdminAuth
 from .draft_crypto import is_plain_json_file
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
+from .project_store import ProjectRevisionConflict, ProjectStore
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
 from .subtitles import (
@@ -1576,6 +1577,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         settings.storage_root / "agent_token.txt"
     )
     render_queue = RenderJobQueue(settings)
+    project_store = ProjectStore(render_queue.store.path)
     storage_lifecycle = StorageLifecycleManager(
         settings,
         render_queue.store,
@@ -1589,6 +1591,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.auth_center = auth_center
     app.state.auth_handoffs = auth_handoffs
     app.state.agent_token = agent_token
+    app.state.project_store = project_store
 
     def require_agent_token(request: Request) -> None:
         authorization = request.headers.get("authorization", "")
@@ -1754,6 +1757,113 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "shared_processor_url": settings.shared_processor_url,
             "auth_center_online": center_online,
         }
+
+    def current_project_user(request: Request) -> dict[str, str]:
+        """Return the ordinary digital-human account behind this session.
+
+        Local technical administrators may access maintenance pages, but they
+        do not own ordinary users' projects and therefore cannot use the new
+        project API without a digital-human account session.
+        """
+
+        token = request.cookies.get(settings.site_cookie_name, "")
+        try:
+            user = verify_site_token(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        if not isinstance(user, dict):
+            raise HTTPException(status_code=401, detail="请先使用数字人账号登录")
+        user_id = str(user.get("user_id") or "").strip()
+        if not user_id:
+            raise HTTPException(status_code=401, detail="数字人账号缺少稳定用户编号")
+        return {
+            "user_id": user_id,
+            "username": str(user.get("username") or "").strip(),
+        }
+
+    @app.post("/api/new/projects", status_code=201)
+    def create_new_project(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.create_project(
+                owner_user_id=user["user_id"],
+                owner_username=user["username"],
+                name=str(payload.get("name") or ""),
+                items=payload.get("items") if isinstance(payload.get("items"), list) else [],
+                settings=(
+                    payload.get("settings")
+                    if isinstance(payload.get("settings"), dict)
+                    else {}
+                ),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects")
+    def list_new_projects(
+        request: Request, limit: int = 50, offset: int = 0
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        return project_store.list_projects(
+            user["user_id"], limit=limit, offset=offset
+        )
+
+    @app.get("/api/new/projects/{project_id}")
+    def get_new_project(project_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+
+    @app.patch("/api/new/projects/{project_id}")
+    def update_new_project(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            expected_revision = payload.get("expected_revision")
+            return project_store.update_project(
+                user["user_id"],
+                project_id,
+                name=payload.get("name") if "name" in payload else None,
+                settings=payload.get("settings") if "settings" in payload else None,
+                expected_revision=(
+                    int(expected_revision) if expected_revision is not None else None
+                ),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ProjectRevisionConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.patch("/api/new/projects/{project_id}/items/{item_id}")
+    def update_new_project_item(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.update_item(
+                user["user_id"],
+                project_id,
+                item_id,
+                row_key=payload.get("row_key") if "row_key" in payload else None,
+                script_text=(
+                    payload.get("script_text") if "script_text" in payload else None
+                ),
+                settings=payload.get("settings") if "settings" in payload else None,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     def digital_human_access(request: Request) -> tuple[AuthCenterClient, str]:
         if settings.auth_authority or auth_center is None:
