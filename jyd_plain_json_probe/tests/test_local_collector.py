@@ -45,7 +45,7 @@ class LocalCollectorServiceTest(unittest.TestCase):
         shutil.rmtree(self.temp, ignore_errors=True)
 
     def test_default_server_is_the_local_standalone_processor(self) -> None:
-        self.assertEqual(DEFAULT_RENDER_SERVER_URL, "http://127.0.0.1:8000")
+        self.assertEqual(DEFAULT_RENDER_SERVER_URL, "http://127.0.0.1:8010")
         self.assertEqual(self.settings.render_server_url, DEFAULT_RENDER_SERVER_URL)
 
     def test_lists_plain_and_encrypted_drafts_and_analyzes_plain_draft(self) -> None:

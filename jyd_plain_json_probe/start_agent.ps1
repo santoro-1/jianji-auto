@@ -1,6 +1,6 @@
 param(
     [string]$Python = "D:\Myanaconda\python.exe",
-    [string]$ServerUrl = "http://127.0.0.1:8000",
+    [string]$ServerUrl = "http://127.0.0.1:8010",
     [string]$AgentId = $env:COMPUTERNAME,
     [string]$Name = $env:COMPUTERNAME,
     [string]$Token = "",

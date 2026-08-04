@@ -206,7 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="启动独立剪映 Windows 处理机 Agent")
     parser.add_argument(
         "--server-url",
-        default=os.environ.get("JYD_SERVER_URL", "http://127.0.0.1:8000"),
+        default=os.environ.get("JYD_SERVER_URL", "http://127.0.0.1:8010"),
     )
     parser.add_argument("--agent-id", default=os.environ.get("JYD_AGENT_ID", hostname))
     parser.add_argument("--name", default=os.environ.get("JYD_AGENT_NAME", hostname))

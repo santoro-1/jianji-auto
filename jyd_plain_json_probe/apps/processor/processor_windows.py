@@ -37,20 +37,23 @@ def _load_processor_config(data_root: Path) -> dict[str, str]:
 
 
 def _resolved_network_config(config: dict[str, str]) -> tuple[str, str, str]:
-    cloud_auth_url = "https://auth.lanyingjk01.com"
-    legacy_shared_url = "http://192.168.11.28:8000"
-    configured_auth_url = config.get("auth_server_url", cloud_auth_url).strip().rstrip("/")
+    local_digital_human_url = "http://127.0.0.1:8000"
+    legacy_account_url = "http://192.168.11.28:8000"
+    legacy_cloud_auth_url = "https://auth.lanyingjk01.com"
+    explicit_digital_human_url = config.get("digital_human_server_url", "").strip()
+    configured_auth_url = (
+        explicit_digital_human_url
+        or config.get("auth_server_url", local_digital_human_url).strip()
+    ).rstrip("/")
     shared_processor_url = config.get("shared_processor_url", "").strip().rstrip("/")
-    auth_authority = config.get("auth_authority", "false").strip().lower()
-    if configured_auth_url == legacy_shared_url:
-        configured_auth_url = cloud_auth_url
+    if not explicit_digital_human_url and configured_auth_url in {
+        legacy_account_url,
+        legacy_cloud_auth_url,
+    }:
+        configured_auth_url = local_digital_human_url
+    if shared_processor_url == legacy_account_url:
         shared_processor_url = ""
-        auth_authority = "false"
-    if shared_processor_url == legacy_shared_url:
-        shared_processor_url = ""
-    if configured_auth_url == cloud_auth_url:
-        auth_authority = "false"
-    return configured_auth_url, shared_processor_url, auth_authority
+    return configured_auth_url or local_digital_human_url, shared_processor_url, "false"
 
 
 def _detect_draft_root(config: dict[str, str], data_root: Path) -> Path:
@@ -255,7 +258,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"处理机令牌文件: {os.environ['JYD_WEB_STORAGE_ROOT']}\\agent_token.txt")
         print(f"执行模式: {args.execution_mode}")
         print(f"使用模式: {deployment_mode}")
-        print(f"统一账号中心: {os.environ['JYD_AUTH_SERVER_URL']}")
+        print(f"数字人网站账号与任务源: {os.environ['JYD_AUTH_SERVER_URL']}")
         if os.environ.get("JYD_SHARED_PROCESSOR_URL"):
             print(f"其他工作台: {os.environ['JYD_SHARED_PROCESSOR_URL']}")
         if deployment_mode == "shared" and lan_urls:

@@ -40,7 +40,7 @@ def create_local_collector_app(
         else ""
     )
     allowed_origins = {
-        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8010",
         "http://localhost:8000",
         "http://127.0.0.1:3000",
         "http://localhost:3000",
@@ -103,7 +103,7 @@ def create_local_collector_app(
         origin = request.headers.get("origin", "").rstrip("/")
         configured = service.settings.render_server_url.rstrip("/")
         local_origins = {
-            "http://127.0.0.1:8000",
+            "http://127.0.0.1:8010",
             "http://localhost:8000",
             "http://127.0.0.1:8001",
             "http://localhost:8001",

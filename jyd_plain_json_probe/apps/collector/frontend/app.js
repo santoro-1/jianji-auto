@@ -56,7 +56,7 @@ async function initialize() {
   try {
     const config = await apiFetch("/api/config");
     elements.draftRoot.value = config.draft_root || "";
-    elements.renderServerUrl.value = config.render_server_url || "http://127.0.0.1:8000";
+    elements.renderServerUrl.value = config.render_server_url || "http://127.0.0.1:8010";
     elements.accessToken.placeholder = config.access_token_configured ? "已保存；不修改可留空" : "请输入网站内部访问密码";
     await loadDrafts();
   } catch (error) {

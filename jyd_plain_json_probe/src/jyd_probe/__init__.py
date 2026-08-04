@@ -35,7 +35,16 @@ from .text_effect_export import TextEffectExportResult, export_text_effect_libra
 from .text_template_export import TextTemplateExportResult, export_text_template_library
 from .sticker_export import StickerExportResult, export_sticker_library
 from .render_job import RENDER_JOB_SCHEMA, RenderJobResult, run_render_job, run_render_job_file
-from .subtitles import CaptionCue, add_captions_to_draft, build_caption_cues, cues_to_srt, split_caption_text
+from .subtitles import (
+    CaptionCue,
+    add_captions_to_draft,
+    build_caption_cues,
+    caption_cues_from_payload,
+    cues_to_srt,
+    parse_srt_cues,
+    split_caption_text,
+    validate_caption_cues,
+)
 from .template_library import TemplateLibrary, TemplateRecord
 
 __version__ = "0.1.0"
@@ -82,7 +91,9 @@ __all__ = [
     "build_draft_upload_plan",
     "add_captions_to_draft",
     "build_caption_cues",
+    "caption_cues_from_payload",
     "cues_to_srt",
+    "parse_srt_cues",
     "export_text_style_preset",
     "export_effect_library",
     "export_font_library",
@@ -95,4 +106,5 @@ __all__ = [
     "run_render_job_file",
     "run_content_replace_job",
     "split_caption_text",
+    "validate_caption_cues",
 ]

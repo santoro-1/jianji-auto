@@ -45,7 +45,7 @@ class ProcessorLauncherTest(unittest.TestCase):
         finally:
             shutil.rmtree(root, ignore_errors=True)
 
-    def test_migrates_old_public_machine_auth_config_to_cloud(self) -> None:
+    def test_migrates_old_public_machine_auth_config_to_local_digital_human(self) -> None:
         auth_url, shared_url, authority = _resolved_network_config(
             {
                 "deployment_mode": "shared",
@@ -53,7 +53,7 @@ class ProcessorLauncherTest(unittest.TestCase):
                 "auth_authority": "true",
             }
         )
-        self.assertEqual(auth_url, "https://auth.lanyingjk01.com")
+        self.assertEqual(auth_url, "http://127.0.0.1:8000")
         self.assertEqual(shared_url, "")
         self.assertEqual(authority, "false")
 
@@ -64,8 +64,22 @@ class ProcessorLauncherTest(unittest.TestCase):
                 "auth_authority": "false",
             }
         )
-        self.assertEqual(auth_url, "https://auth.lanyingjk01.com")
+        self.assertEqual(auth_url, "http://127.0.0.1:8000")
         self.assertEqual(shared_url, "")
+        self.assertEqual(authority, "false")
+
+    def test_disconnects_old_cloud_account_center_by_default(self) -> None:
+        auth_url, _shared_url, authority = _resolved_network_config(
+            {"auth_server_url": "https://auth.lanyingjk01.com"}
+        )
+        self.assertEqual(auth_url, "http://127.0.0.1:8000")
+        self.assertEqual(authority, "false")
+
+    def test_explicit_digital_human_server_is_preserved_for_production(self) -> None:
+        auth_url, _shared_url, authority = _resolved_network_config(
+            {"digital_human_server_url": "https://video.example.com"}
+        )
+        self.assertEqual(auth_url, "https://video.example.com")
         self.assertEqual(authority, "false")
 
     def test_shared_launcher_writes_clickable_connection_files(self) -> None:

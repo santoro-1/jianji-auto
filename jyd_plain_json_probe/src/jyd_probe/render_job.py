@@ -26,7 +26,13 @@ from .content_replace import (
 from .cli import load_plain_draft_json
 from .draft_crypto import prepare_plain_draft_dir
 from .draft_factory import create_plain_draft_from_video
-from .subtitles import add_captions_to_draft, build_caption_cues
+from .subtitles import (
+    add_captions_to_draft,
+    build_caption_cues,
+    caption_cues_from_payload,
+    parse_srt_cues,
+    validate_caption_cues,
+)
 from .template_library import TemplateLibrary
 from .visual_variant import VisualVariant
 from .cover_apply import CoverConfig
@@ -239,7 +245,9 @@ def _apply_captions_to_output(
 ) -> int:
     captions = _dict_value(_value(config, "captions", "subtitles", default=None))
     caption_text = str(_value(captions, "text", "content", default="")).strip()
-    if not caption_text:
+    raw_cues = _value(captions, "cues", default=None)
+    srt_text = str(_value(captions, "srt_text", "srt", default="")).strip()
+    if not caption_text and not raw_cues and not srt_text:
         return 0
 
     draft_data = load_plain_draft_json(output_draft_dir)
@@ -264,13 +272,28 @@ def _apply_captions_to_output(
     style_json_path = _value(captions, "style_json_path", "style_json", default="")
     if style_json_path:
         _positive_path(style_json_path, "字幕样式 JSON")
-    cues = build_caption_cues(
-        caption_text,
-        start_us=caption_start_us,
-        duration_us=caption_duration_us,
-        max_chars=int(_value(captions, "max_chars", default=16)),
-        min_duration_us=int(_value(captions, "min_duration_us", default=650_000)),
-    )
+    if raw_cues:
+        if not isinstance(raw_cues, list):
+            raise ValueError("captions.cues 必须是数组")
+        cues = validate_caption_cues(
+            caption_cues_from_payload(raw_cues),
+            timeline_offset_us=timeline_offset_us,
+            maximum_end_us=draft_duration_us,
+        )
+    elif srt_text:
+        cues = validate_caption_cues(
+            parse_srt_cues(srt_text),
+            timeline_offset_us=timeline_offset_us,
+            maximum_end_us=draft_duration_us,
+        )
+    else:
+        cues = build_caption_cues(
+            caption_text,
+            start_us=caption_start_us,
+            duration_us=caption_duration_us,
+            max_chars=int(_value(captions, "max_chars", default=16)),
+            min_duration_us=int(_value(captions, "min_duration_us", default=650_000)),
+        )
     add_captions_to_draft(
         output_draft_dir,
         cues,

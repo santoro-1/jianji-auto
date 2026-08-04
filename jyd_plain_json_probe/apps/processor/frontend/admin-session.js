@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
         credentials: "same-origin",
       });
     } finally {
-      window.location.replace("/admin/login");
+      window.location.replace("/local-admin/login");
     }
   });
 });

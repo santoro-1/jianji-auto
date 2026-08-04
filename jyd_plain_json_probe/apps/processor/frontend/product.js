@@ -1,5 +1,6 @@
 const SHARED_WORKSPACE_STORAGE_KEY = "jyd_shared_workspace_url";
 const SHARED_WORKSPACES_STORAGE_KEY = "jyd_shared_workspace_urls";
+const LOCAL_OUTPUT_FOLDER_STORAGE_KEY = "jyd_local_output_folder";
 
 function savedSharedWorkspaceUrls() {
   try {
@@ -40,6 +41,10 @@ const state = {
   localFileAccess: false,
   localVideo: null,
   localOutputFolder: "",
+  digitalHumanTasks: [],
+  digitalHumanPollTimer: null,
+  digitalHumanCaptionCues: [],
+  digitalHumanSourceItemId: "",
   personalLibraryRoot: "",
   personalAssets: {
     items: [],
@@ -908,7 +913,7 @@ function normalizedServerUrl(value) {
 }
 
 function localWorkspaceUrl() {
-  return "http://127.0.0.1:8000/app";
+  return "http://127.0.0.1:8010/app";
 }
 
 function saveSharedWorkspaceUrls() {
@@ -1043,6 +1048,7 @@ function updateWorkspaceUi() {
   $("uploadDraftWorkspace").classList.toggle("hidden", mode !== "upload");
   $("personalAssetsWorkspace").classList.toggle("hidden", mode !== "assets");
   $("excelBatchWorkspace").classList.toggle("hidden", !excel);
+  $("digitalHumanWorkspace").classList.toggle("hidden", mode !== "digital_human");
   document.querySelectorAll(".generation-workspace").forEach((section) => {
     if (section.id === "resultsSection") {
       const hasResults = Boolean(state.lastBatch?.jobs?.length);
@@ -1054,6 +1060,139 @@ function updateWorkspaceUi() {
   if (generating) updateSourceUi();
   if (mode === "assets" && !state.personalAssets.loaded && !state.personalAssets.loading) {
     void loadPersonalAssets();
+  }
+  if (mode === "digital_human") {
+    void refreshDigitalHumanTasks();
+    if (!state.digitalHumanPollTimer) {
+      state.digitalHumanPollTimer = window.setInterval(() => {
+        if (workspaceMode() === "digital_human") void refreshDigitalHumanTasks({ quiet: true });
+      }, 15000);
+    }
+  } else if (state.digitalHumanPollTimer) {
+    window.clearInterval(state.digitalHumanPollTimer);
+    state.digitalHumanPollTimer = null;
+  }
+}
+
+function digitalHumanStatusLabel(task) {
+  return {
+    AUTO_READY: "可自动后期",
+    MANUAL_READY: "等待人工粗剪",
+    WAITING_VIDEO: "数字人生成中",
+    PARTIAL_FAILED: "部分片段失败",
+    FAILED: "生成失败",
+    CANCELLED: "已取消",
+  }[task.status] || task.status || "等待处理";
+}
+
+function digitalHumanReason(task) {
+  if (task.status === "AUTO_READY") return "单条文本语音视频，可带精确字幕直接导入。";
+  if (task.manual_edit_reason === "UPLOADED_AUDIO") return "上传音频任务，请下载原始片段并人工粗剪。";
+  if (task.manual_edit_reason === "SEGMENTED_VIDEO") return "多片段图生视频，请人工检查衔接并粗剪。";
+  if (task.status === "WAITING_VIDEO") return "任务尚在生成，完成后这里会自动更新。";
+  return "请检查数字人网站中的任务状态。";
+}
+
+function renderDigitalHumanTasks() {
+  const list = $("digitalHumanTaskList");
+  list.replaceChildren();
+  if (!state.digitalHumanTasks.length) {
+    const empty = document.createElement("div");
+    empty.className = "source-note";
+    empty.textContent = "当前账号还没有数字人后处理任务。";
+    list.append(empty);
+    return;
+  }
+  state.digitalHumanTasks.forEach((task) => {
+    const card = document.createElement("article");
+    card.className = "digital-human-task-card";
+    const heading = document.createElement("div");
+    heading.className = "digital-human-task-heading";
+    const title = document.createElement("div");
+    const h3 = document.createElement("h3");
+    h3.textContent = `${task.row_key || "数字人任务"} · ${task.batch_name || "视频生成任务"}`;
+    const meta = document.createElement("p");
+    meta.textContent = `${task.input_mode === "text" ? "文本生成语音" : "上传音频"} · ${task.source?.videos?.length || 0} 个视频片段`;
+    title.append(h3, meta);
+    const badge = document.createElement("span");
+    badge.className = `digital-human-badge${task.status === "AUTO_READY" ? " auto" : ""}`;
+    badge.textContent = digitalHumanStatusLabel(task);
+    heading.append(title, badge);
+    const reason = document.createElement("div");
+    reason.className = "digital-human-caption-note";
+    reason.textContent = digitalHumanReason(task);
+    const actions = document.createElement("div");
+    actions.className = "digital-human-task-actions";
+    if (task.status === "AUTO_READY") {
+      const importButton = document.createElement("button");
+      importButton.type = "button";
+      importButton.className = "primary";
+      importButton.textContent = "一键导入工作台";
+      importButton.addEventListener("click", () => importDigitalHumanTask(task, importButton));
+      actions.append(importButton);
+    }
+    (task.source?.videos || []).forEach((video) => {
+      if (video.status !== "SUCCESS") return;
+      const link = document.createElement("a");
+      link.href = `/api/digital-human/tasks/${encodeURIComponent(task.item_id)}/videos/${Number(video.index)}`;
+      link.textContent = `下载原始片段 ${video.index}`;
+      actions.append(link);
+    });
+    card.append(heading, reason, actions);
+    list.append(card);
+  });
+}
+
+async function refreshDigitalHumanTasks({ quiet = false } = {}) {
+  const button = $("refreshDigitalHumanTasksBtn");
+  if (!quiet) {
+    button.disabled = true;
+    $("digitalHumanTaskMessage").textContent = "正在从数字人网站读取当前账号的任务...";
+  }
+  try {
+    const result = await apiFetch("/api/digital-human/tasks?limit=50");
+    state.digitalHumanTasks = Array.isArray(result.tasks) ? result.tasks : [];
+    renderDigitalHumanTasks();
+    $("digitalHumanTaskMessage").textContent = `已连接 ${result.source_url}，读取到 ${state.digitalHumanTasks.length} 个任务。`;
+    $("digitalHumanTaskMessage").classList.remove("error");
+  } catch (error) {
+    $("digitalHumanTaskMessage").textContent = `读取失败：${error.message}`;
+    $("digitalHumanTaskMessage").classList.add("error");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function importDigitalHumanTask(task, button) {
+  button.disabled = true;
+  button.textContent = "正在下载视频...";
+  try {
+    const result = await apiFetch(`/api/digital-human/tasks/${encodeURIComponent(task.item_id)}/import`, { method: "POST" });
+    state.localVideo = result.media;
+    state.digitalHumanSourceItemId = task.item_id;
+    state.digitalHumanCaptionCues = Array.isArray(result.captions?.cues) ? result.captions.cues : [];
+    $("localVideoFileName").textContent = `${result.media.filename} · ${formatBytes(result.media.size)}`;
+    const workspaceInput = document.querySelector('input[name="workspaceMode"][value="generate"]');
+    const sourceInput = document.querySelector('input[name="sourceMode"][value="video"]');
+    const localInput = document.querySelector('input[name="processingMode"][value="local"]');
+    if (workspaceInput) workspaceInput.checked = true;
+    if (sourceInput) sourceInput.checked = true;
+    if (localInput && !localInput.disabled) localInput.checked = true;
+    if (result.captions?.text) {
+      $("captionText").value = result.captions.text;
+      $("useCaptions").checked = true;
+    }
+    updateWorkspaceUi();
+    updateSourceUi();
+    updateCounts();
+    updateSourcePreview();
+    setMessage(state.digitalHumanCaptionCues.length
+      ? `已导入数字人视频和 ${state.digitalHumanCaptionCues.length} 条精确字幕，请选择 BGM、字幕字体和导出目录。`
+      : "已导入数字人视频，请继续选择 BGM 和导出设置。", false);
+  } catch (error) {
+    window.alert(`导入失败：${error.message}`);
+    button.disabled = false;
+    button.textContent = "一键导入工作台";
   }
 }
 
@@ -1807,6 +1946,8 @@ async function selectLocalVideo() {
       body: JSON.stringify({ kind: "video", path: selected.path }),
     });
     state.localVideo = { ...selected, ...registered };
+    state.digitalHumanCaptionCues = [];
+    state.digitalHumanSourceItemId = "";
     $("localVideoFileName").textContent = `${selected.name} · ${formatBytes(selected.size)}`;
     setMessage();
     updateSourcePreview();
@@ -1838,6 +1979,7 @@ async function selectLocalOutputFolder() {
     }
     state.localOutputFolder = selected.path;
     $("localOutputFolder").value = selected.path;
+    window.localStorage.setItem(LOCAL_OUTPUT_FOLDER_STORAGE_KEY, selected.path);
     status.textContent = `视频将保存到：${selected.path}`;
   } catch (error) {
     status.textContent = `选择失败：${error.message}`;
@@ -1878,6 +2020,12 @@ function buildBaseJob(source) {
       transform_y: Number($("captionPosition").value),
       line_max_width: 0.82,
     };
+    if (state.digitalHumanCaptionCues.length) {
+      job.captions.cues = state.digitalHumanCaptionCues;
+      delete job.captions.start_us;
+      delete job.captions.duration_us;
+      delete job.captions.max_chars;
+    }
     if ($("captionStylePreset").value) {
       job.captions.style_json_path = $("captionStylePreset").value;
     }
@@ -3167,7 +3315,7 @@ async function deleteRecentBatch(batch) {
     await showRecentBatches();
   } catch (error) {
     if (error.status === 401) {
-      window.location.href = `/admin/login?next=${encodeURIComponent("/app")}`;
+      window.location.href = `/local-admin/login?next=${encodeURIComponent("/app")}`;
       return;
     }
     window.alert(`删除失败：${error.message}`);
@@ -3716,6 +3864,14 @@ async function loadData() {
   fillCaptionStyles();
   fillBatchDefaultControls();
   renderExcelRows();
+  if (state.localFileAccess) {
+    const savedOutputFolder = window.localStorage.getItem(LOCAL_OUTPUT_FOLDER_STORAGE_KEY) || "";
+    if (savedOutputFolder) {
+      state.localOutputFolder = savedOutputFolder;
+      $("localOutputFolder").value = savedOutputFolder;
+      $("localOutputStatus").textContent = `已恢复上次导出文件夹：${savedOutputFolder}`;
+    }
+  }
   updateSourceUi();
   updateProcessingModeUi();
   updateWorkspaceUi();
@@ -3732,7 +3888,13 @@ async function loadData() {
 
 function bindEvents() {
   document.querySelectorAll('input[name="workspaceMode"]').forEach((input) => input.addEventListener("change", updateWorkspaceUi));
-  document.querySelectorAll('input[name="sourceMode"]').forEach((input) => input.addEventListener("change", updateSourceUi));
+  document.querySelectorAll('input[name="sourceMode"]').forEach((input) => input.addEventListener("change", () => {
+    if (input.checked && input.value !== "video") {
+      state.digitalHumanCaptionCues = [];
+      state.digitalHumanSourceItemId = "";
+    }
+    updateSourceUi();
+  }));
   document.querySelectorAll('input[name="processingMode"]').forEach((input) => input.addEventListener("change", handleProcessingModeChange));
   $("configureSharedWorkspaceBtn").addEventListener("click", () => {
     configureSharedWorkspace().catch((error) => setMessage(error.message));
@@ -3741,6 +3903,8 @@ function bindEvents() {
     refreshSharedWorkspaceStatuses().catch((error) => setMessage(error.message));
   });
   $("videoFile").addEventListener("change", () => {
+    state.digitalHumanCaptionCues = [];
+    state.digitalHumanSourceItemId = "";
     const file = $("videoFile").files[0];
     $("videoFileName").textContent = file?.name || "选择 MP4 视频";
     updateSourcePreview();
@@ -3831,7 +3995,12 @@ function bindEvents() {
     updateFontPreview();
     updateSingleCoverPreview();
   });
-  $("captionText").addEventListener("input", updateCounts);
+  $("captionText").addEventListener("input", () => {
+    state.digitalHumanCaptionCues = [];
+    state.digitalHumanSourceItemId = "";
+    updateCounts();
+  });
+  $("refreshDigitalHumanTasksBtn").addEventListener("click", () => refreshDigitalHumanTasks());
   $("flowerText").addEventListener("input", updateCounts);
   ["coverFrameTimeSeconds", "coverTextLine1", "coverTextLine2"].forEach((id) => $(id).addEventListener("input", () => {
     updateCounts();

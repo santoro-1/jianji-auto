@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>剪映批量剪辑工作台</title>
-    <link rel="stylesheet" href="/app-static/product.css?v=20260721-2" />
+    <link rel="stylesheet" href="/app-static/product.css?v=20260803-1" />
   </head>
   <body>
     <header class="app-header">
@@ -157,6 +157,10 @@
             <span><strong>生成视频</strong><small>使用剪映母版或上传视频生成</small></span>
           </label>
           <label>
+            <input type="radio" name="workspaceMode" value="digital_human" />
+            <span><strong>数字人任务</strong><small>自动读取当前账号待后期的视频</small></span>
+          </label>
+          <label>
             <input type="radio" name="workspaceMode" value="excel" />
             <span><strong>批量任务</strong><small>批量上传母版，统一设置后直接生成</small></span>
           </label>
@@ -185,6 +189,18 @@
             <div id="sharedWorkspaceStatusList" class="shared-workspace-status-list"></div>
           </div>
         </div>
+      </section>
+
+      <section id="digitalHumanWorkspace" class="section hidden">
+        <div class="section-heading">
+          <div>
+            <h2>数字人任务收件箱</h2>
+            <p>使用当前登录的数字人账号自动拉取任务。页面每 15 秒刷新一次，不会自动开始导出。</p>
+          </div>
+          <button id="refreshDigitalHumanTasksBtn" type="button" class="secondary-button">立即刷新</button>
+        </div>
+        <div id="digitalHumanTaskMessage" class="source-note">等待读取数字人任务。</div>
+        <div id="digitalHumanTaskList" class="digital-human-task-list"></div>
       </section>
 
       <section id="uploadDraftWorkspace" class="section">
@@ -826,6 +842,6 @@
       <div id="personalAssetPreviewBody" class="personal-asset-preview-body"></div>
     </dialog>
 
-    <script src="/app-static/product.js?v=20260721-2"></script>
+    <script src="/app-static/product.js?v=20260803-1"></script>
   </body>
 </html>

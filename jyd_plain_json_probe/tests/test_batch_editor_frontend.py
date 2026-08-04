@@ -66,6 +66,17 @@ class BatchEditorFrontendTest(unittest.TestCase):
         self.assertIn('/api/config/personal-library-root', script)
         self.assertIn('"打开所在文件夹"', script)
 
+    def test_digital_human_inbox_can_pull_and_import_exact_caption_tasks(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        script = (FRONTEND_ROOT / "product.js").read_text(encoding="utf-8")
+
+        self.assertIn('name="workspaceMode" value="digital_human"', html)
+        self.assertIn('id="digitalHumanTaskList"', html)
+        self.assertIn('/api/digital-human/tasks?limit=50', script)
+        self.assertIn('一键导入工作台', script)
+        self.assertIn('job.captions.cues = state.digitalHumanCaptionCues', script)
+        self.assertIn('window.setInterval', script)
+
     def test_admin_page_exposes_simple_internal_user_management(self) -> None:
         html = (FRONTEND_ROOT / "assets.html").read_text(encoding="utf-8")
         script = (FRONTEND_ROOT / "assets.js").read_text(encoding="utf-8")
@@ -89,7 +100,7 @@ class BatchEditorFrontendTest(unittest.TestCase):
         self.assertIn("activeJobs", script)
         self.assertIn("window.location.assign(`${serverUrl}/app`)", script)
         self.assertIn('"/api/auth/handoff-to?target=local&next=/app"', script)
-        self.assertIn('return "http://127.0.0.1:8000/app"', script)
+        self.assertIn('return "http://127.0.0.1:8010/app"', script)
         self.assertNotIn("sharedModeInput.disabled = state.localFileAccess", script)
         self.assertIn('$("localAssetsWorkspaceChoice").classList.toggle("hidden", !state.localFileAccess)', script)
 

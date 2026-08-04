@@ -2,7 +2,7 @@
   "draft_root": "",
   "deployment_mode": "standalone",
   "host": "127.0.0.1",
-  "auth_server_url": "https://auth.lanyingjk01.com",
+  "digital_human_server_url": "http://127.0.0.1:8000",
   "shared_processor_url": "",
   "auth_authority": "false"
 }

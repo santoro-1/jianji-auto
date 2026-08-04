@@ -182,6 +182,88 @@ class AuthCenterTest(unittest.TestCase):
         finally:
             shutil.rmtree(root, ignore_errors=True)
 
+    def test_digital_human_inbox_and_one_click_import_use_logged_in_account(self) -> None:
+        root = PROJECT_ROOT / "runtime" / "test_tmp" / f"digital_inbox_{uuid.uuid4().hex}"
+        root.mkdir(parents=True)
+        settings = WebApiSettings(
+            storage_root=root / "storage",
+            template_library_root=root / "templates",
+            default_draft_root=root / "drafts",
+            audio_library_root=root / "audio",
+            admin_password="admin-pass",
+            admin_session_secret="admin-secret",
+            auth_authority=False,
+            auth_server_url="http://127.0.0.1:8000",
+            execution_mode="embedded",
+            allow_local_file_access=True,
+        )
+        for directory in (
+            settings.storage_root,
+            settings.template_library_root,
+            settings.default_draft_root,
+            settings.audio_library_root,
+        ):
+            directory.mkdir(parents=True, exist_ok=True)
+        user = {"user_id": "2", "username": "tester", "enabled": True}
+        task = {
+            "item_id": "item-1",
+            "row_key": "TEXT-001",
+            "batch_name": "数字人口播",
+            "input_mode": "text",
+            "mode": "AUTO_POSTPROCESS",
+            "status": "AUTO_READY",
+            "source": {"videos": [{"index": 1, "status": "SUCCESS"}]},
+            "captions": {
+                "text": "精确字幕",
+                "cues": [{"start_us": 0, "end_us": 1_000_000, "text": "精确字幕"}],
+            },
+        }
+
+        def fake_download(_self, _token, _item_id, _index, target, *, max_bytes):
+            del max_bytes
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"video")
+            return 5
+
+        try:
+            with patch(
+                "jyd_probe.auth_center.AuthCenterClient.login",
+                return_value={"access_token": "digital-token", "user": user},
+            ), patch(
+                "jyd_probe.auth_center.AuthCenterClient.verify", return_value=user
+            ), patch(
+                "jyd_probe.auth_center.AuthCenterClient.list_workbench_tasks",
+                return_value=[task],
+            ), patch(
+                "jyd_probe.auth_center.AuthCenterClient.get_workbench_task",
+                return_value=task,
+            ), patch(
+                "jyd_probe.auth_center.AuthCenterClient.download_workbench_video",
+                new=fake_download,
+            ):
+                with TestClient(
+                    create_app(settings),
+                    base_url="http://127.0.0.1",
+                    client=("127.0.0.1", 54321),
+                ) as client:
+                    login = client.post(
+                        "/api/auth/login",
+                        json={"username": "tester", "password": "pass123"},
+                    )
+                    self.assertEqual(login.status_code, 200)
+                    inbox = client.get("/api/digital-human/tasks")
+                    self.assertEqual(inbox.status_code, 200)
+                    self.assertEqual(inbox.json()["tasks"][0]["status"], "AUTO_READY")
+
+                    imported = client.post("/api/digital-human/tasks/item-1/import")
+                    self.assertEqual(imported.status_code, 200)
+                    payload = imported.json()
+                    self.assertEqual(payload["media"]["source_item_id"], "item-1")
+                    self.assertEqual(payload["captions"]["cues"][0]["text"], "精确字幕")
+                    self.assertTrue(Path(payload["media"]["path"]).is_file())
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
 
 if __name__ == "__main__":
     unittest.main()

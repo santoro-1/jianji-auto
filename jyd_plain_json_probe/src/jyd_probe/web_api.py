@@ -38,7 +38,13 @@ from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
-from .subtitles import build_caption_cues, cues_to_srt
+from .subtitles import (
+    build_caption_cues,
+    caption_cues_from_payload,
+    cues_to_srt,
+    parse_srt_cues,
+    validate_caption_cues,
+)
 from .template_library import TemplateLibrary, summarize_draft_data
 from .task_store import SQLiteTaskStore
 from .user_auth import UserAuth
@@ -116,7 +122,7 @@ class WebApiSettings:
     allow_local_file_access: bool = False
     personal_library_root: Path | None = None
     bootstrap_site_user: bool = True
-    auth_server_url: str = "https://auth.lanyingjk01.com"
+    auth_server_url: str = "http://127.0.0.1:8000"
     shared_processor_url: str = ""
     auth_authority: bool = False
     auth_timeout_seconds: int = 4
@@ -1388,9 +1394,11 @@ class StorageLifecycleManager:
 
 
 def _is_admin_protected_path(path: str) -> bool:
+    if path in {"/admin", "/admin/login", "/local-admin/login"}:
+        return False
     if path in {"/api/admin/login", "/api/admin/logout", "/api/admin/session"}:
         return False
-    if path in {"/app/advanced", "/app/assets", "/admin", "/openapi.json"}:
+    if path in {"/app/advanced", "/app/assets", "/openapi.json"}:
         return True
     if path.startswith(("/docs", "/redoc", "/api/admin/", "/api/storage", "/api/drafts")):
         return True
@@ -1506,9 +1514,9 @@ def default_settings() -> WebApiSettings:
         bootstrap_site_user=(storage_root / "users.json").is_file()
         or (storage_root / "access_password.txt").is_file(),
         auth_server_url=os.environ.get(
-            "JYD_AUTH_SERVER_URL", "https://auth.lanyingjk01.com"
+            "JYD_AUTH_SERVER_URL", "http://127.0.0.1:8000"
         ).strip()
-        or "https://auth.lanyingjk01.com",
+        or "http://127.0.0.1:8000",
         shared_processor_url=os.environ.get(
             "JYD_SHARED_PROCESSOR_URL", ""
         ).strip(),
@@ -1649,7 +1657,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if path.startswith("/api/") or path == "/openapi.json":
             return JSONResponse({"detail": "需要管理员登录"}, status_code=401)
         next_path = quote(path, safe="/")
-        login_path = "/admin/login" if admin_required else "/login"
+        login_path = "/local-admin/login" if admin_required else "/login"
         return RedirectResponse(f"{login_path}?next={next_path}", status_code=303)
 
     @app.on_event("shutdown")
@@ -1747,6 +1755,112 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "auth_center_online": center_online,
         }
 
+    def digital_human_access(request: Request) -> tuple[AuthCenterClient, str]:
+        if settings.auth_authority or auth_center is None:
+            raise HTTPException(status_code=503, detail="工作台尚未连接数字人网站")
+        token = request.cookies.get(settings.site_cookie_name, "").strip()
+        if not token:
+            raise HTTPException(status_code=401, detail="请先使用数字人账号登录")
+        return auth_center, token
+
+    @app.get("/api/digital-human/tasks")
+    def list_digital_human_tasks(request: Request, limit: int = 50) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        try:
+            tasks = client.list_workbench_tasks(token, limit=limit)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        return {
+            "schema": "jyd.digital-human-inbox.v1",
+            "source_url": client.base_url,
+            "tasks": tasks,
+        }
+
+    @app.post("/api/digital-human/tasks/{item_id}/import")
+    def import_digital_human_task(item_id: str, request: Request) -> dict[str, Any]:
+        require_local_file_access(request)
+        client, token = digital_human_access(request)
+        try:
+            task = client.get_workbench_task(token, item_id)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        if task.get("status") != "AUTO_READY" or task.get("mode") != "AUTO_POSTPROCESS":
+            raise HTTPException(status_code=409, detail="这个任务需要人工处理，不能直接导入自动后期")
+        videos = task.get("source", {}).get("videos", [])
+        if not isinstance(videos, list) or len(videos) != 1:
+            raise HTTPException(status_code=409, detail="自动后期任务必须只有一个完整视频")
+        video = videos[0]
+        if not isinstance(video, dict) or video.get("status") != "SUCCESS":
+            raise HTTPException(status_code=409, detail="数字人视频尚未生成完成")
+
+        stable = hashlib.sha256(item_id.encode("utf-8")).hexdigest()[:24]
+        media_id = f"digital_{stable}"
+        filename = _safe_filename(f"{task.get('row_key') or item_id}.mp4")
+        media_dir = settings.storage_root / "media" / "video"
+        media_dir.mkdir(parents=True, exist_ok=True)
+        path = media_dir / f"{media_id}_{filename}"
+        temporary = path.with_suffix(path.suffix + f".tmp.{uuid.uuid4().hex}")
+        try:
+            size = client.download_workbench_video(
+                token,
+                item_id,
+                int(video.get("index", 1)),
+                temporary,
+                max_bytes=settings.max_video_upload_bytes,
+            )
+            temporary.replace(path)
+        except AuthCenterError as exc:
+            _unlink_if_exists(temporary)
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        record = {
+            "media_id": media_id,
+            "kind": "video",
+            "filename": filename,
+            "path": str(path),
+            "size": size,
+            "storage_mode": "local_reference",
+            "source": "digital_human",
+            "source_item_id": item_id,
+            "created_at": _now(),
+            "expires_at": _expiry_after(settings.media_retention_hours),
+        }
+        _write_json(_media_meta_path(settings, media_id), record)
+        return {
+            "ok": True,
+            "task": task,
+            "captions": task.get("captions"),
+            "media": {
+                **record,
+                "preview_url": f"/api/local/media/{media_id}/preview",
+            },
+        }
+
+    @app.get("/api/digital-human/tasks/{item_id}/videos/{video_index}")
+    def download_digital_human_video(
+        item_id: str, video_index: int, request: Request
+    ) -> FileResponse:
+        client, token = digital_human_access(request)
+        download_root = settings.storage_root / "temporary_downloads"
+        download_root.mkdir(parents=True, exist_ok=True)
+        path = download_root / f"{uuid.uuid4().hex}.mp4"
+        try:
+            client.download_workbench_video(
+                token,
+                item_id,
+                video_index,
+                path,
+                max_bytes=settings.max_video_upload_bytes,
+            )
+        except AuthCenterError as exc:
+            _unlink_if_exists(path)
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        return FileResponse(
+            path,
+            media_type="video/mp4",
+            filename=f"{_safe_download_stem(item_id)}-segment-{video_index}.mp4",
+            background=BackgroundTask(_unlink_if_exists, path),
+        )
+
     @app.post("/api/auth/logout")
     def site_logout() -> JSONResponse:
         response = JSONResponse({"ok": True})
@@ -1811,7 +1925,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if settings.auth_authority or auth_center is None:
             raise HTTPException(status_code=409, detail="当前处理机尚未接入云端统一账号中心")
         destinations = {
-            "local": "http://127.0.0.1:8000",
+            "local": "http://127.0.0.1:8010",
             "shared": settings.shared_processor_url.rstrip("/"),
         }
         destination = destinations.get(target)
@@ -1853,6 +1967,16 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def admin_login_frontend(request: Request):
         if not settings.auth_authority:
             return RedirectResponse(f"{settings.auth_server_url}/admin", status_code=303)
+        token = request.cookies.get(admin_auth.cookie_name, "")
+        if admin_auth.verify_token(token):
+            return RedirectResponse("/app/assets", status_code=303)
+        index_path = FRONTEND_ROOT / "admin-login.html"
+        if not index_path.exists():
+            raise HTTPException(status_code=404, detail=f"管理员登录页面不存在: {index_path}")
+        return FileResponse(index_path)
+
+    @app.get("/local-admin/login")
+    def local_admin_login_frontend(request: Request):
         token = request.cookies.get(admin_auth.cookie_name, "")
         if admin_auth.verify_token(token):
             return RedirectResponse("/app/assets", status_code=303)
@@ -1959,6 +2083,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     @app.get("/admin")
     def admin_root() -> RedirectResponse:
+        if not settings.auth_authority:
+            return RedirectResponse(f"{settings.auth_server_url}/admin", status_code=303)
         return RedirectResponse("/app/assets", status_code=303)
 
     @app.get("/app/advanced")
@@ -2371,16 +2497,32 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     @app.post("/api/captions/preview")
     def preview_captions(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         try:
-            text = str(_required(payload, "text"))
-            start_us = int(payload.get("start_us", 0) or 0)
-            duration_us = int(_required(payload, "duration_us"))
-            cues = build_caption_cues(
-                text,
-                start_us=start_us,
-                duration_us=duration_us,
-                max_chars=int(payload.get("max_chars", 16) or 16),
-                min_duration_us=int(payload.get("min_duration_us", 650_000) or 650_000),
-            )
+            raw_cues = payload.get("cues")
+            srt_text = str(payload.get("srt_text") or payload.get("srt") or "").strip()
+            maximum_end_us = int(payload.get("maximum_end_us", 0) or 0) or None
+            if raw_cues:
+                if not isinstance(raw_cues, list):
+                    raise ValueError("cues 必须是数组")
+                cues = validate_caption_cues(
+                    caption_cues_from_payload(raw_cues),
+                    maximum_end_us=maximum_end_us,
+                )
+            elif srt_text:
+                cues = validate_caption_cues(
+                    parse_srt_cues(srt_text),
+                    maximum_end_us=maximum_end_us,
+                )
+            else:
+                text = str(_required(payload, "text"))
+                start_us = int(payload.get("start_us", 0) or 0)
+                duration_us = int(_required(payload, "duration_us"))
+                cues = build_caption_cues(
+                    text,
+                    start_us=start_us,
+                    duration_us=duration_us,
+                    max_chars=int(payload.get("max_chars", 16) or 16),
+                    min_duration_us=int(payload.get("min_duration_us", 650_000) or 650_000),
+                )
             return {
                 "cue_count": len(cues),
                 "cues": [cue.as_dict() for cue in cues],

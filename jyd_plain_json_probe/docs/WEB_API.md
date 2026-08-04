@@ -1,13 +1,31 @@
 # Web API
 
+## 数字人任务收件箱
+
+普通用户账号由数字人网站统一验证。工作台使用服务端保存的短期会话令牌拉取当前用户自己的任务：
+
+```text
+GET  /api/digital-human/tasks
+POST /api/digital-human/tasks/{item_id}/import
+GET  /api/digital-human/tasks/{item_id}/videos/{video_index}
+```
+
+- `GET /api/digital-human/tasks` 返回当前账号的数字人任务列表。
+- `POST .../import` 只接受 `AUTO_READY`、`AUTO_POSTPROCESS` 且只有一个成功视频的任务，返回本地媒体引用和精确字幕 cue。
+- `GET .../videos/{video_index}` 用于下载上传音频或多片段任务的原始生成片段。
+- 三个接口都要求先登录工作台；工作台不会自动导入、渲染或发布任务。
+- 本地数字人服务默认是 `http://127.0.0.1:8000`，工作台默认是 `http://127.0.0.1:8010`。
+
+完整设计与验收记录见 [DIGITAL_HUMAN_INTEGRATION_20260803.md](DIGITAL_HUMAN_INTEGRATION_20260803.md)。
+
 ## 网页入口
 
 ```text
-普通用户生成页：http://127.0.0.1:8000/app
-管理员登录页：  http://127.0.0.1:8000/admin/login
-高级设置页：    http://127.0.0.1:8000/app/advanced
-素材管理页：    http://127.0.0.1:8000/app/assets
-接口文档：      http://127.0.0.1:8000/docs
+普通用户生成页：http://127.0.0.1:8010/app
+管理员登录页：  http://127.0.0.1:8010/admin/login
+高级设置页：    http://127.0.0.1:8010/app/advanced
+素材管理页：    http://127.0.0.1:8010/app/assets
+接口文档：      http://127.0.0.1:8010/docs
 ```
 
 普通生成页和业务 API 使用管理员在 `/admin` 创建的内测账号。高级设置、素材管理、用户管理、存储清理和接口文档使用管理员账号 `admin / admin123`。停用、删除或重置普通账号密码会立即撤销原会话。
@@ -31,13 +49,13 @@ D:\Myanaconda\python.exe .\apps\processor\run_web_api.py --host 127.0.0.1 --port
 打开接口文档：
 
 ```text
-http://127.0.0.1:8000/docs
+http://127.0.0.1:8010/docs
 ```
 
 打开最小网页前端：
 
 ```text
-http://127.0.0.1:8000/app
+http://127.0.0.1:8010/app
 ```
 
 ## 环境变量
@@ -85,7 +103,7 @@ $env:JYD_MAX_ACTIVE_JOBS="500"
 $bytes = [System.IO.File]::ReadAllBytes("C:\Users\san\Desktop\测试\1.mp4")
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:8000/api/media/video?filename=1.mp4" `
+  -Uri "http://127.0.0.1:8010/api/media/video?filename=1.mp4" `
   -ContentType "application/octet-stream" `
   -Body $bytes
 ```
@@ -107,7 +125,7 @@ Invoke-RestMethod `
 $bytes = [System.IO.File]::ReadAllBytes("D:\素材\bgm.mp3")
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:8000/api/media/audio?filename=bgm.mp3" `
+  -Uri "http://127.0.0.1:8010/api/media/audio?filename=bgm.mp3" `
   -ContentType "application/octet-stream" `
   -Body $bytes
 ```
@@ -117,7 +135,7 @@ Invoke-RestMethod `
 查看音乐、分类和轮换位置：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/audio-library"
+Invoke-RestMethod -Uri "http://127.0.0.1:8010/api/audio-library"
 ```
 
 网页支持上传单次使用的 BGM、固定选择音乐库中的一首，以及在某个分类内按导入顺序轮换。分类轮换在提交任务时原子地推进游标，并把实际选中的音乐写入任务记录。
@@ -127,7 +145,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/audio-library"
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:8000/api/templates/import" `
+  -Uri "http://127.0.0.1:8010/api/templates/import" `
   -ContentType "application/json" `
   -Body '{
     "source_draft_dir": "D:/剪映草稿/JianyingPro Drafts/模板名",
@@ -140,8 +158,8 @@ Invoke-RestMethod `
 查看模板：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/templates"
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/templates/demo_template"
+Invoke-RestMethod -Uri "http://127.0.0.1:8010/api/templates"
+Invoke-RestMethod -Uri "http://127.0.0.1:8010/api/templates/demo_template"
 ```
 
 ## 提交渲染任务
@@ -238,7 +256,7 @@ GET /api/assets/fonts/{font_identity}/file  返回字体文件，用于网页预
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:8000/api/render" `
+  -Uri "http://127.0.0.1:8010/api/render" `
   -ContentType "application/json" `
   -Body (Get-Content ".\examples\render_job_video.example.json" -Raw)
 ```
@@ -246,14 +264,14 @@ Invoke-RestMethod `
 查询任务：
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/jobs/{job_id}"
+Invoke-RestMethod -Uri "http://127.0.0.1:8010/api/jobs/{job_id}"
 ```
 
 下载 MP4：
 
 ```powershell
 Invoke-WebRequest `
-  -Uri "http://127.0.0.1:8000/api/jobs/{job_id}/download" `
+  -Uri "http://127.0.0.1:8010/api/jobs/{job_id}/download" `
   -OutFile "D:\输出\result.mp4"
 ```
 
@@ -378,7 +396,7 @@ POST /api/captions/preview
 
 ## 网页测试顺序
 
-1. 启动后端并打开 `http://127.0.0.1:8000/app`。
+1. 启动后端并打开 `http://127.0.0.1:8010/app`。
 2. 确认右上角显示“后端已连接”。
 3. 选择 MP4 视频文件；需要套模板时勾选“套用模板”并选择模板。
 4. 模板只作为可选加工方式，上传的 MP4 会自动替换第一个普通视频片段或第一个嵌套视频槽。
@@ -394,7 +412,7 @@ POST /api/captions/preview
 
 ```powershell
 Invoke-RestMethod `
-  -Uri "http://127.0.0.1:8000/api/drafts?root=D:/剪映草稿/JianyingPro%20Drafts"
+  -Uri "http://127.0.0.1:8010/api/drafts?root=D:/剪映草稿/JianyingPro%20Drafts"
 ```
 
 返回里的 `plain_json=false` 表示这个草稿可能是高版本加密草稿；导入模板库时会自动调用解密流程。

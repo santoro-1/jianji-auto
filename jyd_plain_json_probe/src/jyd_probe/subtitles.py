@@ -28,6 +28,120 @@ class CaptionCue:
         }
 
 
+_SRT_TIME_RE = re.compile(
+    r"(?P<start>\d{1,2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*"
+    r"(?P<end>\d{1,2}:\d{2}:\d{2}[,.]\d{3})"
+)
+
+
+def _parse_srt_timecode(value: str) -> int:
+    hours, minutes, tail = value.replace(".", ",").split(":")
+    seconds, milliseconds = tail.split(",")
+    return (
+        int(hours) * 3_600_000_000
+        + int(minutes) * 60_000_000
+        + int(seconds) * 1_000_000
+        + int(milliseconds) * 1_000
+    )
+
+
+def parse_srt_cues(text: str) -> list[CaptionCue]:
+    """Parse an inline SRT payload without changing its provider timestamps."""
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if not normalized:
+        return []
+    cues: list[CaptionCue] = []
+    for block in re.split(r"\n\s*\n", normalized):
+        lines = [line.strip() for line in block.split("\n") if line.strip()]
+        time_index = next(
+            (index for index, line in enumerate(lines) if "-->" in line),
+            -1,
+        )
+        if time_index < 0:
+            raise ValueError("SRT 字幕缺少时间范围")
+        match = _SRT_TIME_RE.fullmatch(lines[time_index])
+        if match is None:
+            raise ValueError(f"SRT 字幕时间格式无效: {lines[time_index]!r}")
+        start_us = _parse_srt_timecode(match.group("start"))
+        end_us = _parse_srt_timecode(match.group("end"))
+        cue_text = "\n".join(lines[time_index + 1 :]).strip()
+        if not cue_text or end_us <= start_us:
+            raise ValueError("SRT 字幕内容或时间范围无效")
+        cues.append(
+            CaptionCue(
+                start_us=start_us,
+                duration_us=end_us - start_us,
+                text=cue_text,
+            )
+        )
+    return validate_caption_cues(cues)
+
+
+def caption_cues_from_payload(values: Iterable[object]) -> list[CaptionCue]:
+    """Read precise JSON cues using start/end or start/duration microseconds."""
+
+    cues: list[CaptionCue] = []
+    for index, raw in enumerate(values, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError(f"第 {index} 条字幕必须是对象")
+        cue_text = str(raw.get("text") or raw.get("content") or "").strip()
+        try:
+            start_us = int(raw.get("start_us", 0))
+            if raw.get("end_us") is not None:
+                end_us = int(raw["end_us"])
+                duration_us = end_us - start_us
+            else:
+                duration_us = int(raw.get("duration_us", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"第 {index} 条字幕时间必须是整数微秒") from exc
+        if not cue_text:
+            raise ValueError(f"第 {index} 条字幕内容不能为空")
+        cues.append(
+            CaptionCue(
+                start_us=start_us,
+                duration_us=duration_us,
+                text=cue_text,
+            )
+        )
+    return validate_caption_cues(cues)
+
+
+def validate_caption_cues(
+    cues: Iterable[CaptionCue],
+    *,
+    timeline_offset_us: int = 0,
+    maximum_end_us: int | None = None,
+    end_tolerance_us: int = 1_000_000,
+) -> list[CaptionCue]:
+    """Validate, offset and minimally clip an exact provider timeline."""
+
+    ordered = sorted(cues, key=lambda cue: (cue.start_us, cue.end_us))
+    result: list[CaptionCue] = []
+    previous_end = -1
+    for index, cue in enumerate(ordered, start=1):
+        start_us = cue.start_us + timeline_offset_us
+        end_us = cue.end_us + timeline_offset_us
+        if start_us < 0 or end_us <= start_us:
+            raise ValueError(f"第 {index} 条字幕时间范围无效")
+        if start_us < previous_end:
+            raise ValueError(f"第 {index} 条字幕与上一条字幕重叠")
+        if maximum_end_us is not None and end_us > maximum_end_us:
+            overflow = end_us - maximum_end_us
+            if overflow > end_tolerance_us or start_us >= maximum_end_us:
+                raise ValueError(f"第 {index} 条字幕超出视频时长")
+            end_us = maximum_end_us
+        result.append(
+            CaptionCue(
+                start_us=start_us,
+                duration_us=end_us - start_us,
+                text=cue.text,
+            )
+        )
+        previous_end = end_us
+    return result
+
+
 def _display_units(text: str) -> float:
     units = 0.0
     for char in text:

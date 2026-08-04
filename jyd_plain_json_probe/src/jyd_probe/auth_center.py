@@ -4,6 +4,7 @@ import json
 import secrets
 import threading
 import time
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -61,9 +62,9 @@ class AuthCenterClient:
         normalized = base_url.strip().rstrip("/")
         parsed = urlsplit(normalized)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("统一账号中心必须是有效的 http:// 或 https:// 地址")
+            raise ValueError("数字人网站必须是有效的 http:// 或 https:// 地址")
         if parsed.query or parsed.fragment:
-            raise ValueError("统一账号中心地址不能包含查询参数或锚点")
+            raise ValueError("数字人网站地址不能包含查询参数或锚点")
         self.base_url = normalized
         self.timeout_seconds = max(1.0, float(timeout_seconds))
 
@@ -75,7 +76,7 @@ class AuthCenterClient:
         token = str(data.get("access_token", "")).strip()
         user = data.get("user")
         if not token or not isinstance(user, dict):
-            raise AuthCenterError("统一账号中心返回了无效的登录结果")
+            raise AuthCenterError("数字人网站返回了无效的登录结果")
         return {"access_token": token, "user": user}
 
     def verify(self, token: str) -> dict[str, Any] | None:
@@ -96,7 +97,7 @@ class AuthCenterClient:
         data = self._post("/api/auth/center/handoff", {"access_token": token})
         code = str(data.get("handoff_code", "")).strip()
         if not code:
-            raise AuthCenterError("统一账号中心没有返回登录接力码")
+            raise AuthCenterError("数字人网站没有返回登录接力码")
         return code
 
     def consume_handoff(self, code: str) -> dict[str, Any]:
@@ -109,8 +110,72 @@ class AuthCenterClient:
         token = str(data.get("access_token", "")).strip()
         user = data.get("user")
         if not token or not isinstance(user, dict):
-            raise AuthCenterError("统一账号中心返回了无效的登录接力结果")
+            raise AuthCenterError("数字人网站返回了无效的登录接力结果")
         return {"access_token": token, "user": user}
+
+    def list_workbench_tasks(self, token: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        data = self._post(
+            "/api/workbench/tasks",
+            {"access_token": token, "limit": max(1, min(int(limit), 100))},
+        )
+        tasks = data.get("tasks")
+        if not isinstance(tasks, list):
+            raise AuthCenterError("数字人网站返回了无效的任务列表")
+        return [item for item in tasks if isinstance(item, dict)]
+
+    def get_workbench_task(self, token: str, item_id: str) -> dict[str, Any]:
+        data = self._post(
+            f"/api/workbench/tasks/{item_id}",
+            {"access_token": token},
+        )
+        if data.get("item_id") != item_id:
+            raise AuthCenterError("数字人网站返回了错误的任务")
+        return data
+
+    def download_workbench_video(
+        self,
+        token: str,
+        item_id: str,
+        video_index: int,
+        target: Path,
+        *,
+        max_bytes: int,
+    ) -> int:
+        request = Request(
+            f"{self.base_url}/api/workbench/tasks/{item_id}/videos/{int(video_index)}",
+            method="GET",
+            headers={"Authorization": f"Bearer {token}", "Accept": "video/mp4"},
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        size = 0
+        try:
+            with urlopen(request, timeout=max(self.timeout_seconds, 120.0)) as response:
+                with target.open("wb") as output:
+                    while True:
+                        chunk = response.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        size += len(chunk)
+                        if size > max_bytes:
+                            raise AuthCenterError("数字人视频超过工作台允许的文件大小", status_code=413)
+                        output.write(chunk)
+        except HTTPError as exc:
+            raw = exc.read()
+            target.unlink(missing_ok=True)
+            raise AuthCenterError(
+                self._detail(raw) or f"数字人网站拒绝下载（HTTP {exc.code}）",
+                status_code=int(exc.code),
+            ) from exc
+        except (URLError, OSError, TimeoutError) as exc:
+            target.unlink(missing_ok=True)
+            raise AuthCenterError("下载数字人视频失败，请检查数字人网站是否在线") from exc
+        except BaseException:
+            target.unlink(missing_ok=True)
+            raise
+        if size <= 0:
+            target.unlink(missing_ok=True)
+            raise AuthCenterError("数字人网站返回了空视频")
+        return size
 
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -126,20 +191,20 @@ class AuthCenterClient:
                 status = int(getattr(response, "status", 200))
         except HTTPError as exc:
             raw = exc.read()
-            message = self._detail(raw) or f"统一账号中心拒绝请求（HTTP {exc.code}）"
+            message = self._detail(raw) or f"数字人网站拒绝请求（HTTP {exc.code}）"
             raise AuthCenterError(message, status_code=int(exc.code)) from exc
         except (URLError, OSError, TimeoutError) as exc:
             raise AuthCenterError(
-                f"无法连接统一账号中心 {self.base_url}，请检查当前电脑的网络连接"
+                f"无法连接数字人网站 {self.base_url}，请确认数字人网站已经启动"
             ) from exc
         if status < 200 or status >= 300:
-            raise AuthCenterError(self._detail(raw) or f"统一账号中心返回 HTTP {status}", status_code=status)
+            raise AuthCenterError(self._detail(raw) or f"数字人网站返回 HTTP {status}", status_code=status)
         try:
             data = json.loads(raw.decode("utf-8")) if raw else {}
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise AuthCenterError("统一账号中心返回了无法识别的数据") from exc
+            raise AuthCenterError("数字人网站返回了无法识别的数据") from exc
         if not isinstance(data, dict):
-            raise AuthCenterError("统一账号中心返回格式错误")
+            raise AuthCenterError("数字人网站返回格式错误")
         return data
 
     @staticmethod

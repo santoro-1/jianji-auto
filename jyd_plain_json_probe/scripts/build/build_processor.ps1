@@ -102,7 +102,7 @@ try {
             $ProcessorConfig = Get-Content -LiteralPath $ProcessorConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $ProcessorConfig.deployment_mode = "shared"
             $ProcessorConfig.host = "0.0.0.0"
-            $ProcessorConfig.auth_server_url = "https://auth.lanyingjk01.com"
+            $ProcessorConfig.digital_human_server_url = "http://127.0.0.1:8000"
             $ProcessorConfig.shared_processor_url = ""
             $ProcessorConfig.auth_authority = "false"
             $ProcessorConfig | ConvertTo-Json | Set-Content -LiteralPath $ProcessorConfigPath -Encoding UTF8

@@ -2,7 +2,7 @@ param(
     [string]$Python = "D:\Myanaconda\python.exe",
     [string]$HostAddress = "127.0.0.1",
     [int]$Port = 8765,
-    [string]$ServerUrl = "http://127.0.0.1:8000",
+    [string]$ServerUrl = "http://127.0.0.1:8010",
     [string]$AccessToken = "operator123",
     [string]$DraftRoot = ""
 )

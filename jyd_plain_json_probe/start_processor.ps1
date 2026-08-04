@@ -1,7 +1,7 @@
 param(
     [string]$Python = "D:\Myanaconda\python.exe",
     [string]$HostAddress = "",
-    [int]$Port = 8000,
+    [int]$Port = 8010,
     [string]$DraftRoot = "",
     [ValidateSet("embedded", "agent")]
     [string]$ExecutionMode = "embedded",
@@ -32,8 +32,8 @@ $env:JYD_DECRYPT_WORK_ROOT = Join-Path $ProjectRoot "runtime\decrypted_work"
 $env:JYD_ADMIN_COOKIE_NAME = "jyd_admin_session"
 $env:JYD_SITE_COOKIE_NAME = "jyd_site_session"
 $env:JYD_ALLOW_LOCAL_FILE_ACCESS = "true"
-$env:JYD_AUTH_SERVER_URL = "http://192.168.11.28:8000"
-$env:JYD_AUTH_AUTHORITY = if ($ProcessingMode -eq "shared") { "true" } else { "false" }
+$env:JYD_AUTH_SERVER_URL = "http://127.0.0.1:8000"
+$env:JYD_AUTH_AUTHORITY = "false"
 if (-not $HostAddress) {
     $HostAddress = if ($ProcessingMode -eq "standalone") { "127.0.0.1" } else { "0.0.0.0" }
 }

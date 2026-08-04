@@ -128,6 +128,22 @@ jyd_plain_json_probe/data/template_library/demo_template/
 
 `captions` 会在视频替换和其他草稿修改完成后写入最终草稿，因此直接上传 MP4 和“上传 MP4 + 套用模板”两种流程都可使用。`texts` 继续负责单个标题的新增和模板已有文字替换。
 
+已有语音服务时间戳时，不要再按文字长度估时。可以直接提交精确字幕轨道；每条支持 `end_us` 或 `duration_us`：
+
+```json
+{
+  "captions": {
+    "cues": [
+      {"start_us": 0, "end_us": 1250000, "text": "第一句。"},
+      {"start_us": 1400000, "duration_us": 1600000, "text": "第二句。"}
+    ],
+    "track_name": "MiniMax 精确字幕"
+  }
+}
+```
+
+也可以传入内联的 `srt_text`。`cues` / `srt_text` 与 `text` 同时存在时，优先使用精确时间轴。允许供应商字幕结尾比视频长不超过 1 秒，程序会把最后一条裁到视频结尾；更大的越界或字幕重叠会拒绝任务。
+
 ## texts
 
 新增文字：
