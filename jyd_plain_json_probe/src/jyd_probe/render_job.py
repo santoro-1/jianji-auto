@@ -303,6 +303,13 @@ def _apply_captions_to_output(
         transform_x=_optional_float(captions, "transform_x"),
         transform_y=_optional_float(captions, "transform_y"),
         line_max_width=_optional_float(captions, "line_max_width"),
+        single_line=_as_bool(
+            _value(
+                captions,
+                "single_line",
+                default=int(_value(captions, "max_lines", default=0)) == 1,
+            )
+        ),
         font_id=str(_value(captions, "font_id", default="")),
         font_path=str(_value(captions, "font_path", default="")),
         font_title=str(_value(captions, "font_title", "font_name", default="")),

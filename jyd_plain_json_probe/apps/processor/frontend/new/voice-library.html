@@ -136,7 +136,7 @@
                             <p class="text-xs font-bold text-white">VIP 创作者</p>
                             <p class="current-user-name text-[9px] text-gray-400 mt-0.5">当前账号</p>
                         </div>
-                        <a href="#" onclick="showToast('系统设置', '原型演示暂不支持修改个人信息。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
+                        <a href="#" onclick="showToast('账户设置', '账户资料请在数字人网站的账号中心管理。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
                         <a href="/app/new/login" onclick="handleLogout(event)" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"><i class="fa-solid fa-right-from-bracket"></i>退出登录</a>
                     </div>
                 </div>
@@ -281,7 +281,7 @@
                                     </div>
                                 </div>
 
-                                <!-- Feature parameters sliders mockup -->
+                                <!-- Voice parameter controls -->
                                 <div class="space-y-2.5">
                                     <div class="flex items-center justify-between text-[9px]">
                                         <span class="text-gray-400">音高 (Pitch)</span>
@@ -523,7 +523,7 @@
             }
         }
 
-        // Voice upload simulation
+        // Voice source upload and local preview
         function handleVoiceUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -536,130 +536,6 @@
             preview.src = customVoiceFileUrl;
             preview.classList.remove('hidden');
             showToast("音频文件就绪", "声音样本已载入。请填写名称和试听文案，然后点击「生成克隆试听」。", "success");
-        }
-
-        // Simulated voice cloning progress
-        function startCloningProgress() {
-            if (!customVoiceFile) {
-                // Preload mock file to make prototype easy to try
-                customVoiceFile = { name: "本地录制测试样本.mp3" };
-                showToast("未检测到上传音频", "为您自动加载录音室演示特征以供原型体验...");
-            }
-
-            const voiceName = document.getElementById('custom-voice-name').value.trim() || "未命名自定义音色";
-            const progressBox = document.getElementById('cloning-progress-box');
-            const progressBar = document.getElementById('cloning-progress-bar');
-            const progressText = document.getElementById('cloning-progress-text');
-
-            progressBox.classList.remove('hidden');
-            let progress = 0;
-
-            const interval = setInterval(() => {
-                progress += 10;
-                progressBar.style.width = `${progress}%`;
-                progressText.textContent = `${progress}%`;
-
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    
-                    // Add new sound prototype card to list
-                    addNewVoiceCard(voiceName);
-
-                    // Reset uploading box
-                    progressBox.classList.add('hidden');
-                    progressBar.style.width = '0%';
-                    progressText.textContent = '0%';
-                    customVoiceFile = null;
-                    document.getElementById('voice-upload-status').textContent = '点击选择或拖拽人声音频';
-                    document.getElementById('custom-voice-name').value = '我的定制化克隆声音';
-
-                    showToast("克隆成功", `音色「${voiceName}」已被成功合成并加载至系统，您可以在核心工作台中选用它。`, "success");
-                }
-            }, 250);
-        }
-
-        // Dynamically add a voice card
-        function addNewVoiceCard(name) {
-            const grid = document.getElementById('voice-library-grid');
-            const card = document.createElement('div');
-            
-            // Randomize profile pictures for cloned voice
-            const avatars = [
-                'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80',
-                'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-                'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=100&auto=format&fit=crop&q=80'
-            ];
-            const randomAvatar = avatars[Math.floor(Math.random() * avatars.length)];
-
-            card.className = "voice-detail-card border border-slate-800 bg-slate-950/20 rounded-2xl p-4 flex flex-col justify-between transition-all hover:border-slate-700";
-            card.innerHTML = `
-                <div>
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-3">
-                            <div class="w-11 h-11 rounded-full bg-cover bg-center shadow-lg border border-white/10" style="background-image: url('${randomAvatar}');"></div>
-                            <div>
-                                <h4 class="font-bold text-xs text-white">${name}</h4>
-                                <span class="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded text-[8px] mt-1 inline-block font-semibold">自创克隆音色</span>
-                            </div>
-                        </div>
-                        <button onclick="setAsDefaultVoice(3, this)" class="text-[9px] text-brand-accent hover:underline font-bold">设为默认</button>
-                    </div>
-
-                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/80 space-y-2 mb-4">
-                        <div class="flex items-center justify-between text-[9px] text-gray-400">
-                            <span>声波预览</span>
-                            <span>00:04</span>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <button onclick="toggleVoicePlay('female1', this)" class="w-7 h-7 rounded-full bg-brand-primary/20 text-brand-accent flex items-center justify-center text-[10px] hover:bg-brand-primary/30 transition-colors"><i class="fa-solid fa-play"></i></button>
-                            <div class="wave-animation h-5 flex-1 items-end">
-                                <span class="wave-bar-static h-2 flex-1"></span>
-                                <span class="wave-bar-static h-4.5 flex-1"></span>
-                                <span class="wave-bar-static h-1.5 flex-1"></span>
-                                <span class="wave-bar-static h-3 flex-1"></span>
-                                <span class="wave-bar-static h-2 flex-1"></span>
-                                <span class="wave-bar-static h-3.5 flex-1"></span>
-                                <span class="wave-bar-static h-1 flex-1"></span>
-                                <span class="wave-bar-static h-3 flex-1"></span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="space-y-2.5">
-                        <div class="flex items-center justify-between text-[9px]">
-                            <span class="text-gray-400">音高 (Pitch)</span>
-                            <span class="text-gray-300 font-mono">1.00 (默认)</span>
-                        </div>
-                        <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
-
-                        <div class="flex items-center justify-between text-[9px]">
-                            <span class="text-gray-400">语速 (Speed)</span>
-                            <span class="text-gray-300 font-mono">1.00 (默认)</span>
-                        </div>
-                        <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
-
-                        <div class="flex items-center justify-between text-[9px]">
-                            <span class="text-gray-400">情绪张力 (Emotion)</span>
-                            <span class="text-gray-300 font-mono">1.00 (默认)</span>
-                        </div>
-                        <div class="w-full bg-slate-800 h-1 rounded-full"><div class="bg-brand-primary h-full w-[50%]"></div></div>
-                    </div>
-                </div>
-
-                <div class="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                    <span class="text-[9px] text-gray-500">参数最后修改：刚刚</span>
-                    <div class="flex gap-2">
-                        <button onclick="saveVoiceParams()" class="px-2.5 py-1 bg-slate-900 border border-slate-800 text-[10px] text-gray-300 hover:text-white rounded-lg transition-colors">应用参数</button>
-                    </div>
-                </div>
-            `;
-
-            grid.appendChild(card);
-            
-            // Increment statistics count
-            const currentCountText = document.getElementById('voice-count-badge').textContent;
-            const currentCount = parseInt(currentCountText.match(/\d+/)[0]) + 1;
-            document.getElementById('voice-count-badge').textContent = `共 ${currentCount} 个声音原型`;
         }
 
         // Toggle sound play on cards

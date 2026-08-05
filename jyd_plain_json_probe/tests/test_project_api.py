@@ -100,7 +100,9 @@ class ProjectApiTest(unittest.TestCase):
                 self.assertEqual(item["subtitles"]["status"], "NOT_AVAILABLE")
                 self.assertEqual(item["subtitles"]["raw_cues"], [])
                 self.assertEqual(item["subtitles"]["render_cues"], [])
-                self.assertEqual(item["subtitles"]["style"]["max_lines"], 2)
+                self.assertEqual(item["subtitles"]["style"]["max_lines"], 1)
+                self.assertEqual(item["subtitles"]["style"]["max_width_ratio"], 0.8)
+                self.assertEqual(item["subtitles"]["style"]["bottom_offset_ratio"], 0.3)
 
                 detail = client.get(f"/api/new/projects/{project['project_id']}")
                 self.assertEqual(detail.status_code, 200)
@@ -267,7 +269,7 @@ class ProjectApiTest(unittest.TestCase):
                 "SELECT value FROM project_schema_meta WHERE key='version'"
             ).fetchone()[0]
         self.assertEqual(render_schema_version, "1")
-        self.assertEqual(project_schema_version, "3")
+        self.assertEqual(project_schema_version, "6")
 
     def test_operations_are_idempotent_and_external_links_are_preserved(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")
@@ -324,6 +326,31 @@ class ProjectApiTest(unittest.TestCase):
         self.assertEqual(len(detail["operations"]), 1)
         self.assertEqual(len(detail["links"]), 1)
 
+        restarted_store = ProjectStore(self.settings.storage_root / "control.db")
+        operation_after_restart = restarted_store.create_operation(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=item_id,
+            operation_type="AUDIO_GENERATE",
+            idempotency_key="audio-request-1",
+            payload={"voice_asset_id": "voice-1"},
+        )
+        link_after_restart = restarted_store.add_link(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=item_id,
+            system="digital_human",
+            relation="generation_batch_item",
+            external_id="digital-item-1",
+        )
+        self.assertEqual(
+            operation_after_restart["operation_id"], first_operation["operation_id"]
+        )
+        self.assertEqual(link_after_restart["link_id"], first_link["link_id"])
+        restarted_detail = restarted_store.get_project("user-1", project["project_id"])
+        self.assertEqual(len(restarted_detail["operations"]), 1)
+        self.assertEqual(len(restarted_detail["links"]), 1)
+
     def test_current_audio_binds_subtitle_placeholder_and_enables_composition(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")
         project = store.create_project(
@@ -351,6 +378,121 @@ class ProjectApiTest(unittest.TestCase):
         )
         self.assertEqual(item["subtitles"]["status"], "PENDING_TIMESTAMPS")
         self.assertTrue(detail["allowed_actions"]["start_composition"])
+
+    def test_completed_item_edits_preserve_history_and_restart_only_downstream(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="版本化修改测试",
+            items=[{"row_key": "001", "script_text": "旧脚本。"}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+
+        first_image_path = self.settings.storage_root / "first.png"
+        first_image_path.write_bytes(b"first")
+        first_image = store.register_input_image(
+            owner_user_id="user-1",
+            project_id=project_id,
+            filename="first.png",
+            content_type="image/png",
+            size_bytes=5,
+            sha256="first",
+            managed_path=str(first_image_path),
+        )
+        second_image_path = self.settings.storage_root / "second.png"
+        second_image_path.write_bytes(b"second")
+        second_image = store.register_input_image(
+            owner_user_id="user-1",
+            project_id=project_id,
+            filename="second.png",
+            content_type="image/png",
+            size_bytes=6,
+            sha256="second",
+            managed_path=str(second_image_path),
+        )
+        store.replace_item_image("user-1", project_id, item_id, first_image["image_id"])
+
+        def add_chain(suffix: str) -> tuple[dict, dict, dict]:
+            audio = store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="audio",
+                source_type="minimax",
+                status="READY",
+                filename=f"{suffix}.mp3",
+                make_current=True,
+            )
+            base = store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="base_video",
+                source_type="runninghub_merge",
+                status="READY",
+                filename=f"{suffix}-base.mp4",
+                make_current=True,
+            )
+            video = store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="composition_video",
+                source_type="jianying_postprocess",
+                status="READY",
+                filename=f"{suffix}-final.mp4",
+                make_current=True,
+            )
+            return audio, base, video
+
+        first_audio, first_base, first_video = add_chain("first")
+        edited = store.update_item(
+            "user-1", project_id, item_id, script_text="新脚本。"
+        )["items"][0]
+        self.assertEqual(edited["status"], "DRAFT")
+        self.assertIsNone(edited["outputs"]["audio"])
+        self.assertIsNone(edited["outputs"]["base_video"])
+        self.assertIsNone(edited["outputs"]["composition_video"])
+        self.assertEqual(edited["asset_history"]["audio"][0]["asset_id"], first_audio["asset_id"])
+        self.assertEqual(edited["asset_history"]["base_video"][0]["asset_id"], first_base["asset_id"])
+        self.assertEqual(edited["asset_history"]["composition_video"][0]["asset_id"], first_video["asset_id"])
+
+        second_audio, _second_base, _second_video = add_chain("second")
+        changed_image = store.replace_item_image(
+            "user-1", project_id, item_id, second_image["image_id"]
+        )["items"][0]
+        self.assertEqual(changed_image["status"], "AUDIO_READY")
+        self.assertEqual(changed_image["outputs"]["audio"]["asset_id"], second_audio["asset_id"])
+        self.assertIsNone(changed_image["outputs"]["base_video"])
+        self.assertIsNone(changed_image["outputs"]["composition_video"])
+
+        _third_audio, third_base, _third_video = add_chain("third")
+        postprocess = store.configure_item_postprocess(
+            "user-1",
+            project_id,
+            item_id,
+            font_identity="system:simhei.ttf",
+            bgm_identity="bgm:test",
+            text_color="#FFFFFF",
+        )["items"][0]
+        self.assertEqual(postprocess["status"], "BASE_VIDEO_READY")
+        self.assertEqual(postprocess["outputs"]["base_video"]["asset_id"], third_base["asset_id"])
+        self.assertIsNone(postprocess["outputs"]["composition_video"])
+        self.assertEqual(postprocess["settings"]["postprocess"]["bgm_identity"], "bgm:test")
+
+        add_chain("fourth")
+        changed_voice = store.configure_item_voice(
+            "user-1",
+            project_id,
+            item_id,
+            voice_asset_id="new-voice",
+        )["items"][0]
+        self.assertEqual(changed_voice["status"], "DRAFT")
+        self.assertIsNone(changed_voice["outputs"]["audio"])
+        self.assertIsNone(changed_voice["outputs"]["base_video"])
+        self.assertIsNone(changed_voice["outputs"]["composition_video"])
 
 
 if __name__ == "__main__":

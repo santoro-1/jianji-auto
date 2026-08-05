@@ -38,7 +38,11 @@ from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .project_audio import ProjectAudioCoordinator
+from .project_composition import ProjectCompositionCoordinator
 from .project_inputs import detect_project_image, parse_project_script_file
+from .project_postprocess import ProjectPostprocessCoordinator
+from .project_results import ProjectResultLibrary
+from .project_variants import ProjectVariantCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
 from .subtitles import (
@@ -72,6 +76,7 @@ TEXT_STYLE_LIBRARY_ROOT = Path(
 FONT_LIBRARY_ROOT = Path(
     os.environ.get("JYD_FONT_LIBRARY_ROOT", LIBRARIES_ROOT / "font_library")
 ).expanduser().resolve()
+SYSTEM_FONT_ROOT = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
 EFFECT_LIBRARY_ROOT = Path(
     os.environ.get("JYD_EFFECT_LIBRARY_ROOT", LIBRARIES_ROOT / "effect_library")
 ).expanduser().resolve()
@@ -97,6 +102,7 @@ class WebApiSettings:
     template_library_root: Path
     default_draft_root: Path
     audio_library_root: Path
+    result_library_root: Path | None = None
     media_retention_hours: int = 24
     template_retention_hours: int = 48
     draft_retention_hours: int = 48
@@ -1479,6 +1485,9 @@ def default_settings() -> WebApiSettings:
         template_library_root=template_library_root,
         default_draft_root=default_draft_root,
         audio_library_root=audio_library_root,
+        result_library_root=Path(
+            os.environ.get("JYD_RESULT_LIBRARY_ROOT", "D:/auto")
+        ).expanduser().resolve(),
         media_retention_hours=_env_positive_int("JYD_MEDIA_RETENTION_HOURS", 24),
         template_retention_hours=_env_positive_int("JYD_TEMPLATE_RETENTION_HOURS", 48),
         draft_retention_hours=_env_positive_int("JYD_DRAFT_RETENTION_HOURS", 48),
@@ -1588,6 +1597,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     )
     render_queue = RenderJobQueue(settings)
     project_store = ProjectStore(render_queue.store.path)
+    project_result_library = ProjectResultLibrary(
+        project_store,
+        settings.result_library_root or (settings.storage_root / "result_library"),
+    )
     storage_lifecycle = StorageLifecycleManager(
         settings,
         render_queue.store,
@@ -1602,6 +1615,13 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.auth_handoffs = auth_handoffs
     app.state.agent_token = agent_token
     app.state.project_store = project_store
+    app.state.project_result_library = project_result_library
+
+    def is_managed_project_file(path: Path) -> bool:
+        resolved = path.resolve()
+        return _is_relative_to(resolved, settings.storage_root.resolve()) or _is_relative_to(
+            resolved, project_result_library.root.resolve()
+        )
 
     def require_agent_token(request: Request) -> None:
         authorization = request.headers.get("authorization", "")
@@ -1940,6 +1960,66 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.put("/api/new/projects/{project_id}/script-source")
+    async def save_new_project_script_source(
+        project_id: str, request: Request, filename: str = ""
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        original_filename = filename or request.headers.get("x-filename", "")
+        content = await request.body()
+        try:
+            parsed = parse_project_script_file(content, original_filename)
+            project = project_store.get_project(user["user_id"], project_id)
+            current_rows = [
+                {
+                    "row_key": str(item.get("row_key") or ""),
+                    "script_text": str(item.get("script_text") or ""),
+                }
+                for item in project.get("items", [])
+            ]
+            parsed_rows = [
+                {
+                    "row_key": str(item.get("row_key") or ""),
+                    "script_text": str(item.get("script_text") or ""),
+                }
+                for item in parsed.get("rows", [])
+            ]
+            if parsed_rows != current_rows:
+                raise ValueError("脚本源文件内容与当前项目脚本不一致")
+            safe_name = _safe_filename(original_filename)
+            directory = (
+                settings.storage_root
+                / "projects"
+                / user["user_id"]
+                / project_id
+                / "script_sources"
+            ).resolve()
+            directory.mkdir(parents=True, exist_ok=True)
+            target = directory / f"{uuid.uuid4().hex}-{safe_name}"
+            target.write_bytes(content)
+            try:
+                project_store.add_script_source(
+                    user["user_id"],
+                    project_id,
+                    filename=safe_name,
+                    content_type=(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        if Path(safe_name).suffix.lower() == ".xlsx"
+                        else "text/csv"
+                    ),
+                    size_bytes=len(content),
+                    sha256=hashlib.sha256(content).hexdigest(),
+                    managed_path=str(target),
+                )
+            except Exception:
+                _unlink_if_exists(target)
+                raise
+            return project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.put("/api/new/projects/{project_id}/inputs")
     def replace_new_project_inputs(
         project_id: str, request: Request, payload: dict[str, Any] = Body(...)
@@ -2093,6 +2173,101 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             client,
             storage_root=settings.storage_root,
             max_audio_bytes=settings.max_audio_upload_bytes,
+        )
+
+    def project_composition_coordinator(
+        client: AuthCenterClient,
+    ) -> ProjectCompositionCoordinator:
+        return ProjectCompositionCoordinator(
+            project_store,
+            client,
+            storage_root=settings.storage_root,
+            max_video_bytes=settings.max_video_upload_bytes,
+        )
+
+    default_subtitle_font_identity = "resource_id:7244518590332801592"
+
+    def project_postprocess_resources() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        fonts = asset_admin.decorate(
+            "font",
+            _combined_library_items(
+                settings, FONT_LIBRARY_ROOT, "font_library", _list_font_library
+            ),
+        )
+        fonts = _list_system_fonts() + fonts
+        available_fonts = [
+            item
+            for item in fonts
+            if item.get("available")
+            and item.get("enabled", True)
+            and item.get("path")
+            and Path(str(item["path"])).is_file()
+            and Path(str(item["path"])).stat().st_size > 1024
+        ]
+        available_fonts.sort(
+            key=lambda item: (
+                str(item.get("identity") or "") != default_subtitle_font_identity,
+                not str(item.get("identity") or "").startswith("system:simhei"),
+                str(item.get("name") or "").casefold(),
+            )
+        )
+        audio = _decorate_audio_snapshot(
+            render_queue.audio_catalog.snapshot(), asset_admin
+        ).get("assets", [])
+        available_bgm = [
+            item
+            for item in audio
+            if isinstance(item, dict)
+            and item.get("identity")
+            and item.get("enabled", True)
+            and not item.get("deleted", False)
+        ]
+        return available_fonts, available_bgm
+
+    def project_postprocess_coordinator() -> ProjectPostprocessCoordinator:
+        fonts, bgm_assets = project_postprocess_resources()
+        return ProjectPostprocessCoordinator(
+            project_store,
+            render_queue,
+            storage_root=settings.storage_root,
+            draft_root=settings.default_draft_root,
+            fonts=fonts,
+            bgm_assets=bgm_assets,
+        )
+
+    def project_variant_coordinator() -> ProjectVariantCoordinator:
+        fonts, bgm_assets = project_postprocess_resources()
+        effects = asset_admin.decorate(
+            "effect",
+            _combined_library_items(
+                settings, EFFECT_LIBRARY_ROOT, "effect_library", _list_json_library
+            ),
+        )
+        fullscreen_stickers = asset_admin.decorate(
+            "sticker",
+            _combined_bundle_items(
+                settings, STICKER_LIBRARY_ROOT, "sticker_library",
+                "sticker_manifest.json", "stickers", "jyd_probe.fullscreen_sticker.v1",
+            ),
+        )
+        corner_stickers = asset_admin.decorate(
+            "corner_sticker",
+            _combined_bundle_items(
+                settings, CORNER_STICKER_LIBRARY_ROOT, "corner_sticker_library",
+                "sticker_manifest.json", "stickers", "jyd_probe.fullscreen_sticker.v1",
+            ),
+        )
+        return ProjectVariantCoordinator(
+            project_store,
+            render_queue,
+            storage_root=settings.storage_root,
+            draft_root=settings.default_draft_root,
+            fonts=fonts,
+            bgm_assets=bgm_assets,
+            effects=effects,
+            fullscreen_stickers=fullscreen_stickers,
+            corner_stickers=corner_stickers,
+            result_library_root=project_result_library.root,
         )
 
     def selectable_voice_ids(library: dict[str, Any]) -> set[str]:
@@ -2485,6 +2660,693 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             media_type="audio/mpeg",
             filename=str(audio.get("filename") or f"{item['row_key']}.mp3"),
         )
+
+    @app.post("/api/new/projects/{project_id}/composition/generate")
+    def generate_new_project_composition(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(
+                status_code=409,
+                detail="请确认画面生成会产生 RunningHub 费用",
+            )
+        try:
+            return project_composition_coordinator(client).start(
+                user["user_id"],
+                project_id,
+                token,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/composition/status")
+    def sync_new_project_composition(
+        project_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_composition_coordinator(client).sync(
+                user["user_id"], project_id, token
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/composition/retry"
+    )
+    def retry_new_project_composition(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(
+                status_code=409,
+                detail="请确认失败的 RunningHub 阶段重试可能再次产生费用",
+            )
+        try:
+            return project_composition_coordinator(client).retry(
+                user["user_id"],
+                project_id,
+                item_id,
+                token,
+                idempotency_key=str(
+                    payload.get("idempotency_key") or uuid.uuid4().hex
+                ),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或画面任务不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/items/{item_id}/base-video")
+    def download_new_project_base_video(
+        project_id: str, item_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next(
+            (value for value in project["items"] if value["item_id"] == item_id),
+            None,
+        )
+        base_video = item.get("outputs", {}).get("base_video") if item else None
+        if not isinstance(base_video, dict) or not base_video.get("managed_path"):
+            raise HTTPException(status_code=404, detail="基础视频尚未准备完成")
+        path = Path(str(base_video["managed_path"])).resolve()
+        try:
+            path.relative_to(settings.storage_root.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="基础视频文件不存在") from exc
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="基础视频文件不存在")
+        return FileResponse(
+            path,
+            media_type="video/mp4",
+            filename=str(
+                base_video.get("filename") or f"{item['row_key']}-base.mp4"
+            ),
+        )
+
+    @app.get("/api/new/postprocess/options")
+    def get_new_postprocess_options(request: Request) -> dict[str, Any]:
+        current_project_user(request)
+        fonts, bgm_assets = project_postprocess_resources()
+        return {
+            "schema": "jyd.project-postprocess-options.v1",
+            "default_font_identity": (
+                str(fonts[0].get("identity") or "") if fonts else None
+            ),
+            "caption": {
+                "max_width_ratio": 0.8,
+                "max_lines": 1,
+                "bottom_offset_ratio": 0.2,
+            },
+            "fonts": [
+                {
+                    "identity": item.get("identity"),
+                    "name": item.get("name"),
+                    "preview_url": (
+                        f"/api/assets/fonts/{quote(str(item.get('identity') or ''), safe='')}/file"
+                    ),
+                }
+                for item in fonts
+            ],
+            "bgm": [
+                {
+                    "identity": item.get("identity"),
+                    "name": item.get("name") or item.get("title") or item.get("filename"),
+                    "preview_url": (
+                        f"/api/audio-library/file?identity={quote(str(item.get('identity') or ''))}"
+                    ),
+                }
+                for item in bgm_assets
+            ],
+        }
+
+    @app.post("/api/new/projects/{project_id}/postprocess/generate")
+    def generate_new_project_postprocess(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        items = payload.get("items")
+        if not isinstance(items, list) or not all(
+            isinstance(item, dict) for item in items
+        ):
+            raise HTTPException(status_code=422, detail="字幕与背景音乐参数格式不正确")
+        try:
+            return project_postprocess_coordinator().start(
+                user["user_id"],
+                project_id,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+                item_settings=items,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.patch(
+        "/api/new/projects/{project_id}/items/{item_id}/postprocess-settings"
+    )
+    def configure_new_project_postprocess_settings(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        font_identity = str(payload.get("font_identity") or "").strip()
+        bgm_identity = str(payload.get("bgm_identity") or "").strip()
+        text_color = str(payload.get("text_color") or "#FFFFFF").strip().upper()
+        fonts, bgm_assets = project_postprocess_resources()
+        available_fonts = {str(item.get("identity") or "") for item in fonts}
+        available_bgm = {str(item.get("identity") or "") for item in bgm_assets}
+        if font_identity not in available_fonts:
+            raise HTTPException(status_code=422, detail="字幕字体不可用")
+        if bgm_identity and bgm_identity not in available_bgm:
+            raise HTTPException(status_code=422, detail="BGM 素材不可用")
+        if re.fullmatch(r"#[0-9A-F]{6}", text_color) is None:
+            raise HTTPException(status_code=422, detail="字幕颜色格式不正确")
+        try:
+            return project_store.configure_item_postprocess(
+                user["user_id"],
+                project_id,
+                item_id,
+                font_identity=font_identity,
+                bgm_identity=bgm_identity,
+                text_color=text_color,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/postprocess/status")
+    def sync_new_project_postprocess(
+        project_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_postprocess_coordinator().sync(
+                user["user_id"], project_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/variant-options")
+    def get_new_variant_options(request: Request) -> dict[str, Any]:
+        current_project_user(request)
+        return project_variant_coordinator().options()
+
+    @app.patch("/api/new/projects/{project_id}/variant-settings")
+    def configure_new_project_variant_settings(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        items = payload.get("items", [])
+        try:
+            return project_store.configure_variant_settings(
+                user["user_id"], project_id,
+                settings=payload.get("settings") if isinstance(payload.get("settings"), dict) else None,
+                items=items if isinstance(items, list) else [],
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/variants/generate")
+    def generate_new_project_variants(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        items = payload.get("items")
+        if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+            raise HTTPException(status_code=422, detail="变体任务参数格式不正确")
+        try:
+            return project_variant_coordinator().start(
+                user["user_id"],
+                project_id,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+                settings=payload.get("settings") if isinstance(payload.get("settings"), dict) else None,
+                items=items,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/variants/status")
+    def sync_new_project_variants(project_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_variant_coordinator().sync(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/items/{item_id}/variants/supplement")
+    def supplement_new_project_variants(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_variant_coordinator().supplement(
+                user["user_id"], project_id, item_id,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+                count=int(payload.get("count") or 0),
+                settings=payload.get("settings") if isinstance(payload.get("settings"), dict) else None,
+                cover=payload.get("cover") if isinstance(payload.get("cover"), dict) else None,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/items/{item_id}/variants/retry")
+    def retry_new_project_variants(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_variant_coordinator().retry(
+                user["user_id"], project_id, item_id,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    def _project_variant_asset(
+        owner_user_id: str, project_id: str, item_id: str, asset_id: str
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        project = project_store.get_project(owner_user_id, project_id)
+        item = next((value for value in project["items"] if value["item_id"] == item_id), None)
+        asset = next(
+            (
+                value for value in (item or {}).get("outputs", {}).get("variants", [])
+                if value.get("asset_id") == asset_id
+            ),
+            None,
+        )
+        if item is None or asset is None:
+            raise KeyError("变体不存在")
+        return item, asset
+
+    @app.get("/api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}")
+    def download_new_project_variant(
+        project_id: str, item_id: str, asset_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            item, asset = _project_variant_asset(user["user_id"], project_id, item_id, asset_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="变体不存在") from exc
+        path = Path(str(asset.get("managed_path") or "")).resolve()
+        if not path.is_file() or not is_managed_project_file(path):
+            raise HTTPException(status_code=404, detail="变体文件不存在")
+        return FileResponse(path, media_type="video/mp4", filename=str(asset.get("filename") or f"{item['row_key']}-variant.mp4"))
+
+    @app.delete("/api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}")
+    def delete_new_project_variant(
+        project_id: str, item_id: str, asset_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            managed_path = project_store.delete_variant_asset(
+                user["user_id"], project_id, item_id, asset_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="变体不存在") from exc
+        if managed_path:
+            path = Path(managed_path).resolve()
+            if is_managed_project_file(path) and path.is_file():
+                path.unlink()
+        return project_store.get_project(user["user_id"], project_id)
+
+    @app.get("/api/new/gallery")
+    def list_new_project_gallery(
+        request: Request,
+        project_id: str = "",
+        status: str = "",
+        keyword: str = "",
+        date_key: str = "",
+        batch_no: int | None = None,
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        return project_result_library.list_results(
+            user["user_id"],
+            project_id=project_id,
+            status=status,
+            keyword=keyword,
+            date_key=date_key,
+            batch_no=batch_no,
+        )
+
+    @app.post("/api/new/gallery/downloads")
+    def download_new_gallery_selection(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> FileResponse:
+        user = current_project_user(request)
+        requested = payload.get("asset_ids")
+        if not isinstance(requested, list):
+            raise HTTPException(status_code=422, detail="请选择需要打包的成果视频")
+        asset_ids = list(dict.fromkeys(str(value or "").strip() for value in requested))
+        if not asset_ids or len(asset_ids) > 500:
+            raise HTTPException(status_code=422, detail="单次可打包 1 到 500 个成果视频")
+        library = project_result_library.list_results(user["user_id"])
+        available = {
+            video["asset_id"]: video
+            for batch in library["batches"]
+            for video in batch["videos"]
+        }
+        selected = []
+        for asset_id in asset_ids:
+            video = available.get(asset_id)
+            if video is None:
+                raise HTTPException(status_code=404, detail="成果视频不存在或无权访问")
+            path = Path(str(video.get("managed_path") or "")).resolve()
+            if not path.is_file() or not is_managed_project_file(path):
+                raise HTTPException(status_code=404, detail=f"成果文件不存在: {video.get('filename')}")
+            selected.append((path, str(video.get("filename") or path.name)))
+        archive_root = settings.storage_root / "gallery_downloads"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
+        used: dict[str, int] = {}
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
+        ) as archive:
+            for path, filename in selected:
+                safe_name = _safe_filename(filename)
+                used[safe_name] = used.get(safe_name, 0) + 1
+                count = used[safe_name]
+                if count > 1:
+                    source = Path(safe_name)
+                    safe_name = f"{source.stem}-{count:02d}{source.suffix}"
+                archive.write(path, arcname=safe_name)
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"成果视频-{datetime.now().strftime('%m.%d')}.zip",
+            background=BackgroundTask(_unlink_if_exists, archive_path),
+        )
+
+    @app.post("/api/new/gallery/deletions")
+    def delete_new_gallery_selection(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, int]:
+        user = current_project_user(request)
+        requested = payload.get("asset_ids")
+        if not isinstance(requested, list):
+            raise HTTPException(status_code=422, detail="请选择需要删除的成果视频")
+        asset_ids = [
+            asset_id
+            for asset_id in dict.fromkeys(
+                str(value or "").strip() for value in requested
+            )
+            if asset_id
+        ]
+        if not asset_ids or len(asset_ids) > 500:
+            raise HTTPException(status_code=422, detail="单次可删除 1 到 500 个成果视频")
+        try:
+            deleted = project_store.delete_variant_assets(user["user_id"], asset_ids)
+        except KeyError as exc:
+            raise HTTPException(
+                status_code=404, detail="成果视频不存在或无权访问"
+            ) from exc
+        file_deleted_count = 0
+        for record in deleted:
+            managed_path = str(record.get("managed_path") or "").strip()
+            if not managed_path:
+                continue
+            path = Path(managed_path).resolve()
+            if is_managed_project_file(path) and path.is_file():
+                path.unlink()
+                file_deleted_count += 1
+        return {
+            "deleted_count": len(deleted),
+            "file_deleted_count": file_deleted_count,
+        }
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/postprocess/export"
+    )
+    def export_new_project_browser_preview(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_postprocess_coordinator().export_preview(
+                user["user_id"],
+                project_id,
+                item_id,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/items/{item_id}/current-video")
+    def download_new_project_current_video(
+        project_id: str, item_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next(
+            (value for value in project["items"] if value["item_id"] == item_id),
+            None,
+        )
+        video = item.get("outputs", {}).get("composition_video") if item else None
+        if not isinstance(video, dict) or not video.get("managed_path"):
+            raise HTTPException(status_code=404, detail="字幕与 BGM 成片尚未准备完成")
+        path = Path(str(video["managed_path"])).resolve()
+        try:
+            path.relative_to(settings.storage_root.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="画面合成视频不存在") from exc
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="画面合成视频不存在")
+        media_type = {
+            ".mp4": "video/mp4",
+            ".mov": "video/quicktime",
+            ".avi": "video/x-msvideo",
+            ".mkv": "video/x-matroska",
+            ".webm": "video/webm",
+        }.get(path.suffix.lower(), "application/octet-stream")
+        return FileResponse(
+            path,
+            media_type=media_type,
+            filename=str(video.get("filename") or f"{item['row_key']}-composition.mp4"),
+        )
+
+    @app.get(
+        "/api/new/projects/{project_id}/items/{item_id}/original-materials"
+    )
+    def download_new_project_original_materials(
+        project_id: str, item_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next(
+            (entry for entry in project["items"] if entry["item_id"] == item_id),
+            None,
+        )
+        if item is None:
+            raise HTTPException(status_code=404, detail="脚本行不存在")
+        segments = list(item.get("outputs", {}).get("original_video_segments") or [])
+        segments.sort(
+            key=lambda entry: int(
+                (entry.get("external_ref") or {}).get("video_index") or 0
+            )
+        )
+        if not segments:
+            raise HTTPException(status_code=404, detail="当前视频没有可下载的原始片段")
+        resolved: list[tuple[dict[str, Any], Path]] = []
+        for segment in segments:
+            path = Path(str(segment.get("managed_path") or "")).resolve()
+            try:
+                path.relative_to(settings.storage_root.resolve())
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail="原始片段文件不存在") from exc
+            if not path.is_file():
+                raise HTTPException(status_code=404, detail="原始片段文件不存在")
+            resolved.append((segment, path))
+        if len(resolved) == 1:
+            segment, path = resolved[0]
+            return FileResponse(
+                path,
+                media_type="video/mp4",
+                filename=str(
+                    segment.get("filename") or f"{item['row_key']}-segment-001.mp4"
+                ),
+            )
+
+        archive_root = settings.storage_root / "temporary_downloads"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
+        manifest: list[dict[str, Any]] = []
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
+        ) as archive:
+            for sequence, (segment, path) in enumerate(resolved, start=1):
+                archive_name = f"{item['row_key']}-segment-{sequence:03d}{path.suffix.lower() or '.mp4'}"
+                archive.write(path, archive_name)
+                manifest.append(
+                    {
+                        "order": sequence,
+                        "filename": archive_name,
+                        "asset_id": segment.get("asset_id"),
+                        "video_index": (segment.get("external_ref") or {}).get(
+                            "video_index"
+                        ),
+                        "start_seconds": (segment.get("metadata") or {}).get(
+                            "start_seconds"
+                        ),
+                        "end_seconds": (segment.get("metadata") or {}).get(
+                            "end_seconds"
+                        ),
+                    }
+                )
+            archive.writestr(
+                "片段顺序清单.json",
+                json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
+            )
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"{_safe_download_stem(str(item['row_key']))}-原始片段.zip",
+            background=BackgroundTask(_unlink_if_exists, archive_path),
+        )
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/current-video"
+    )
+    async def upload_new_project_current_video(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        filename: str = "",
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next(
+            (entry for entry in project["items"] if entry["item_id"] == item_id),
+            None,
+        )
+        if item is None:
+            raise HTTPException(status_code=404, detail="脚本行不存在")
+        if not item.get("allowed_actions", {}).get("upload_current_video"):
+            raise HTTPException(status_code=409, detail="当前脚本行暂时不能替换视频")
+
+        original_filename = filename or request.headers.get("x-filename") or "upload.mp4"
+        safe_name = _safe_filename(original_filename)
+        suffix = Path(safe_name).suffix.lower()
+        allowed_suffixes = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+        if suffix not in allowed_suffixes:
+            raise HTTPException(status_code=422, detail=f"不支持的视频格式: {suffix or '无扩展名'}")
+        declared_size = request.headers.get("content-length", "").strip()
+        if declared_size:
+            try:
+                if int(declared_size) > settings.max_video_upload_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"上传文件超过限制 {_format_bytes(settings.max_video_upload_bytes)}",
+                    )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="Content-Length 不合法") from exc
+
+        directory = (
+            settings.storage_root
+            / "projects"
+            / str(user["user_id"])
+            / project_id
+            / item_id
+            / "uploads"
+        )
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{uuid.uuid4().hex}_{safe_name}"
+        size = 0
+        try:
+            with path.open("wb") as output:
+                async for chunk in request.stream():
+                    if not chunk:
+                        continue
+                    size += len(chunk)
+                    if size > settings.max_video_upload_bytes:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"上传文件超过限制 {_format_bytes(settings.max_video_upload_bytes)}",
+                        )
+                    output.write(chunk)
+            if size <= 0:
+                raise HTTPException(status_code=400, detail="上传文件为空")
+            project_store.add_asset(
+                owner_user_id=user["user_id"],
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="composition_video",
+                source_type="user_upload",
+                status="READY",
+                filename=safe_name,
+                managed_path=str(path),
+                metadata={"size": size, "content_type": request.headers.get("content-type")},
+                make_current=True,
+            )
+        except BaseException:
+            _unlink_if_exists(path)
+            raise
+        return project_store.get_project(user["user_id"], project_id)
 
     @app.get("/api/digital-human/tasks")
     def list_digital_human_tasks(request: Request, limit: int = 50) -> dict[str, Any]:
@@ -2958,8 +3820,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         font = next(
             (
                 item
-                for item in _combined_library_items(
-                    settings, FONT_LIBRARY_ROOT, "font_library", _list_font_library
+                for item in (
+                    _list_system_fonts()
+                    + _combined_library_items(
+                        settings, FONT_LIBRARY_ROOT, "font_library", _list_font_library
+                    )
                 )
                 if item.get("identity") == font_identity
             ),
@@ -3879,7 +4744,7 @@ def _prepare_render_job_payload(
         font_path = str(existing_font.get("font_path", "")).strip()
         if font_path:
             _require_library_file_any(
-                font_path, _library_roots(settings, FONT_LIBRARY_ROOT, "font_library"), "已有字幕字体"
+                font_path, _font_library_roots(settings), "已有字幕字体"
             )
 
     captions = job.get("captions", {})
@@ -3892,7 +4757,7 @@ def _prepare_render_job_payload(
         caption_font_path = str(captions.get("font_path", "")).strip()
         if caption_font_path:
             _require_library_file_any(
-                caption_font_path, _library_roots(settings, FONT_LIBRARY_ROOT, "font_library"), "字幕字体"
+                caption_font_path, _font_library_roots(settings), "字幕字体"
             )
 
     for text in _list_items(job.get("texts")) + _list_items(job.get("text")):
@@ -5590,6 +6455,14 @@ def _library_roots(
     return roots
 
 
+def _font_library_roots(settings: WebApiSettings) -> list[Path]:
+    roots = _library_roots(settings, FONT_LIBRARY_ROOT, "font_library")
+    system = SYSTEM_FONT_ROOT.resolve()
+    if system.is_dir() and system not in roots:
+        roots.append(system)
+    return roots
+
+
 def _combined_library_items(
     settings: WebApiSettings,
     public_root: Path,
@@ -5673,6 +6546,29 @@ def _list_bundle_library(
         except Exception as exc:
             item["error"] = str(exc)
         result.append(item)
+    return result
+
+
+def _list_system_fonts() -> list[dict[str, Any]]:
+    names = {
+        "simhei.ttf": "Windows 黑体",
+        "simsunb.ttf": "Windows 宋体",
+        "arial.ttf": "Arial",
+    }
+    result: list[dict[str, Any]] = []
+    for filename, display_name in names.items():
+        path = (SYSTEM_FONT_ROOT / filename).resolve()
+        if path.is_file():
+            result.append(
+                {
+                    "identity": f"system:{filename.casefold()}",
+                    "name": display_name,
+                    "resource_id": f"system-{Path(filename).stem.casefold()}",
+                    "path": str(path),
+                    "available": True,
+                    "enabled": True,
+                }
+            )
     return result
 
 

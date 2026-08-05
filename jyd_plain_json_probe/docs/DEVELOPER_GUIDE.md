@@ -97,7 +97,11 @@ release/                      最终交付 ZIP
 模块 2 把 `project_schema_meta` 升级到版本 2：为脚本行增加当前输入图片指针，并增加
 `project_input_images` 项目图片池。模块 3 升级到版本 3，增加按数字人账号保存的默认
 音色和语音参数；逐行音色、音频素材版本、MiniMax 时间戳、数字人批次关联和异步操作
-继续复用现有项目表。升级只执行 `CREATE TABLE IF NOT EXISTS` 和缺失列
+继续复用现有项目表。模块 4A 升级到版本 4，增加当前基础视频指针；基础视频与最终
+`composition_video` 分离，RunningHub 原始分段继续按不可覆盖版本保存。模块 4B 升级到
+版本 5，增加浏览器预览配方、按需导出和字幕渲染状态绑定；旧版
+`POSTPROCESS_RUNNING` 剪映任务仍可同步完成。升级只执行
+`CREATE TABLE IF NOT EXISTS` 和缺失列
 `ALTER TABLE ADD COLUMN`，不会重建或清空既有项目及剪映任务表。
 
 不要把以下数据混为一类：
@@ -303,6 +307,7 @@ data/template_library/<template_id>/
 | 变量 | 作用 | 常见默认值 |
 | --- | --- | --- |
 | `JYD_WEB_STORAGE_ROOT` | 任务、上传和输出根目录 | `data/web_storage` |
+| `JYD_RESULT_LIBRARY_ROOT` | 新版最终变体成果归档根目录 | `D:\auto` |
 | `JYD_DATABASE_PATH` | SQLite 控制库 | `data/web_storage/control.db` |
 | `JYD_TEMPLATE_LIBRARY_ROOT` | 母版库 | `data/template_library` |
 | `JYD_PERSONAL_LIBRARY_ROOT` | 个人素材根目录 | `data/personal_libraries` |
@@ -344,6 +349,13 @@ data/template_library/<template_id>/
 - `/api/new/projects/{id}/voice`：原子地把已保存音色设为项目默认值并应用到全部脚本行。
 - `/api/new/projects/{id}/items/{item_id}/voice`：覆盖单个脚本行的音色。
 - `/api/new/projects/{id}/audio*`：项目声音生成、状态同步、单行重试、试听和下载。
+- `/api/new/projects/{id}/composition*`：4A 画面启动、真实状态同步和失败阶段重试。
+- `/api/new/projects/{id}/items/{item_id}/base-video`：下载当前标准化基础视频。
+- `/api/new/postprocess/options`：返回实际可读的真实字体和现有 BGM 素材。
+- `/api/new/projects/{id}/postprocess*`：4B 浏览器预览配方生成与状态查询。
+- `/api/new/projects/{id}/items/{item_id}/postprocess/export`：用户明确下载时按需启动一次剪映导出。
+- `GET/POST /api/new/projects/{id}/items/{item_id}/current-video`：下载当前视频或上传本地视频并切换版本。
+- `/api/new/projects/{id}/items/{item_id}/original-materials`：下载单个原始片段或包含顺序清单的多片段 ZIP。
 
 新版浏览器入口为 `/app/new`，成果库为 `/app/new/gallery`，声音中心为
 `/app/new/voices`。三页均受普通站点会话保护；公开的 `/app/new/login` 调用现有
@@ -355,11 +367,51 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 
 新版项目 API 只允许普通数字人账号访问，技术管理员会话不能代替普通账号成为项目
 所有者。项目详情中的 `allowed_actions` 是页面按钮权限的唯一业务来源；前端不得根据
-显示文本或本地定时器自行推进项目状态。新版页面已经完成登录、脚本/图片输入和声音
-模块。声音编排由 `project_audio.py` 完成：工作台把图片和脚本提交给数字人后端已有
-MiniMax 批次能力，强制停在 `AWAITING_REVIEW`，下载音频和原始时间戳后创建本地不可
-覆盖素材版本。它不会在本模块自动创建 RunningHub 视频任务；画面合成及后续能力按
-后续模块逐项替换。
+显示文本或本地定时器自行推进项目状态。新版页面已经完成登录、脚本/图片输入、声音和
+画面 4A/4B 模块。声音编排由 `project_audio.py` 完成：工作台只把脚本、音色和语音参数提交
+给数字人后端 MiniMax 批次能力，强制停在 `AWAITING_REVIEW`，下载音频和原始时间戳后
+创建本地不可覆盖素材版本；声音阶段不上传图片。`project_composition.py` 只有在用户再次
+确认费用后才上传该行当前图片，调用数字人后端把图片与已审核音频绑定并放行既有任务，
+保存全部成功原始分段及标准化 `base_video`，并按真实后端状态驱动页面。
+它不添加字幕/BGM、不创建最终 `composition_video`，也不生成变体。音频完成后到 4A
+启动前，图片仍可替换；4A 上传的永远是提交时的当前图片。
+
+`project_postprocess.py` 负责 4B：保存 MiniMax 原始 cues 不变，使用所选真实字体文件的
+glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续的单行 render cues。
+普通 4B 立即把 `base_video`、render cues、字体和 BGM 登记为浏览器预览配方，不向
+`RenderJobQueue` 提交任务。固定参数为居中、画面宽度 `0.8`、`transform_y=-0.6`
+（距底部约 20%）、字号 15、BGM 音量 0.3。浏览器按视频时间动态显示字幕并同步播放 BGM；
+无法可靠排版时状态为 `REVIEW_REQUIRED`，不会静默显示溢出字幕。只有用户明确下载普通
+成片时才调用 `postprocess/export` 提交一次剪映任务。后续变体必须把基础/上传视频与已
+冻结的字幕、BGM 配方合并到同一个变体任务中一次导出，不能依赖一个预先导出的普通成片。
+
+模块 5 直接复用 `ProjectStore` 的素材版本和用户归属校验。上传视频以原始请求体写入当前
+用户的项目目录，限制为 MP4/MOV/AVI/MKV/WebM 和 `JYD_MAX_VIDEO_UPLOAD_BYTES`；新增
+`source_type=user_upload` 的 `composition_video` 并设为当前版本。`ProjectStore` 会保留
+旧成片和 RunningHub 原始片段，同时解绑并失效原 MiniMax 字幕。原始素材下载按
+`external_ref.video_index` 排序；单片段直接返回文件，多片段使用一次性 ZIP 并附加
+`片段顺序清单.json`，响应结束后删除临时 ZIP。
+
+`project_variants.py` 负责模块 6。推荐设置启用视频特效、全屏贴纸和画面变化套装，组合
+选择使用确定性的加权 maximin，而不是随机抽样：裁剪比例、视频特效、全屏贴纸和四角贴纸
+的权重大于背景色，并把已有成功签名作为补充生成的距离参照。每行冻结基础视频（用户上传
+视频则冻结上传版本）、模块 4B 的 render cues/字体/BGM、手动封面和素材身份；全项目首次
+生成合并为一次 `submit_batch`，不会先导出普通 `composition_video`。封面固定 3 帧，封面
+视频片段并入主视频轨道首段，临时视频轨道随后删除；底层统一后移所有正文轨道。操作类型为
+`VARIANT_GENERATE`、`VARIANT_SUPPLEMENT` 和
+`VARIANT_RETRY`；成功文件保存为不可覆盖的 `variant_video`，失败项可原样重试。
+
+`project_results.py` 负责模块 7 的物理归档和成果查询。`project_script_sources` 保存用户原始
+XLSX/CSV 的版本与校验信息；`project_result_batches` 使用 SQLite 当日计数器原子分配
+`D:\auto\月.日\批次号`。脚本文件先复制到批次目录，模块 6 的 MP4 随后直接输出到该目录。
+成果页不把目录扫描结果当作用户归属，而是按 `owner_user_id` 查询项目/素材/剪映批次索引，
+再检查 `managed_path` 是否真实存在。这样手工移动或删除文件会显示为缺失，但不会跨账号泄露。
+
+新版表格采用版本化修改而不是完成后永久锁定。非运行中脚本行可以随时修改：脚本或音色
+清空当前音频/基础视频/成片指针并回到 `DRAFT`；图片只清空基础视频和成片指针并保留当前
+音频；BGM 或字幕设置只清空当前成片并保留基础视频。历史资产、操作和外部链接不删除。
+声音总按钮在存在待生成行时只处理待生成行；全部行均已有音频时再次点击会为全部行创建
+新的声音批次和音频素材版本。同一秒创建的多批外部链接按数据库插入顺序选择最新版本。
 
 核心工作台只能选择数字人账号中已经保存的音色。项目默认音色由后端统一写入全部脚本
 行，前端逐行下拉框只负责展示和提交单行覆盖。声音中心的克隆/融合是两阶段流程：先生成
@@ -535,5 +587,23 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
 | 花字库 | `docs/FLOWER_TEXT_LIBRARY.md` |
 | 复合文字模板 | `docs/TEXT_TEMPLATE_LIBRARY.md` |
 | 历史开发记录 | `docs/DEVELOPMENT_HISTORY.md` |
+| 新版工作台后续功能与质量优化 | `docs/NEW_WORKBENCH_OPTIMIZATIONS_20260805.md` |
 
 遇到文档与代码不一致时，以当前测试、FastAPI `/docs` 和实际入口代码为准，并在修复代码的同一个改动中更新文档。
+
+## 15. 新版工作台 2026-08-05 细节修正
+
+- 4A 通过数字人工作台接口启动时使用 `exact_timestamps` 内部模式：音频时长仅向上取整到
+  RunningHub 接受的整秒，不使用旧版上传音频的静音尾垫。
+- `/api/new/postprocess/options` 返回 `default_font_identity`；当前默认是
+  `resource_id:7244518590332801592`（`DouyinSansBold`）。前端新配置以此初始化，历史行的
+  `settings.postprocess.font_identity` 优先级更高。
+- 成果库首页只渲染批次缩略卡，批次弹层才渲染全部视频卡；选择状态使用真实变体
+  `asset_id`，支持当前查询结果的总全选、单批次全选、ZIP 下载和删除选中。删除接口先对
+  整批 ID 做账号归属校验，再原子删除数据库记录和对应受管导出文件。
+- 核心工作台脚本列采用固定表格布局和 `overflow-wrap:anywhere`，编辑区最大高度内纵向
+  滚动，避免长文本改变其他列宽度。
+- 核心工作台左侧输入区可通过表格标题栏按钮收起；状态保存在本机
+  `localStorage`，收起时右侧表格跨满工作区。表头类 `table-header-input` 使用低饱和深色
+  底配靛蓝标线和圆点表示输入/操作列，`table-header-output` 使用深青色底配青绿标线和
+  圆点表示三个预览输出列；标题栏显示对应图例，只改变表头，不改变正文单元格状态配色。

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -130,22 +131,40 @@ class ProjectAudioCoordinator:
             },
         )
 
-        target_items = [
+        pending_items = [
             item
             for item in project["items"]
             if item.get("status") in {"DRAFT", "AUDIO_FAILED"}
         ]
+        target_items = pending_items or [
+            item
+            for item in project["items"]
+            if item.get("status") not in {
+                "AUDIO_QUEUED",
+                "AUDIO_RUNNING",
+                "COMPOSITION_QUEUED",
+                "DIGITAL_HUMAN_RUNNING",
+                "VIDEO_MERGING",
+                "POSTPROCESS_RUNNING",
+                "VARIANT_QUEUED",
+                "VARIANT_RUNNING",
+            }
+        ]
         if not target_items:
-            raise ValueError("当前项目没有待生成或失败待重建的声音")
+            raise ValueError("当前项目没有可创建新声音版本的脚本行")
 
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        resolved_items: list[tuple[dict[str, Any], str]] = []
         for item in target_items:
-            image = item.get("inputs", {}).get("image")
-            if not isinstance(image, dict) or not image.get("managed_path"):
-                raise ValueError(f"任务 {item['row_key']} 尚未分配图片")
             voice_id = str(assignments.get(item["item_id"]) or default_voice).strip()
             if voice_id not in available_ids:
                 raise ValueError(f"任务 {item['row_key']} 选择了不可用声音")
+            resolved_items.append((item, voice_id))
+
+        for item, voice_id in resolved_items:
+            self.store.prepare_item_audio_generation(
+                owner_user_id, project_id, item["item_id"]
+            )
             self.store.configure_item_voice(
                 owner_user_id,
                 project_id,
@@ -160,45 +179,30 @@ class ProjectAudioCoordinator:
                 idempotency_key=idempotency_key,
                 payload={"voice_asset_id": voice_id, "speech_settings": speech},
             )
-            grouped[voice_id].append({**item, "operation": operation, "image": image})
+            grouped[voice_id].append({**item, "operation": operation})
 
         project = self.store.get_project(owner_user_id, project_id)
         for group_index, (voice_id, items) in enumerate(grouped.items(), start=1):
             try:
-                staged_by_path: dict[str, dict[str, Any]] = {}
-                for item in items:
-                    image_path = Path(str(item["image"]["managed_path"])).resolve()
-                    if not image_path.is_file():
-                        raise ValueError(f"任务 {item['row_key']} 的图片文件不存在")
-                    key = str(image_path).casefold()
-                    if key not in staged_by_path:
-                        staged_by_path[key] = self.client.upload_workbench_batch_asset(
-                            token,
-                            image_path,
-                            kind="image",
-                            filename=str(item["image"].get("filename") or image_path.name),
-                        )
-                rows = []
-                for item in items:
-                    image_path = Path(str(item["image"]["managed_path"])).resolve()
-                    staged = staged_by_path[str(image_path).casefold()]
-                    rows.append(
-                        {
-                            "row_id": item["row_key"],
-                            "image_asset_id": staged["asset_id"],
-                            "image_file": staged["original_name"],
-                            "speech_script": item["script_text"],
-                            "prompt": "人物自然地说话",
-                        }
-                    )
+                rows = [
+                    {
+                        "row_id": item["row_key"],
+                        "speech_script": item["script_text"],
+                        "prompt": "人物自然地说话",
+                    }
+                    for item in items
+                ]
+                request_digest = hashlib.sha256(
+                    f"{idempotency_key}\0{voice_id}".encode("utf-8")
+                ).hexdigest()[:48]
                 remote = self.client.create_workbench_audio_batch(
                     token,
                     {
                         "name": f"{project['project_no']} 声音批次 {group_index}",
-                        "request_key": f"{idempotency_key}:voice:{voice_id}",
-                        "asset_ids": [
-                            item["asset_id"] for item in staged_by_path.values()
-                        ],
+                        # The digital backend stores this in a 64-character
+                        # internal idempotency column.  It is not a RunningHub
+                        # task id and does not couple TTS to video generation.
+                        "request_key": f"workbench-audio-{request_digest}",
                         "rows": rows,
                         "speech_options": {
                             **speech,
@@ -418,6 +422,9 @@ class ProjectAudioCoordinator:
         batch_id = str(link.get("metadata", {}).get("batch_id") or "")
         if not batch_id:
             raise ValueError("声音任务缺少数字人批次编号")
+        self.store.prepare_item_audio_generation(
+            owner_user_id, project_id, item_id
+        )
         self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,

@@ -10,7 +10,7 @@ from typing import Any, Iterator
 import uuid
 
 
-PROJECT_SCHEMA_VERSION = 3
+PROJECT_SCHEMA_VERSION = 6
 MAX_PROJECT_ITEMS = 500
 
 PROJECT_ITEM_STATUSES = {
@@ -20,7 +20,10 @@ PROJECT_ITEM_STATUSES = {
     "AUDIO_READY",
     "AUDIO_FAILED",
     "COMPOSITION_QUEUED",
-    "COMPOSITION_RUNNING",
+    "DIGITAL_HUMAN_RUNNING",
+    "VIDEO_MERGING",
+    "BASE_VIDEO_READY",
+    "POSTPROCESS_RUNNING",
     "COMPOSITION_READY",
     "COMPOSITION_FAILED",
     "VARIANT_QUEUED",
@@ -33,10 +36,15 @@ ACTIVE_ITEM_STATUSES = {
     "AUDIO_QUEUED",
     "AUDIO_RUNNING",
     "COMPOSITION_QUEUED",
-    "COMPOSITION_RUNNING",
+    "DIGITAL_HUMAN_RUNNING",
+    "VIDEO_MERGING",
+    "POSTPROCESS_RUNNING",
     "VARIANT_QUEUED",
     "VARIANT_RUNNING",
 }
+
+EDITABLE_ITEM_STATUSES = PROJECT_ITEM_STATUSES - ACTIVE_ITEM_STATUSES
+IMAGE_EDITABLE_ITEM_STATUSES = EDITABLE_ITEM_STATUSES
 
 FAILED_ITEM_STATUSES = {
     "AUDIO_FAILED",
@@ -76,8 +84,10 @@ def _default_subtitles() -> dict[str, Any]:
         "style": {
             "font_id": None,
             "font_size": 15,
-            "max_width_ratio": 0.82,
-            "max_lines": 2,
+            "max_width_ratio": 0.8,
+            "max_lines": 1,
+            "bottom_offset_ratio": 0.3,
+            "transform_y": -0.4,
         },
         "status": "NOT_AVAILABLE",
         "overflow_risk": False,
@@ -191,6 +201,7 @@ class ProjectStore:
                     status TEXT NOT NULL,
                     current_image_asset_id TEXT,
                     current_audio_asset_id TEXT,
+                    current_base_video_asset_id TEXT,
                     current_video_asset_id TEXT,
                     subtitles_json TEXT NOT NULL DEFAULT '{}',
                     settings_json TEXT NOT NULL DEFAULT '{}',
@@ -246,6 +257,51 @@ class ProjectStore:
 
                 CREATE INDEX IF NOT EXISTS idx_project_input_images_project
                     ON project_input_images(project_id, position);
+
+                CREATE TABLE IF NOT EXISTS project_script_sources (
+                    source_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    version INTEGER NOT NULL,
+                    filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL,
+                    size_bytes INTEGER NOT NULL,
+                    sha256 TEXT NOT NULL,
+                    managed_path TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    FOREIGN KEY(project_id) REFERENCES projects(project_id)
+                        ON DELETE CASCADE,
+                    UNIQUE(project_id, version)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_project_script_sources_project
+                    ON project_script_sources(project_id, version DESC);
+
+                CREATE TABLE IF NOT EXISTS project_result_batch_counters (
+                    day_key TEXT PRIMARY KEY,
+                    last_value INTEGER NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS project_result_batches (
+                    result_batch_id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    owner_user_id TEXT NOT NULL,
+                    date_key TEXT NOT NULL,
+                    date_label TEXT NOT NULL,
+                    batch_no INTEGER NOT NULL,
+                    export_path TEXT NOT NULL,
+                    operation_type TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    jianying_batch_id TEXT NOT NULL DEFAULT '',
+                    error_message TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY(project_id) REFERENCES projects(project_id)
+                        ON DELETE CASCADE,
+                    UNIQUE(date_key, batch_no)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_project_result_batches_owner
+                    ON project_result_batches(owner_user_id, date_key DESC, batch_no DESC);
 
                 CREATE TABLE IF NOT EXISTS project_operations (
                     operation_id TEXT PRIMARY KEY,
@@ -314,6 +370,10 @@ class ProjectStore:
             if "current_image_asset_id" not in item_columns:
                 connection.execute(
                     "ALTER TABLE project_items ADD COLUMN current_image_asset_id TEXT"
+                )
+            if "current_base_video_asset_id" not in item_columns:
+                connection.execute(
+                    "ALTER TABLE project_items ADD COLUMN current_base_video_asset_id TEXT"
                 )
             connection.execute(
                 "INSERT OR REPLACE INTO project_schema_meta(key, value) VALUES('version', ?)",
@@ -493,23 +553,42 @@ class ProjectStore:
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
             item = self._owned_item(connection, project_id, item_id)
-            if item["status"] != "DRAFT":
-                raise ValueError("当前脚本行已进入生成流程，不能直接修改输入")
+            if item["status"] in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，请等待完成后再修改")
             updates: list[str] = []
             values: list[Any] = []
             if row_key is not None:
-                updates.append("row_key=?")
-                values.append(_clean_row_key(row_key, int(item["position"])))
+                clean_row_key = _clean_row_key(row_key, int(item["position"]))
+                if clean_row_key != str(item["row_key"]):
+                    updates.append("row_key=?")
+                    values.append(clean_row_key)
+            content_changed = False
             if script_text is not None:
-                updates.append("script_text=?")
-                values.append(_clean_script(script_text))
+                clean_script = _clean_script(script_text)
+                if clean_script != str(item["script_text"]):
+                    updates.append("script_text=?")
+                    values.append(clean_script)
+                    content_changed = True
             if settings is not None:
                 if not isinstance(settings, dict):
                     raise ValueError("脚本行设置必须是对象")
-                updates.append("settings_json=?")
-                values.append(_json(settings))
+                if settings != _object(item["settings_json"], {}):
+                    updates.append("settings_json=?")
+                    values.append(_json(settings))
+                    content_changed = True
             if updates:
                 now = _now()
+                if content_changed:
+                    updates.extend(
+                        [
+                            "current_audio_asset_id=NULL",
+                            "current_base_video_asset_id=NULL",
+                            "current_video_asset_id=NULL",
+                            "subtitles_json=?",
+                            "status='DRAFT'",
+                        ]
+                    )
+                    values.append(_json(_default_subtitles()))
                 updates.append("updated_at=?")
                 values.extend([now, item_id])
                 try:
@@ -527,6 +606,7 @@ class ProjectStore:
                     """,
                     (now, project["project_id"]),
                 )
+                self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
     def get_voice_preferences(self, owner_user_id: str) -> dict[str, Any]:
@@ -607,32 +687,29 @@ class ProjectStore:
                 changed = False
             else:
                 changed = True
-            if changed and item["status"] not in {"DRAFT", "AUDIO_READY", "AUDIO_FAILED"}:
-                raise ValueError("当前脚本行已进入声音生成，不能更换声音")
+            if changed and item["status"] in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，请等待完成后再更换声音")
             now = _now()
             if changed:
                 settings["voice_asset_id"] = voice_id
-            if changed and item["status"] in {"AUDIO_READY", "AUDIO_FAILED"}:
+            if changed:
                 connection.execute(
                     """
                     UPDATE project_items
                     SET settings_json=?, current_audio_asset_id=NULL,
+                        current_base_video_asset_id=NULL,
                         current_video_asset_id=NULL, subtitles_json=?,
                         status='DRAFT', updated_at=?
                     WHERE item_id=?
                     """,
                     (_json(settings), _json(_default_subtitles()), now, item_id),
                 )
-            elif changed:
-                connection.execute(
-                    "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
-                    (_json(settings), now, item_id),
-                )
             if changed:
                 connection.execute(
                     "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
                     (now, project["project_id"]),
                 )
+                self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
     def configure_project_voice(
@@ -662,7 +739,7 @@ class ProjectStore:
             blocked = [
                 item["row_key"]
                 for item, _settings in changed_items
-                if item["status"] not in {"DRAFT", "AUDIO_READY", "AUDIO_FAILED"}
+                if item["status"] in ACTIVE_ITEM_STATUSES
             ]
             if blocked:
                 raise ValueError(
@@ -673,22 +750,17 @@ class ProjectStore:
             now = _now()
             for item, settings in changed_items:
                 settings["voice_asset_id"] = voice_id
-                if item["status"] in {"AUDIO_READY", "AUDIO_FAILED"}:
-                    connection.execute(
-                        """
-                        UPDATE project_items
-                        SET settings_json=?, current_audio_asset_id=NULL,
-                            current_video_asset_id=NULL, subtitles_json=?,
-                            status='DRAFT', updated_at=?
-                        WHERE item_id=?
-                        """,
-                        (_json(settings), _json(_default_subtitles()), now, item["item_id"]),
-                    )
-                else:
-                    connection.execute(
-                        "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
-                        (_json(settings), now, item["item_id"]),
-                    )
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET settings_json=?, current_audio_asset_id=NULL,
+                        current_base_video_asset_id=NULL,
+                        current_video_asset_id=NULL, subtitles_json=?,
+                        status='DRAFT', updated_at=?
+                    WHERE item_id=?
+                    """,
+                    (_json(settings), _json(_default_subtitles()), now, item["item_id"]),
+                )
 
             project_settings = _object(project["settings_json"], {})
             project_default_changed = (
@@ -775,6 +847,153 @@ class ProjectStore:
                         "name": row["name"],
                     }
         return list(used.values())
+
+    def prepare_item_audio_generation(
+        self, owner_user_id: str, project_id: str, item_id: str
+    ) -> dict[str, Any]:
+        """Start a new audio version without deleting any historical assets."""
+
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            if item["status"] in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，不能创建新的声音任务")
+            now = _now()
+            connection.execute(
+                """
+                UPDATE project_items
+                SET current_audio_asset_id=NULL,
+                    current_base_video_asset_id=NULL,
+                    current_video_asset_id=NULL,
+                    subtitles_json=?, status='DRAFT', updated_at=?
+                WHERE item_id=?
+                """,
+                (_json(_default_subtitles()), now, item_id),
+            )
+            connection.execute(
+                """
+                UPDATE projects
+                SET revision=revision+1, updated_at=?
+                WHERE project_id=?
+                """,
+                (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def configure_item_postprocess(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        font_identity: str,
+        bgm_identity: str,
+        text_color: str,
+    ) -> dict[str, Any]:
+        """Save editable subtitle/BGM settings and invalidate only final rendering."""
+
+        clean_font = str(font_identity or "").strip()
+        clean_bgm = str(bgm_identity or "").strip()
+        clean_color = str(text_color or "#FFFFFF").strip().upper()
+        if not clean_font:
+            raise ValueError("字幕字体不能为空")
+        if len(clean_color) != 7 or not clean_color.startswith("#"):
+            raise ValueError("字幕颜色格式不正确")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            if item["status"] in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，请等待完成后再修改字幕或 BGM")
+            settings = _object(item["settings_json"], {})
+            requested = {
+                "font_identity": clean_font,
+                "bgm_identity": clean_bgm,
+                "text_color": clean_color,
+            }
+            if settings.get("postprocess") == requested:
+                return self.get_project(owner_user_id, project_id)
+            settings["postprocess"] = requested
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            subtitles["render_cues"] = []
+            subtitles["bound_video_asset_id"] = None
+            subtitles["overflow_risk"] = False
+            subtitles["review_reason"] = None
+            subtitles["status"] = (
+                "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+            )
+            next_status = "DRAFT"
+            if item["current_base_video_asset_id"]:
+                next_status = "BASE_VIDEO_READY"
+            elif item["current_audio_asset_id"]:
+                next_status = "AUDIO_READY"
+            now = _now()
+            connection.execute(
+                """
+                UPDATE project_items
+                SET settings_json=?, current_video_asset_id=NULL,
+                    subtitles_json=?, status=?, updated_at=?
+                WHERE item_id=?
+                """,
+                (_json(settings), _json(subtitles), next_status, now, item_id),
+            )
+            connection.execute(
+                """
+                UPDATE projects
+                SET revision=revision+1, updated_at=?
+                WHERE project_id=?
+                """,
+                (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def configure_variant_settings(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        settings: dict[str, Any] | None,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Persist module-6 counts and manual covers without invalidating media."""
+
+        if settings is not None and not isinstance(settings, dict):
+            raise ValueError("变体设置必须是对象")
+        if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
+            raise ValueError("逐行变体设置格式不正确")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            active = connection.execute(
+                "SELECT COUNT(*) FROM project_items WHERE project_id=? AND status IN (?, ?)",
+                (project_id, "VARIANT_QUEUED", "VARIANT_RUNNING"),
+            ).fetchone()[0]
+            if active:
+                raise ValueError("当前变体任务正在生成，不能修改设置")
+            project_settings = _object(project["settings_json"], {})
+            if settings is not None:
+                project_settings["variants"] = settings
+            for raw in items:
+                item_id = str(raw.get("item_id") or "").strip()
+                item = self._owned_item(connection, project_id, item_id)
+                count = int(raw.get("count") or 0)
+                if not 1 <= count <= MAX_PROJECT_ITEMS:
+                    raise ValueError("每行变体数量必须在 1 到 500 之间")
+                cover = raw.get("cover")
+                if cover is not None and not isinstance(cover, dict):
+                    raise ValueError("手动封面设置必须是对象")
+                item_settings = _object(item["settings_json"], {})
+                item_settings["variants"] = {"count": count, "cover": cover}
+                connection.execute(
+                    "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
+                    (_json(item_settings), _now(), item_id),
+                )
+            now = _now()
+            connection.execute(
+                "UPDATE projects SET settings_json=?, revision=revision+1, updated_at=? WHERE project_id=?",
+                (_json(project_settings), now, project_id),
+            )
+        return self.get_project(owner_user_id, project_id)
 
     def add_asset(
         self,
@@ -971,7 +1190,7 @@ class ProjectStore:
         now = _now()
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_inputs(connection, project_id)
+            self._require_editable_images(connection, project_id)
             position = int(
                 connection.execute(
                     "SELECT COALESCE(MAX(position), 0) + 1 FROM project_input_images WHERE project_id=?",
@@ -1024,7 +1243,7 @@ class ProjectStore:
     ) -> dict[str, Any]:
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_inputs(connection, project_id)
+            self._require_editable_images(connection, project_id)
             row = connection.execute(
                 "SELECT * FROM project_input_images WHERE image_id=? AND project_id=?",
                 (str(image_id or "").strip(), project_id),
@@ -1100,7 +1319,7 @@ class ProjectStore:
             raise ValueError("每张图片复用次数必须在 1 到 100 之间")
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_inputs(connection, project_id)
+            self._require_editable_images(connection, project_id)
             images = connection.execute(
                 "SELECT * FROM project_input_images WHERE project_id=? ORDER BY position",
                 (project_id,),
@@ -1136,6 +1355,7 @@ class ProjectStore:
                 """,
                 (_json(settings), now, project_id),
             )
+            self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
     def replace_item_image(
@@ -1147,8 +1367,9 @@ class ProjectStore:
     ) -> dict[str, Any]:
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_inputs(connection, project_id)
             item = self._owned_item(connection, project_id, item_id)
+            if item["status"] in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，请等待完成后再替换图片")
             image = connection.execute(
                 "SELECT * FROM project_input_images WHERE image_id=? AND project_id=?",
                 (str(image_id or "").strip(), project_id),
@@ -1163,6 +1384,7 @@ class ProjectStore:
                 "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
                 (now, project["project_id"]),
             )
+            self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
     def delete_project(self, owner_user_id: str, project_id: str) -> list[str]:
@@ -1177,8 +1399,221 @@ class ProjectStore:
                 ).fetchall()
                 if row["managed_path"]
             ]
+            paths.extend(
+                str(row["managed_path"])
+                for row in connection.execute(
+                    "SELECT managed_path FROM project_script_sources WHERE project_id=?",
+                    (project_id,),
+                ).fetchall()
+                if row["managed_path"]
+            )
             connection.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
             return paths
+
+    def add_script_source(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        sha256: str,
+        managed_path: str,
+    ) -> dict[str, Any]:
+        clean_filename = Path(str(filename or "")).name.strip()
+        clean_path = str(managed_path or "").strip()
+        if not clean_filename or not clean_path:
+            raise ValueError("脚本源文件名称和保存路径不能为空")
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            self._require_editable_inputs(connection, project_id)
+            version = int(
+                connection.execute(
+                    "SELECT COALESCE(MAX(version), 0) + 1 FROM project_script_sources WHERE project_id=?",
+                    (project_id,),
+                ).fetchone()[0]
+            )
+            source_id = uuid.uuid4().hex
+            now = _now()
+            connection.execute(
+                """
+                INSERT INTO project_script_sources(
+                    source_id, project_id, version, filename, content_type,
+                    size_bytes, sha256, managed_path, created_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    source_id,
+                    project_id,
+                    version,
+                    clean_filename,
+                    str(content_type or "application/octet-stream"),
+                    max(0, int(size_bytes)),
+                    str(sha256 or ""),
+                    clean_path,
+                    now,
+                ),
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project_id),
+            )
+            row = connection.execute(
+                "SELECT * FROM project_script_sources WHERE source_id=?", (source_id,)
+            ).fetchone()
+        return self._script_source_payload(row)
+
+    def allocate_result_batch(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        export_root: str | Path,
+        operation_type: str,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        created = (now or datetime.now().astimezone()).astimezone()
+        date_key = created.strftime("%Y%m%d")
+        date_label = f"{created.month}.{created.day}"
+        root = Path(export_root).expanduser().resolve()
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            row = connection.execute(
+                "SELECT last_value FROM project_result_batch_counters WHERE day_key=?",
+                (date_key,),
+            ).fetchone()
+            sequence = int(row["last_value"]) + 1 if row is not None else 1
+            while (root / date_label / str(sequence)).exists():
+                sequence += 1
+            connection.execute(
+                """
+                INSERT INTO project_result_batch_counters(day_key, last_value)
+                VALUES(?, ?)
+                ON CONFLICT(day_key) DO UPDATE SET last_value=excluded.last_value
+                """,
+                (date_key, sequence),
+            )
+            result_batch_id = uuid.uuid4().hex
+            timestamp = created.isoformat(timespec="seconds")
+            export_path = str((root / date_label / str(sequence)).resolve())
+            connection.execute(
+                """
+                INSERT INTO project_result_batches(
+                    result_batch_id, project_id, owner_user_id, date_key,
+                    date_label, batch_no, export_path, operation_type,
+                    status, created_at, updated_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'ALLOCATED', ?, ?)
+                """,
+                (
+                    result_batch_id,
+                    project_id,
+                    str(owner_user_id),
+                    date_key,
+                    date_label,
+                    sequence,
+                    export_path,
+                    str(operation_type or "").strip().upper(),
+                    timestamp,
+                    timestamp,
+                ),
+            )
+            batch = connection.execute(
+                "SELECT * FROM project_result_batches WHERE result_batch_id=?",
+                (result_batch_id,),
+            ).fetchone()
+        return self._result_batch_payload(batch)
+
+    def update_result_batch(
+        self,
+        owner_user_id: str,
+        result_batch_id: str,
+        *,
+        status: str,
+        jianying_batch_id: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
+        clean_status = str(status or "").strip().upper()
+        if clean_status not in {
+            "ALLOCATED", "RUNNING", "SUCCEEDED", "PARTIAL_FAILED", "FAILED"
+        }:
+            raise ValueError(f"成果批次状态无效: {clean_status}")
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT * FROM project_result_batches WHERE result_batch_id=? AND owner_user_id=?",
+                (str(result_batch_id), str(owner_user_id)),
+            ).fetchone()
+            if row is None:
+                raise KeyError("成果批次不存在")
+            connection.execute(
+                """
+                UPDATE project_result_batches
+                SET status=?, jianying_batch_id=?, error_message=?, updated_at=?
+                WHERE result_batch_id=?
+                """,
+                (
+                    clean_status,
+                    str(jianying_batch_id if jianying_batch_id is not None else row["jianying_batch_id"]),
+                    str(error_message if error_message is not None else row["error_message"]),
+                    _now(),
+                    str(result_batch_id),
+                ),
+            )
+            updated = connection.execute(
+                "SELECT * FROM project_result_batches WHERE result_batch_id=?",
+                (str(result_batch_id),),
+            ).fetchone()
+        return self._result_batch_payload(updated)
+
+    def list_gallery_records(self, owner_user_id: str) -> dict[str, Any]:
+        owner_id = str(owner_user_id or "").strip()
+        with self._connect() as connection:
+            batch_rows = connection.execute(
+                """
+                SELECT rb.*, p.project_no, p.name AS project_name
+                FROM project_result_batches rb
+                JOIN projects p ON p.project_id=rb.project_id
+                WHERE rb.owner_user_id=?
+                ORDER BY rb.date_key DESC, rb.batch_no DESC
+                """,
+                (owner_id,),
+            ).fetchall()
+            asset_rows = connection.execute(
+                """
+                SELECT a.*, i.row_key, i.script_text, p.project_no, p.name AS project_name
+                FROM project_assets a
+                JOIN project_items i ON i.item_id=a.item_id
+                JOIN projects p ON p.project_id=a.project_id
+                WHERE p.owner_user_id=? AND a.asset_type='variant_video'
+                ORDER BY a.created_at DESC
+                """,
+                (owner_id,),
+            ).fetchall()
+        videos = []
+        for row in asset_rows:
+            asset = self._asset_payload(row)
+            videos.append(
+                {
+                    **asset,
+                    "project_id": row["project_id"],
+                    "item_id": row["item_id"],
+                    "project_no": row["project_no"],
+                    "project_name": row["project_name"],
+                    "row_key": row["row_key"],
+                    "script_text": row["script_text"],
+                }
+            )
+        return {
+            "batches": [
+                {
+                    **self._result_batch_payload(row),
+                    "project_no": row["project_no"],
+                    "project_name": row["project_name"],
+                }
+                for row in batch_rows
+            ],
+            "videos": videos,
+        }
 
     def create_operation(
         self,
@@ -1233,7 +1668,10 @@ class ProjectStore:
                 queued_status = {
                     "AUDIO_GENERATE": "AUDIO_QUEUED",
                     "COMPOSITION_GENERATE": "COMPOSITION_QUEUED",
+                    "POSTPROCESS_GENERATE": "POSTPROCESS_RUNNING",
                     "VARIANT_GENERATE": "VARIANT_QUEUED",
+                    "VARIANT_SUPPLEMENT": "VARIANT_QUEUED",
+                    "VARIANT_RETRY": "VARIANT_QUEUED",
                 }.get(clean_type)
                 if queued_status:
                     connection.execute(
@@ -1259,12 +1697,38 @@ class ProjectStore:
         error_code: str | None = None,
         error_message: str | None = None,
     ) -> dict[str, Any]:
+        return self.transition_operation(
+            owner_user_id,
+            project_id,
+            item_id,
+            operation_type="AUDIO_GENERATE",
+            status=status,
+            item_status=item_status,
+            result=result,
+            error_code=error_code,
+            error_message=error_message,
+        )
+
+    def transition_operation(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        operation_type: str,
+        status: str,
+        item_status: str,
+        result: dict[str, Any] | None = None,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> dict[str, Any]:
         operation_status = str(status or "").strip().upper()
+        clean_type = str(operation_type or "").strip().upper()
         resolved_item_status = _clean_status(
             item_status, allowed=PROJECT_ITEM_STATUSES, label="项目行状态"
         )
         if operation_status not in {"PENDING", "RUNNING", "SUCCEEDED", "FAILED"}:
-            raise ValueError("声音操作状态无效")
+            raise ValueError("异步操作状态无效")
         now = _now()
         with self._transaction() as connection:
             self._owned_project(connection, owner_user_id, project_id)
@@ -1272,13 +1736,13 @@ class ProjectStore:
             operation = connection.execute(
                 """
                 SELECT * FROM project_operations
-                WHERE project_id=? AND item_id=? AND operation_type='AUDIO_GENERATE'
+                WHERE project_id=? AND item_id=? AND operation_type=?
                 ORDER BY rowid DESC LIMIT 1
                 """,
-                (project_id, item_id),
+                (project_id, item_id, clean_type),
             ).fetchone()
             if operation is None:
-                raise KeyError("声音生成操作不存在")
+                raise KeyError("异步操作不存在")
             started_at = operation["started_at"] or (
                 now if operation_status == "RUNNING" else None
             )
@@ -1313,6 +1777,145 @@ class ProjectStore:
             )
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
+
+    def delete_variant_asset(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        asset_id: str,
+    ) -> str | None:
+        """Delete one generated variant record without affecting sibling variants."""
+
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            self._owned_item(connection, project_id, item_id)
+            asset = connection.execute(
+                """
+                SELECT * FROM project_assets
+                WHERE project_id=? AND item_id=? AND asset_id=?
+                  AND asset_type='variant_video'
+                """,
+                (project_id, item_id, asset_id),
+            ).fetchone()
+            if asset is None:
+                raise KeyError("变体不存在")
+            managed_path = str(asset["managed_path"] or "").strip() or None
+            connection.execute("DELETE FROM project_assets WHERE asset_id=?", (asset_id,))
+            remaining = int(
+                connection.execute(
+                    """
+                    SELECT COUNT(*) FROM project_assets
+                    WHERE item_id=? AND asset_type='variant_video' AND status='READY'
+                    """,
+                    (item_id,),
+                ).fetchone()[0]
+            )
+            now = _now()
+            latest_variant_operation = connection.execute(
+                """
+                SELECT status FROM project_operations
+                WHERE item_id=? AND operation_type IN (
+                    'VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY'
+                )
+                ORDER BY rowid DESC LIMIT 1
+                """,
+                (item_id,),
+            ).fetchone()
+            item_status = (
+                "VARIANT_FAILED"
+                if latest_variant_operation is not None
+                and latest_variant_operation["status"] == "FAILED"
+                else ("VARIANT_READY" if remaining else "COMPOSITION_READY")
+            )
+            connection.execute(
+                "UPDATE project_items SET status=?, updated_at=? WHERE item_id=?",
+                (item_status, now, item_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return managed_path
+
+    def delete_variant_assets(
+        self,
+        owner_user_id: str,
+        asset_ids: list[str],
+    ) -> list[dict[str, str | None]]:
+        """Atomically delete account-owned generated variants from the gallery."""
+
+        clean_ids = list(
+            dict.fromkeys(str(asset_id or "").strip() for asset_id in asset_ids)
+        )
+        clean_ids = [asset_id for asset_id in clean_ids if asset_id]
+        if not clean_ids:
+            raise ValueError("请选择需要删除的成果视频")
+        placeholders = ", ".join("?" for _ in clean_ids)
+        with self._transaction() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT a.asset_id, a.project_id, a.item_id, a.managed_path
+                FROM project_assets a
+                JOIN projects p ON p.project_id=a.project_id
+                WHERE p.owner_user_id=? AND a.asset_type='variant_video'
+                  AND a.asset_id IN ({placeholders})
+                """,
+                (str(owner_user_id or "").strip(), *clean_ids),
+            ).fetchall()
+            by_id = {str(row["asset_id"]): row for row in rows}
+            if any(asset_id not in by_id for asset_id in clean_ids):
+                raise KeyError("成果视频不存在或无权访问")
+
+            connection.execute(
+                f"DELETE FROM project_assets WHERE asset_id IN ({placeholders})",
+                clean_ids,
+            )
+            now = _now()
+            affected_items = {
+                (str(row["project_id"]), str(row["item_id"])) for row in rows
+            }
+            affected_projects: set[str] = set()
+            for project_id, item_id in affected_items:
+                remaining = int(
+                    connection.execute(
+                        """
+                        SELECT COUNT(*) FROM project_assets
+                        WHERE item_id=? AND asset_type='variant_video' AND status='READY'
+                        """,
+                        (item_id,),
+                    ).fetchone()[0]
+                )
+                latest_variant_operation = connection.execute(
+                    """
+                    SELECT status FROM project_operations
+                    WHERE item_id=? AND operation_type IN (
+                        'VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY'
+                    )
+                    ORDER BY rowid DESC LIMIT 1
+                    """,
+                    (item_id,),
+                ).fetchone()
+                item_status = (
+                    "VARIANT_FAILED"
+                    if latest_variant_operation is not None
+                    and latest_variant_operation["status"] == "FAILED"
+                    else ("VARIANT_READY" if remaining else "COMPOSITION_READY")
+                )
+                connection.execute(
+                    "UPDATE project_items SET status=?, updated_at=? WHERE item_id=?",
+                    (item_status, now, item_id),
+                )
+                affected_projects.add(project_id)
+            for project_id in affected_projects:
+                self._refresh_project_status(connection, project_id, now=now)
+
+        return [
+            {
+                "asset_id": asset_id,
+                "managed_path": (
+                    str(by_id[asset_id]["managed_path"] or "").strip() or None
+                ),
+            }
+            for asset_id in clean_ids
+        ]
 
     def set_item_subtitles(
         self,
@@ -1440,7 +2043,19 @@ class ProjectStore:
             "SELECT status FROM project_items WHERE project_id=?", (project_id,)
         ).fetchall()
         if not rows or any(str(row["status"]) != "DRAFT" for row in rows):
-            raise ValueError("项目已进入生成流程，不能修改脚本或图片")
+            raise ValueError("项目已进入声音生成，不能修改脚本")
+
+    @staticmethod
+    def _require_editable_images(
+        connection: sqlite3.Connection, project_id: str
+    ) -> None:
+        rows = connection.execute(
+            "SELECT status FROM project_items WHERE project_id=?", (project_id,)
+        ).fetchall()
+        if not rows or any(
+            str(row["status"]) not in IMAGE_EDITABLE_ITEM_STATUSES for row in rows
+        ):
+            raise ValueError("画面任务已经启动，当前不能修改图片")
 
     def _assign_input_image(
         self,
@@ -1502,9 +2117,19 @@ class ProjectStore:
                 now,
             ),
         )
+        subtitles = _object(item["subtitles_json"], _default_subtitles())
+        subtitles["bound_video_asset_id"] = None
+        if subtitles.get("raw_cues"):
+            subtitles["status"] = "READY"
+        next_status = "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
         connection.execute(
-            "UPDATE project_items SET current_image_asset_id=?, updated_at=? WHERE item_id=?",
-            (asset_id, now, item["item_id"]),
+            """
+            UPDATE project_items
+            SET current_image_asset_id=?, current_base_video_asset_id=NULL,
+                current_video_asset_id=NULL, subtitles_json=?, status=?, updated_at=?
+            WHERE item_id=?
+            """,
+            (asset_id, _json(subtitles), next_status, now, item["item_id"]),
         )
 
     def _set_current_asset(
@@ -1531,11 +2156,22 @@ class ProjectStore:
             connection.execute(
                 """
                 UPDATE project_items
-                SET current_audio_asset_id=?, current_video_asset_id=NULL,
+                SET current_audio_asset_id=?, current_base_video_asset_id=NULL,
+                    current_video_asset_id=NULL,
                     subtitles_json=?, status='AUDIO_READY', updated_at=?
                 WHERE item_id=?
                 """,
                 (asset_id, _json(subtitles), now, item["item_id"]),
+            )
+        elif asset_type == "base_video":
+            connection.execute(
+                """
+                UPDATE project_items
+                SET current_base_video_asset_id=?, current_video_asset_id=NULL,
+                    status='BASE_VIDEO_READY', updated_at=?
+                WHERE item_id=?
+                """,
+                (asset_id, now, item["item_id"]),
             )
         elif asset_type == "composition_video":
             subtitles = _object(item["subtitles_json"], _default_subtitles())
@@ -1574,7 +2210,8 @@ class ProjectStore:
     ) -> None:
         rows = connection.execute(
             """
-            SELECT status, current_audio_asset_id, current_video_asset_id
+            SELECT status, current_audio_asset_id, current_base_video_asset_id,
+                   current_video_asset_id
             FROM project_items WHERE project_id=? ORDER BY position
             """,
             (project_id,),
@@ -1584,16 +2221,24 @@ class ProjectStore:
             project_status = "PROCESSING"
         elif statuses and all(status == "VARIANT_READY" for status in statuses):
             project_status = "VARIANT_READY"
-        elif rows and all(row["current_video_asset_id"] for row in rows):
-            project_status = "COMPOSITION_READY"
-        elif rows and all(row["current_audio_asset_id"] for row in rows):
-            project_status = "AUDIO_READY"
         elif any(status in FAILED_ITEM_STATUSES for status in statuses):
             successful = any(
-                row["current_audio_asset_id"] or row["current_video_asset_id"]
+                row["current_audio_asset_id"]
+                or row["current_base_video_asset_id"]
+                or row["current_video_asset_id"]
                 for row in rows
             )
             project_status = "PARTIAL_FAILED" if successful else "FAILED"
+        elif rows and all(
+            row["current_video_asset_id"]
+            or str(row["status"]) in {"COMPOSITION_READY", "VARIANT_READY"}
+            for row in rows
+        ):
+            project_status = "COMPOSITION_READY"
+        elif rows and all(row["current_base_video_asset_id"] for row in rows):
+            project_status = "BASE_VIDEO_READY"
+        elif rows and all(row["current_audio_asset_id"] for row in rows):
+            project_status = "AUDIO_READY"
         else:
             project_status = "DRAFT"
         connection.execute(
@@ -1623,14 +2268,14 @@ class ProjectStore:
         operation_rows = connection.execute(
             """
             SELECT * FROM project_operations
-            WHERE project_id=? ORDER BY created_at, operation_id
+            WHERE project_id=? ORDER BY rowid
             """,
             (project_id,),
         ).fetchall()
         link_rows = connection.execute(
             """
             SELECT * FROM project_links
-            WHERE project_id=? ORDER BY created_at, link_id
+            WHERE project_id=? ORDER BY rowid
             """,
             (project_id,),
         ).fetchall()
@@ -1638,6 +2283,20 @@ class ProjectStore:
             """
             SELECT * FROM project_input_images
             WHERE project_id=? ORDER BY position
+            """,
+            (project_id,),
+        ).fetchall()
+        script_source_rows = connection.execute(
+            """
+            SELECT * FROM project_script_sources
+            WHERE project_id=? ORDER BY version
+            """,
+            (project_id,),
+        ).fetchall()
+        result_batch_rows = connection.execute(
+            """
+            SELECT * FROM project_result_batches
+            WHERE project_id=? ORDER BY date_key, batch_no
             """,
             (project_id,),
         ).fetchall()
@@ -1661,6 +2320,9 @@ class ProjectStore:
             for asset in assets:
                 history.setdefault(asset["asset_type"], []).append(asset)
             current_audio = by_id.get(str(row["current_audio_asset_id"] or ""))
+            current_base_video = by_id.get(
+                str(row["current_base_video_asset_id"] or "")
+            )
             current_video = by_id.get(str(row["current_video_asset_id"] or ""))
             current_image = by_id.get(str(row["current_image_asset_id"] or ""))
             variants = [
@@ -1684,6 +2346,7 @@ class ProjectStore:
                 "inputs": {"image": current_image},
                 "outputs": {
                     "audio": current_audio,
+                    "base_video": current_base_video,
                     "composition_video": current_video,
                     "original_video_segments": original_segments,
                     "variants": variants,
@@ -1711,6 +2374,17 @@ class ProjectStore:
             "input_images": [
                 self._input_image_payload(row) for row in input_image_rows
             ],
+            "script_source": (
+                self._script_source_payload(script_source_rows[-1])
+                if script_source_rows
+                else None
+            ),
+            "script_source_history": [
+                self._script_source_payload(row) for row in script_source_rows
+            ],
+            "result_batches": [
+                self._result_batch_payload(row) for row in result_batch_rows
+            ],
             "items": items,
             "operations": [
                 self._operation_payload(row) for row in operation_rows
@@ -1727,22 +2401,34 @@ class ProjectStore:
         status = str(item["status"])
         outputs = item["outputs"]
         audio_ready = outputs["audio"] is not None
+        base_video_ready = outputs["base_video"] is not None
         video_ready = outputs["composition_video"] is not None
+        preview_ready = (
+            base_video_ready
+            and str(item.get("subtitles", {}).get("status") or "")
+            == "PREVIEW_READY"
+            and status in {"COMPOSITION_READY", "VARIANT_READY"}
+        )
+        composition_ready = video_ready or preview_ready
         active = status in ACTIVE_ITEM_STATUSES
         return {
             "edit_inputs": status == "DRAFT",
-            "replace_image": status == "DRAFT",
-            "generate_audio": status in {"DRAFT", "AUDIO_FAILED"},
+            "replace_image": status in IMAGE_EDITABLE_ITEM_STATUSES,
+            "edit_postprocess": not active,
+            "generate_audio": not active,
             "retry_audio": status == "AUDIO_FAILED",
             "download_audio": audio_ready,
-            "start_composition": audio_ready and not active,
-            "retry_composition": status == "COMPOSITION_FAILED",
+            "start_composition": audio_ready and not base_video_ready and not active,
+            "retry_composition": status == "COMPOSITION_FAILED" and not base_video_ready,
+            "start_postprocess": base_video_ready and not composition_ready and not active,
+            "retry_postprocess": status == "COMPOSITION_FAILED" and base_video_ready,
             "download_current_video": video_ready,
+            "download_base_video": base_video_ready,
             "download_original_materials": bool(
                 outputs["original_video_segments"]
             ),
-            "upload_current_video": video_ready and not active,
-            "generate_variants": video_ready and not active,
+            "upload_current_video": composition_ready and not active,
+            "generate_variants": composition_ready and not active,
             "retry_variants": status == "VARIANT_FAILED",
         }
 
@@ -1753,13 +2439,12 @@ class ProjectStore:
             "edit_inputs": bool(items)
             and all(item["allowed_actions"]["edit_inputs"] for item in items),
             "manage_input_images": bool(items)
-            and all(item["allowed_actions"]["edit_inputs"] for item in items),
+            and all(item["allowed_actions"]["replace_image"] for item in items),
             "apply_image_mapping": bool(project.get("input_images"))
             and bool(items)
-            and all(item["allowed_actions"]["edit_inputs"] for item in items),
-            "generate_audio": any(
-                item["allowed_actions"]["generate_audio"] for item in items
-            ),
+            and all(item["allowed_actions"]["replace_image"] for item in items),
+            "generate_audio": bool(items)
+            and all(item["allowed_actions"]["generate_audio"] for item in items),
             "retry_audio": any(
                 item["allowed_actions"]["retry_audio"] for item in items
             ),
@@ -1768,11 +2453,19 @@ class ProjectStore:
             "retry_composition": any(
                 item["allowed_actions"]["retry_composition"] for item in items
             ),
+            "start_postprocess": bool(items)
+            and all(item["allowed_actions"]["start_postprocess"] for item in items),
+            "retry_postprocess": any(
+                item["allowed_actions"]["retry_postprocess"] for item in items
+            ),
             "download_audio": any(
                 item["allowed_actions"]["download_audio"] for item in items
             ),
             "download_current_video": any(
                 item["allowed_actions"]["download_current_video"] for item in items
+            ),
+            "download_base_video": any(
+                item["allowed_actions"]["download_base_video"] for item in items
             ),
             "download_original_materials": any(
                 item["allowed_actions"]["download_original_materials"]
@@ -1813,6 +2506,36 @@ class ProjectStore:
             "managed_path": row["managed_path"],
             "url": f"/api/new/projects/{row['project_id']}/images/{row['image_id']}",
             "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _script_source_payload(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "source_id": row["source_id"],
+            "version": int(row["version"]),
+            "filename": row["filename"],
+            "content_type": row["content_type"],
+            "size_bytes": int(row["size_bytes"]),
+            "sha256": row["sha256"],
+            "managed_path": row["managed_path"],
+            "created_at": row["created_at"],
+        }
+
+    @staticmethod
+    def _result_batch_payload(row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "result_batch_id": row["result_batch_id"],
+            "project_id": row["project_id"],
+            "date_key": row["date_key"],
+            "date_label": row["date_label"],
+            "batch_no": int(row["batch_no"]),
+            "export_path": row["export_path"],
+            "operation_type": row["operation_type"],
+            "status": row["status"],
+            "jianying_batch_id": row["jianying_batch_id"],
+            "error_message": row["error_message"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
         }
 
     @staticmethod

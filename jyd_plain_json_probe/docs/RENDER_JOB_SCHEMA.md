@@ -294,3 +294,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
 ```
 
 导出依赖剪映客户端处于打开状态，并停在草稿首页。
+
+新版工作台模块 4B 的默认字幕字体为字体库资源
+`resource_id:7244518590332801592`（`DouyinSansBold` / 抖音美好体）。这是工作台配置默认值，
+Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；历史任务仍使用其冻结
+配方中的字体。

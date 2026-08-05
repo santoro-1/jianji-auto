@@ -56,6 +56,35 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("const sampleImages", html)
         self.assertTrue((FRONTEND_ROOT / "project-script-template.xlsx").is_file())
 
+    def test_workspace_sidebar_collapses_and_table_headers_distinguish_io(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="workspace-grid"', html)
+        self.assertIn('id="input-sidebar"', html)
+        self.assertIn('id="processing-area"', html)
+        self.assertIn('id="input-sidebar-toggle"', html)
+        self.assertIn("function toggleInputSidebar()", html)
+        self.assertIn("new-workbench-input-sidebar-collapsed", html)
+        self.assertIn("input-sidebar-collapsed #processing-area", html)
+        self.assertIn('class="table-flow-legend"', html)
+        self.assertIn("输入 / 操作", html)
+        self.assertIn("生成结果", html)
+        self.assertIn("--table-header-accent: #818cf8", html)
+        self.assertIn("--table-header-accent: #2dd4bf", html)
+        self.assertEqual(html.count('scope="col" class="table-header-input'), 9)
+        self.assertEqual(html.count('scope="col" class="table-header-output'), 3)
+        self.assertIn(
+            'class="table-header-output px-4 py-3.5 w-36">声音预览</th>',
+            html,
+        )
+        self.assertIn(
+            'class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>',
+            html,
+        )
+        self.assertIn(
+            'class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>',
+            html,
+        )
+
     def test_new_workspace_and_voice_center_use_real_voice_apis(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         voice_center = (FRONTEND_ROOT / "voice-library.html").read_text(
@@ -81,6 +110,128 @@ class NewFrontendTest(unittest.TestCase):
         self.assertEqual(voice_center.count('id="voice-task-list"'), 1)
         self.assertNotIn("actions.google.com/sounds", workspace)
         self.assertNotIn("actions.google.com/sounds", voice_center)
+        self.assertNotIn("startCloningProgress", voice_center)
+        self.assertNotIn("addNewVoiceCard", voice_center)
+        self.assertNotIn("setInterval", voice_center)
+        self.assertNotIn("原型体验", voice_center)
+        self.assertNotIn("原型演示", voice_center)
+        self.assertNotIn("原型演示", workspace)
+        self.assertIn(
+            "['wait', 'failed'].includes(row.getAttribute('data-voice-status'))",
+            workspace,
+        )
+        self.assertNotIn(
+            "['idle', 'failed'].includes(row.getAttribute('data-voice-status'))",
+            workspace,
+        )
+
+    def test_complete_video_flow_keeps_internal_stages_out_of_user_results(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/composition/generate", workspace)
+        self.assertIn("/composition/status", workspace)
+        self.assertIn("/composition/retry", workspace)
+        self.assertIn("data-preview-video-url", workspace)
+        self.assertIn("/base-video", workspace)
+        self.assertIn("生成完整成片", workspace)
+        self.assertIn("/postprocess/generate", workspace)
+        self.assertIn("/postprocess-settings", workspace)
+        self.assertIn("continueFinalGenerationAfterComposition", workspace)
+        self.assertIn("setFinalGenerationPhase('composition')", workspace)
+        self.assertIn("startGlobalPostprocess(true)", workspace)
+        self.assertIn("data-final-video-url", workspace)
+        self.assertIn("video-preview-time", workspace)
+        self.assertIn("loadedmetadata", workspace)
+        self.assertIn("updatePreviewCaption", workspace)
+        self.assertIn("playPreviewBgm", workspace)
+        self.assertIn("previewBgmAudio.volume = 0.3", workspace)
+        self.assertIn("/postprocess/export", workspace)
+        self.assertIn("下载 MP4 才会按需启动剪映并导出一次", workspace)
+        self.assertIn("displayedHeight * 0.2", workspace)
+        self.assertIn("caption.style.whiteSpace = 'nowrap'", workspace)
+        self.assertIn("aspect-ratio: 9 / 16", workspace)
+        self.assertIn('id="video-preview-play-button"', workspace)
+        self.assertIn("button.classList.toggle('opacity-0', isPlaying)", workspace)
+        self.assertIn("/original-materials", workspace)
+        self.assertIn("/current-video?filename=", workspace)
+        self.assertIn("body: file", workspace)
+        self.assertNotIn("URL.createObjectURL(file)", workspace)
+        self.assertNotIn("00:12 / 00:28", workspace)
+        self.assertNotIn("data-base-video-url", workspace)
+        self.assertNotIn("下载基础视频", workspace)
+        self.assertNotIn("基础视频", workspace)
+        self.assertNotIn("生成字幕 + BGM 成片", workspace)
+        self.assertNotIn("重试只会重新执行本地剪映后处理", workspace)
+        self.assertIn("new FontFace(family, buffer).load()", workspace)
+        self.assertIn("fetch(font.preview_url", workspace)
+        self.assertIn("applySelectedFontPreview", workspace)
+        self.assertIn("allowed_actions?.retry_postprocess", workspace)
+        self.assertIn("重新生成新的声音版本", workspace)
+        self.assertIn("pendingRows.length ? pendingRows", workspace)
+        self.assertNotIn("4B 使用现有 BGM 素材库", workspace)
+        self.assertNotIn("4B 字幕为单行", workspace)
+        self.assertNotIn("先生成 4A 基础视频", workspace)
+        self.assertNotIn("4A：使用最新图片", workspace)
+        self.assertNotIn("4B：单行字幕", workspace)
+        self.assertNotIn("images.unsplash.com", workspace)
+        self.assertNotIn("selectAlignment", workspace)
+        self.assertNotIn("modal-stroke-color", workspace)
+        self.assertIn("Boolean(activeProject?.allowed_actions?.generate_variants)", workspace)
+        self.assertNotIn("正在重新合成第 ${rowId} 条带 BGM 和字幕的视频", workspace)
+
+    def test_module_6_uses_real_variant_api_and_manual_three_frame_cover(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("/variants/generate", workspace)
+        self.assertIn("/variants/status", workspace)
+        self.assertIn("/variants/supplement", workspace)
+        self.assertIn("/variants/retry", workspace)
+        self.assertIn("method: 'DELETE'", workspace)
+        self.assertIn("最大差异优先", workspace)
+        self.assertIn('id="variant-use-stickers" type="checkbox" checked', workspace)
+        self.assertIn("封面固定 3 帧", workspace)
+        self.assertIn("frame_count: 3", workspace)
+        self.assertIn("frame_time_seconds: 0", workspace)
+        self.assertIn("字幕字体和背景音乐继承模块 4B", workspace)
+        self.assertIn("D:\\auto\\月.日\\当日批次号", workspace)
+        self.assertIn('aspect-[9/16]', workspace)
+        self.assertIn("/script-source?filename=", workspace)
+        self.assertNotIn("variant-use-subtitles", workspace)
+        self.assertNotIn("setTimeout(() => {\n                    markRowVariantsReady", workspace)
+        paths = {route.path for route in create_app(self.settings).routes}
+        self.assertIn("/api/new/variant-options", paths)
+        self.assertIn("/api/new/projects/{project_id}/variant-settings", paths)
+        self.assertIn("/api/new/projects/{project_id}/variants/generate", paths)
+        self.assertIn("/api/new/projects/{project_id}/variants/status", paths)
+        self.assertIn("/api/new/projects/{project_id}/items/{item_id}/variants/supplement", paths)
+        self.assertIn("/api/new/projects/{project_id}/items/{item_id}/variants/retry", paths)
+        self.assertIn("/api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}", paths)
+
+    def test_module_7_gallery_uses_real_results_and_portrait_preview(self) -> None:
+        index = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        gallery = (FRONTEND_ROOT / "gallery.html").read_text(encoding="utf-8")
+        self.assertIn("/api/new/gallery", gallery)
+        self.assertIn("/api/new/gallery/downloads", gallery)
+        self.assertIn("/api/new/gallery/deletions", gallery)
+        self.assertIn('id="delete-button"', gallery)
+        self.assertIn("删除选中", gallery)
+        self.assertIn("deleteSelected", gallery)
+        self.assertIn("portrait-frame", gallery)
+        self.assertIn("defaultPostprocessFontIdentity", index)
+        self.assertIn("[overflow-wrap:anywhere]", index)
+        self.assertIn("table-fixed", index)
+        self.assertIn("select-all-global", gallery)
+        self.assertIn("全选本批次", gallery)
+        self.assertIn("batch-modal-grid", gallery)
+        self.assertIn("renderBatchOverview", gallery)
+        self.assertIn("9 / 16", gallery)
+        self.assertIn("filter-project", gallery)
+        self.assertIn("filter-date", gallery)
+        self.assertIn("filter-batch", gallery)
+        self.assertNotIn("images.unsplash.com", gallery)
+        self.assertNotIn("Video Card 1", gallery)
+        paths = {route.path for route in create_app(self.settings).routes}
+        self.assertIn("/api/new/gallery", paths)
+        self.assertIn("/api/new/gallery/downloads", paths)
+        self.assertIn("/api/new/gallery/deletions", paths)
 
     def test_new_pages_require_login_but_login_and_logo_are_public(self) -> None:
         with TestClient(create_app(self.settings)) as client:

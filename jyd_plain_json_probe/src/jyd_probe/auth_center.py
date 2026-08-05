@@ -133,6 +133,33 @@ class AuthCenterClient:
             raise AuthCenterError("数字人网站返回了错误的任务")
         return data
 
+    def start_workbench_composition(
+        self,
+        token: str,
+        batch_id: str,
+        item_id: str,
+        *,
+        idempotency_key: str,
+        image_asset_id: str,
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/audio-batches/{batch_id}/items/{item_id}/composition",
+            {
+                "access_token": token,
+                "cost_confirmed": True,
+                "idempotency_key": idempotency_key,
+                "image_asset_id": image_asset_id,
+            },
+        )
+
+    def retry_workbench_composition(
+        self, token: str, item_id: str
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/tasks/{item_id}/composition/retry",
+            {"access_token": token, "cost_confirmed": True},
+        )
+
     def list_workbench_voices(self, token: str) -> dict[str, Any]:
         return self._post("/api/workbench/voices", {"access_token": token})
 
@@ -318,6 +345,23 @@ class AuthCenterClient:
             failure_message="下载数字人视频失败",
         )
 
+    def download_workbench_base_video(
+        self,
+        token: str,
+        item_id: str,
+        target: Path,
+        *,
+        max_bytes: int,
+    ) -> int:
+        return self._download(
+            f"/api/workbench/tasks/{item_id}/base-video",
+            token,
+            target,
+            max_bytes=max_bytes,
+            timeout_seconds=300.0,
+            failure_message="下载基础视频失败",
+        )
+
     def _download(
         self,
         path: str,
@@ -454,4 +498,16 @@ class AuthCenterClient:
             data = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             return ""
-        return str(data.get("detail", "")) if isinstance(data, dict) else ""
+        if not isinstance(data, dict):
+            return ""
+        detail = str(data.get("detail", "")).strip()
+        errors = data.get("errors")
+        if isinstance(errors, list):
+            messages = [
+                str(item.get("message") or "").strip()
+                for item in errors
+                if isinstance(item, dict) and str(item.get("message") or "").strip()
+            ]
+            if messages:
+                return f"{detail}：{'；'.join(messages)}" if detail else "；".join(messages)
+        return detail

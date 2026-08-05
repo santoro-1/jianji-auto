@@ -109,11 +109,64 @@ class CoverApplyTest(unittest.TestCase):
 
         changed = apply_cover_timeline_offset(data, config)
 
-        self.assertEqual(changed, 3)
+        self.assertEqual(changed, 5)
         self.assertEqual(data["duration"], 2_050_000)
-        self.assertEqual(data["tracks"][0]["segments"][0]["target_timerange"]["start"], 50_000)
+        self.assertEqual(
+            [
+                segment["target_timerange"]["start"]
+                for segment in data["tracks"][0]["segments"]
+            ],
+            [0, 50_000],
+        )
         self.assertEqual(data["tracks"][1]["segments"][0]["target_timerange"]["start"], 300_000)
-        self.assertEqual(data["tracks"][2]["segments"][0]["target_timerange"]["start"], 0)
+        self.assertEqual(len(data["tracks"]), 2)
+
+    def test_cover_precedes_video_audio_captions_effects_and_stickers(self) -> None:
+        track_types = ["video", "audio", "text", "effect", "sticker"]
+        data = {
+            "duration": 1_000_000,
+            "tracks": [
+                {
+                    "name": f"content-{track_type}",
+                    "type": track_type,
+                    "segments": [{"target_timerange": {"start": 0, "duration": 1_000_000}}],
+                }
+                for track_type in track_types
+            ]
+            + [
+                {
+                    "name": f"{COVER_TRACK_PREFIX}frame",
+                    "type": "video",
+                    "segments": [{"target_timerange": {"start": 0, "duration": 100_000}}],
+                }
+            ],
+        }
+
+        changed = apply_cover_timeline_offset(
+            data, CoverConfig(frame_time_us=0, fps=30, frame_count=3)
+        )
+
+        self.assertEqual(changed, len(track_types) + 3)
+        self.assertEqual(data["duration"], 1_100_000)
+        self.assertEqual(
+            [
+                segment["target_timerange"]["start"]
+                for segment in data["tracks"][0]["segments"]
+            ],
+            [0, 100_000],
+        )
+        self.assertTrue(
+            all(
+                track["segments"][0]["target_timerange"]["start"] == 100_000
+                for track in data["tracks"][1:]
+            )
+        )
+        self.assertFalse(
+            any(
+                str(track.get("name", "")).startswith(f"{COVER_TRACK_PREFIX}frame")
+                for track in data["tracks"]
+            )
+        )
 
     def test_builds_three_frame_cover_from_job_config(self) -> None:
         cover = _build_cover(

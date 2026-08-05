@@ -194,7 +194,54 @@ def apply_cover_timeline_offset(data: dict[str, Any], config: CoverConfig) -> in
         data["duration"] = int(data.get("duration", 0) or 0) + duration
     except (TypeError, ValueError):
         data["duration"] = duration
-    return changed + 1
+    changed += 1
+
+    # pyJianYingDraft needs a temporary video track while the cover material is
+    # created. The final draft must place that segment at the beginning of the
+    # first/main video track; leaving the temporary track in place makes the
+    # cover an overlay instead of a true prefix clip.
+    if isinstance(tracks, list):
+        cover_track = next(
+            (
+                track
+                for track in tracks
+                if isinstance(track, dict)
+                and track.get("type") == "video"
+                and str(track.get("name", "")) == f"{COVER_TRACK_PREFIX}frame"
+            ),
+            None,
+        )
+        main_track = next(
+            (
+                track
+                for track in tracks
+                if isinstance(track, dict)
+                and track.get("type") == "video"
+                and not str(track.get("name", "")).startswith(COVER_TRACK_PREFIX)
+            ),
+            None,
+        )
+        if cover_track is None:
+            raise RuntimeError("封面临时视频轨道不存在，无法插入主轨道")
+        if main_track is None:
+            raise RuntimeError("主视频轨道不存在，无法把封面插到视频之前")
+        cover_segments = cover_track.get("segments", [])
+        main_segments = main_track.get("segments", [])
+        if not isinstance(cover_segments, list) or not cover_segments:
+            raise RuntimeError("封面临时视频轨道没有可插入的片段")
+        if not isinstance(main_segments, list):
+            raise RuntimeError("主视频轨道片段格式无效")
+        main_segments.extend(cover_segments)
+        main_segments.sort(
+            key=lambda segment: int(
+                (segment.get("target_timerange") or {}).get("start", 0) or 0
+            )
+            if isinstance(segment, dict)
+            else 0
+        )
+        tracks.remove(cover_track)
+        changed += len(cover_segments) + 1
+    return changed
 
 
 def rebase_cover_material_paths(

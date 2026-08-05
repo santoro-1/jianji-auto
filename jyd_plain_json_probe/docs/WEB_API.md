@@ -18,7 +18,8 @@ HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登
 限制在 `/app/new` 内，避免开放跳转。静态页面不得保存数字人访问令牌。
 
 模块 1 只负责登录、会话、导航和退出；脚本/图片与声音分别已由模块 2、3 接入。画面
-合成、变体和成果库仍按后续模块接入，不能把原型定时器的显示结果当成后端业务状态。
+合成、变体和成果库已分别由模块 4、6、7 接入真实状态；不能把界面定时器的显示结果当成
+后端业务状态。
 
 ## 脚本与图片输入（模块 2）
 
@@ -120,12 +121,148 @@ save 接口成功并进入 `SAVED` 后，才会生成自定义音色卡。新卡
 项目声音生成请求至少包含 `default_voice_asset_id`、`idempotency_key` 和
 `cost_confirmed: true`，可用 `voice_assignments` 按脚本行覆盖默认音色。工作台按音色
 分组创建数字人音频批次，保存批次/批次行关联和 `AUDIO_GENERATE` 操作。后端只处理
-`DRAFT` 或 `AUDIO_FAILED` 行，不重新生成已就绪音频。
+`DRAFT` 或 `AUDIO_FAILED` 行，不重新生成已就绪音频。此阶段只提交脚本、音色和语音
+参数，不上传或校验项目图片；内部远程幂等键使用固定长度哈希。
 
 数字人音频批次强制启用审核门：MiniMax 成功后停在 `AWAITING_REVIEW`，不会自动创建
 RunningHub 画面任务。状态同步会把 MP3 下载到工作台项目目录，创建新的 `audio` 素材
 版本并切换当前音频，同时保存 MiniMax 原始 cue 为 `raw_cues` 和第一版
 `render_cues`。重新生成显式确认可能再次计费，旧音频版本不覆盖、不删除。
+
+## 新版画面接口（模块 4A）
+
+模块 4A 只负责 RunningHub 生成结果和基础视频，不执行字幕/BGM 剪映后处理：
+
+```text
+POST /api/new/projects/{project_id}/composition/generate
+GET  /api/new/projects/{project_id}/composition/status
+POST /api/new/projects/{project_id}/items/{item_id}/composition/retry
+GET  /api/new/projects/{project_id}/items/{item_id}/base-video
+```
+
+启动请求必须包含 `cost_confirmed: true` 和 `idempotency_key`。工作台根据模块 3 保存的
+`digital_human_audio_item` 关联调用数字人后端；前端不取得数字人令牌，也不直接访问
+数字人服务。启动时工作台才读取并上传该行当前图片，由数字人后端把图片绑定到已审核
+音频后创建 RunningHub 子任务。脚本行状态按真实任务依次使用 `COMPOSITION_QUEUED`、
+`DIGITAL_HUMAN_RUNNING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
+`COMPOSITION_FAILED`。
+
+所有成功 RunningHub 分段下载为 `original_video_segment` 历史素材。标准化/拼接结果保存
+为当前 `base_video`，不会设置 `composition_video`，因此 `generate_variants` 仍为
+`false`。重试只处理数字人后端判定为失败的 RunningHub/下载任务或拼接阶段；成功的
+付费子任务不重做。
+
+音频就绪后到 4A 启动前，脚本行仍返回 `replace_image: true`，项目仍可管理图片池和
+重新映射；4A 读取提交瞬间的当前图片。进入 `COMPOSITION_QUEUED` 后图片锁定。
+
+## 新版字幕与 BGM 接口（模块 4B）
+
+4B 普通预览只使用工作台后端，不访问 RunningHub，也不启动剪映：
+
+```text
+GET  /api/new/postprocess/options
+POST /api/new/projects/{project_id}/postprocess/generate
+GET  /api/new/projects/{project_id}/postprocess/status
+POST /api/new/projects/{project_id}/items/{item_id}/postprocess/export
+GET  /api/new/projects/{project_id}/items/{item_id}/current-video
+PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
+```
+
+`options` 返回实际可读的真实字体文件和现有 BGM 素材。启动请求示例：
+
+```json
+{
+  "idempotency_key": "postprocess-20260804-001",
+  "items": [
+    {
+      "item_id": "项目脚本行 ID",
+      "font_identity": "system:simhei.ttf",
+      "bgm_identity": "",
+      "text_color": "#FFFFFF"
+    }
+  ]
+}
+```
+
+字幕使用 MiniMax `raw_cues` 派生 `render_cues`：固定居中且禁止换行、最大宽度 `0.8`、
+`transform_y=-0.6`（距底部约 20%）。过长文本按真实字体 glyph advance 测量后，
+在原始 cue 时间范围内拆成连续字幕；原始 cues 不修改。缺字、字体损坏或无法满足安全
+宽度/最短显示时长时返回 `409`，并把该行字幕标记为 `REVIEW_REQUIRED`，不会静默提交
+溢出字幕。BGM 可不选；选择时使用音乐库 identity、音量 0.3，并适配视频时长。
+
+`postprocess/generate` 成功后登记 `PREVIEW_READY` 配方并进入 `COMPOSITION_READY`；浏览器
+直接用内部 `base-video`、render cues、真实字体和 BGM 完整预览，不会创建
+`composition_video`，也不要求剪映保持打开。只有用户明确下载普通成片时才调用单行
+`postprocess/export`，此时复用现有剪映队列并只导出一次。后续变体应直接把基础视频和
+同一配方放进变体任务一次导出，不以前述普通成片作为必需中间产物。接口不会自动创建变体。
+
+`postprocess-settings` 可在非运行状态随时保存字体、BGM 和文字颜色。如果该行已有最终
+成片，修改后只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
+随后重新生成浏览器预览配方即可，不会自动再次导出。
+同理，脚本或音色修改会保留旧音频/视频但回到 `DRAFT`，图片修改会保留当前音频但回到
+`AUDIO_READY`。再次调用 `/audio/generate` 时，若没有待生成/失败行，则为全部已完成行
+创建新的声音版本，而不是返回“当前项目没有待生成声音”。
+
+## 新版视频预览与上传替换接口（模块 5）
+
+```text
+GET  /api/new/projects/{project_id}/items/{item_id}/current-video
+POST /api/new/projects/{project_id}/items/{item_id}/current-video?filename=人工粗剪.mp4
+GET  /api/new/projects/{project_id}/items/{item_id}/original-materials
+```
+
+`POST current-video` 使用视频文件原始二进制作为请求体，支持 MP4、MOV、AVI、MKV、WebM，
+大小上限沿用 `JYD_MAX_VIDEO_UPLOAD_BYTES`。接口要求脚本行的
+`allowed_actions.upload_current_video=true`，成功后创建 `source_type=user_upload` 的
+`composition_video` 素材版本并切换当前视频；旧自动成片、基础视频和 RunningHub 原始
+片段不覆盖、不删除。上传文件视为用户已处理好的完整视频，原 MiniMax cues 继续保留，
+但字幕绑定和状态改为 `INVALIDATED`。
+
+`original-materials` 不改变任何项目状态。只有一个 RunningHub 原始片段时直接返回 MP4；
+存在多个片段时按 `video_index` 排序，返回包含全部片段及 `片段顺序清单.json` 的一次性
+ZIP。浏览器预览固定使用 9:16 容器；播放时隐藏中央按钮，点击画面可以暂停。
+
+## 新版变体接口（模块 6）
+
+```text
+GET    /api/new/variant-options
+PATCH  /api/new/projects/{project_id}/variant-settings
+POST   /api/new/projects/{project_id}/variants/generate
+GET    /api/new/projects/{project_id}/variants/status
+POST   /api/new/projects/{project_id}/items/{item_id}/variants/supplement
+POST   /api/new/projects/{project_id}/items/{item_id}/variants/retry
+GET    /api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}
+DELETE /api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}
+```
+
+`variant-settings` 在不清空任何音视频素材的前提下保存全局规则、逐行数量和手动封面，刷新
+页面后可恢复。首次生成必须一次提交项目全部脚本行，每行包含 `count` 和手动 `cover`。单批总任务数上限
+500。推荐配置默认启用视频特效、全屏贴纸、`1:1`/`3:4` 裁剪、四种背景色、人物居中和
+四角贴纸；后端用加权最大差异算法选择不重复组合。字幕字体和 BGM 只从 4B 冻结配方读取，
+接口不接受它们作为变体维度。封面强制 `frame_count=3`，封面图段插入主视频轨道首段而非
+额外视频轨道；所有正文轨道从封面结束后开始。
+状态接口将完成文件登记为 `variant_video`；批次允许部分成功，`retry` 只重提失败签名，
+`supplement` 避开已有成功签名，删除一个素材不会删除同一行的其他变体。
+
+## 新版成果库接口（模块 7）
+
+```text
+PUT  /api/new/projects/{project_id}/script-source?filename=原始脚本.xlsx
+GET  /api/new/gallery?project_id=&date_key=&batch_no=&status=&keyword=
+POST /api/new/gallery/downloads
+POST /api/new/gallery/deletions
+```
+
+前端解析并保存项目后，用原始二进制调用 `script-source`；后端再次校验 XLSX/CSV 内容与当前
+项目脚本完全一致后保存源文件版本。每次变体生成、补充或失败重试分配独立成果批次，默认
+直接输出到 `D:\auto\月.日\批次号`，并在提交剪映前把最新源脚本复制到该目录。日期目录
+按本机时区生成且不补零，例如 8 月 5 日为 `8.5`；批次号由数据库按日全局递增。
+
+成果查询返回项目编号、脚本行、源视频素材 ID、成果批次、剪映批次、状态、时间、文件存在
+状态和鉴权下载地址。查询、ZIP 打包与批量删除都校验数字人账号归属；物理目录仅保存文件，
+不承担权限和业务状态。`deletions` 接收 `{"asset_ids": [...]}`，最多 500 个；服务端先在
+同一事务中校验整批素材归属，任一 ID 不存在或无权访问时不会部分删除。模块 6 弹窗及成果库
+视频容器均固定为 `9:16`。
 
 ## 新版统一项目接口（模块 0）
 
@@ -173,6 +310,7 @@ PATCH /api/new/projects/{project_id}/items/{item_id}
   "status": "DRAFT",
   "outputs": {
     "audio": null,
+    "base_video": null,
     "composition_video": null,
     "original_video_segments": [],
     "variants": []
@@ -202,14 +340,15 @@ PATCH /api/new/projects/{project_id}/items/{item_id}
 DRAFT
 PROCESSING
 AUDIO_READY
+BASE_VIDEO_READY
 COMPOSITION_READY
 VARIANT_READY
 PARTIAL_FAILED
 FAILED
 ```
 
-声音、RunningHub、拼接、字幕/BGM 和变体的详细阶段以后保存在脚本行与
-`operations` 中。项目只做聚合，不复制第三方状态机。
+声音、RunningHub、拼接、字幕/BGM 和变体的详细阶段保存在脚本行与 `operations` 中。
+项目只做聚合，不复制第三方状态机。
 
 项目和脚本行都返回 `allowed_actions`，包括输入编辑、音频生成/重试/下载、画面合成、
 当前视频下载、原始片段下载、上传当前视频和生成/重试变体。按钮是否可用必须以该
@@ -626,6 +765,16 @@ POST /api/captions/preview
 8. 第二次取消勾选，并确保剪映已打开且停在草稿首页，再测试真实 MP4 导出。
 
 网页始终以上传 MP4 为入口。文字样式来自 `text_style_library/*.json`，特效来自 `effect_library/*.json`；模板库管理只负责扫描、解密和导入剪映草稿。未勾选模板时从 MP4 新建草稿，勾选模板时先替换模板视频，再统一添加字幕、BGM 和特效。
+
+## 新版工作台默认字幕与成果库选择（2026-08-05）
+
+- `GET /api/new/postprocess/options` 除 `fonts`、`bgm` 和 `caption` 外返回
+  `default_font_identity`。当前优先返回 `resource_id:7244518590332801592`
+  (`DouyinSansBold`)；该素材不可用时才回退到其他可用真实字体。
+- `POST /api/new/gallery/downloads` 的请求结构仍是 `{"asset_ids": [...]}`。前端总全选和
+  批次全选只负责收集当前账号、当前筛选结果内实际可用视频的素材 ID，不扩大下载权限。
+- `POST /api/new/gallery/deletions` 使用相同请求结构，执行不可撤销的成果记录与受管导出文件
+  删除。前端必须二次确认，后端必须整批校验账号归属并保持数据库原子性。
 ## 服务器草稿扫描
 
 网页模板库区域会调用 `/api/drafts` 扫描服务器电脑上的剪映草稿目录：

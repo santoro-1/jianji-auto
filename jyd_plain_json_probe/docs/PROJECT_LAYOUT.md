@@ -24,9 +24,14 @@ src/jyd_probe/                    共用核心代码
 src/jyd_probe/project_store.py    新版统一项目、素材版本、操作和外部批次关联
 src/jyd_probe/project_inputs.py   新版两列 Excel/CSV 解析及输入图片校验
 src/jyd_probe/project_audio.py    新版音色校验、数字人音频批次编排、状态同步和版本落盘
+src/jyd_probe/project_variants.py 新版变体配方冻结、最大差异组合、剪映批次和失败重试
+src/jyd_probe/project_results.py  新版成果批次目录、原始脚本归档和真实成果查询
 tests/test_new_frontend.py        新版路由、登录会话、退出和安全返回测试
 tests/test_project_inputs.py      脚本导入、图片池、映射策略和刷新恢复测试
 tests/test_project_audio.py       声音批次、项目关联、音频落盘和时间戳回流测试
+tests/test_project_video.py       当前视频上传替换、原始片段直下/ZIP 和字幕失效测试
+tests/test_project_variants.py    模块 6 差异算法、配方冻结、补充生成和失败重试测试
+tests/test_project_results.py     模块 7 日期/批次归档、筛选、权限和 ZIP 下载测试
 tests/                            自动测试
 examples/                         job.json 示例
 tools/library/                    音乐、字体、贴纸、花字等提取工具

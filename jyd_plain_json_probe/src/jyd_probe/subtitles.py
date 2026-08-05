@@ -282,6 +282,7 @@ def add_captions_to_draft(
     transform_x: float | None = None,
     transform_y: float | None = None,
     line_max_width: float | None = None,
+    single_line: bool = False,
     font_id: str = "",
     font_path: str = "",
     font_title: str = "",
@@ -310,7 +311,7 @@ def add_captions_to_draft(
         text_style=draft.TextStyle(
             size=default_size,
             align=1,
-            auto_wrapping=True,
+            auto_wrapping=not single_line,
             max_line_width=default_width,
         ),
         clip_settings=draft.ClipSettings(

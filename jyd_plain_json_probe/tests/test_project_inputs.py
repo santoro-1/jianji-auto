@@ -125,6 +125,30 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertIn("两列", extra_column.json()["detail"])
             self.assertEqual(client.get("/api/new/projects").json()["total"], 0)
 
+    def test_original_script_file_is_retained_for_result_batch_archives(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            content = "任务ID,脚本内容\n1,第一条口播\n2,第二条口播\n".encode("utf-8-sig")
+            preview = client.post(
+                "/api/new/script-imports/preview?filename=原始脚本.csv", content=content
+            ).json()
+            project = client.post(
+                "/api/new/projects",
+                json={"name": "脚本归档", "items": preview["rows"]},
+            ).json()
+
+            saved = client.put(
+                f"/api/new/projects/{project['project_id']}/script-source?filename=原始脚本.csv",
+                content=content,
+            )
+
+            self.assertEqual(saved.status_code, 200, saved.text)
+            source = saved.json()["script_source"]
+            self.assertEqual(source["filename"], "原始脚本.csv")
+            self.assertEqual(Path(source["managed_path"]).read_bytes(), content)
+            self.assertEqual(len(saved.json()["script_source_history"]), 1)
+
     def test_image_pool_count_loop_manual_replace_and_refresh_are_persistent(self) -> None:
         login_patch, verify_patch = self._client_context()
         with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:

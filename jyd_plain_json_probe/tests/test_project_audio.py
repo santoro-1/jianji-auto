@@ -82,6 +82,148 @@ class ProjectAudioApiTest(unittest.TestCase):
         self.assertEqual([link["external_id"] for link in batches], ["new-batch"])
         self.assertEqual(list(items), ["new-item"])
 
+    def test_pending_audio_operation_resumes_after_application_restart(self) -> None:
+        user = {"user_id": "restart-user", "username": "tester", "enabled": True}
+        voices = [
+            {
+                "voice_asset_id": "official-voice-1",
+                "provider_voice_id": "Chinese (Mandarin)_Reliable_Executive",
+                "name": "沉稳男声",
+                "source": "official",
+                "method": "system",
+                "selectable": True,
+            }
+        ]
+        remote = {
+            "batch_id": "restart-batch-1",
+            "items": [
+                {
+                    "item_id": "restart-item-1",
+                    "row_key": "1",
+                    "status": "PENDING",
+                    "generation_version": 1,
+                    "audio_ready": False,
+                    "captions": None,
+                }
+            ],
+        }
+        create_calls: list[dict] = []
+
+        def fake_login(_self, _username, _password):
+            return {"access_token": "restart-token", "user": user}
+
+        def fake_verify(_self, _token):
+            return user
+
+        def fake_create(_self, _token, payload):
+            create_calls.append(payload)
+            return dict(remote)
+
+        def fake_status(_self, _token, _batch_id):
+            return dict(remote)
+
+        def fake_download(_self, _token, _batch_id, _item_id, target, *, max_bytes):
+            del max_bytes
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"ID3-restarted-audio")
+            return len(b"ID3-restarted-audio")
+
+        patches = [
+            patch("jyd_probe.auth_center.AuthCenterClient.login", new=fake_login),
+            patch("jyd_probe.auth_center.AuthCenterClient.verify", new=fake_verify),
+            patch(
+                "jyd_probe.auth_center.AuthCenterClient.list_workbench_voices",
+                return_value={"voices": voices, "creation_tasks": []},
+            ),
+            patch(
+                "jyd_probe.auth_center.AuthCenterClient.create_workbench_audio_batch",
+                new=fake_create,
+            ),
+            patch(
+                "jyd_probe.auth_center.AuthCenterClient.get_workbench_audio_batch",
+                new=fake_status,
+            ),
+            patch(
+                "jyd_probe.auth_center.AuthCenterClient.download_workbench_audio",
+                new=fake_download,
+            ),
+        ]
+        for active in patches:
+            active.start()
+            self.addCleanup(active.stop)
+
+        with TestClient(create_app(self.settings)) as first_client:
+            first_client.post(
+                "/api/auth/login",
+                json={"username": "tester", "password": "pass123"},
+            )
+            project = first_client.post(
+                "/api/new/projects",
+                json={
+                    "name": "重启恢复测试",
+                    "items": [{"row_key": "1", "script_text": "进程重启后继续。"}],
+                },
+            ).json()
+            project_id = project["project_id"]
+            image = first_client.post(
+                f"/api/new/projects/{project_id}/images?filename=person.png",
+                content=PNG_1X1,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            self.assertEqual(image.status_code, 201, image.text)
+            mapped = first_client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={"strategy": "loop", "reuse_count": 1},
+            )
+            self.assertEqual(mapped.status_code, 200, mapped.text)
+            started = first_client.post(
+                f"/api/new/projects/{project_id}/audio/generate",
+                json={
+                    "default_voice_asset_id": "official-voice-1",
+                    "voice_assignments": {},
+                    "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
+                    "idempotency_key": "restart-audio-request-1",
+                    "cost_confirmed": True,
+                },
+            )
+            self.assertEqual(started.status_code, 200, started.text)
+            self.assertEqual(started.json()["items"][0]["status"], "AUDIO_QUEUED")
+
+        remote["items"] = [
+            {
+                "item_id": "restart-item-1",
+                "row_key": "1",
+                "status": "AWAITING_REVIEW",
+                "generation_version": 1,
+                "audio_ready": True,
+                "captions": {
+                    "source": "minimax_timestamps",
+                    "cues": [
+                        {
+                            "start_us": 0,
+                            "end_us": 1_400_000,
+                            "duration_us": 1_400_000,
+                            "text": "进程重启后继续。",
+                        }
+                    ],
+                },
+            }
+        ]
+
+        with TestClient(create_app(self.settings)) as restarted_client:
+            restarted_client.post(
+                "/api/auth/login",
+                json={"username": "tester", "password": "pass123"},
+            )
+            resumed = restarted_client.get(
+                f"/api/new/projects/{project_id}/audio/status"
+            )
+            self.assertEqual(resumed.status_code, 200, resumed.text)
+            row = resumed.json()["items"][0]
+            self.assertEqual(row["status"], "AUDIO_READY")
+            self.assertEqual(row["subtitles"]["source"], "minimax_timestamps")
+            self.assertEqual(len(create_calls), 1)
+
     def test_saved_voice_can_be_applied_to_every_project_item(self) -> None:
         user = {"user_id": "voice-user", "username": "tester", "enabled": True}
         voices = [
@@ -232,6 +374,7 @@ class ProjectAudioApiTest(unittest.TestCase):
                 ],
             }
         }
+        created_payloads: list[dict] = []
 
         def fake_login(_self, _username, _password):
             return {"access_token": "voice-token", "user": user}
@@ -240,12 +383,18 @@ class ProjectAudioApiTest(unittest.TestCase):
             return user
 
         def fake_upload(_self, _token, _path, *, kind, filename):
-            self.assertEqual(kind, "image")
-            return {"asset_id": "remote-image-1", "original_name": filename}
+            raise AssertionError(
+                f"声音生成不应上传 {kind} 素材：{filename}"
+            )
 
         def fake_create(_self, _token, payload):
+            created_payloads.append(payload)
             self.assertTrue(payload["speech_options"]["costConfirmed"])
             self.assertEqual(payload["speech_options"]["voiceAssetId"], "official-voice-1")
+            self.assertNotIn("asset_ids", payload)
+            self.assertLessEqual(len(payload["request_key"]), 64)
+            self.assertNotIn("image_asset_id", payload["rows"][0])
+            self.assertNotIn("image_file", payload["rows"][0])
             return remote_status["value"]
 
         def fake_status(_self, _token, _batch_id):
@@ -322,7 +471,10 @@ class ProjectAudioApiTest(unittest.TestCase):
                     "default_voice_asset_id": "official-voice-1",
                     "voice_assignments": {},
                     "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
-                    "idempotency_key": "audio-generation-1",
+                    "idempotency_key": (
+                        "audio-3af55f2822e3478bbf3f15905af89f36-"
+                        "1722770000000"
+                    ),
                     "cost_confirmed": True,
                 },
             )
@@ -363,11 +515,89 @@ class ProjectAudioApiTest(unittest.TestCase):
             self.assertEqual(row["outputs"]["audio"]["version"], 1)
             self.assertEqual(row["subtitles"]["source"], "minimax_timestamps")
             self.assertEqual(row["subtitles"]["raw_cues"][0]["end_us"], 1_200_000)
+            self.assertTrue(row["allowed_actions"]["replace_image"])
+            replacement = client.post(
+                f"/api/new/projects/{project_id}/images?filename=after-audio.png",
+                content=PNG_1X1,
+                headers={"Content-Type": "application/octet-stream"},
+            )
+            self.assertEqual(replacement.status_code, 201, replacement.text)
+            replaced = client.put(
+                f"/api/new/projects/{project_id}/items/{row['item_id']}/image",
+                json={"image_id": replacement.json()["image_id"]},
+            )
+            self.assertEqual(replaced.status_code, 200, replaced.text)
+            replaced_row = replaced.json()["items"][0]
+            self.assertEqual(replaced_row["status"], "AUDIO_READY")
+            self.assertEqual(
+                replaced_row["inputs"]["image"]["external_ref"]["input_image_id"],
+                replacement.json()["image_id"],
+            )
+            self.assertEqual(replaced_row["outputs"]["audio"]["asset_id"], row["outputs"]["audio"]["asset_id"])
             audio = client.get(
                 f"/api/new/projects/{project_id}/items/{row['item_id']}/audio"
             )
             self.assertEqual(audio.status_code, 200)
             self.assertEqual(audio.content, b"ID3-real-audio")
+
+            remote_status["value"] = {
+                "batch_id": "remote-batch-2",
+                "items": [
+                    {
+                        "item_id": "remote-item-2",
+                        "row_key": "1",
+                        "status": "PENDING",
+                        "generation_version": 1,
+                        "audio_ready": False,
+                        "captions": None,
+                    }
+                ],
+            }
+            regenerated = client.post(
+                f"/api/new/projects/{project_id}/audio/generate",
+                json={
+                    "default_voice_asset_id": "official-voice-1",
+                    "voice_assignments": {},
+                    "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
+                    "idempotency_key": "audio-new-version-2",
+                    "cost_confirmed": True,
+                },
+            )
+            self.assertEqual(regenerated.status_code, 200, regenerated.text)
+            regenerating_row = regenerated.json()["items"][0]
+            self.assertEqual(regenerating_row["status"], "AUDIO_QUEUED")
+            self.assertIsNone(regenerating_row["outputs"]["audio"])
+            self.assertEqual(len(regenerating_row["asset_history"]["audio"]), 1)
+            self.assertEqual(len(created_payloads), 2)
+
+            remote_status["value"] = {
+                "batch_id": "remote-batch-2",
+                "items": [
+                    {
+                        "item_id": "remote-item-2",
+                        "row_key": "1",
+                        "status": "AWAITING_REVIEW",
+                        "generation_version": 1,
+                        "audio_ready": True,
+                        "captions": {
+                            "source": "minimax_timestamps",
+                            "cues": [
+                                {
+                                    "start_us": 0,
+                                    "end_us": 1_300_000,
+                                    "duration_us": 1_300_000,
+                                    "text": "第二版。",
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+            second_sync = client.get(f"/api/new/projects/{project_id}/audio/status")
+            self.assertEqual(second_sync.status_code, 200, second_sync.text)
+            second_row = second_sync.json()["items"][0]
+            self.assertEqual(second_row["outputs"]["audio"]["version"], 2)
+            self.assertEqual(len(second_row["asset_history"]["audio"]), 2)
 
 
 if __name__ == "__main__":

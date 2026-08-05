@@ -152,6 +152,80 @@
         tr.table-data-row.bg-emerald-950\/10 td.sticky {
             background-color: #0c1a16 !important;
         }
+        #workspace-grid.input-sidebar-collapsed #input-sidebar {
+            display: none;
+        }
+        #workspace-grid.input-sidebar-collapsed #processing-area {
+            grid-column: 1 / -1;
+        }
+        .table-header-input,
+        .table-header-output {
+            --table-header-accent: #818cf8;
+            position: relative;
+            color: #e5e7eb;
+            border-right: 1px solid rgba(148, 163, 184, 0.14);
+            box-shadow: inset 0 3px 0 var(--table-header-accent);
+        }
+        .table-header-input {
+            background: linear-gradient(180deg, #1d2438 0%, #171d2e 100%);
+        }
+        .table-header-output {
+            --table-header-accent: #2dd4bf;
+            background: linear-gradient(180deg, #123236 0%, #10282d 100%);
+            color: #ecfeff;
+        }
+        .table-header-input::before,
+        .table-header-output::before {
+            content: "";
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            margin-right: 7px;
+            border-radius: 999px;
+            background: var(--table-header-accent);
+            vertical-align: 1px;
+        }
+        .table-header-input::before {
+            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.12);
+        }
+        .table-header-output::before {
+            box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
+        }
+        .table-header-input:last-child,
+        .table-header-output:last-child {
+            border-right: 0;
+        }
+        .table-flow-legend {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #94a3b8;
+            font-size: 10px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .table-flow-legend-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.68);
+        }
+        .table-flow-legend-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+        }
+        .table-flow-legend-dot.input {
+            background: #818cf8;
+            box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.12);
+        }
+        .table-flow-legend-dot.output {
+            background: #2dd4bf;
+            box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
+        }
     </style>
 </head>
 <body class="font-sans antialiased h-screen overflow-hidden flex flex-col">
@@ -180,14 +254,11 @@
                 <div>
                     <label class="block text-xs font-semibold text-gray-400 mb-2">字幕字体</label>
                     <select id="modal-font" class="w-full bg-slate-900/60 border border-slate-700/60 rounded-lg px-3 py-2 text-sm text-gray-200 border-glow">
-                        <option value="Noto Sans SC">思源黑体 (默认)</option>
-                        <option value="Arial">系统无衬线 (Arial)</option>
-                        <option value="Georgia">经典衬线 (Georgia)</option>
-                        <option value="Outfit">潮流活力 (Outfit)</option>
+                        <option value="">正在加载真实字体...</option>
                     </select>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-2 gap-4 items-end">
                     <div>
                         <label class="block text-xs font-semibold text-gray-400 mb-2">文字颜色</label>
                         <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-1">
@@ -195,28 +266,14 @@
                             <span class="text-xs text-gray-300 font-mono" id="modal-text-color-hex">#FFFFFF</span>
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-400 mb-2">描边/底色</label>
-                        <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700/60 rounded-lg p-1">
-                            <input type="color" id="modal-stroke-color" value="#000000" class="w-8 h-8 rounded border-0 bg-transparent cursor-pointer">
-                            <span class="text-xs text-gray-300 font-mono" id="modal-stroke-color-hex">#000000</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 mb-2">字幕对齐方式</label>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button class="py-1.5 px-3 bg-slate-800 rounded-lg text-xs font-medium border border-slate-700/60 hover:bg-slate-700 transition-colors text-white" onclick="selectAlignment('left')">居左</button>
-                        <button class="py-1.5 px-3 bg-brand-primary/30 rounded-lg text-xs font-medium border border-brand-primary/50 hover:bg-brand-primary/40 transition-colors text-white" onclick="selectAlignment('center')">居中</button>
-                        <button class="py-1.5 px-3 bg-slate-800 rounded-lg text-xs font-medium border border-slate-700/60 hover:bg-slate-700 transition-colors text-white" onclick="selectAlignment('right')">居右</button>
+                    <div class="rounded-lg border border-slate-700/60 bg-slate-900/60 px-3 py-2 text-[10px] leading-5 text-gray-400">
+                        固定居中 · 单行 · 最大宽度 80% · 距底部约 20%
                     </div>
                 </div>
 
                 <div>
                     <label class="block text-xs font-semibold text-gray-400 mb-2">字幕预览</label>
-                    <div class="bg-black/85 rounded-xl h-24 flex items-center justify-center relative overflow-hidden border border-white/5">
-                        <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80" class="absolute inset-0 w-full h-full object-cover opacity-45" alt="Preview Background">
+                    <div class="bg-gradient-to-br from-slate-800 via-slate-950 to-indigo-950 rounded-xl h-24 flex items-center justify-center relative overflow-hidden border border-white/5">
                         <p id="modal-preview-text" class="relative z-10 text-white font-bold text-center tracking-wider text-sm px-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" style="font-family: 'Noto Sans SC'; color: #ffffff; text-shadow: 0 0 4px #000000;">用于字体测试观看</p>
                     </div>
                 </div>
@@ -244,12 +301,12 @@
                 <section>
                     <div class="flex items-center justify-between mb-2">
                         <h4 class="text-xs font-bold text-gray-300">变体生成方式</h4>
-                        <span class="text-[10px] text-gray-500">不设置时自动使用后端算法</span>
+                        <span class="text-[10px] text-gray-500">默认采用最大差异优先算法</span>
                     </div>
                     <div class="grid sm:grid-cols-2 gap-3">
                         <label class="cursor-pointer rounded-xl border border-slate-700/70 bg-slate-950/40 p-3 flex items-start gap-3 hover:border-brand-primary/50 transition-colors">
-                            <input type="radio" name="variant-mode" value="default" checked onchange="updateVariantModeUI()" class="mt-0.5 accent-indigo-500">
-                            <span><strong class="block text-xs text-white">使用默认算法</strong><small class="block text-[10px] text-gray-400 mt-1 leading-relaxed">不提交自定义后期参数，由后端决定特效与画面变化。</small></span>
+                            <input type="radio" name="variant-mode" value="recommended" checked onchange="updateVariantModeUI()" class="mt-0.5 accent-indigo-500">
+                            <span><strong class="block text-xs text-white">推荐：最大差异优先</strong><small class="block text-[10px] text-gray-400 mt-1 leading-relaxed">同时拉开裁剪、颜色、视频特效、全屏贴纸和四角贴纸的组合距离。</small></span>
                         </label>
                         <label class="cursor-pointer rounded-xl border border-slate-700/70 bg-slate-950/40 p-3 flex items-start gap-3 hover:border-brand-primary/50 transition-colors">
                             <input type="radio" name="variant-mode" value="custom" onchange="updateVariantModeUI()" class="mt-0.5 accent-indigo-500">
@@ -280,7 +337,7 @@
 
                     <label class="rounded-xl border border-slate-800 bg-slate-950/35 p-4 flex items-center justify-between gap-4 cursor-pointer">
                         <span><strong class="block text-xs text-white">全屏贴纸</strong><small class="block text-[10px] text-gray-400 mt-1">每个变体自动轮换一个可用的全屏装饰贴纸</small></span>
-                        <input id="variant-use-stickers" type="checkbox" class="w-4 h-4 accent-indigo-500">
+                        <input id="variant-use-stickers" type="checkbox" checked class="w-4 h-4 accent-indigo-500">
                     </label>
 
                     <div class="rounded-xl border border-slate-800 bg-slate-950/35 p-4">
@@ -314,13 +371,11 @@
                         </div>
                     </div>
 
-                    <label class="rounded-xl border border-slate-800 bg-slate-950/35 p-4 flex items-center justify-between gap-4 cursor-pointer">
-                        <span><strong class="block text-xs text-white">字幕样式参与变化</strong><small class="block text-[10px] text-gray-400 mt-1">使用可用字体和字幕样式生成不同版本</small></span>
-                        <input id="variant-use-subtitles" type="checkbox" class="w-4 h-4 accent-indigo-500">
-                    </label>
-
                     <p class="text-[10px] text-amber-300/80 bg-amber-500/5 border border-amber-500/15 rounded-lg px-3 py-2"><i class="fa-solid fa-circle-info mr-1"></i>自定义变体至少需要两个核心变化；画面变化套装本身包含多个核心变化。</p>
                 </section>
+
+                <p class="text-[10px] text-cyan-200/80 bg-cyan-500/5 border border-cyan-500/15 rounded-lg px-3 py-2"><i class="fa-solid fa-lock mr-1"></i>字幕字体和背景音乐继承模块 4B 的成片配方，不参与变体轮换。封面仍在表格中逐行手动设置，并固定插入最前 3 帧。</p>
+                <p class="text-[10px] text-emerald-200/80 bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2"><i class="fa-solid fa-folder-tree mr-1"></i>成果自动导出到 <span class="font-mono text-emerald-300">D:\auto\月.日\当日批次号</span>；原始脚本表格会先归档到同一目录。</p>
 
             </div>
 
@@ -328,6 +383,24 @@
                 <button type="button" onclick="closeVariantModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
                 <button type="button" onclick="saveVariantSettings()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white shadow-lg shadow-brand-primary/20 transition-all">保存设置</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Manual cover editor for one variant row -->
+    <div id="variant-cover-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300 px-4" role="dialog" aria-modal="true" aria-labelledby="variant-cover-title">
+        <div class="glass-panel-heavy w-full max-w-xl p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div><h3 id="variant-cover-title" class="text-lg font-bold text-white">手动设置封面</h3><p class="text-[11px] text-gray-400 mt-1">使用图生数字人的第一帧，封面固定 3 帧；标题内容由你逐行填写。</p></div>
+                <button type="button" onclick="closeVariantCoverModal()" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <video id="variant-cover-video" class="block mx-auto w-full max-w-[280px] aspect-[9/16] object-contain rounded-xl bg-black mb-4" muted preload="metadata"></video>
+            <div class="grid sm:grid-cols-2 gap-3">
+                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">主标题</span><input id="variant-cover-line-1" maxlength="60" class="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-white"></label>
+                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">副标题</span><input id="variant-cover-line-2" maxlength="60" class="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-white"></label>
+                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">主标题颜色</span><input id="variant-cover-color-1" type="color" value="#ffffff" class="w-full h-9 rounded-lg bg-slate-900 border border-slate-700"></label>
+                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">副标题颜色</span><input id="variant-cover-color-2" type="color" value="#ffffff" class="w-full h-9 rounded-lg bg-slate-900 border border-slate-700"></label>
+            </div>
+            <div class="mt-5 flex justify-end gap-3"><button type="button" onclick="closeVariantCoverModal()" class="px-4 py-2 rounded-xl text-xs bg-slate-800 text-gray-300">取消</button><button type="button" onclick="saveRowVariantCover()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary text-white">保存封面</button></div>
         </div>
     </div>
 
@@ -391,36 +464,37 @@
     <!-- Video Preview Modal (For Generated Videos) -->
     <div id="video-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300">
         <div class="w-full max-w-4xl px-4 transform scale-95 transition-all duration-300 flex flex-col items-center">
-            <div class="w-full flex justify-end mb-3">
+            <div class="flex justify-end mb-3" style="width: min(40.5vh, 427.5px, calc(100vw - 2rem));">
                 <button onclick="closeVideoModal()" class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-white hover:bg-white/20 transition-all shadow-lg"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div class="glass-panel w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl relative aspect-video bg-slate-950 flex items-center justify-center">
+            <div id="video-preview-frame" class="glass-panel max-w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl relative bg-slate-950 flex items-center justify-center cursor-pointer" style="width: min(40.5vh, 427.5px, calc(100vw - 2rem)); aspect-ratio: 9 / 16;" onclick="handleVideoFrameClick(event)">
                 <!-- Mock Video Player -->
-                <div class="absolute inset-0 flex items-center justify-center bg-cover bg-center" id="video-preview-bg" style="background-image: url('https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1200&auto=format&fit=crop&q=80');">
+                <div class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 via-slate-950 to-indigo-950" id="video-preview-bg">
                     <div class="absolute inset-0 bg-black/30"></div>
                 </div>
                 <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
+                <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap overflow-hidden" aria-live="off"></div>
                 
                 <!-- Inner play controller simulation -->
                 <div class="relative z-10 w-full h-full flex flex-col justify-between p-6">
                     <div class="flex items-center justify-between">
-                        <span id="video-modal-file-name" class="px-3 py-1 bg-brand-primary/20 backdrop-blur-md border border-brand-primary/40 rounded-full text-xs text-brand-accent font-semibold tracking-wide"><i class="fa-solid fa-circle-play mr-1"></i> 合成预览.mp4</span>
-                        <span id="video-modal-id" class="text-xs text-gray-400 font-mono">ID: 001</span>
+                        <span id="video-modal-file-name" class="max-w-[70%] truncate px-3 py-1 bg-brand-primary/20 backdrop-blur-md border border-brand-primary/40 rounded-full text-xs text-brand-accent font-semibold tracking-wide"><i class="fa-solid fa-circle-play mr-1"></i> 合成预览.mp4</span>
+                        <span id="video-modal-id" class="shrink-0 text-[10px] text-gray-400 font-mono">ID: 001</span>
                     </div>
 
                     <!-- Centered Large Play Button -->
-                    <button class="self-center w-16 h-16 rounded-full bg-brand-primary/95 text-white flex items-center justify-center text-2xl hover:scale-110 shadow-lg shadow-brand-primary/40 transition-transform cursor-pointer" onclick="togglePlayPreviewVideo(this)">
+                    <button id="video-preview-play-button" class="self-center w-16 h-16 rounded-full bg-brand-primary/95 text-white flex items-center justify-center text-2xl hover:scale-110 shadow-lg shadow-brand-primary/40 transition-all cursor-pointer" onclick="togglePlayPreviewVideo(this)">
                         <i class="fa-solid fa-play ml-1"></i>
                     </button>
 
                     <!-- Player bottom bar -->
                     <div class="bg-slate-900/80 backdrop-blur-md rounded-xl p-3 border border-white/5 flex flex-col gap-2">
                         <!-- Progress bar -->
-                        <div class="w-full h-1 bg-white/20 rounded-full relative cursor-pointer overflow-hidden">
-                            <div class="absolute top-0 left-0 h-full w-[45%] bg-gradient-to-r from-brand-primary to-brand-accent rounded-full"></div>
+                        <div id="video-preview-progress-track" class="w-full h-1 bg-white/20 rounded-full relative cursor-pointer overflow-hidden">
+                            <div id="video-preview-progress" class="absolute top-0 left-0 h-full bg-gradient-to-r from-brand-primary to-brand-accent rounded-full" style="width: 0%"></div>
                         </div>
                         <div class="flex items-center justify-between text-[11px] text-gray-400">
-                            <span>00:12 / 00:28</span>
+                            <span id="video-preview-time">00:00 / 00:00</span>
                             <div class="flex items-center gap-3">
                                 <i class="fa-solid fa-volume-high cursor-pointer hover:text-white transition-colors"></i>
                                 <i class="fa-solid fa-expand cursor-pointer hover:text-white transition-colors"></i>
@@ -433,7 +507,7 @@
                 <button type="button" onclick="downloadPreviewVideo()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-download mr-2"></i>下载此视频</button>
                 <button type="button" onclick="downloadOriginalMaterial()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-box-archive mr-2"></i>下载原始素材</button>
                 <button type="button" onclick="triggerLocalVideoUpload()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-sm font-semibold text-white shadow-lg transition-all"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>上传本地视频</button>
-                <input id="local-video-input" type="file" accept="video/*" class="hidden" onchange="handleLocalVideoUpload(event)">
+                <input id="local-video-input" type="file" accept=".mp4,.mov,.avi,.mkv,.webm,video/*" class="hidden" onchange="handleLocalVideoUpload(event)">
             </div>
         </div>
     </div>
@@ -465,8 +539,8 @@
                     <span class="text-[10px] text-brand-accent font-semibold">今日算力额度：无限</span>
                 </div>
                 <div class="relative">
-                    <div onclick="toggleUserDropdown(event)" class="w-9 h-9 rounded-full border border-brand-primary/40 p-0.5 shadow-lg shadow-brand-primary/10 cursor-pointer hover:border-brand-accent transition-colors">
-                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" alt="Avatar" class="w-full h-full rounded-full object-cover">
+                    <div onclick="toggleUserDropdown(event)" class="w-9 h-9 rounded-full border border-brand-primary/40 bg-gradient-to-br from-brand-primary/40 to-brand-secondary/40 p-0.5 shadow-lg shadow-brand-primary/10 cursor-pointer hover:border-brand-accent transition-colors flex items-center justify-center" aria-label="打开账号菜单">
+                        <i class="fa-solid fa-user text-sm text-white"></i>
                     </div>
                     <!-- User dropdown menu -->
                     <div id="user-dropdown" class="hidden absolute right-0 mt-2.5 w-40 glass-panel-heavy rounded-xl border border-white/10 shadow-2xl overflow-hidden py-1 z-50">
@@ -474,7 +548,7 @@
                             <p class="text-xs font-bold text-white">VIP 创作者</p>
                             <p class="current-user-name text-[9px] text-gray-400 mt-0.5">当前账号</p>
                         </div>
-                        <a href="#" onclick="showToast('系统设置', '原型演示暂不支持修改个人信息。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
+                        <a href="#" onclick="showToast('账户设置', '账户资料请在数字人网站的账号中心管理。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
                         <a href="/app/new/login" onclick="handleLogout(event)" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"><i class="fa-solid fa-right-from-bracket"></i>退出登录</a>
                     </div>
                 </div>
@@ -484,10 +558,10 @@
 
     <!-- Main Workspace Container -->
     <main class="flex-1 max-w-[1680px] w-full mx-auto px-4 py-4 md:py-6 overflow-hidden page-fade-in flex flex-col">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1 overflow-hidden h-full">
+        <div id="workspace-grid" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1 overflow-hidden h-full">
             
             <!-- Left Side Control Panel (Inputs) with local scrolling -->
-            <section class="lg:col-span-4 flex flex-col gap-5 h-full overflow-y-auto pr-2 narrow-scrollbar pb-6">
+            <section id="input-sidebar" class="lg:col-span-4 flex flex-col gap-5 h-full overflow-y-auto pr-2 narrow-scrollbar pb-6">
                 
                 <!-- Input 1: Excel/CSV Import -->
                 <div class="glass-panel rounded-2xl p-5 shadow-lg">
@@ -533,7 +607,7 @@
                         <!-- Preset 1 (Mini card) -->
                         <div class="voice-card border border-brand-primary/40 bg-brand-primary/5 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-brand-primary/80 transition-all" onclick="selectDefaultVoice(0, this)">
                             <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-cover bg-center shadow shadow-brand-primary/20 flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop&q=80');"></div>
+                                <div class="w-8 h-8 rounded-full bg-brand-primary/20 shadow shadow-brand-primary/20 flex-shrink-0 flex items-center justify-center"><i class="fa-solid fa-microphone text-brand-accent text-xs"></i></div>
                                 <div class="min-w-0">
                                     <h4 class="font-bold text-[11px] text-white truncate">陈老师 - 磁性男解说</h4>
                                     <p class="text-[9px] text-gray-400 mt-0.5 truncate max-w-[170px]">浑厚磁性，适合科普解说</p>
@@ -547,7 +621,7 @@
                         <!-- Preset 2 (Mini card) -->
                         <div class="voice-card border border-slate-800/80 bg-slate-950/20 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-slate-700 transition-all" onclick="selectDefaultVoice(1, this)">
                             <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-cover bg-center shadow flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&auto=format&fit=crop&q=80');"></div>
+                                <div class="w-8 h-8 rounded-full bg-pink-500/15 shadow flex-shrink-0 flex items-center justify-center"><i class="fa-solid fa-microphone text-pink-300 text-xs"></i></div>
                                 <div class="min-w-0">
                                     <h4 class="font-bold text-[11px] text-white truncate">小雅 - 温柔情感女声</h4>
                                     <p class="text-[9px] text-gray-400 mt-0.5 truncate max-w-[170px]">温柔深情，适合情感语录</p>
@@ -561,7 +635,7 @@
                         <!-- Preset 3 (Mini card) -->
                         <div class="voice-card border border-slate-800/80 bg-slate-950/20 rounded-lg p-2 flex items-center justify-between cursor-pointer hover:border-slate-700 transition-all" onclick="selectDefaultVoice(2, this)">
                             <div class="flex items-center gap-2">
-                                <div class="w-8 h-8 rounded-full bg-cover bg-center shadow flex-shrink-0" style="background-image: url('https://images.unsplash.com/photo-1628157582853-a796fa650a6a?w=80&auto=format&fit=crop&q=80');"></div>
+                                <div class="w-8 h-8 rounded-full bg-amber-500/15 shadow flex-shrink-0 flex items-center justify-center"><i class="fa-solid fa-microphone text-amber-300 text-xs"></i></div>
                                 <div class="min-w-0">
                                     <h4 class="font-bold text-[11px] text-white truncate">阿聪 - 活力带货主播</h4>
                                     <p class="text-[9px] text-gray-400 mt-0.5 truncate max-w-[170px]">高亢热情，适合带货广告</p>
@@ -632,19 +706,29 @@
             </section>
 
             <!-- Right Side Generation Processing Area (Table) -->
-            <section class="lg:col-span-8 flex flex-col h-full overflow-hidden">
+            <section id="processing-area" class="lg:col-span-8 flex flex-col h-full overflow-hidden">
                 
                 <!-- Main processing table panel -->
                 <div class="glass-panel rounded-2xl overflow-hidden shadow-xl flex flex-col h-full">
                     <div class="px-5 py-4 border-b border-white/5 bg-slate-900/20 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div>
-                            <h2 class="font-extrabold text-sm text-white flex items-center gap-2">
-                                <i class="fa-solid fa-list-check text-brand-accent"></i>
-                                视频片段生成配置表
-                            </h2>
-                            <p class="text-[10px] text-gray-400 mt-0.5">请校对脚本与配音素材。您可以双击编辑内容，对生成的克隆语音进行预览或重试。</p>
+                        <div class="flex items-start gap-3">
+                            <button id="input-sidebar-toggle" type="button" onclick="toggleInputSidebar()" aria-controls="input-sidebar" aria-expanded="true" title="收起左侧输入设置" class="shrink-0 min-w-[88px] px-3 py-2 rounded-lg border border-slate-700/70 bg-slate-950/70 hover:bg-slate-800 text-[10px] font-bold text-gray-200 transition-colors flex items-center justify-center gap-2">
+                                <i id="input-sidebar-toggle-icon" class="fa-solid fa-angles-left text-brand-accent"></i>
+                                <span id="input-sidebar-toggle-label">收起输入</span>
+                            </button>
+                            <div>
+                                <h2 class="font-extrabold text-sm text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-list-check text-brand-accent"></i>
+                                    视频片段生成配置表
+                                </h2>
+                                <p class="text-[10px] text-gray-400 mt-0.5">请校对脚本与配音素材。您可以双击编辑内容，对生成的克隆语音进行预览或重试。</p>
+                            </div>
                         </div>
                         <div class="flex items-center gap-2">
+                            <div class="table-flow-legend" aria-label="表头类型说明">
+                                <span class="table-flow-legend-item"><i class="table-flow-legend-dot input" aria-hidden="true"></i>输入 / 操作</span>
+                                <span class="table-flow-legend-item"><i class="table-flow-legend-dot output" aria-hidden="true"></i>生成结果</span>
+                            </div>
                             <span class="px-2.5 py-1 bg-slate-950/80 border border-slate-800 rounded-full text-[10px] text-gray-400 font-semibold" id="table-row-count-badge">共 0 行数据</span>
                             <button onclick="simulateAddRow()" class="px-3 py-1 bg-brand-primary/20 hover:bg-brand-primary/30 border border-brand-primary/40 rounded-lg text-xs font-semibold text-brand-accent transition-all">
                                 <i class="fa-solid fa-plus mr-1"></i>添加分段
@@ -654,21 +738,21 @@
 
                     <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
                     <div class="overflow-x-auto relative flex-1 overflow-y-auto">
-                        <table class="w-full border-collapse text-left text-xs min-w-[1420px]">
-                            <thead class="bg-slate-950/50 text-[10px] text-gray-400 font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
+                        <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1420px]">
+                            <thead class="text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
-                                    <th scope="col" class="px-4 py-3.5 w-16 text-center whitespace-nowrap">任务ID</th>
-                                    <th scope="col" class="px-4 py-3.5 min-w-[200px]">脚本内容 (双击可修改)</th>
-                                    <th scope="col" class="px-4 py-3.5 w-32">声音原型</th>
-                                    <th scope="col" class="px-4 py-3.5 w-36">声音预览</th>
-                                    <th scope="col" class="px-4 py-3.5 w-24 text-center">生成控制</th>
-                                    <th scope="col" class="px-4 py-3.5 w-16 text-center">画面</th>
-                                    <th scope="col" class="px-4 py-3.5 w-28 text-center">背景音乐</th>
-                                    <th scope="col" class="px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
-                                    <th scope="col" class="px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>
-                                    <th scope="col" class="px-4 py-3.5 w-24 text-center whitespace-nowrap">变体数</th>
-                                    <th scope="col" class="px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>
-                                    <th scope="col" class="px-4 py-3.5 w-28 text-center whitespace-nowrap">再补 X 个变体</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center whitespace-nowrap">任务ID</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-[280px] max-w-[280px]">脚本内容 (双击可修改)</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-32">声音原型</th>
+                                    <th scope="col" class="table-header-output px-4 py-3.5 w-36">声音预览</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center">生成控制</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center">画面</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center">背景音乐</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
+                                    <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">变体数</th>
+                                    <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">再补 X 个变体</th>
                                 </tr>
                             </thead>
                             <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
@@ -693,7 +777,7 @@
                                 <span class="text-xs font-bold text-white">总合成功率估计:</span>
                                 <span class="text-xs font-bold text-brand-accent">100% (极佳)</span>
                             </div>
-                            <p class="text-[10px] text-gray-400">我们将采用多核并发渲染，预计完成整体合成需要 15 秒</p>
+                            <p id="composition-stage-hint" class="text-[10px] text-gray-400">修改配置会保留历史版本，并从受影响的步骤重新生成</p>
                         </div>
 
                         <div class="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
@@ -709,9 +793,9 @@
                                 <span>生成声音预览</span>
                             </button>
                             
-                            <button id="btn-start-composition" disabled onclick="startGlobalComposition()" class="w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
+                            <button id="btn-start-composition" disabled onclick="startGlobalFinalVideoGeneration()" class="w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
-                                开始画面合成
+                                生成完整成片
                             </button>
 
                             <div class="flex w-full md:w-auto" aria-label="生成变体控制">
@@ -739,13 +823,13 @@
         let voicePreferences = {};
 
         // BGM Options
-        const bgmPresets = [
-            { id: 'none', name: '无背景音乐' },
-            { id: 'tech', name: '科技感电子 (默认)' },
-            { id: 'lofi', name: '舒缓 Lofi 暖流' },
-            { id: 'epic', name: '宏伟史诗交响' },
-            { id: 'happy', name: '轻快活力节奏' }
-        ];
+        let bgmPresets = [{ id: 'none', name: '无背景音乐', previewUrl: '' }];
+        let fontPresets = [];
+        let defaultPostprocessFontIdentity = '';
+        const fontPreviewLoads = new Map();
+        let fontPreviewSequence = 0;
+        let fontPreviewRequestToken = 0;
+        let rowPostprocessConfigs = {};
 
         // System State
         let activeProject = null;
@@ -758,20 +842,72 @@
         let selectedActiveVoiceAudio = null; // Storing active voice playing node
         let editingRowId = null; // Row id for subtitle custom formatting
         let globalVariantConfig = null;
+        const inputSidebarStorageKey = 'new-workbench-input-sidebar-collapsed';
+
+        function setInputSidebarCollapsed(collapsed, persist = true) {
+            const grid = document.getElementById('workspace-grid');
+            const toggle = document.getElementById('input-sidebar-toggle');
+            const icon = document.getElementById('input-sidebar-toggle-icon');
+            const label = document.getElementById('input-sidebar-toggle-label');
+            if (!grid || !toggle || !icon || !label) return;
+            grid.classList.toggle('input-sidebar-collapsed', collapsed);
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            toggle.title = collapsed ? '展开左侧输入设置' : '收起左侧输入设置';
+            icon.className = collapsed
+                ? 'fa-solid fa-angles-right text-brand-accent'
+                : 'fa-solid fa-angles-left text-brand-accent';
+            label.textContent = collapsed ? '展开输入' : '收起输入';
+            if (persist) {
+                try {
+                    localStorage.setItem(inputSidebarStorageKey, collapsed ? 'true' : 'false');
+                } catch (_error) {
+                    // Storage can be disabled without blocking the workspace.
+                }
+            }
+        }
+
+        function toggleInputSidebar() {
+            const grid = document.getElementById('workspace-grid');
+            setInputSidebarCollapsed(!grid?.classList.contains('input-sidebar-collapsed'));
+        }
+        let rowVariantCovers = {};
+        let editingVariantCoverRow = null;
         let isGeneratingAllVoicePreviews = false;
         let isGeneratingVariants = false;
         let audioStatusPollTimer = null;
+        let compositionStatusPollTimer = null;
+        let postprocessStatusPollTimer = null;
+        let variantStatusPollTimer = null;
+        let isGeneratingComposition = false;
+        let isGeneratingPostprocess = false;
+        let isStartingPostprocess = false;
+        let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
         let pendingConfirmAction = null;
         let activeImageRow = null;
         let activeVideoPreviewRow = null;
+        let pendingPreviewDownloadItemId = null;
+        const previewBgmAudio = new Audio();
+        previewBgmAudio.preload = 'metadata';
+        previewBgmAudio.loop = true;
+        previewBgmAudio.volume = 0.3;
+
+        function setFinalGenerationPhase(phase) {
+            finalGenerationPhase = phase || null;
+            if (!activeProject?.project_id) return;
+            const key = `final-generation-phase:${activeProject.project_id}`;
+            try {
+                if (finalGenerationPhase) sessionStorage.setItem(key, finalGenerationPhase);
+                else sessionStorage.removeItem(key);
+            } catch (_) {
+                // The in-memory phase still keeps the current page's one-click flow intact.
+            }
+        }
 
         // Global Subtitle Template Config
         let subtitleGlobalConfig = {
-            font: 'Noto Sans SC',
-            textColor: '#ffffff',
-            strokeColor: '#000000',
-            align: 'center'
+            font: '',
+            textColor: '#ffffff'
         };
 
         function escapeHtml(value) {
@@ -853,6 +989,72 @@
             return result;
         }
 
+        async function loadPostprocessOptions() {
+            const options = await workspaceApi('/api/new/postprocess/options');
+            fontPresets = Array.isArray(options.fonts) ? options.fonts : [];
+            defaultPostprocessFontIdentity = options.default_font_identity || fontPresets[0]?.identity || '';
+            bgmPresets = [
+                { id: 'none', name: '无背景音乐', previewUrl: '' },
+                ...(Array.isArray(options.bgm) ? options.bgm.map((item) => ({
+                    id: item.identity,
+                    name: item.name || item.identity,
+                    previewUrl: item.preview_url || ''
+                })) : [])
+            ];
+            const select = document.getElementById('modal-font');
+            select.innerHTML = fontPresets.length
+                ? fontPresets.map((font, index) => `<option value="${escapeHtml(font.identity)}">${escapeHtml(font.name || `字体 ${index + 1}`)}</option>`).join('')
+                : '<option value="">没有可用的真实字体文件</option>';
+            if (defaultPostprocessFontIdentity) select.value = defaultPostprocessFontIdentity;
+            if (fontPresets.length && !subtitleGlobalConfig.font) {
+                subtitleGlobalConfig.font = defaultPostprocessFontIdentity;
+            }
+        }
+
+        function loadFontPreview(font) {
+            const identity = String(font?.identity || '');
+            if (!identity || !font?.preview_url || typeof FontFace !== 'function') {
+                return Promise.reject(new Error('字体预览文件不可用'));
+            }
+            if (!fontPreviewLoads.has(identity)) {
+                const family = `JYDPreviewFont${++fontPreviewSequence}`;
+                const load = fetch(font.preview_url, { credentials: 'same-origin' })
+                    .then((response) => {
+                        if (!response.ok) throw new Error(`字体文件加载失败（HTTP ${response.status}）`);
+                        return response.arrayBuffer();
+                    })
+                    .then((buffer) => new FontFace(family, buffer).load())
+                    .then((face) => {
+                        document.fonts.add(face);
+                        return family;
+                    })
+                    .catch((error) => {
+                        fontPreviewLoads.delete(identity);
+                        throw error;
+                    });
+                fontPreviewLoads.set(identity, load);
+            }
+            return fontPreviewLoads.get(identity);
+        }
+
+        async function applySelectedFontPreview(identity) {
+            const previewText = document.getElementById('modal-preview-text');
+            const font = fontPresets.find((item) => item.identity === identity);
+            const requestToken = ++fontPreviewRequestToken;
+            previewText.style.fontFamily = 'sans-serif';
+            previewText.removeAttribute('data-font-preview');
+            if (!font) return;
+            try {
+                const family = await loadFontPreview(font);
+                if (requestToken !== fontPreviewRequestToken) return;
+                previewText.style.fontFamily = `"${family}", sans-serif`;
+                previewText.setAttribute('data-font-preview', font.identity);
+            } catch (error) {
+                if (requestToken !== fontPreviewRequestToken) return;
+                showToast('字体预览加载失败', error.message, 'warning');
+            }
+        }
+
         function projectNameFromFile(filename) {
             const stem = String(filename || '').replace(/\.(xlsx|csv)$/i, '').trim();
             return (stem || `数字人项目_${new Date().toLocaleDateString('zh-CN')}`).slice(0, 120);
@@ -860,23 +1062,74 @@
 
         function syncProjectInputs(project) {
             activeProject = project;
+            const savedFinalPhase = sessionStorage.getItem(`final-generation-phase:${project?.project_id || ''}`);
+            if (savedFinalPhase === 'composition' || savedFinalPhase === 'postprocess') {
+                finalGenerationPhase = savedFinalPhase;
+            }
             const mapping = project?.settings?.image_mapping || {};
+            const savedVariantSettings = project?.settings?.variants || null;
+            globalVariantConfig = savedVariantSettings?.mode === 'custom' ? {
+                mode: 'custom',
+                useEffects: savedVariantSettings.useEffects ?? savedVariantSettings.use_effects ?? true,
+                useStickers: savedVariantSettings.useStickers ?? savedVariantSettings.use_fullscreen_stickers ?? true,
+                useVisual: savedVariantSettings.useVisual ?? savedVariantSettings.use_visual ?? true,
+                mirrorInterval: savedVariantSettings.mirrorInterval ?? savedVariantSettings.mirror_interval_seconds ?? 10,
+                ratios: savedVariantSettings.ratios ?? savedVariantSettings.crop_ratios ?? ['1:1', '3:4'],
+                faceCentered: savedVariantSettings.faceCentered ?? savedVariantSettings.face_centered ?? true,
+                cornerStickers: savedVariantSettings.cornerStickers ?? savedVariantSettings.use_corner_stickers ?? true,
+                colors: savedVariantSettings.colors ?? savedVariantSettings.background_colors ?? ['#000000', '#ffffff', '#dbe7f5', '#f2dddd']
+            } : null;
             currentStrategy = mapping.strategy === 'loop' ? 'loop' : 'count';
             currentStrategyCountVal = Number(mapping.reuse_count) || 1;
             document.getElementById('strategy-count-val').value = currentStrategyCountVal;
             document.getElementById('strategy-count').checked = currentStrategy === 'count';
             document.getElementById('strategy-loop').checked = currentStrategy === 'loop';
             uploadedImages = Array.isArray(project?.input_images) ? project.input_images : [];
-            uploadedScripts = Array.isArray(project?.items) ? project.items.map((item) => ({
+            const variantOperations = Array.isArray(project?.operations)
+                ? project.operations.filter(operation => ['VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY'].includes(operation.operation_type))
+                : [];
+            uploadedScripts = Array.isArray(project?.items) ? project.items.map((item) => {
+                const variantOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
+                if (variantOperation?.payload?.cover) rowVariantCovers[item.item_id] = variantOperation.payload.cover;
+                else if (item.settings?.variants?.cover) rowVariantCovers[item.item_id] = item.settings.variants.cover;
+                return ({
                 id: item.item_id,
                 rowKey: item.row_key,
                 text: item.script_text,
                 image: item.inputs?.image || null,
                 voiceAssetId: item.settings?.voice_asset_id || null,
-                voiceStatus: item.status,
+                postprocessSettings: item.settings?.postprocess || {},
+                variantSettings: item.settings?.variants || {},
+                voiceStatus: item.outputs?.audio ? 'AUDIO_READY' : item.status,
+                compositionStatus: item.status,
                 audio: item.outputs?.audio || null,
+                baseVideo: item.outputs?.base_video || null,
+                compositionVideo: item.outputs?.composition_video || null,
+                originalVideoSegments: item.outputs?.original_video_segments || [],
+                variants: item.outputs?.variants || [],
+                variantOperation,
+                subtitles: item.subtitles || {},
                 allowedActions: item.allowed_actions || {}
-            })) : [];
+                });
+            }) : [];
+            uploadedScripts.forEach((item) => {
+                const style = item.subtitles?.style || {};
+                const saved = item.postprocessSettings || {};
+                rowPostprocessConfigs[item.id] = {
+                    bgmIdentity: saved.bgm_identity !== undefined
+                        ? (saved.bgm_identity || 'none')
+                        : (rowPostprocessConfigs[item.id]?.bgmIdentity || 'none'),
+                    fontIdentity: saved.font_identity
+                        || rowPostprocessConfigs[item.id]?.fontIdentity
+                        || style.font_id
+                        || defaultPostprocessFontIdentity
+                        || '',
+                    textColor: saved.text_color
+                        || rowPostprocessConfigs[item.id]?.textColor
+                        || style.text_color
+                        || '#ffffff'
+                };
+            });
 
             const hasScripts = uploadedScripts.length > 0;
             document.getElementById('excel-dropzone').classList.toggle('hidden', hasScripts);
@@ -888,12 +1141,19 @@
             renderImageThumbnails();
             updateTableLayout();
             scheduleAudioStatusPoll();
+            scheduleCompositionStatusPoll();
+            schedulePostprocessStatusPoll();
+            scheduleVariantStatusPoll();
         }
 
         async function initializeProjectInputs() {
             try {
-                const listing = await workspaceApi('/api/new/projects?limit=1&offset=0');
-                if (listing.projects?.length) syncProjectInputs(listing.projects[0]);
+                const requestedProjectId = new URLSearchParams(window.location.search).get('project');
+                const listing = await workspaceApi(`/api/new/projects?limit=${requestedProjectId ? 100 : 1}&offset=0`);
+                const project = requestedProjectId
+                    ? listing.projects?.find(item => item.project_id === requestedProjectId)
+                    : listing.projects?.[0];
+                if (project) syncProjectInputs(project);
             } catch (error) {
                 showToast('项目加载失败', error.message, 'warning');
             }
@@ -939,7 +1199,13 @@
                         body: JSON.stringify({ strategy: currentStrategy, reuse_count: currentStrategyCountVal })
                     });
                 }
+                project = await workspaceApi(`/api/new/projects/${project.project_id}/script-source?filename=${encodeURIComponent(file.name)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/octet-stream' },
+                    body: file
+                });
                 globalVariantConfig = null;
+                rowVariantCovers = {};
                 syncProjectInputs(project);
                 showToast('解析并保存成功', `已保存 ${preview.total_rows} 行脚本，刷新页面数据不会丢失。`, 'success');
             } catch (error) {
@@ -962,6 +1228,7 @@
                         uploadedScripts = [];
                         uploadedImages = [];
                         globalVariantConfig = null;
+                        rowVariantCovers = {};
                         document.getElementById('excel-dropzone').classList.remove('hidden');
                         document.getElementById('parsed-indicator').classList.add('hidden');
                         renderImageThumbnails();
@@ -1219,9 +1486,31 @@
                     ? 'ready'
                     : (['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(script.voiceStatus) ? 'loading' : (script.voiceStatus === 'AUDIO_FAILED' ? 'failed' : 'wait'));
                 tr.setAttribute('data-voice-status', voiceStatus);
-                tr.setAttribute('data-video-status', 'wait');
-                tr.setAttribute('data-variant-status', 'wait');
-                tr.setAttribute('data-variant-generated', '0');
+                const browserPreviewReady = Boolean(
+                    script.baseVideo
+                    && script.subtitles?.status === 'PREVIEW_READY'
+                    && ['COMPOSITION_READY', 'VARIANT_QUEUED', 'VARIANT_RUNNING', 'VARIANT_READY', 'VARIANT_FAILED'].includes(script.compositionStatus)
+                );
+                const videoStatus = ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING'].includes(script.compositionStatus)
+                    ? 'loading'
+                    : (script.compositionVideo || browserPreviewReady
+                        ? 'ready'
+                        : (script.compositionStatus === 'COMPOSITION_FAILED' ? 'failed' : 'wait'));
+                tr.setAttribute('data-video-status', videoStatus);
+                if (script.compositionVideo) {
+                    tr.setAttribute('data-preview-mode', 'exported');
+                    tr.setAttribute('data-final-video-url', `/api/new/projects/${activeProject.project_id}/items/${script.id}/current-video`);
+                    tr.setAttribute('data-final-video-name', script.compositionVideo.filename || `${script.rowKey}-final.mp4`);
+                } else if (browserPreviewReady) {
+                    tr.setAttribute('data-preview-mode', 'browser');
+                    tr.setAttribute('data-preview-video-url', `/api/new/projects/${activeProject.project_id}/items/${script.id}/base-video`);
+                    tr.setAttribute('data-final-video-name', `${script.rowKey}-browser-preview`);
+                }
+                const variantStatus = ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus)
+                    ? 'loading'
+                    : (script.compositionStatus === 'VARIANT_FAILED' ? 'failed' : (script.variants.length ? 'ready' : 'wait'));
+                tr.setAttribute('data-variant-status', variantStatus);
+                tr.setAttribute('data-variant-generated', String(script.variants.length));
 
                 // Render voice selection inside table
                 let voiceOptionsHTML = '';
@@ -1233,15 +1522,18 @@
 
                 // Render BGM options
                 let bgmOptionsHTML = '';
+                const postprocessConfig = rowPostprocessConfigs[script.id] || {};
                 bgmPresets.forEach(b => {
-                    bgmOptionsHTML += `<option value="${b.id}">${b.name}</option>`;
+                    const selected = (postprocessConfig.bgmIdentity || 'none') === b.id ? 'selected' : '';
+                    bgmOptionsHTML += `<option value="${escapeHtml(b.id)}" ${selected}>${escapeHtml(b.name)}</option>`;
                 });
+                const canEditPostprocess = Boolean(script.allowedActions?.edit_postprocess);
 
                 tr.innerHTML = `
                     <td class="px-4 py-4 text-center font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors whitespace-nowrap">${escapeHtml(script.rowKey)}</td>
-                    <td class="px-4 py-4 font-medium text-gray-300">
-                        <div class="focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
-                            <span class="row-script-editor outline-none block w-full max-h-20 overflow-y-auto pr-2 whitespace-pre-wrap leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</span>
+                    <td class="px-4 py-4 w-[280px] max-w-[280px] overflow-hidden font-medium text-gray-300 align-top">
+                        <div class="min-w-0 max-w-full overflow-hidden focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
+                            <div class="row-script-editor outline-none block min-h-[2.5rem] max-h-20 w-full max-w-full overflow-y-auto overflow-x-hidden pr-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</div>
                         </div>
                     </td>
                     <td class="px-4 py-4">
@@ -1304,12 +1596,12 @@
                         </div>
                     </td>
                     <td class="px-4 py-4 text-center">
-                        <select onchange="invalidateRowComposition(this)" class="bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 px-2 text-[11px] text-gray-300 w-full focus:ring-1 focus:ring-brand-primary/40 focus:outline-none">
+                        <select ${canEditPostprocess ? '' : 'disabled'} onchange="handleRowBgmChange(this)" class="bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-[11px] ${canEditPostprocess ? 'text-gray-300' : 'text-gray-600 cursor-not-allowed'} w-full focus:outline-none">
                             ${bgmOptionsHTML}
                         </select>
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
-                        <button onclick="openSubtitleModal('${script.id}')" class="px-2.5 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-[10px] font-semibold text-gray-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center gap-1.5 mx-auto whitespace-nowrap">
+                        <button ${canEditPostprocess ? '' : 'disabled'} onclick="openSubtitleModal('${script.id}')" class="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[10px] font-semibold ${canEditPostprocess ? 'text-gray-300 hover:text-brand-accent' : 'text-gray-600 cursor-not-allowed'} flex items-center gap-1.5 mx-auto whitespace-nowrap">
                             <i class="fa-solid fa-font text-brand-accent"></i>
                             样式配置
                         </button>
@@ -1318,27 +1610,35 @@
                         <div class="row-video-preview-container flex flex-col items-center justify-center min-h-[76px]">
                             <div class="row-video-status-wait flex flex-col items-center gap-1 text-gray-600 text-[9px]">
                                 <i class="fa-solid fa-film text-sm"></i>
-                                <span>等待画面合成</span>
+                                <span>${script.baseVideo ? '等待生成完整成片' : '等待画面合成'}</span>
                             </div>
                             <div class="row-video-status-loading hidden flex flex-col items-center gap-1 text-brand-primary text-[9px]">
                                 <i class="fa-solid fa-spinner fa-spin text-sm"></i>
-                                <span>正在合成...</span>
+                                <span>${script.compositionStatus === 'POSTPROCESS_RUNNING' ? '字幕/BGM 处理中...' : '完整成片生成中...'}</span>
+                            </div>
+                            <div class="row-video-status-failed hidden flex-col items-center gap-1.5 text-rose-400 text-[9px]">
+                                <i class="fa-solid fa-triangle-exclamation text-sm"></i>
+                                <span>成片生成失败</span>
+                                <button onclick="requestRegenerateRowVideo(this)" class="text-[9px] text-rose-300 hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重试失败阶段</button>
                             </div>
                             <div class="row-video-status-ready hidden flex-col items-center gap-1.5">
                                 <button onclick="openRowVideoPreview(this)" title="查看完整视频" class="relative w-20 h-11 rounded-lg overflow-hidden border border-brand-primary/35 bg-slate-950 group/video shadow-lg">
-                                    <img src="https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=240&auto=format&fit=crop&q=80" class="w-full h-full object-cover opacity-65 group-hover/video:scale-110 transition-transform" alt="合成视频预览">
+                                    <span class="absolute inset-0 bg-gradient-to-br from-brand-primary/30 via-slate-950 to-brand-secondary/25"></span>
                                     <span class="absolute inset-0 flex items-center justify-center bg-black/20"><i class="fa-solid fa-play text-[10px] text-white"></i></span>
-                                    <span class="absolute bottom-0 right-0 px-1 py-0.5 bg-black/70 text-[7px] text-brand-accent">成片</span>
+                                    <span class="absolute bottom-0 right-0 px-1 py-0.5 bg-black/70 text-[7px] text-brand-accent">${browserPreviewReady ? '动态预览' : '完整成片'}</span>
                                 </button>
-                                <button onclick="requestRegenerateRowVideo(this)" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重新生成</button>
+                                ${script.compositionVideo
+                                    ? `<a href="/api/new/projects/${activeProject.project_id}/items/${script.id}/current-video" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-download mr-1"></i>下载完整成片</a>`
+                                    : '<span class="text-[9px] text-gray-500">无需启动剪映</span>'}
                             </div>
                         </div>
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
                         <div class="relative w-16 mx-auto">
-                            <input type="number" min="1" max="500" value="20" onchange="handleVariantCountChange(this)" class="row-variant-count w-full bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-300 focus:ring-1 focus:ring-brand-primary/40 focus:outline-none">
+                            <input type="number" min="1" max="500" value="${Number(script.variantSettings?.count) || 20}" onchange="handleVariantCountChange(this); persistVariantSettings()" disabled title="完整成片生成后不会自动生成变体" class="row-variant-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-600 cursor-not-allowed focus:outline-none">
                             <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
                         </div>
+                        <button type="button" onclick="editRowVariantCover(this)" class="mt-2 text-[9px] ${rowVariantCovers[script.id] ? 'text-emerald-300' : 'text-amber-300'} hover:text-white"><i class="fa-solid fa-image mr-1"></i>${rowVariantCovers[script.id] ? '封面已设置' : '设置封面'}</button>
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         <div class="row-variant-preview-container flex flex-col items-center justify-center min-h-[76px]">
@@ -1348,7 +1648,11 @@
                             </div>
                             <div class="row-variant-status-loading hidden flex flex-col items-center gap-1 text-brand-primary text-[9px]">
                                 <i class="fa-solid fa-spinner fa-spin text-sm"></i>
-                                <span>正在生成...</span>
+                                <span class="row-variant-loading-text">正在生成 0/0</span>
+                            </div>
+                            <div class="row-variant-status-failed hidden flex-col items-center gap-1 text-rose-400 text-[9px]">
+                                <i class="fa-solid fa-triangle-exclamation text-sm"></i><span>部分生成失败</span>
+                                <button type="button" onclick="retryRowVariants(this)" class="text-rose-300 hover:text-white"><i class="fa-solid fa-rotate mr-1"></i>只重试失败项</button>
                             </div>
                             <button onclick="openVariantPreviewModal(this)" class="row-variant-status-ready hidden flex-col items-center gap-1.5 group/variant" title="查看全部变体">
                                 <span class="relative block w-20 h-11">
@@ -1375,6 +1679,19 @@
                 tbody.appendChild(tr);
                 toggleRowAudioStatusUI(tr, voiceStatus);
                 if (voiceStatus === 'ready') markRowAudioPreviewReady(tr);
+                toggleRowVideoStatusUI(tr, videoStatus);
+                toggleRowVariantStatusUI(tr, variantStatus);
+                if (variantStatus === 'loading') {
+                    const jobs = script.variantOperation?.result?.jobs || [];
+                    const finished = jobs.filter(job => ['completed', 'failed'].includes(job.status)).length;
+                    tr.querySelector('.row-variant-loading-text').textContent = jobs.length
+                        ? `正在生成 ${finished}/${jobs.length}`
+                        : '正在排队';
+                }
+                if (script.variants.length) {
+                    tr.querySelector('.row-variant-ready-count').textContent = `${script.variants.length} 个变体`;
+                    if (variantStatus === 'ready') setRowSupplementControls(tr, true);
+                }
             });
 
             applyImageMappingToTable();
@@ -1430,7 +1747,7 @@
                     }
                 );
                 syncProjectInputs(project);
-                showToast('脚本已保存', `任务ID ${uploadedScripts[index]?.rowKey || ''} 已更新。`, 'success');
+                showToast('脚本已保存', '旧素材和任务记录已保留；请重新生成这条脚本的声音。', 'success');
             } catch (error) {
                 element.textContent = uploadedScripts[index].text;
                 showToast('脚本保存失败', error.message, 'warning');
@@ -1450,7 +1767,7 @@
                     body: JSON.stringify({ voice_asset_id: voiceId })
                 });
                 syncProjectInputs(project);
-                showToast('声音选择已保存', `任务已切换为「${voice.name}」。旧音频仍保留在历史版本中。`, 'success');
+                showToast('声音选择已保存', `任务已切换为「${voice.name}」。旧版本已保留，请生成新的声音预览。`, 'success');
             } catch (error) {
                 showToast('声音切换失败', error.message, 'warning');
                 syncProjectInputs(activeProject);
@@ -1523,12 +1840,35 @@
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
             const btnCompose = document.getElementById('btn-start-composition');
+            const stageHint = document.getElementById('composition-stage-hint');
 
-            const hasPendingRows = rows.some(row => ['idle', 'failed'].includes(row.getAttribute('data-voice-status')));
-            const canGenerate = Boolean(activeProject?.allowed_actions?.generate_audio) && hasPendingRows && voicePresets.length > 0;
+            const canGenerate = Boolean(activeProject?.allowed_actions?.generate_audio)
+                && rows.length > 0
+                && voicePresets.length > 0;
             setVoicePreviewButtonState(canGenerate, isGeneratingAllVoicePreviews);
-            btnCompose.disabled = !allReady;
-            btnCompose.className = allReady
+            const canCompose4A = allReady
+                && Boolean(
+                    activeProject?.allowed_actions?.start_composition
+                    || activeProject?.allowed_actions?.retry_composition
+                )
+                && !isGeneratingComposition;
+            const canCompose4B = Boolean(
+                activeProject?.allowed_actions?.start_postprocess
+                || activeProject?.allowed_actions?.retry_postprocess
+            )
+                && fontPresets.length > 0
+                && !isGeneratingPostprocess;
+            const canCompose = canCompose4A || canCompose4B;
+            btnCompose.disabled = !canCompose;
+            btnCompose.innerHTML = isGeneratingComposition
+                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>'
+                : (isGeneratingPostprocess
+                    ? '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>'
+                    : (canCompose4B
+                        ? '<i class="fa-solid fa-closed-captioning"></i><span>重新生成完整成片</span>'
+                        : '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>'));
+            stageHint.textContent = '修改配置会保留历史版本，并从受影响的步骤重新生成';
+            btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
         }
@@ -1536,14 +1876,18 @@
         async function generateAllVoicePreviews() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             if (rows.length === 0 || !activeProject) return;
-            const targetRows = rows.filter(row => ['idle', 'failed'].includes(row.getAttribute('data-voice-status')));
+            const pendingRows = rows.filter(row => ['wait', 'failed'].includes(row.getAttribute('data-voice-status')));
+            const targetRows = pendingRows.length ? pendingRows : rows.filter(
+                row => row.getAttribute('data-voice-status') === 'ready'
+            );
             if (targetRows.length === 0) return;
             const defaultVoice = voicePresets[selectedDefaultVoiceIndex];
             if (!defaultVoice) {
                 showToast('没有可用声音', '请先进入声音克隆中心配置声音。', 'warning');
                 return;
             }
-            if (!window.confirm(`将为 ${targetRows.length} 条待处理脚本调用 MiniMax 生成声音并产生费用，是否继续？`)) return;
+            const actionText = pendingRows.length ? '生成声音' : '重新生成新的声音版本';
+            if (!window.confirm(`将为 ${targetRows.length} 条脚本调用 MiniMax ${actionText}并产生费用，旧版本会保留。是否继续？`)) return;
 
             isGeneratingAllVoicePreviews = true;
             setVoicePreviewButtonState(false, true);
@@ -1712,28 +2056,28 @@
 
         function toggleRowVideoStatusUI(row, status) {
             const container = row.querySelector('.row-video-preview-container');
-            ['wait', 'loading', 'ready'].forEach(item => {
+            ['wait', 'loading', 'failed', 'ready'].forEach(item => {
                 const element = container.querySelector(`.row-video-status-${item}`);
                 element.classList.add('hidden');
-                if (item === 'ready') element.classList.remove('flex');
+                if (['failed', 'ready'].includes(item)) element.classList.remove('flex');
             });
 
             const current = container.querySelector(`.row-video-status-${status}`);
             current.classList.remove('hidden');
-            if (status === 'ready') current.classList.add('flex');
+            if (['failed', 'ready'].includes(status)) current.classList.add('flex');
         }
 
         function toggleRowVariantStatusUI(row, status) {
             const container = row.querySelector('.row-variant-preview-container');
-            ['wait', 'loading', 'ready'].forEach(item => {
+            ['wait', 'loading', 'failed', 'ready'].forEach(item => {
                 const element = container.querySelector(`.row-variant-status-${item}`);
                 element.classList.add('hidden');
-                if (item === 'ready') element.classList.remove('flex');
+                if (['failed', 'ready'].includes(item)) element.classList.remove('flex');
             });
 
             const current = container.querySelector(`.row-variant-status-${status}`);
             current.classList.remove('hidden');
-            if (status === 'ready') current.classList.add('flex');
+            if (['failed', 'ready'].includes(status)) current.classList.add('flex');
         }
 
         function setRowSupplementControls(row, enabled) {
@@ -1785,30 +2129,47 @@
             }
         }
 
-        function regenerateRowVideo(button) {
+        async function regenerateRowVideo(button) {
             const row = button.closest('tr');
             const rowId = row.getAttribute('data-id');
             row.setAttribute('data-video-status', 'loading');
             toggleRowVideoStatusUI(row, 'loading');
-            resetRowVariantResults(row);
-            refreshVariantActionAvailability();
-            showToast("重新生成视频", `正在重新合成第 ${rowId} 条带 BGM 和字幕的视频。`, "info");
-
-            setTimeout(() => {
-                markRowVideoReady(row);
-                showToast("视频已重新生成", `第 ${rowId} 条视频预览已更新，原变体结果已清空。`, "success");
-            }, 1100);
+            setFinalGenerationPhase('composition');
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/composition/retry`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cost_confirmed: true, idempotency_key: `composition-retry-${rowId}-${Date.now()}` })
+                });
+                syncProjectInputs(project);
+                scheduleCompositionStatusPoll();
+                showToast('完整成片已继续处理', '系统会从失败的内部阶段继续，画面完成后自动添加字幕和背景音乐。', 'success');
+            } catch (error) {
+                setFinalGenerationPhase(null);
+                showToast('画面重试失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
         }
 
         function requestRegenerateRowVideo(button) {
             const row = button.closest('tr');
             const rowId = row.getAttribute('data-id');
-            const variantCount = Number(row.getAttribute('data-variant-generated') || 0);
-            const extraNotice = variantCount > 0 ? `，并清空当前 ${variantCount} 个变体结果` : '';
+            if (activeProject?.allowed_actions?.retry_postprocess) {
+                openConfirmModal({
+                    title: '确认重试完整成片？',
+                    message: `第 ${rowId} 条成片会从失败的内部阶段继续处理，已经成功的付费任务不会重做。`,
+                    confirmText: '确认重试',
+                    onConfirm: async () => {
+                        setFinalGenerationPhase('postprocess');
+                        await startGlobalPostprocess(true);
+                    }
+                });
+                return;
+            }
             openConfirmModal({
-                title: '确认重新生成视频？',
-                message: `重新生成第 ${rowId} 条视频会替换当前成片${extraNotice}。是否继续？`,
-                confirmText: '确认重新生成',
+                title: '确认重试失败阶段？',
+                message: `第 ${rowId} 条只会重试失败的画面生成、下载或拼接阶段；重试 RunningHub 失败任务可能再次产生费用。`,
+                confirmText: '确认重试',
                 onConfirm: () => regenerateRowVideo(button)
             });
         }
@@ -1821,13 +2182,47 @@
             }
         }
 
+        async function persistVariantSettings() {
+            if (!activeProject?.project_id) return false;
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/variant-settings`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        settings: globalVariantConfig || { mode: 'recommended' },
+                        items: rows.map(row => ({
+                            item_id: row.getAttribute('data-id'),
+                            count: Number(row.querySelector('.row-variant-count').value) || 20,
+                            cover: rowVariantCovers[row.getAttribute('data-id')] || null
+                        }))
+                    })
+                });
+                syncProjectInputs(project);
+                return true;
+            } catch (error) {
+                showToast('变体设置保存失败', error.message, 'warning');
+                return false;
+            }
+        }
+
         function refreshVariantActionAvailability() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allVideosReady = rows.length > 0 && rows.every(row => row.getAttribute('data-video-status') === 'ready');
             const mainButton = document.getElementById('btn-generate-variants');
             const settingsButton = document.getElementById('btn-variant-settings');
-            const canGenerate = allVideosReady && !isGeneratingVariants;
-            const canConfigure = rows.length > 0 && !isGeneratingVariants;
+            const backendAllowsVariants = Boolean(activeProject?.allowed_actions?.generate_variants);
+            const canGenerate = backendAllowsVariants && allVideosReady && !isGeneratingVariants;
+            const canConfigure = backendAllowsVariants && rows.length > 0 && !isGeneratingVariants;
+
+            rows.forEach(row => {
+                const input = row.querySelector('.row-variant-count');
+                const enabled = canConfigure && row.getAttribute('data-video-status') === 'ready';
+                input.disabled = !enabled;
+                input.className = enabled
+                    ? "row-variant-count w-full bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-200 focus:outline-none focus:border-brand-primary/50"
+                    : "row-variant-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-600 cursor-not-allowed focus:outline-none";
+            });
 
             mainButton.disabled = !canGenerate;
             settingsButton.disabled = !canConfigure;
@@ -1840,13 +2235,13 @@
             settingsButton.className = canConfigure
                 ? `px-3 py-3 rounded-r-xl border-y border-r transition-all cursor-pointer ${globalVariantConfig ? 'bg-brand-primary/25 border-brand-primary/50 text-brand-accent hover:text-white' : 'bg-slate-800 border-slate-700/60 text-gray-300 hover:bg-slate-700 hover:text-white'}`
                 : "px-3 py-3 rounded-r-xl bg-slate-800 border-y border-r border-slate-700/60 text-slate-500 cursor-not-allowed transition-all";
-            settingsButton.title = globalVariantConfig ? "已使用自定义变体设置" : "使用后端默认算法，点击配置";
+            settingsButton.title = globalVariantConfig ? "已使用自定义变体设置" : "使用最大差异优先算法，点击配置";
         }
 
-        function startGlobalVariantGeneration() {
+        async function startGlobalVariantGeneration() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             if (!rows.length || rows.some(row => row.getAttribute('data-video-status') !== 'ready')) {
-                showToast("请先完成画面合成", "生成变体需要使用带 BGM 和字幕的完整视频。", "warning");
+                showToast("请先完成画面合成", "生成变体需要已准备好的完整预览配方或用户上传视频。", "warning");
                 return;
             }
 
@@ -1855,6 +2250,17 @@
                 showToast("变体数不正确", "请检查每一行的变体数，允许范围为 1 到 500。", "warning");
                 return;
             }
+            if (counts.reduce((sum, count) => sum + count, 0) > 500) {
+                showToast("本批数量过多", "剪映单批最多提交 500 个变体，请调低各行数量。", "warning");
+                return;
+            }
+            const missingCover = rows.find(row => !rowVariantCovers[row.getAttribute('data-id')]);
+            if (missingCover) {
+                showToast("请先设置每行封面", "封面保持手动模式，请在变体数量下方逐行点击“设置封面”。", "warning");
+                editRowVariantCover(missingCover.querySelector('button[onclick="editRowVariantCover(this)"]'));
+                return;
+            }
+            if (!window.confirm(`将一次提交 ${counts.reduce((sum, count) => sum + count, 0)} 个剪映变体任务。字幕字体和 BGM 保持不变，是否继续？`)) return;
 
             isGeneratingVariants = true;
             rows.forEach(row => {
@@ -1864,22 +2270,28 @@
             });
             refreshVariantActionAvailability();
 
-            const algorithmLabel = globalVariantConfig ? '自定义规则' : '后端默认算法';
+            const algorithmLabel = globalVariantConfig ? '自定义规则' : '最大差异优先算法';
             showToast("开始生成变体", `正在使用${algorithmLabel}为 ${rows.length} 条视频生成变体。`, "info");
-
-            rows.forEach((row, index) => {
-                setTimeout(() => {
-                    markRowVariantsReady(row, counts[index]);
-                    if (index === rows.length - 1) {
-                        isGeneratingVariants = false;
-                        refreshVariantActionAvailability();
-                        showToast("变体生成完成", "全部变体已生成，可在表格中打开小窗查看详情或继续补充。", "success");
-                    }
-                }, 700 + index * 220);
-            });
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/variants/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idempotency_key: `variants-${activeProject.project_id}-${Date.now()}`,
+                        settings: globalVariantConfig,
+                        items: rows.map((row, index) => ({ item_id: row.getAttribute('data-id'), count: counts[index], cover: rowVariantCovers[row.getAttribute('data-id')] }))
+                    })
+                });
+                syncProjectInputs(project);
+                scheduleVariantStatusPoll();
+            } catch (error) {
+                isGeneratingVariants = false;
+                syncProjectInputs(activeProject);
+                showToast("变体任务提交失败", error.message, "warning");
+            }
         }
 
-        function addMoreRowVariants(button) {
+        async function addMoreRowVariants(button) {
             const row = button.closest('tr');
             const input = row.querySelector('.row-variant-extra-count');
             const extraCount = Number(input.value);
@@ -1888,16 +2300,39 @@
                 return;
             }
 
-            const existingCount = Number(row.getAttribute('data-variant-generated') || 0);
             row.setAttribute('data-variant-status', 'loading');
             toggleRowVariantStatusUI(row, 'loading');
             setRowSupplementControls(row, false);
             showToast("正在补充变体", `第 ${row.getAttribute('data-id')} 条视频将再生成 ${extraCount} 个变体。`, "info");
 
-            setTimeout(() => {
-                markRowVariantsReady(row, existingCount + extraCount);
-                showToast("补充完成", `已新增 ${extraCount} 个变体，当前共 ${existingCount + extraCount} 个。`, "success");
-            }, 900);
+            try {
+                const itemId = row.getAttribute('data-id');
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${itemId}/variants/supplement`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idempotency_key: `variant-supplement-${itemId}-${Date.now()}`, count: extraCount })
+                });
+                syncProjectInputs(project);
+                scheduleVariantStatusPoll();
+            } catch (error) {
+                syncProjectInputs(activeProject);
+                showToast("补充变体失败", error.message, "warning");
+            }
+        }
+
+        async function retryRowVariants(button) {
+            const row = button.closest('tr');
+            const itemId = row.getAttribute('data-id');
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${itemId}/variants/retry`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idempotency_key: `variant-retry-${itemId}-${Date.now()}` })
+                });
+                syncProjectInputs(project);
+                scheduleVariantStatusPoll();
+                showToast('失败变体已重试', '只重新提交了失败项，已成功变体保持不变。', 'success');
+            } catch (error) {
+                showToast('重试失败', error.message, 'warning');
+            }
         }
 
         function openRowVideoPreview(button) {
@@ -1921,43 +2356,32 @@
             const row = activeVariantPreviewRow;
             if (!row) return;
             const rowId = row.getAttribute('data-id');
-            const count = Number(row.getAttribute('data-variant-generated') || 0);
+            const script = uploadedScripts.find(item => item.id === rowId);
+            const variants = script?.variants || [];
+            const count = variants.length;
             const grid = document.getElementById('variant-preview-grid');
-            const effectNames = ['泡泡', '水彩晕染', '雪花细闪', '金色星星', '萤火', '樱花飘落', '星火', '浪漫氛围', '光斑飘落', '拽酷红眼'];
-            const gradients = [
-                'from-indigo-950 via-violet-900 to-fuchsia-900',
-                'from-slate-950 via-cyan-950 to-indigo-950',
-                'from-rose-950 via-orange-950 to-slate-950',
-                'from-emerald-950 via-teal-950 to-slate-950'
-            ];
 
             grid.innerHTML = '';
-            for (let index = 0; index < count; index++) {
+            variants.forEach((variant, index) => {
                 const card = document.createElement('div');
                 card.className = "relative rounded-xl overflow-hidden bg-slate-950/50 border border-slate-800 hover:border-brand-primary/50 transition-colors group";
-                const detail = globalVariantConfig
-                    ? `${globalVariantConfig.useEffects ? effectNames[index % effectNames.length] : '画面变化'}${globalVariantConfig.useSubtitles ? ' · 字幕样式' : ''}`
-                    : `默认算法组合 ${String(index + 1).padStart(2, '0')}`;
+                const dimensions = variant.metadata?.dimensions || {};
+                const detail = [dimensions.crop_ratio, dimensions.effect, dimensions.fullscreen_sticker].filter(Boolean).join(' · ');
+                const url = `/api/new/projects/${activeProject.project_id}/items/${rowId}/variants/${variant.asset_id}`;
                 card.innerHTML = `
-                    <button type="button" class="variant-card-preview block w-full text-left">
-                        <span class="relative flex aspect-video items-center justify-center bg-gradient-to-br ${gradients[index % gradients.length]}">
-                            <i class="fa-solid fa-play text-white/90 group-hover:scale-110 transition-transform"></i>
-                            <span class="absolute top-2 left-2 px-1.5 py-0.5 rounded bg-black/45 text-[8px] text-white">V${String(index + 1).padStart(2, '0')}</span>
-                        </span>
-                        <span class="block p-2.5"><strong class="block text-[10px] text-white">变体 ${String(index + 1).padStart(2, '0')}</strong><small class="block text-[9px] text-gray-400 mt-1 truncate">${detail}</small></span>
-                    </button>
+                    <video controls preload="metadata" class="block mx-auto w-full max-w-[220px] aspect-[9/16] object-contain bg-black" src="${url}"></video>
+                    <span class="block p-2.5"><strong class="block text-[10px] text-white">变体 ${String(index + 1).padStart(2, '0')}</strong><small class="block text-[9px] text-gray-400 mt-1 truncate">${escapeHtml(detail || '最大差异组合')}</small><a href="${url}" download class="inline-block mt-2 text-[9px] text-brand-accent hover:text-white"><i class="fa-solid fa-download mr-1"></i>下载</a></span>
                     <button type="button" class="variant-delete-button absolute top-2 right-2 z-10 w-7 h-7 rounded-lg bg-black/65 border border-red-400/30 text-red-300 hover:bg-red-500 hover:text-white transition-all" title="删除这个变体" aria-label="删除变体 ${index + 1}">
                         <i class="fa-solid fa-xmark"></i>
                     </button>`;
-                card.querySelector('.variant-card-preview').onclick = () => showToast("播放变体预览", `正在打开第 ${rowId} 条视频的变体 ${index + 1}。`, "info");
-                card.querySelector('.variant-delete-button').onclick = () => requestDeleteVariant(index);
+                card.querySelector('.variant-delete-button').onclick = () => requestDeleteVariant(variant, index);
                 grid.appendChild(card);
-            }
+            });
 
             document.getElementById('variant-preview-summary').textContent = `第 ${rowId} 条视频 · 共 ${count} 个变体`;
         }
 
-        function requestDeleteVariant(index) {
+        function requestDeleteVariant(variant, index) {
             const row = activeVariantPreviewRow;
             if (!row) return;
             const rowId = row.getAttribute('data-id');
@@ -1965,17 +2389,18 @@
                 title: '删除这个变体？',
                 message: `确定删除第 ${rowId} 条视频的变体 ${index + 1} 吗？删除后它不会进入成果视频库。`,
                 confirmText: '确认删除',
-                onConfirm: () => {
-                    const currentCount = Number(row.getAttribute('data-variant-generated') || 0);
-                    const nextCount = Math.max(0, currentCount - 1);
-                    if (nextCount === 0) {
-                        resetRowVariantResults(row);
-                        closeVariantPreviewModal();
-                    } else {
-                        markRowVariantsReady(row, nextCount);
-                        renderVariantPreviewModal();
+                onConfirm: async () => {
+                    try {
+                        const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/variants/${variant.asset_id}`, { method: 'DELETE' });
+                        syncProjectInputs(project);
+                        activeVariantPreviewRow = document.querySelector(`.table-data-row[data-id="${CSS.escape(rowId)}"]`);
+                        const nextCount = uploadedScripts.find(item => item.id === rowId)?.variants?.length || 0;
+                        if (!nextCount) closeVariantPreviewModal();
+                        else renderVariantPreviewModal();
+                        showToast('变体已删除', `第 ${rowId} 条视频当前保留 ${nextCount} 个变体。`, 'success');
+                    } catch (error) {
+                        showToast('删除变体失败', error.message, 'warning');
                     }
-                    showToast('变体已删除', `第 ${rowId} 条视频当前保留 ${nextCount} 个变体。`, 'success');
                 }
             });
         }
@@ -2057,14 +2482,76 @@
             }
         }
 
+        function editRowVariantCover(button) {
+            const row = button?.closest('tr');
+            if (!row) return;
+            editingVariantCoverRow = row;
+            const itemId = row.getAttribute('data-id');
+            const config = rowVariantCovers[itemId] || {};
+            document.getElementById('variant-cover-line-1').value = config.text_line_1 || '';
+            document.getElementById('variant-cover-line-2').value = config.text_line_2 || '';
+            document.getElementById('variant-cover-color-1').value = config.line_1_color || '#ffffff';
+            document.getElementById('variant-cover-color-2').value = config.line_2_color || '#ffffff';
+            const script = uploadedScripts.find(item => item.id === itemId);
+            const video = document.getElementById('variant-cover-video');
+            video.src = script?.compositionVideo
+                ? `/api/new/projects/${activeProject.project_id}/items/${itemId}/current-video`
+                : `/api/new/projects/${activeProject.project_id}/items/${itemId}/base-video`;
+            video.addEventListener('loadedmetadata', () => { video.currentTime = 0; }, { once: true });
+            const modal = document.getElementById('variant-cover-modal');
+            const box = modal.querySelector('.glass-panel-heavy');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+        }
+
+        function closeVariantCoverModal() {
+            const modal = document.getElementById('variant-cover-modal');
+            const box = modal.querySelector('.glass-panel-heavy');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            const video = document.getElementById('variant-cover-video');
+            video.pause();
+            editingVariantCoverRow = null;
+        }
+
+        async function saveRowVariantCover() {
+            if (!editingVariantCoverRow) return;
+            const itemId = editingVariantCoverRow.getAttribute('data-id');
+            rowVariantCovers[itemId] = {
+                enabled: true,
+                frame_time_seconds: 0,
+                frame_source: 'preview_material',
+                frame_count: 3,
+                text_line_1: document.getElementById('variant-cover-line-1').value.trim(),
+                text_line_2: document.getElementById('variant-cover-line-2').value.trim(),
+                line_1_color: document.getElementById('variant-cover-color-1').value,
+                line_2_color: document.getElementById('variant-cover-color-2').value,
+                line_1_y: -0.28,
+                line_2_y: -0.55,
+                line_1_size: 12,
+                line_2_size: 12,
+                text_scale: 1.4,
+                overlay_alpha: 0.5
+            };
+            const button = editingVariantCoverRow.querySelector('button[onclick="editRowVariantCover(this)"]');
+            button.classList.remove('text-amber-300');
+            button.classList.add('text-emerald-300');
+            button.innerHTML = '<i class="fa-solid fa-image mr-1"></i>封面已设置';
+            closeVariantCoverModal();
+            if (await persistVariantSettings()) {
+                showToast('封面已保存', '该行所有变体都会使用这份手动封面，并固定放在最前 3 帧。', 'success');
+            }
+        }
+
         // Variant configuration modal managers
         function openVariantModal() {
             const config = globalVariantConfig || {
-                mode: 'default',
+                mode: 'recommended',
                 useEffects: true,
-                useStickers: false,
+                useStickers: true,
                 useVisual: true,
-                useSubtitles: false,
                 mirrorInterval: 10,
                 ratios: ['1:1', '3:4'],
                 faceCentered: true,
@@ -2076,7 +2563,6 @@
             document.getElementById('variant-use-effects').checked = config.useEffects;
             document.getElementById('variant-use-stickers').checked = config.useStickers;
             document.getElementById('variant-use-visual').checked = config.useVisual;
-            document.getElementById('variant-use-subtitles').checked = config.useSubtitles;
             document.getElementById('variant-mirror-interval').value = config.mirrorInterval;
             document.getElementById('variant-ratio-square').checked = config.ratios.includes('1:1');
             document.getElementById('variant-ratio-portrait').checked = config.ratios.includes('3:4');
@@ -2118,7 +2604,7 @@
             });
         }
 
-        function saveVariantSettings() {
+        async function saveVariantSettings() {
             const mode = document.querySelector('input[name="variant-mode"]:checked').value;
             const useEffects = document.getElementById('variant-use-effects').checked;
             const useStickers = document.getElementById('variant-use-stickers').checked;
@@ -2149,7 +2635,6 @@
                 useEffects,
                 useStickers,
                 useVisual,
-                useSubtitles: document.getElementById('variant-use-subtitles').checked,
                 mirrorInterval,
                 ratios,
                 faceCentered: document.getElementById('variant-face-centered').checked,
@@ -2157,15 +2642,25 @@
                 colors: [1, 2, 3, 4].map(index => document.getElementById(`variant-color-${index}`).value)
             };
 
-            globalVariantConfig = mode === 'default' ? null : config;
+            globalVariantConfig = mode === 'recommended' ? null : config;
             refreshVariantActionAvailability();
             closeVariantModal();
-            showToast("变体设置已保存", globalVariantConfig ? "本次任务将使用自定义变体规则。" : "本次任务将继续使用后端默认算法。", "success");
+            if (await persistVariantSettings()) {
+                showToast("变体设置已保存", globalVariantConfig ? "本次任务将使用自定义变体规则。" : "本次任务将使用最大差异优先算法。", "success");
+            }
         }
 
         // Subtitle customization Modal managers
         function openSubtitleModal(rowId) {
             editingRowId = rowId;
+            const config = rowPostprocessConfigs[rowId] || {
+                fontIdentity: defaultPostprocessFontIdentity,
+                textColor: '#ffffff'
+            };
+            subtitleGlobalConfig = {
+                font: config.fontIdentity,
+                textColor: config.textColor
+            };
             const modal = document.getElementById('subtitle-modal');
             const modalBox = modal.querySelector('.glass-panel-heavy');
             
@@ -2173,15 +2668,12 @@
             document.getElementById('modal-font').value = subtitleGlobalConfig.font;
             document.getElementById('modal-text-color').value = subtitleGlobalConfig.textColor;
             document.getElementById('modal-text-color-hex').textContent = subtitleGlobalConfig.textColor.toUpperCase();
-            document.getElementById('modal-stroke-color').value = subtitleGlobalConfig.strokeColor;
-            document.getElementById('modal-stroke-color-hex').textContent = subtitleGlobalConfig.strokeColor.toUpperCase();
 
             const previewText = document.getElementById('modal-preview-text');
             previewText.textContent = '用于字体测试观看';
-            previewText.style.fontFamily = subtitleGlobalConfig.font;
             previewText.style.color = subtitleGlobalConfig.textColor;
-            previewText.style.textShadow = `0 0 4px ${subtitleGlobalConfig.strokeColor}, 0 0 6px ${subtitleGlobalConfig.strokeColor}`;
-            previewText.style.textAlign = subtitleGlobalConfig.align;
+            previewText.style.textAlign = 'center';
+            void applySelectedFontPreview(subtitleGlobalConfig.font);
 
             modal.classList.remove('opacity-0', 'pointer-events-none');
             modalBox.classList.remove('scale-95');
@@ -2197,30 +2689,64 @@
             modal.classList.add('opacity-0', 'pointer-events-none');
         }
 
-        function saveSubtitleStyles() {
-            subtitleGlobalConfig.font = document.getElementById('modal-font').value;
-            subtitleGlobalConfig.textColor = document.getElementById('modal-text-color').value;
-            subtitleGlobalConfig.strokeColor = document.getElementById('modal-stroke-color').value;
-
-            const row = document.querySelector(`.table-data-row[data-id="${editingRowId}"]`);
-            if (row && row.getAttribute('data-video-status') === 'ready') {
-                resetRowVideoPreview(row);
-            }
-
-            showToast("字幕样式已保存", `该行字幕将渲染为：字体 ${subtitleGlobalConfig.font}，主色 ${subtitleGlobalConfig.textColor.toUpperCase()}`, "success");
-            closeSubtitleModal();
+        async function persistRowPostprocessSettings(rowId) {
+            const config = rowPostprocessConfigs[rowId] || {};
+            return workspaceApi(
+                `/api/new/projects/${activeProject.project_id}/items/${rowId}/postprocess-settings`,
+                {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
+                        bgm_identity: config.bgmIdentity === 'none' ? '' : (config.bgmIdentity || ''),
+                        text_color: config.textColor || '#ffffff'
+                    })
+                }
+            );
         }
 
-        function selectAlignment(align) {
-            subtitleGlobalConfig.align = align;
-            const textEl = document.getElementById('modal-preview-text');
-            textEl.style.textAlign = align;
-            showToast("对齐更新", `对齐样式调整为：${align === 'center' ? '居中' : (align === 'left' ? '靠左' : '靠右')}`);
+        async function saveSubtitleStyles() {
+            subtitleGlobalConfig.font = document.getElementById('modal-font').value;
+            subtitleGlobalConfig.textColor = document.getElementById('modal-text-color').value;
+
+            rowPostprocessConfigs[editingRowId] = {
+                ...(rowPostprocessConfigs[editingRowId] || {}),
+                fontIdentity: subtitleGlobalConfig.font,
+                textColor: subtitleGlobalConfig.textColor
+            };
+
+            const font = fontPresets.find((item) => item.identity === subtitleGlobalConfig.font);
+            try {
+                const project = await persistRowPostprocessSettings(editingRowId);
+                syncProjectInputs(project);
+                showToast("字幕样式已保存", `已选择「${font?.name || '未知字体'}」。旧成片会保留，重新生成时使用新样式。`, "success");
+                closeSubtitleModal();
+            } catch (error) {
+                showToast('字幕样式保存失败', error.message, 'warning');
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+            }
+        }
+
+        async function handleRowBgmChange(select) {
+            const rowId = select.closest('tr')?.getAttribute('data-id');
+            if (!rowId) return;
+            rowPostprocessConfigs[rowId] = {
+                ...(rowPostprocessConfigs[rowId] || {}),
+                bgmIdentity: select.value
+            };
+            try {
+                const project = await persistRowPostprocessSettings(rowId);
+                syncProjectInputs(project);
+                showToast('背景音乐已保存', '旧成片会保留，重新生成时使用新的背景音乐。', 'success');
+            } catch (error) {
+                showToast('背景音乐保存失败', error.message, 'warning');
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+            }
         }
 
         // Live updating colors hex in modal
         document.getElementById('modal-font').addEventListener('change', (e) => {
-            document.getElementById('modal-preview-text').style.fontFamily = e.target.value;
+            void applySelectedFontPreview(e.target.value);
         });
 
         document.getElementById('modal-text-color').addEventListener('input', (e) => {
@@ -2229,32 +2755,211 @@
             previewText.style.color = e.target.value;
         });
 
-        document.getElementById('modal-stroke-color').addEventListener('input', (e) => {
-            document.getElementById('modal-stroke-color-hex').textContent = e.target.value.toUpperCase();
-            const previewText = document.getElementById('modal-preview-text');
-            previewText.style.textShadow = `0 0 4px ${e.target.value}, 0 0 6px ${e.target.value}`;
-        });
-
         // Toggle Video Preview Modal
+        function formatPreviewTime(seconds) {
+            const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+            const minutes = Math.floor(safeSeconds / 60);
+            const remainder = safeSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+        }
+
+        function updatePreviewVideoTimeline() {
+            const video = document.getElementById('video-preview-local');
+            const duration = Number.isFinite(video.duration) ? video.duration : 0;
+            const currentTime = Number.isFinite(video.currentTime) ? video.currentTime : 0;
+            const percent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+            document.getElementById('video-preview-progress').style.width = `${percent}%`;
+            document.getElementById('video-preview-time').textContent = `${formatPreviewTime(currentTime)} / ${formatPreviewTime(duration)}`;
+        }
+
+        function activePreviewScript() {
+            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '';
+            return uploadedScripts.find((item) => item.id === rowId) || null;
+        }
+
+        function isBrowserCompositionPreview() {
+            return activeVideoPreviewRow?.getAttribute('data-preview-mode') === 'browser';
+        }
+
+        function updatePreviewCaptionLayout() {
+            const video = document.getElementById('video-preview-local');
+            const frame = document.getElementById('video-preview-frame');
+            const caption = document.getElementById('video-preview-caption');
+            if (!isBrowserCompositionPreview() || !video.videoWidth || !video.videoHeight) return;
+            const frameWidth = frame.clientWidth;
+            const frameHeight = frame.clientHeight;
+            const scale = Math.min(frameWidth / video.videoWidth, frameHeight / video.videoHeight);
+            const displayedWidth = video.videoWidth * scale;
+            const displayedHeight = video.videoHeight * scale;
+            const verticalMargin = (frameHeight - displayedHeight) / 2;
+            const safeWidth = displayedWidth * 0.8;
+            caption.style.left = '50%';
+            caption.style.bottom = `${verticalMargin + displayedHeight * 0.2}px`;
+            caption.style.width = `${safeWidth}px`;
+            caption.style.maxWidth = `${safeWidth}px`;
+            caption.style.fontSize = `${Math.max(12, displayedWidth * 0.05)}px`;
+            caption.style.lineHeight = '1';
+            caption.style.whiteSpace = 'nowrap';
+            caption.style.textShadow = 'none';
+            caption.style.transform = 'translateX(-50%)';
+        }
+
+        function updatePreviewCaption() {
+            const caption = document.getElementById('video-preview-caption');
+            if (!isBrowserCompositionPreview()) {
+                caption.textContent = '';
+                caption.classList.add('hidden');
+                return;
+            }
+            const script = activePreviewScript();
+            const currentUs = document.getElementById('video-preview-local').currentTime * 1_000_000;
+            const cue = (script?.subtitles?.render_cues || []).find((item) => {
+                const startUs = Number(item.start_us || 0);
+                const endUs = Number(item.end_us || (startUs + Number(item.duration_us || 0)));
+                return currentUs >= startUs && currentUs < endUs;
+            });
+            caption.textContent = cue?.text || '';
+            caption.classList.toggle('hidden', !cue?.text);
+            updatePreviewCaptionLayout();
+            if (cue?.text && caption.scrollWidth > caption.clientWidth && caption.scrollWidth > 0) {
+                const currentSize = parseFloat(caption.style.fontSize) || 12;
+                caption.style.fontSize = `${Math.max(10, currentSize * caption.clientWidth / caption.scrollWidth)}px`;
+            }
+        }
+
+        function stopPreviewBgm() {
+            previewBgmAudio.pause();
+        }
+
+        function syncPreviewPlayButtonState() {
+            const video = document.getElementById('video-preview-local');
+            const button = document.getElementById('video-preview-play-button');
+            const icon = button.querySelector('i');
+            const isPlaying = !video.paused && !video.ended;
+            button.classList.toggle('opacity-0', isPlaying);
+            button.classList.toggle('pointer-events-none', isPlaying);
+            icon.classList.remove('fa-pause');
+            icon.classList.add('fa-play');
+        }
+
+        function syncPreviewBgm(force = false) {
+            if (!isBrowserCompositionPreview() || !previewBgmAudio.src) return;
+            const videoTime = document.getElementById('video-preview-local').currentTime || 0;
+            const target = Number.isFinite(previewBgmAudio.duration) && previewBgmAudio.duration > 0
+                ? videoTime % previewBgmAudio.duration
+                : videoTime;
+            if (force || Math.abs((previewBgmAudio.currentTime || 0) - target) > 0.35) {
+                try { previewBgmAudio.currentTime = target; } catch (_) {}
+            }
+        }
+
+        async function playPreviewBgm() {
+            if (!isBrowserCompositionPreview() || !previewBgmAudio.src) return;
+            syncPreviewBgm(true);
+            try { await previewBgmAudio.play(); } catch (_) {}
+        }
+
+        async function prepareBrowserCompositionPreview() {
+            const caption = document.getElementById('video-preview-caption');
+            if (!isBrowserCompositionPreview()) {
+                caption.textContent = '';
+                caption.classList.add('hidden');
+                stopPreviewBgm();
+                return;
+            }
+            const script = activePreviewScript();
+            const config = rowPostprocessConfigs[script?.id] || {};
+            const font = fontPresets.find((item) => item.identity === config.fontIdentity);
+            caption.style.color = config.textColor || script?.subtitles?.style?.text_color || '#FFFFFF';
+            if (font) {
+                try {
+                    const family = await loadFontPreview(font);
+                    if (script?.id === activePreviewScript()?.id) caption.style.fontFamily = `"${family}", sans-serif`;
+                } catch (_) {
+                    caption.style.fontFamily = 'sans-serif';
+                }
+            }
+            const bgm = bgmPresets.find((item) => item.id === config.bgmIdentity);
+            const nextBgmUrl = bgm?.previewUrl || '';
+            if (nextBgmUrl) {
+                const absoluteUrl = new URL(nextBgmUrl, window.location.origin).href;
+                if (previewBgmAudio.src !== absoluteUrl) {
+                    previewBgmAudio.src = absoluteUrl;
+                    previewBgmAudio.load();
+                }
+            } else {
+                stopPreviewBgm();
+                previewBgmAudio.removeAttribute('src');
+                previewBgmAudio.load();
+            }
+            updatePreviewCaption();
+            if (!document.getElementById('video-preview-local').paused) void playPreviewBgm();
+        }
+
+        const previewVideoElement = document.getElementById('video-preview-local');
+        ['loadedmetadata', 'durationchange', 'timeupdate', 'emptied'].forEach((eventName) => {
+            previewVideoElement.addEventListener(eventName, () => {
+                updatePreviewVideoTimeline();
+                updatePreviewCaption();
+                if (eventName === 'loadedmetadata') syncPreviewBgm(true);
+                else if (eventName === 'timeupdate') syncPreviewBgm(false);
+            });
+        });
+        previewVideoElement.addEventListener('play', () => {
+            syncPreviewPlayButtonState();
+            void playPreviewBgm();
+        });
+        previewVideoElement.addEventListener('pause', () => {
+            syncPreviewPlayButtonState();
+            stopPreviewBgm();
+        });
+        previewVideoElement.addEventListener('seeking', () => syncPreviewBgm(true));
+        previewVideoElement.addEventListener('seeked', () => {
+            syncPreviewBgm(true);
+            updatePreviewCaption();
+        });
+        previewVideoElement.addEventListener('ended', () => {
+            stopPreviewBgm();
+            syncPreviewPlayButtonState();
+            updatePreviewVideoTimeline();
+            updatePreviewCaption();
+        });
+        document.getElementById('video-preview-progress-track').addEventListener('click', (event) => {
+            if (!Number.isFinite(previewVideoElement.duration) || previewVideoElement.duration <= 0) return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+            previewVideoElement.currentTime = previewVideoElement.duration * ratio;
+        });
+        window.addEventListener('resize', updatePreviewCaptionLayout);
+
         function openVideoModal(rowId = '001', imageSrc = '') {
             const modal = document.getElementById('video-modal');
             activeVideoPreviewRow = Array.from(document.querySelectorAll('.table-data-row')).find(row => row.getAttribute('data-id') === String(rowId)) || null;
             const localVideo = document.getElementById('video-preview-local');
             const localVideoUrl = activeVideoPreviewRow?.getAttribute('data-local-video-url') || '';
+            const finalVideoUrl = activeVideoPreviewRow?.getAttribute('data-final-video-url') || '';
+            const browserPreviewUrl = activeVideoPreviewRow?.getAttribute('data-preview-video-url') || '';
+            const previewVideoUrl = finalVideoUrl || localVideoUrl || browserPreviewUrl;
             const localVideoName = activeVideoPreviewRow?.getAttribute('data-local-video-name') || '';
-            document.getElementById('video-modal-file-name').innerHTML = `<i class="fa-solid fa-circle-play mr-1"></i> ${localVideoName || `第${rowId}条_合成预览.mp4`}`;
-            document.getElementById('video-modal-id').textContent = `ID: ${String(rowId).padStart(3, '0')}`;
+            const finalVideoName = activeVideoPreviewRow?.getAttribute('data-final-video-name') || '';
+            const previewScript = activePreviewScript();
+            document.getElementById('video-modal-file-name').innerHTML = `<i class="fa-solid fa-circle-play mr-1"></i> ${finalVideoName || localVideoName || `第${rowId}条_完整预览`}`;
+            document.getElementById('video-modal-id').textContent = `ID: ${previewScript?.rowKey || String(rowId).slice(0, 8)}`;
             if (imageSrc) {
                 document.getElementById('video-preview-bg').style.backgroundImage = `url('${imageSrc}')`;
             }
-            if (localVideoUrl) {
-                localVideo.src = localVideoUrl;
+            if (previewVideoUrl) {
+                localVideo.src = previewVideoUrl;
+                localVideo.load();
                 localVideo.classList.remove('hidden');
             } else {
                 localVideo.pause();
                 localVideo.removeAttribute('src');
                 localVideo.classList.add('hidden');
             }
+            updatePreviewVideoTimeline();
+            syncPreviewPlayButtonState();
+            void prepareBrowserCompositionPreview();
             modal.classList.remove('opacity-0', 'pointer-events-none');
             modal.querySelector('.transform').classList.remove('scale-95');
             modal.querySelector('.transform').classList.add('scale-100');
@@ -2265,40 +2970,101 @@
             const modal = document.getElementById('video-modal');
             const localVideo = document.getElementById('video-preview-local');
             localVideo.pause();
+            stopPreviewBgm();
+            syncPreviewPlayButtonState();
+            document.getElementById('video-preview-caption').classList.add('hidden');
             modal.querySelector('.transform').classList.remove('scale-100');
             modal.querySelector('.transform').classList.add('scale-95');
             modal.classList.add('opacity-0', 'pointer-events-none');
-            const playIcon = modal.querySelector('button[onclick="togglePlayPreviewVideo(this)"] i');
-            if (playIcon) {
-                playIcon.classList.remove('fa-pause');
-                playIcon.classList.add('fa-play');
-            }
+        }
+
+        function handleVideoFrameClick(event) {
+            if (event.target.closest('button, #video-preview-progress-track, .fa-volume-high, .fa-expand')) return;
+            togglePlayPreviewVideo(document.getElementById('video-preview-play-button'));
         }
 
         function togglePlayPreviewVideo(btn) {
-            const icon = btn.querySelector('i');
             const localVideo = document.getElementById('video-preview-local');
-            if (icon.classList.contains('fa-play')) {
-                icon.classList.replace('fa-play', 'fa-pause');
-                if (!localVideo.classList.contains('hidden') && localVideo.src) {
-                    localVideo.play().catch(() => showToast('无法播放视频', '浏览器未能读取这个本地视频文件。', 'warning'));
-                } else {
-                    showToast("视频播放中", "正在渲染预览缓存段...");
-                }
+            if (localVideo.classList.contains('hidden') || !localVideo.src) {
+                showToast('无法播放视频', '当前视频文件尚未准备完成。', 'warning');
+                return;
+            }
+            if (localVideo.paused || localVideo.ended) {
+                localVideo.play().catch(() => {
+                    syncPreviewPlayButtonState();
+                    showToast('无法播放视频', '浏览器未能读取这个视频文件。', 'warning');
+                });
             } else {
-                icon.classList.replace('fa-pause', 'fa-play');
                 localVideo.pause();
             }
         }
 
-        function downloadPreviewVideo() {
-            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '当前';
-            showToast('下载此视频', `第 ${rowId} 条完整成片已加入下载队列。`, 'success');
+        function triggerCurrentVideoDownload(itemId) {
+            const link = document.createElement('a');
+            link.href = `/api/new/projects/${activeProject.project_id}/items/${itemId}/current-video`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        async function downloadPreviewVideo() {
+            const finalVideoUrl = activeVideoPreviewRow?.getAttribute('data-final-video-url') || '';
+            const localVideoUrl = activeVideoPreviewRow?.getAttribute('data-local-video-url') || '';
+            const downloadUrl = finalVideoUrl || localVideoUrl;
+            if (downloadUrl) {
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = activeVideoPreviewRow?.getAttribute('data-final-video-name')
+                    || activeVideoPreviewRow?.getAttribute('data-local-video-name')
+                    || '';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                return;
+            }
+            if (!isBrowserCompositionPreview()) {
+                showToast('暂时无法下载', '完整成片尚未准备完成。', 'warning');
+                return;
+            }
+            const itemId = activeVideoPreviewRow?.getAttribute('data-id') || '';
+            if (!itemId || !window.confirm('浏览器预览无需启动剪映；下载 MP4 才会按需启动剪映并导出一次。是否继续？')) return;
+            pendingPreviewDownloadItemId = itemId;
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${itemId}/postprocess/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ idempotency_key: `preview-export-${itemId}-${Date.now()}` })
+                });
+                syncProjectInputs(project);
+                schedulePostprocessStatusPoll();
+                showToast('正在按需导出', '这次是用户明确下载所需的唯一一次普通成片导出；直接生成变体不需要先导出。', 'success');
+            } catch (error) {
+                pendingPreviewDownloadItemId = null;
+                showToast('按需导出失败', error.message, 'warning');
+            }
         }
 
         function downloadOriginalMaterial() {
-            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '当前';
-            showToast('下载原始素材', `正在打包第 ${rowId} 条视频合成前的画面、声音和脚本素材。`, 'success');
+            const itemId = activeVideoPreviewRow?.getAttribute('data-id') || '';
+            const script = uploadedScripts.find((item) => item.id === itemId);
+            if (!itemId || !script?.originalVideoSegments?.length) {
+                showToast('没有原始素材', '当前脚本行没有可下载的 RunningHub 原始片段。', 'warning');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = `/api/new/projects/${activeProject.project_id}/items/${itemId}/original-materials`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast(
+                '开始下载原始素材',
+                script.originalVideoSegments.length > 1
+                    ? `正在下载 ${script.originalVideoSegments.length} 个原始片段和顺序清单。`
+                    : '正在下载原始 RunningHub 视频。',
+                'success'
+            );
         }
 
         function triggerLocalVideoUpload() {
@@ -2307,87 +3073,332 @@
             input.click();
         }
 
-        function handleLocalVideoUpload(event) {
+        async function handleLocalVideoUpload(event) {
             const file = event.target.files[0];
             const row = activeVideoPreviewRow;
             if (!file || !row) return;
-            if (!file.type.startsWith('video/')) {
+            const suffix = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || '';
+            if (!['.mp4', '.mov', '.avi', '.mkv', '.webm'].includes(suffix)) {
                 showToast('视频格式不支持', '请选择 MP4、MOV 或 WebM 等视频文件。', 'warning');
                 return;
             }
-
-            const previousUrl = row.getAttribute('data-local-video-url');
-            if (previousUrl) URL.revokeObjectURL(previousUrl);
-            const localVideoUrl = URL.createObjectURL(file);
-            row.setAttribute('data-local-video-url', localVideoUrl);
-            row.setAttribute('data-local-video-name', file.name);
-            resetRowVariantResults(row);
-            markRowVideoReady(row);
-
-            const localVideo = document.getElementById('video-preview-local');
-            localVideo.src = localVideoUrl;
-            localVideo.classList.remove('hidden');
-            document.getElementById('video-modal-file-name').innerHTML = `<i class="fa-solid fa-circle-play mr-1"></i> ${file.name}`;
-            showToast('本地视频已上传', `第 ${row.getAttribute('data-id')} 条视频已替换为「${file.name}」，可以继续生成变体。`, 'success');
+            const itemId = row.getAttribute('data-id');
+            if (!window.confirm(`将把第 ${itemId} 条的当前视频切换为「${file.name}」。自动生成视频和原始片段会继续保留，是否上传？`)) return;
+            event.target.disabled = true;
+            showToast('正在上传本地视频', '上传完成后会自动切换当前视频版本。', 'info');
+            try {
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${itemId}/current-video?filename=${encodeURIComponent(file.name)}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                        body: file
+                    }
+                );
+                syncProjectInputs(project);
+                openVideoModal(itemId);
+                showToast('本地视频已上传', `第 ${itemId} 条已切换为「${file.name}」，原始素材和历史视频仍然保留。`, 'success');
+            } catch (error) {
+                showToast('本地视频上传失败', error.message, 'warning');
+            } finally {
+                event.target.disabled = false;
+                event.target.value = '';
+            }
         }
 
-        // Global Composition execution action
-        function startGlobalComposition() {
-            const btnCompose = document.getElementById('btn-start-composition');
-            const progressContainer = document.getElementById('composition-progress-container');
-            const progressBar = document.getElementById('composition-progress-bar');
-            const progressText = document.getElementById('composition-progress-text');
-            const tbody = document.getElementById('synthesis-table-body');
-            const rows = Array.from(tbody.querySelectorAll('.table-data-row'));
-
-            const allAudioReady = rows.every(row => row.getAttribute('data-voice-status') === 'ready');
-            if (!allAudioReady) {
-                showToast("请先生成声音预览", "声音与画面已拆分处理，请先确认声音预览，再开始画面合成。", "warning");
+        async function startGlobalFinalVideoGeneration() {
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            const allAudioReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
+            const canPostprocess = Boolean(
+                activeProject?.allowed_actions?.start_postprocess
+                || activeProject?.allowed_actions?.retry_postprocess
+            );
+            if (canPostprocess) {
+                if (!window.confirm(`将为 ${rows.length} 条视频生成包含字幕和所选背景音乐的完整成片，旧版本会保留。是否继续？`)) return;
+                setFinalGenerationPhase('postprocess');
+                await startGlobalPostprocess(true);
                 return;
             }
+            const canStartComposition = Boolean(activeProject?.allowed_actions?.start_composition);
+            const canRetryComposition = Boolean(activeProject?.allowed_actions?.retry_composition);
+            if (!allAudioReady || (!canStartComposition && !canRetryComposition)) {
+                showToast('暂时不能生成完整成片', '请先确保每一行真实音频均已生成并确认。', 'warning');
+                return;
+            }
+            const confirmMessage = canRetryComposition
+                ? '将从失败的内部阶段继续生成完整成片；重试 RunningHub 失败任务可能再次产生费用，已成功的付费任务不会重做。是否继续？'
+                : `将为 ${rows.length} 条脚本调用 RunningHub 生成数字人画面并产生费用，随后自动添加字幕和所选背景音乐。旧版本会保留，且不会自动生成变体。是否继续？`;
+            if (!window.confirm(confirmMessage)) return;
+            setFinalGenerationPhase('composition');
+            if (canRetryComposition) await retryFailedCompositionItems();
+            else await startGlobalComposition(true);
+        }
 
-            btnCompose.disabled = true;
-            btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
-            progressContainer.classList.remove('hidden');
-            progressBar.style.width = '0%';
-            progressText.textContent = '0%';
-            rows.forEach(row => {
+        async function retryFailedCompositionItems() {
+            const targets = uploadedScripts.filter((item) => item.allowedActions?.retry_composition);
+            if (!targets.length) {
+                setFinalGenerationPhase(null);
+                showToast('没有可重试的成片', '请刷新项目状态后再试。', 'warning');
+                return;
+            }
+            isGeneratingComposition = true;
+            refreshAudioStageActions();
+            try {
+                let project = activeProject;
+                for (const item of targets) {
+                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${item.id}/composition/retry`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            cost_confirmed: true,
+                            idempotency_key: `composition-retry-${item.id}-${Date.now()}`
+                        })
+                    });
+                }
+                syncProjectInputs(project);
+                scheduleCompositionStatusPoll();
+                showToast('完整成片已继续处理', '系统会从失败的内部阶段继续，完成画面后自动添加字幕和背景音乐。', 'success');
+            } catch (error) {
+                isGeneratingComposition = false;
+                setFinalGenerationPhase(null);
+                refreshAudioStageActions();
+                showToast('完整成片重试失败', error.message, 'warning');
+            }
+        }
+
+        // Internal stage: RunningHub generation followed by normalized base-video merge.
+        async function startGlobalComposition(skipConfirmation = false) {
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            const allAudioReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
+            if (!allAudioReady || !activeProject?.allowed_actions?.start_composition) {
+                setFinalGenerationPhase(null);
+                showToast('暂时不能生成完整成片', '请先确保每一行真实音频均已生成并确认。', 'warning');
+                return;
+            }
+            if (!skipConfirmation && !window.confirm(`将为 ${rows.length} 条脚本调用 RunningHub 生成数字人画面并产生费用，随后自动添加字幕和所选背景音乐。是否继续？`)) return;
+
+            isGeneratingComposition = true;
+            rows.forEach((row) => {
                 row.setAttribute('data-video-status', 'loading');
                 toggleRowVideoStatusUI(row, 'loading');
-                resetRowVariantResults(row);
             });
+            updateCompositionProgress();
+            refreshAudioStageActions();
             refreshVariantActionAvailability();
-            
-            showToast("画面合成已启动", "声音预览已确认，正在执行画面并发渲染任务。", "success");
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cost_confirmed: true,
+                        idempotency_key: `composition-${activeProject.project_id}-${Date.now()}`
+                    })
+                });
+                syncProjectInputs(project);
+                scheduleCompositionStatusPoll();
+                showToast('完整成片任务已启动', '正在生成数字人画面，完成后会自动继续添加字幕和背景音乐。', 'success');
+            } catch (error) {
+                isGeneratingComposition = false;
+                setFinalGenerationPhase(null);
+                showToast('完整成片任务提交失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
+        }
 
-            let progressValue = 0;
-            let currentRowIndex = 0;
-
-            const interval = setInterval(() => {
-                progressValue += 5;
-                progressBar.style.width = `${progressValue}%`;
-                progressText.textContent = `${progressValue}%`;
-
-                const targetReadyCount = Math.ceil((progressValue / 100) * rows.length);
-                while (currentRowIndex < targetReadyCount && currentRowIndex < rows.length) {
-                    const row = rows[currentRowIndex];
-                    markRowVideoReady(row);
-                    row.classList.add('bg-emerald-950/10');
-                    currentRowIndex++;
+        async function startGlobalPostprocess(skipConfirmation = false) {
+            if (isStartingPostprocess) return;
+            if (!(activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess) || !fontPresets.length) {
+                setFinalGenerationPhase(null);
+                showToast('暂时不能生成成片', '请先确保每一行画面素材和字幕时间轴均已准备完成。', 'warning');
+                return;
+            }
+            const rows = uploadedScripts.map((item) => {
+                const config = rowPostprocessConfigs[item.id] || {};
+                return {
+                    item_id: item.id,
+                    bgm_identity: config.bgmIdentity === 'none' ? '' : (config.bgmIdentity || ''),
+                    font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
+                    text_color: config.textColor || '#ffffff'
+                };
+            });
+            if (!skipConfirmation && !window.confirm(`将为 ${rows.length} 条视频生成包含字幕和所选背景音乐的完整成片，旧版本会保留。是否继续？`)) return;
+            isStartingPostprocess = true;
+            setFinalGenerationPhase('postprocess');
+            isGeneratingPostprocess = true;
+            refreshAudioStageActions();
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idempotency_key: `postprocess-${activeProject.project_id}-${Date.now()}`,
+                        items: rows
+                    })
+                });
+                syncProjectInputs(project);
+                const browserPreviewReady = (project.items || []).every((item) =>
+                    item.subtitles?.status === 'PREVIEW_READY'
+                );
+                if (browserPreviewReady) {
+                    setFinalGenerationPhase(null);
+                    showToast('完整预览已准备', '字幕会按真实时间轴切换，背景音乐将在浏览器中同步播放；没有启动剪映导出。', 'success');
+                } else {
+                    schedulePostprocessStatusPoll();
+                    showToast('成片任务已提交', '正在添加字幕和所选背景音乐。', 'success');
                 }
+            } catch (error) {
+                isGeneratingPostprocess = false;
+                setFinalGenerationPhase(null);
+                refreshAudioStageActions();
+                showToast('成片任务提交失败', error.message, 'warning');
+            } finally {
+                isStartingPostprocess = false;
+            }
+        }
 
-                if (progressValue >= 100) {
-                    clearInterval(interval);
-                    progressContainer.classList.add('hidden');
-                    
-                    // Recover Synthesis start button to allow rebuilds
-                    btnCompose.disabled = false;
-                    btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]";
-
-                    refreshVariantActionAvailability();
-                    showToast("合成完成", "所有带 BGM 和字幕的视频已生成，可在表格中预览或继续生成变体。", "success");
+        function scheduleVariantStatusPoll() {
+            clearTimeout(variantStatusPollTimer);
+            const active = uploadedScripts.some(item => ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(item.compositionStatus));
+            isGeneratingVariants = active;
+            refreshVariantActionAvailability();
+            if (!active || !activeProject) return;
+            variantStatusPollTimer = setTimeout(async () => {
+                try {
+                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/variants/status`);
+                    const wasActive = isGeneratingVariants;
+                    syncProjectInputs(project);
+                    const stillActive = uploadedScripts.some(item => ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(item.compositionStatus));
+                    if (wasActive && !stillActive) {
+                        const failed = uploadedScripts.filter(item => item.compositionStatus === 'VARIANT_FAILED').length;
+                        const total = uploadedScripts.reduce((sum, item) => sum + item.variants.length, 0);
+                        showToast(failed ? '部分变体生成失败' : '变体生成完成', failed ? `${failed} 行存在失败项，可逐行只重试失败项；已成功的 ${total} 个变体均已保留。` : `共生成 ${total} 个差异化变体。`, failed ? 'warning' : 'success');
+                    }
+                } catch (error) {
+                    showToast('变体状态更新失败', error.message, 'warning');
+                    variantStatusPollTimer = setTimeout(scheduleVariantStatusPoll, 5000);
                 }
-            }, 250);
+            }, 3000);
+        }
+
+        function schedulePostprocessStatusPoll() {
+            clearTimeout(postprocessStatusPollTimer);
+            const active = uploadedScripts.some((item) => item.compositionStatus === 'POSTPROCESS_RUNNING');
+            isGeneratingPostprocess = active;
+            refreshAudioStageActions();
+            if (!active || !activeProject) {
+                if (!active && finalGenerationPhase === 'postprocess') setFinalGenerationPhase(null);
+                if (!active && pendingPreviewDownloadItemId) {
+                    const requested = uploadedScripts.find((item) => item.id === pendingPreviewDownloadItemId);
+                    if (requested?.compositionVideo) {
+                        const itemId = pendingPreviewDownloadItemId;
+                        pendingPreviewDownloadItemId = null;
+                        triggerCurrentVideoDownload(itemId);
+                        showToast('导出完成', '完整成片已导出并开始下载。', 'success');
+                    } else if (requested?.compositionStatus === 'COMPOSITION_FAILED') {
+                        pendingPreviewDownloadItemId = null;
+                    }
+                }
+                return;
+            }
+            postprocessStatusPollTimer = setTimeout(async () => {
+                try {
+                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/status`);
+                    const stillActiveInResponse = (project.items || []).some((item) => item.status === 'POSTPROCESS_RUNNING');
+                    if (!stillActiveInResponse) setFinalGenerationPhase(null);
+                    syncProjectInputs(project);
+                    const stillActive = uploadedScripts.some((item) => item.compositionStatus === 'POSTPROCESS_RUNNING');
+                    if (!stillActive) {
+                        const failed = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED').length;
+                        showToast(
+                            failed ? '部分完整成片生成失败' : '完整成片已生成',
+                            failed ? `${failed} 条失败；重新生成会从失败的内部阶段继续。` : '现在预览和下载的都是已添加字幕及所选背景音乐的完整成片。',
+                            failed ? 'warning' : 'success'
+                        );
+                    }
+                } catch (error) {
+                    showToast('成片状态更新失败', error.message, 'warning');
+                }
+            }, 3000);
+        }
+
+        function updateCompositionProgress() {
+            const container = document.getElementById('composition-progress-container');
+            const bar = document.getElementById('composition-progress-bar');
+            const text = document.getElementById('composition-progress-text');
+            const items = uploadedScripts.filter((item) =>
+                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'BASE_VIDEO_READY', 'COMPOSITION_FAILED'].includes(item.compositionStatus)
+            );
+            const active = items.some((item) => ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus));
+            if (!items.length) {
+                container.classList.add('hidden');
+                return;
+            }
+            const finished = items.filter((item) => ['BASE_VIDEO_READY', 'COMPOSITION_FAILED'].includes(item.compositionStatus)).length;
+            const percent = active ? Math.round((finished / items.length) * 100) : 100;
+            container.classList.toggle('hidden', !active);
+            bar.style.width = `${percent}%`;
+            text.textContent = `${percent}%`;
+        }
+
+        function scheduleCompositionStatusPoll() {
+            clearTimeout(compositionStatusPollTimer);
+            updateCompositionProgress();
+            const active = uploadedScripts.some((item) =>
+                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
+            );
+            isGeneratingComposition = active;
+            refreshAudioStageActions();
+            if (!active || !activeProject) {
+                if (!active && activeProject && finalGenerationPhase === 'composition') {
+                    setTimeout(() => { void continueFinalGenerationAfterComposition(); }, 0);
+                }
+                return;
+            }
+            compositionStatusPollTimer = setTimeout(async () => {
+                try {
+                    const wasActive = active;
+                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/status`);
+                    const responseItems = project.items || [];
+                    const stillActiveInResponse = responseItems.some((item) =>
+                        ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.status)
+                    );
+                    const failedInResponse = responseItems.filter((item) => item.status === 'COMPOSITION_FAILED').length;
+                    if (!stillActiveInResponse && failedInResponse) setFinalGenerationPhase(null);
+                    syncProjectInputs(project);
+                    const stillActive = uploadedScripts.some((item) =>
+                        ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
+                    );
+                    if (wasActive && !stillActive) {
+                        const failed = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED').length;
+                        if (failed) {
+                            showToast('部分完整成片生成失败', `${failed} 条失败；重新生成会从失败的内部阶段继续。`, 'warning');
+                        }
+                    }
+                } catch (error) {
+                    showToast('画面状态更新失败', error.message, 'warning');
+                    compositionStatusPollTimer = setTimeout(scheduleCompositionStatusPoll, 5000);
+                }
+            }, 3000);
+        }
+
+        async function continueFinalGenerationAfterComposition() {
+            if (finalGenerationPhase !== 'composition' || isStartingPostprocess || !activeProject) return;
+            const stillActive = uploadedScripts.some((item) =>
+                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
+            );
+            if (stillActive) return;
+            const failed = uploadedScripts.some((item) => item.compositionStatus === 'COMPOSITION_FAILED');
+            if (failed) {
+                setFinalGenerationPhase(null);
+                return;
+            }
+            const allBaseVideosReady = uploadedScripts.length > 0 && uploadedScripts.every((item) => Boolean(item.baseVideo));
+            const canPostprocess = Boolean(
+                activeProject.allowed_actions?.start_postprocess
+                || activeProject.allowed_actions?.retry_postprocess
+            );
+            if (!allBaseVideosReady || !canPostprocess) return;
+            await startGlobalPostprocess(true);
         }
 
         // Toggle User profile dropdown
@@ -2429,7 +3440,15 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
+            let sidebarCollapsed = false;
+            try {
+                sidebarCollapsed = localStorage.getItem(inputSidebarStorageKey) === 'true';
+            } catch (_error) {
+                sidebarCollapsed = false;
+            }
+            setInputSidebarCollapsed(sidebarCollapsed, false);
             await ensureAuthenticatedSession();
+            await loadPostprocessOptions();
             await loadWorkspaceVoices();
             await initializeProjectInputs();
         });

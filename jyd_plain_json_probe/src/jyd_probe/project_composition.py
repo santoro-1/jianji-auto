@@ -1,0 +1,435 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+from .auth_center import AuthCenterClient
+from .project_store import ProjectStore
+
+
+REMOTE_COMPOSITION_ACTIVE = {
+    "COMPOSITION_QUEUED",
+    "DIGITAL_HUMAN_RUNNING",
+    "VIDEO_MERGING",
+}
+
+
+def _current_audio_item_links(
+    links: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    newest_by_item: dict[str, dict[str, Any]] = {}
+    for link in links:
+        if (
+            link.get("system") == "runninghub"
+            and link.get("relation") == "digital_human_audio_item"
+            and link.get("item_id")
+        ):
+            newest_by_item[str(link["item_id"])] = link
+    return newest_by_item
+
+
+def _composition_operations(project: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for operation in project.get("operations", []):
+        if (
+            operation.get("operation_type") == "COMPOSITION_GENERATE"
+            and operation.get("item_id")
+        ):
+            latest[str(operation["item_id"])] = operation
+    return latest
+
+
+class ProjectCompositionCoordinator:
+    """Bridge workbench projects to the existing digital-human workers.
+
+    Module 4A deliberately stops at a normalized base video. Provider segment
+    outputs are retained as immutable source assets; captions, BGM, variants,
+    Jianying drafts, and publishing are not part of this coordinator.
+    """
+
+    def __init__(
+        self,
+        store: ProjectStore,
+        client: AuthCenterClient,
+        *,
+        storage_root: Path,
+        max_video_bytes: int,
+    ) -> None:
+        self.store = store
+        self.client = client
+        self.storage_root = Path(storage_root).resolve()
+        self.max_video_bytes = int(max_video_bytes)
+
+    def start(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        if not project["allowed_actions"]["start_composition"]:
+            raise ValueError("当前项目状态不能开始画面生成")
+        clean_key = str(idempotency_key or "").strip()
+        if not clean_key:
+            raise ValueError("画面生成请求缺少幂等键")
+        links_by_item = _current_audio_item_links(project["links"])
+
+        for item in project["items"]:
+            link = links_by_item.get(str(item["item_id"]))
+            if link is None:
+                raise ValueError(f"任务 {item['row_key']} 缺少数字人声音任务关联")
+            batch_id = str(link.get("metadata", {}).get("batch_id") or "")
+            remote_item_id = str(link.get("external_id") or "")
+            if not batch_id or not remote_item_id:
+                raise ValueError(f"任务 {item['row_key']} 的数字人任务关联不完整")
+            image = item.get("inputs", {}).get("image")
+            if not isinstance(image, dict) or not image.get("managed_path"):
+                raise ValueError(f"任务 {item['row_key']} 尚未分配图片")
+            image_path = Path(str(image["managed_path"])).resolve()
+            if not image_path.is_file():
+                raise ValueError(f"任务 {item['row_key']} 的图片文件不存在")
+            operation = self.store.create_operation(
+                owner_user_id=owner_user_id,
+                project_id=project_id,
+                item_id=item["item_id"],
+                operation_type="COMPOSITION_GENERATE",
+                idempotency_key=clean_key,
+                payload={
+                    "batch_id": batch_id,
+                    "remote_item_id": remote_item_id,
+                    "scope": "base_video_only",
+                },
+            )
+            try:
+                staged_image = self.client.upload_workbench_batch_asset(
+                    token,
+                    image_path,
+                    kind="image",
+                    filename=str(image.get("filename") or image_path.name),
+                )
+                remote = self.client.start_workbench_composition(
+                    token,
+                    batch_id,
+                    remote_item_id,
+                    idempotency_key=f"{clean_key}:{item['item_id']}",
+                    image_asset_id=str(staged_image.get("asset_id") or ""),
+                )
+                composition = remote.get("composition", {})
+                remote_status = str(composition.get("status") or "COMPOSITION_QUEUED")
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_type="COMPOSITION_GENERATE",
+                    status="RUNNING",
+                    item_status=(
+                        remote_status
+                        if remote_status in REMOTE_COMPOSITION_ACTIVE
+                        else "COMPOSITION_QUEUED"
+                    ),
+                    result={
+                        "batch_id": batch_id,
+                        "remote_item_id": remote_item_id,
+                        "remote_status": remote_status,
+                        "operation_id": operation["operation_id"],
+                        "image_asset_id": staged_image.get("asset_id"),
+                    },
+                )
+            except Exception as exc:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_type="COMPOSITION_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
+                )
+        return self.sync(owner_user_id, project_id, token)
+
+    def sync(
+        self, owner_user_id: str, project_id: str, token: str
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        links_by_item = _current_audio_item_links(project["links"])
+        operations = _composition_operations(project)
+        for item in project["items"]:
+            item_id = str(item["item_id"])
+            link = links_by_item.get(item_id)
+            operation = operations.get(item_id)
+            if link is None or operation is None:
+                continue
+            if operation.get("status") == "FAILED" and item.get("status") == "COMPOSITION_FAILED":
+                continue
+            remote_item_id = str(link.get("external_id") or "")
+            if not remote_item_id:
+                continue
+            remote = self.client.get_workbench_task(token, remote_item_id)
+            composition = remote.get("composition", {})
+            if not isinstance(composition, dict):
+                composition = {}
+            remote_status = str(composition.get("status") or "")
+
+            project = self.store.get_project(owner_user_id, project_id)
+            local_item = next(
+                value for value in project["items"] if value["item_id"] == item_id
+            )
+            self._download_ready_segments(
+                owner_user_id,
+                project_id,
+                local_item,
+                remote_item_id,
+                remote,
+                token,
+            )
+
+            if remote_status == "BASE_VIDEO_READY":
+                project = self.store.get_project(owner_user_id, project_id)
+                local_item = next(
+                    value for value in project["items"] if value["item_id"] == item_id
+                )
+                self._download_base_video(
+                    owner_user_id,
+                    project_id,
+                    local_item,
+                    remote_item_id,
+                    remote,
+                    token,
+                )
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="SUCCEEDED",
+                    item_status="BASE_VIDEO_READY",
+                    result={
+                        "remote_item_id": remote_item_id,
+                        "remote_status": remote_status,
+                        "segment_count": int(composition.get("segment_count") or 0),
+                    },
+                )
+            elif remote_status == "COMPOSITION_FAILED":
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    result={"remote_item_id": remote_item_id},
+                    error_code="REMOTE_COMPOSITION_FAILED",
+                    error_message=str(
+                        composition.get("error_message") or "数字人画面生成失败"
+                    ),
+                )
+            elif remote_status in REMOTE_COMPOSITION_ACTIVE:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="RUNNING",
+                    item_status=remote_status,
+                    result={
+                        "remote_item_id": remote_item_id,
+                        "remote_status": remote_status,
+                        "segment_count": int(composition.get("segment_count") or 0),
+                    },
+                )
+        return self.store.get_project(owner_user_id, project_id)
+
+    def retry(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        token: str,
+        *,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        item = next(
+            (value for value in project["items"] if value["item_id"] == item_id),
+            None,
+        )
+        if item is None:
+            raise KeyError("项目脚本行不存在")
+        if not item["allowed_actions"]["retry_composition"]:
+            raise ValueError("当前画面任务没有可重试的失败阶段")
+        link = _current_audio_item_links(project["links"]).get(item_id)
+        if link is None:
+            raise ValueError("当前脚本行没有数字人任务")
+        clean_key = str(idempotency_key or "").strip()
+        if not clean_key:
+            raise ValueError("画面重试请求缺少幂等键")
+        operation = self.store.create_operation(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            operation_type="COMPOSITION_GENERATE",
+            idempotency_key=clean_key,
+            payload={"retry": True, "remote_item_id": link["external_id"]},
+        )
+        if operation.get("status") == "PENDING":
+            self.client.retry_workbench_composition(
+                token, str(link["external_id"])
+            )
+            self.store.transition_operation(
+                owner_user_id,
+                project_id,
+                item_id,
+                operation_type="COMPOSITION_GENERATE",
+                status="RUNNING",
+                item_status="COMPOSITION_QUEUED",
+                result={"remote_item_id": link["external_id"], "retry": True},
+            )
+        return self.sync(owner_user_id, project_id, token)
+
+    def _download_ready_segments(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item: dict[str, Any],
+        remote_item_id: str,
+        remote: dict[str, Any],
+        token: str,
+    ) -> None:
+        existing_task_ids = {
+            str(asset.get("external_ref", {}).get("remote_task_id") or "")
+            for asset in item.get("asset_history", {}).get(
+                "original_video_segment", []
+            )
+        }
+        videos = remote.get("source", {}).get("videos", [])
+        if not isinstance(videos, list):
+            return
+        for video in videos:
+            if not isinstance(video, dict) or str(video.get("status") or "") != "SUCCESS":
+                continue
+            task_id = str(video.get("task_id") or "")
+            index = int(video.get("index") or 0)
+            if not task_id or index < 1 or task_id in existing_task_ids:
+                continue
+            directory = (
+                self.storage_root
+                / "projects"
+                / str(owner_user_id)
+                / project_id
+                / str(item["item_id"])
+                / "composition"
+                / remote_item_id
+                / "segments"
+            )
+            task_suffix = hashlib.sha256(task_id.encode("utf-8")).hexdigest()[:12]
+            target = directory / f"segment-{index:03d}-{task_suffix}.mp4"
+            temporary = target.with_suffix(".mp4.tmp")
+            try:
+                self.client.download_workbench_video(
+                    token,
+                    remote_item_id,
+                    index,
+                    temporary,
+                    max_bytes=self.max_video_bytes,
+                )
+                target.parent.mkdir(parents=True, exist_ok=True)
+                temporary.replace(target)
+            except BaseException:
+                temporary.unlink(missing_ok=True)
+                raise
+            self.store.add_asset(
+                owner_user_id=owner_user_id,
+                project_id=project_id,
+                item_id=item["item_id"],
+                asset_type="original_video_segment",
+                source_type="runninghub",
+                status="READY",
+                filename=f"{item['row_key']}-segment-{index:03d}.mp4",
+                managed_path=str(target),
+                external_ref={
+                    "remote_item_id": remote_item_id,
+                    "remote_task_id": task_id,
+                    "video_index": index,
+                },
+                metadata={
+                    "start_seconds": video.get("start_seconds"),
+                    "end_seconds": video.get("end_seconds"),
+                    "script_text": video.get("script_text"),
+                },
+            )
+            existing_task_ids.add(task_id)
+
+    def _download_base_video(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item: dict[str, Any],
+        remote_item_id: str,
+        remote: dict[str, Any],
+        token: str,
+    ) -> None:
+        videos = remote.get("source", {}).get("videos", [])
+        task_ids = [
+            str(video.get("task_id") or "")
+            for video in videos
+            if isinstance(video, dict) and video.get("task_id")
+        ] if isinstance(videos, list) else []
+        signature = {
+            "remote_item_id": remote_item_id,
+            "source_task_ids": task_ids,
+            "remote_updated_at": str(remote.get("updated_at") or ""),
+        }
+        current = item.get("outputs", {}).get("base_video")
+        if isinstance(current, dict) and current.get("external_ref") == signature:
+            return
+        directory = (
+            self.storage_root
+            / "projects"
+            / str(owner_user_id)
+            / project_id
+            / str(item["item_id"])
+            / "composition"
+            / remote_item_id
+            / "base"
+        )
+        signature_hash = hashlib.sha256(
+            json.dumps(signature, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:12]
+        target = directory / f"base-{signature_hash}.mp4"
+        temporary = target.with_suffix(".mp4.tmp")
+        try:
+            self.client.download_workbench_base_video(
+                token,
+                remote_item_id,
+                temporary,
+                max_bytes=self.max_video_bytes,
+            )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary.replace(target)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+        self.store.add_asset(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item["item_id"],
+            asset_type="base_video",
+            source_type=(
+                "runninghub_single" if len(task_ids) <= 1 else "runninghub_merge"
+            ),
+            status="READY",
+            filename=f"{item['row_key']}-base.mp4",
+            managed_path=str(target),
+            external_ref=signature,
+            metadata={
+                "segment_count": len(task_ids),
+                "normalized_to_approved_audio": True,
+                "module": "4A",
+            },
+            make_current=True,
+        )
