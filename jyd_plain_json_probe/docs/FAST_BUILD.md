@@ -19,6 +19,19 @@ cd "D:\工作内容\轻盈健\公寓\jyd_plain_json_probe"
 .\build_deployment.ps1
 ```
 
+正式交付且本地工作台需要使用云端数字人账号与任务时，必须在完整构建中显式写入正式地址：
+
+```powershell
+.\build_deployment.ps1 `
+  -DigitalHumanServerUrl "https://video.lanyingjk01.com" `
+  -CompressionLevel Optimal
+```
+
+该参数只改变生成包内的 `data\processor_config.json`，不会把生产地址写入源码默认配置。
+完整 Processor 包会复制 `data\libraries`，因此包含当前公共音乐、字体及其他素材库；
+`-UpdateOnly` 排除整个 `data`，不能用于本次带素材的首次交付，也不能和
+`-DigitalHumanServerUrl` 同时使用。
+
 脚本默认保留 PyInstaller 分析缓存，并使用 `Fastest` ZIP 压缩。输出为：
 
 ```text

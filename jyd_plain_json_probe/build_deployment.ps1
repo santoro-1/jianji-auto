@@ -1,6 +1,7 @@
 param(
     [switch]$Clean,
     [switch]$UpdateOnly,
+    [string]$DigitalHumanServerUrl = "",
     [ValidateSet("Fastest", "Optimal", "NoCompression")]
     [string]$CompressionLevel = "Fastest"
 )
@@ -17,6 +18,9 @@ Write-Host "Building the two packages used by the single processing-computer dep
 $ProcessorArguments = $Arguments.Clone()
 if ($UpdateOnly) {
     $ProcessorArguments.UpdateOnly = $true
+}
+if ($DigitalHumanServerUrl) {
+    $ProcessorArguments.DigitalHumanServerUrl = $DigitalHumanServerUrl
 }
 & (Join-Path $ProjectRoot "scripts\build\build_processor.ps1") @ProcessorArguments
 Write-Host "Ready: $ProjectRoot\release\JianyingDraftCollector-windows-x64.zip"

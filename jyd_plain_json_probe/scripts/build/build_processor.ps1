@@ -2,6 +2,7 @@ param(
     [string]$Python = "",
     [switch]$Clean,
     [switch]$UpdateOnly,
+    [string]$DigitalHumanServerUrl = "",
     [ValidateSet("standalone", "shared")]
     [string]$DeploymentMode = "standalone",
     [ValidateSet("Fastest", "Optimal", "NoCompression")]
@@ -28,6 +29,24 @@ $ZipName = if ($UpdateOnly) {
 $ZipPath = Join-Path $ReleaseDir $ZipName
 $SpecPath = Join-Path $ProjectRoot "apps\processor\processor_windows.spec"
 . (Join-Path $PSScriptRoot "build_helpers.ps1")
+
+if ($DigitalHumanServerUrl) {
+    $ParsedDigitalHumanServerUrl = $null
+    if (
+        -not [Uri]::TryCreate(
+            $DigitalHumanServerUrl,
+            [UriKind]::Absolute,
+            [ref]$ParsedDigitalHumanServerUrl
+        ) -or
+        $ParsedDigitalHumanServerUrl.Scheme -notin @("http", "https")
+    ) {
+        throw "DigitalHumanServerUrl must be an absolute HTTP(S) URL."
+    }
+    $DigitalHumanServerUrl = $DigitalHumanServerUrl.TrimEnd("/")
+}
+if ($UpdateOnly -and $DigitalHumanServerUrl) {
+    throw "UpdateOnly excludes data/processor_config.json; use a full build to set DigitalHumanServerUrl."
+}
 
 if (-not $Python) {
     $Python = Join-Path $BuildCacheRoot ".collector-build-cpython\Scripts\python.exe"
@@ -98,15 +117,17 @@ try {
         }
         $ProcessorConfigPath = Join-Path $DataDir "processor_config.json"
         Copy-Item -LiteralPath (Join-Path $ProjectRoot "apps\processor\processor_config.example.json") -Destination $ProcessorConfigPath -Force
+        $ProcessorConfig = Get-Content -LiteralPath $ProcessorConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($DigitalHumanServerUrl) {
+            $ProcessorConfig.digital_human_server_url = $DigitalHumanServerUrl
+        }
         if ($DeploymentMode -eq "shared") {
-            $ProcessorConfig = Get-Content -LiteralPath $ProcessorConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $ProcessorConfig.deployment_mode = "shared"
             $ProcessorConfig.host = "0.0.0.0"
-            $ProcessorConfig.digital_human_server_url = "http://127.0.0.1:8000"
             $ProcessorConfig.shared_processor_url = ""
             $ProcessorConfig.auth_authority = "false"
-            $ProcessorConfig | ConvertTo-Json | Set-Content -LiteralPath $ProcessorConfigPath -Encoding UTF8
         }
+        $ProcessorConfig | ConvertTo-Json | Set-Content -LiteralPath $ProcessorConfigPath -Encoding UTF8
     }
 
     $ToolsDir = Join-Path $DistDir "tools"

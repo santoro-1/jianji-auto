@@ -116,6 +116,18 @@ class BatchEditorFrontendTest(unittest.TestCase):
         self.assertIn('$ProcessorConfig.auth_authority = "false"', build_script)
         self.assertIn('-DeploymentMode shared', wrapper)
 
+    def test_full_deployment_build_can_embed_a_remote_digital_human_url(self) -> None:
+        build_script = (PROJECT_ROOT / "scripts" / "build" / "build_processor.ps1").read_text(
+            encoding="utf-8"
+        )
+        wrapper = (PROJECT_ROOT / "build_deployment.ps1").read_text(encoding="utf-8")
+        guide = (PROJECT_ROOT / "docs" / "FAST_BUILD.md").read_text(encoding="utf-8")
+        self.assertIn('[string]$DigitalHumanServerUrl = ""', build_script)
+        self.assertIn("$ProcessorConfig.digital_human_server_url = $DigitalHumanServerUrl", build_script)
+        self.assertIn("UpdateOnly excludes data/processor_config.json", build_script)
+        self.assertIn("$ProcessorArguments.DigitalHumanServerUrl = $DigitalHumanServerUrl", wrapper)
+        self.assertIn('-DigitalHumanServerUrl "https://video.lanyingjk01.com"', guide)
+
     def test_release_packages_include_plain_language_guides(self) -> None:
         processor_build = (PROJECT_ROOT / "scripts" / "build" / "build_processor.ps1").read_text(
             encoding="utf-8"
