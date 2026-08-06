@@ -823,8 +823,7 @@
 
         // BGM Options
         let bgmPresets = [
-            { id: 'auto', name: 'AI 智能匹配', previewUrl: '' },
-            { id: 'none', name: '无背景音乐', previewUrl: '' }
+            { id: 'none', name: '无音乐', previewUrl: '' }
         ];
         let fontPresets = [];
         let defaultPostprocessFontIdentity = '';
@@ -996,8 +995,7 @@
             fontPresets = Array.isArray(options.fonts) ? options.fonts : [];
             defaultPostprocessFontIdentity = options.default_font_identity || fontPresets[0]?.identity || '';
             bgmPresets = [
-                { id: 'auto', name: 'AI 智能匹配', previewUrl: '' },
-                { id: 'none', name: '无背景音乐', previewUrl: '' },
+                { id: 'none', name: '无音乐', previewUrl: '' },
                 ...(Array.isArray(options.bgm) ? options.bgm.map((item) => ({
                     id: item.identity,
                     name: item.name || item.identity,
@@ -1536,12 +1534,12 @@
                 // Render BGM options
                 let bgmOptionsHTML = '';
                 const postprocessConfig = rowPostprocessConfigs[script.id] || {};
-                const subtitlePreviewSource = script.subtitles?.render_cues?.[0]?.text || script.text || '字幕效果预览';
-                const subtitlePreviewText = subtitlePreviewSource.length > 12
-                    ? `${subtitlePreviewSource.slice(0, 12)}…`
-                    : subtitlePreviewSource;
+                const subtitlePreviewText = '这是字幕预览';
+                const displayedBgmIdentity = postprocessConfig.bgmIdentity === 'auto'
+                    ? (postprocessConfig.resolvedBgmIdentity || 'none')
+                    : (postprocessConfig.bgmIdentity || 'none');
                 bgmPresets.forEach(b => {
-                    const selected = (postprocessConfig.bgmIdentity || 'none') === b.id ? 'selected' : '';
+                    const selected = displayedBgmIdentity === b.id ? 'selected' : '';
                     bgmOptionsHTML += `<option value="${escapeHtml(b.id)}" ${selected}>${escapeHtml(b.name)}</option>`;
                 });
                 const canEditPostprocess = Boolean(script.allowedActions?.edit_postprocess);
@@ -2838,7 +2836,7 @@
                 const project = await persistRowPostprocessSettings(rowId);
                 syncProjectInputs(project);
                 showToast(
-                    select.value === 'auto' ? '已恢复 AI 智能匹配' : '背景音乐已手动保存',
+                    '背景音乐已手动保存',
                     '请在视频预览列点击重新生成；只会更新字幕和 BGM。',
                     'success'
                 );
