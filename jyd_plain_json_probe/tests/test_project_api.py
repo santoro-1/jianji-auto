@@ -144,6 +144,99 @@ class ProjectApiTest(unittest.TestCase):
                 self.assertEqual(edited.json()["items"][0]["script_text"], "修改后的脚本")
                 self.assertEqual(edited.json()["items"][0]["row_key"], "A-001")
 
+    def test_inactive_project_items_can_be_deleted_to_empty_but_active_item_cannot(self) -> None:
+        user = {"user_id": "delete-user", "username": "tester", "enabled": True}
+        with patch("jyd_probe.auth_center.AuthCenterClient.verify", return_value=user):
+            app = create_app(self.settings)
+            with TestClient(app) as client:
+                self._login(client, user)
+                project = client.post(
+                    "/api/new/projects",
+                    json={
+                        "name": "删除任务测试",
+                        "items": [
+                            {"row_key": "001", "script_text": "保留任务"},
+                            {"row_key": "002", "script_text": "待删除任务"},
+                        ],
+                    },
+                ).json()
+                project_id = project["project_id"]
+                first_item, second_item = project["items"]
+                store = app.state.project_store
+                store.create_operation(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=second_item["item_id"],
+                    operation_type="AUDIO_GENERATE",
+                    idempotency_key="delete-active-audio",
+                )
+
+                active_delete = client.delete(
+                    f"/api/new/projects/{project_id}/items/{second_item['item_id']}"
+                )
+                self.assertEqual(active_delete.status_code, 409, active_delete.text)
+                self.assertIn("正在生成", active_delete.json()["detail"])
+
+                store.transition_audio_operation(
+                    user["user_id"],
+                    project_id,
+                    second_item["item_id"],
+                    status="FAILED",
+                    item_status="AUDIO_FAILED",
+                    error_code="TEST_FAILED",
+                    error_message="测试结束运行态",
+                )
+                audio_path = (
+                    self.settings.storage_root
+                    / "new_projects"
+                    / project_id
+                    / "audio"
+                    / "delete-me.mp3"
+                )
+                audio_path.parent.mkdir(parents=True, exist_ok=True)
+                audio_path.write_bytes(b"local-audio")
+                store.add_asset(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=second_item["item_id"],
+                    asset_type="audio",
+                    source_type="minimax",
+                    status="READY",
+                    filename="delete-me.mp3",
+                    managed_path=str(audio_path),
+                    make_current=True,
+                )
+
+                deleted = client.delete(
+                    f"/api/new/projects/{project_id}/items/{second_item['item_id']}"
+                )
+                self.assertEqual(deleted.status_code, 200, deleted.text)
+                self.assertEqual(len(deleted.json()["items"]), 1)
+                self.assertEqual(deleted.json()["items"][0]["item_id"], first_item["item_id"])
+                self.assertEqual(deleted.json()["items"][0]["position"], 1)
+                self.assertTrue(
+                    deleted.json()["items"][0]["allowed_actions"]["delete_item"]
+                )
+                self.assertFalse(audio_path.exists())
+
+                last_delete = client.delete(
+                    f"/api/new/projects/{project_id}/items/{first_item['item_id']}"
+                )
+                self.assertEqual(last_delete.status_code, 200, last_delete.text)
+                self.assertEqual(last_delete.json()["items"], [])
+                self.assertEqual(last_delete.json()["status"], "DRAFT")
+
+                restored = client.put(
+                    f"/api/new/projects/{project_id}/inputs",
+                    json={
+                        "items": [
+                            {"row_key": "001", "script_text": "删除后重新添加"}
+                        ]
+                    },
+                )
+                self.assertEqual(restored.status_code, 200, restored.text)
+                self.assertEqual(len(restored.json()["items"]), 1)
+
     def test_asset_versions_preserve_history_and_change_current_pointer(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")
         project = store.create_project(

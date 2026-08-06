@@ -509,6 +509,113 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             item["content_analysis"]["invalidated_reason"], "SCRIPT_CHANGED"
         )
 
+    def test_successful_analysis_saves_ai_music_but_preserves_manual_choice(self) -> None:
+        class SuccessfulClient:
+            def analyze_workbench_content(
+                self, _token, original_script, *, force_refresh=False
+            ):
+                return _remote_result(original_script)
+
+        class FakeMusicSelector:
+            def resolve_for_analysis(self, _project, item):
+                identity = f"music_id:matched-{item['row_key']}"
+                return identity, {
+                    "schema": "jyd.project-music-selection.v1",
+                    "status": "SUCCESS",
+                    "selection_source": "ai",
+                    "bgm_identity": identity,
+                    "video_duration_us": 0,
+                }
+
+        store = ProjectStore(self.settings.storage_root / "music_selection.db")
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="分析后匹配音乐",
+            items=[
+                {"row_key": "1", "script_text": "自动匹配"},
+                {"row_key": "2", "script_text": "保持手选"},
+            ],
+        )
+        manual_item_id = project["items"][1]["item_id"]
+        store.configure_item_postprocess(
+            self.user["user_id"],
+            project["project_id"],
+            manual_item_id,
+            font_identity="font",
+            bgm_identity="music_id:manual",
+            bgm_selection_mode="manual",
+            text_color="#FFFFFF",
+        )
+        analyzed = ProjectContentAnalysisCoordinator(
+            store,
+            SuccessfulClient(),
+            music_selector=FakeMusicSelector(),
+        ).analyze(self.user["user_id"], project["project_id"], "token")
+
+        automatic = analyzed["items"][0]["settings"]["postprocess"]
+        manual = analyzed["items"][1]["settings"]["postprocess"]
+        self.assertEqual(automatic["bgm_identity"], "music_id:matched-1")
+        self.assertEqual(automatic["bgm_selection_mode"], "auto")
+        self.assertEqual(automatic["music_selection"]["status"], "SUCCESS")
+        self.assertEqual(manual["bgm_identity"], "music_id:manual")
+        self.assertEqual(manual["bgm_selection_mode"], "manual")
+
+    def test_same_script_analysis_retry_preserves_saved_auto_music(self) -> None:
+        class SuccessfulClient:
+            def analyze_workbench_content(
+                self, _token, original_script, *, force_refresh=False
+            ):
+                return _remote_result(original_script)
+
+        class CountingMusicSelector:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def resolve_for_analysis(self, _project, _item):
+                self.calls += 1
+                identity = f"music_id:matched-{self.calls}"
+                return identity, {
+                    "schema": "jyd.project-music-selection.v1",
+                    "status": "SUCCESS",
+                    "selection_source": "ai",
+                    "bgm_identity": identity,
+                    "video_duration_us": 0,
+                }
+
+        store = ProjectStore(self.settings.storage_root / "music_retry.db")
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="同脚本重试保留音乐",
+            items=[{"row_key": "1", "script_text": "字幕需要重新分析"}],
+        )
+        selector = CountingMusicSelector()
+        coordinator = ProjectContentAnalysisCoordinator(
+            store,
+            SuccessfulClient(),
+            music_selector=selector,
+        )
+
+        first = coordinator.analyze(
+            self.user["user_id"], project["project_id"], "token"
+        )
+        retried = coordinator.analyze(
+            self.user["user_id"],
+            project["project_id"],
+            "token",
+            force_refresh=True,
+        )
+
+        first_postprocess = first["items"][0]["settings"]["postprocess"]
+        retried_postprocess = retried["items"][0]["settings"]["postprocess"]
+        self.assertEqual(selector.calls, 1)
+        self.assertEqual(first_postprocess["bgm_identity"], "music_id:matched-1")
+        self.assertEqual(retried_postprocess["bgm_identity"], "music_id:matched-1")
+        self.assertEqual(
+            retried_postprocess["music_selection"]["status"], "SUCCESS"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

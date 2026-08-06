@@ -192,6 +192,23 @@ class ProjectVideoApiTest(unittest.TestCase):
                 self.assertEqual(current.headers["content-type"], "video/webm")
                 self.assertEqual(current.content, b"new-uploaded-video")
 
+                bundle = client.get(
+                    f"/api/new/projects/{project['project_id']}/videos/download"
+                )
+                self.assertEqual(bundle.status_code, 200, bundle.text)
+                self.assertEqual(bundle.headers["content-type"], "application/zip")
+                with zipfile.ZipFile(BytesIO(bundle.content)) as archive:
+                    self.assertEqual(
+                        archive.namelist(),
+                        ["人工粗剪.webm", "2-composition.mp4"],
+                    )
+                    self.assertEqual(
+                        archive.read("人工粗剪.webm"), b"new-uploaded-video"
+                    )
+                    self.assertEqual(
+                        archive.read("2-composition.mp4"), b"old-composition"
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

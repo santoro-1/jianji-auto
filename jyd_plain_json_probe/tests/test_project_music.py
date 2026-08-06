@@ -85,6 +85,37 @@ class ProjectMusicSelectionTest(unittest.TestCase):
         item["outputs"]["base_video"] = {"metadata": {"duration_us": 9_000_000}}
         self.assertEqual(item_video_duration_us(item), 9_000_000)
 
+    def test_analysis_can_choose_a_preliminary_top1_before_audio_exists(self) -> None:
+        selector = ProjectMusicSelector(self.matcher, self.available)
+        item = _item(
+            music_status="SUCCESS",
+            music_intent={
+                "primary_scene": "health_education",
+                "secondary_scenes": ["habit_lifestyle"],
+                "content_format": "knowledge_explanation",
+                "topics": ["general_health"],
+                "primary_mood": "calm",
+                "secondary_moods": ["warm"],
+                "valence": "positive",
+                "energy": 2,
+                "pace": "medium_slow",
+                "seriousness": 3,
+                "warmth": 4,
+                "tension": 1,
+                "speech_density": "high",
+                "vocal_preference": "prefer_instrumental",
+                "opening_preference": "soft",
+                "avoid_traits": ["strong_vocals", "dense_arrangement"],
+                "confidence": 0.9,
+            },
+        )
+        item["outputs"]["audio"] = None
+        item["subtitles"]["raw_cues"] = []
+        selected, snapshot = selector.resolve_for_analysis({"settings": {}}, item)
+        self.assertIn(selected, self.available)
+        self.assertEqual(snapshot["status"], "SUCCESS")
+        self.assertEqual(snapshot["video_duration_us"], 0)
+
     def test_script_and_audio_changes_invalidate_only_auto_selection(self) -> None:
         root = PROJECT_ROOT / "runtime" / "test_tmp" / f"project_music_{uuid.uuid4().hex}"
         root.mkdir(parents=True)
@@ -130,7 +161,8 @@ class ProjectMusicSelectionTest(unittest.TestCase):
                 "user", project["project_id"], item_id
             )
             auto_settings = regenerated["items"][0]["settings"]["postprocess"]
-            self.assertEqual(auto_settings["bgm_identity"], "")
+            self.assertEqual(auto_settings["bgm_identity"], "music_id:auto-v2")
+            self.assertEqual(auto_settings["music_selection"]["status"], "STALE")
             self.assertEqual(
                 auto_settings["music_selection"]["reason_code"],
                 "AUDIO_VERSION_CHANGED",

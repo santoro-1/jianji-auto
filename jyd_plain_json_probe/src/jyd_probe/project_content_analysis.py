@@ -6,6 +6,7 @@ import hashlib
 from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
+from .project_music import ProjectMusicSelector
 from .project_store import ProjectStore
 
 
@@ -108,12 +109,14 @@ class ProjectContentAnalysisCoordinator:
         client: AuthCenterClient,
         *,
         max_concurrency: int = CONTENT_ANALYSIS_BATCH_CONCURRENCY,
+        music_selector: ProjectMusicSelector | None = None,
     ) -> None:
         self.store = store
         self.client = client
         self.max_concurrency = max(
             1, min(int(max_concurrency), CONTENT_ANALYSIS_BATCH_CONCURRENCY)
         )
+        self.music_selector = music_selector
 
     def analyze(
         self,
@@ -139,6 +142,8 @@ class ProjectContentAnalysisCoordinator:
             item_id = str(item["item_id"])
             if requested and item_id not in requested:
                 continue
+            if not item.get("allowed_actions", {}).get("analyze_content", False):
+                raise ValueError(f"任务 {item.get('row_key')} 正在生成或分析，请稍后重试")
             script = str(item["script_text"])
             script_hash = _script_sha256(script)
             previous = dict(item.get("content_analysis") or {})
@@ -198,4 +203,43 @@ class ProjectContentAnalysisCoordinator:
                         error=_safe_error(exc),
                         previous=target.previous,
                     )
-        return self.store.get_project(owner_user_id, project_id)
+        project = self.store.get_project(owner_user_id, project_id)
+        if self.music_selector is not None:
+            targets_by_id = {target.item_id: target for target in targets}
+            for item in project["items"]:
+                item_id = str(item["item_id"])
+                target = targets_by_id.get(item_id)
+                if target is None:
+                    continue
+                analysis = item.get("content_analysis") or {}
+                if analysis.get("music_analysis_status") != "SUCCESS":
+                    continue
+                postprocess = (item.get("settings") or {}).get("postprocess") or {}
+                if postprocess.get("bgm_selection_mode") == "manual":
+                    continue
+                previous_selection = postprocess.get("music_selection") or {}
+                same_script_retry = (
+                    target.previous.get("script_sha256")
+                    == analysis.get("script_sha256")
+                )
+                has_saved_auto_music = bool(
+                    str(postprocess.get("bgm_identity") or "").strip()
+                    and previous_selection.get("status") in {"SUCCESS", "STALE"}
+                )
+                if same_script_retry and has_saved_auto_music:
+                    # Retrying subtitle analysis for unchanged copy must not make
+                    # the already-approved automatic BGM jump to a different track.
+                    continue
+                identity, selection = self.music_selector.resolve_for_analysis(
+                    project, item
+                )
+                self.store.save_item_auto_music_selection(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    expected_script_sha256=str(analysis.get("script_sha256") or ""),
+                    bgm_identity=identity,
+                    music_selection=selection,
+                )
+            project = self.store.get_project(owner_user_id, project_id)
+        return project

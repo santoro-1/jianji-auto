@@ -111,6 +111,25 @@ class ProjectMusicSelector:
         item: Mapping[str, Any],
     ) -> tuple[str, dict[str, Any]]:
         duration_us = item_video_duration_us(item)
+        return self._resolve(project, item, duration_us=duration_us, require_duration=True)
+
+    def resolve_for_analysis(
+        self,
+        project: Mapping[str, Any],
+        item: Mapping[str, Any],
+    ) -> tuple[str, dict[str, Any]]:
+        """Choose a visible preliminary Top1 before generated audio has a duration."""
+
+        return self._resolve(project, item, duration_us=0, require_duration=False)
+
+    def _resolve(
+        self,
+        project: Mapping[str, Any],
+        item: Mapping[str, Any],
+        *,
+        duration_us: int,
+        require_duration: bool,
+    ) -> tuple[str, dict[str, Any]]:
         analysis = (
             item.get("content_analysis")
             if isinstance(item.get("content_analysis"), dict)
@@ -118,7 +137,7 @@ class ProjectMusicSelector:
         )
         reason_code = "MUSIC_ANALYSIS_UNAVAILABLE"
         reason_summary = "音乐分析未成功"
-        if duration_us <= 0:
+        if require_duration and duration_us <= 0:
             reason_code = "DURATION_UNAVAILABLE"
             reason_summary = "当前音频或视频缺少可用的真实时长"
         elif analysis.get("music_analysis_status") == "SUCCESS" and isinstance(

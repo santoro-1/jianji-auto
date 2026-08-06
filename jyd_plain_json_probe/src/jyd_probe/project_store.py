@@ -165,14 +165,33 @@ def _invalidate_auto_music_selection(
     if not isinstance(postprocess, dict) or postprocess.get("bgm_selection_mode") != "auto":
         return settings
     postprocess = dict(postprocess)
-    postprocess["bgm_identity"] = ""
-    postprocess["music_selection"] = {
-        "schema": "jyd.project-music-selection.v1",
-        "status": "NOT_REQUESTED",
-        "selection_source": "ai",
-        "bgm_identity": None,
-        "reason_code": reason_code,
-    }
+    previous_identity = str(postprocess.get("bgm_identity") or "").strip()
+    previous_selection = postprocess.get("music_selection")
+    if reason_code == "AUDIO_VERSION_CHANGED" and previous_identity:
+        postprocess["music_selection"] = {
+            **(
+                dict(previous_selection)
+                if isinstance(previous_selection, dict)
+                else {}
+            ),
+            "schema": "jyd.project-music-selection.v1",
+            "status": "STALE",
+            "selection_source": "ai",
+            "bgm_identity": previous_identity,
+            "audio_asset_id": None,
+            "video_duration_us": 0,
+            "reason_code": reason_code,
+            "reason_summary": "声音版本已变化，保留当前推荐并在成片前按真实时长复核",
+        }
+    else:
+        postprocess["bgm_identity"] = ""
+        postprocess["music_selection"] = {
+            "schema": "jyd.project-music-selection.v1",
+            "status": "NOT_REQUESTED",
+            "selection_source": "ai",
+            "bgm_identity": None,
+            "reason_code": reason_code,
+        }
     settings["postprocess"] = postprocess
     return settings
 
@@ -717,6 +736,86 @@ class ProjectStore:
                 self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
+    def delete_item(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+    ) -> tuple[dict[str, Any], list[str]]:
+        """Remove one inactive project row and its item-owned local assets."""
+
+        cleanup_candidates: set[str] = set()
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前任务正在生成，请等待完成后再删除")
+            analysis = _content_analysis_snapshot(
+                _object(item["content_analysis_json"], {}),
+                str(item["script_text"]),
+            )
+            if str(analysis.get("overall_status") or "") == "PENDING":
+                raise ValueError("当前任务正在进行内容分析，请等待完成后再删除")
+            active_operation = connection.execute(
+                """
+                SELECT 1 FROM project_operations
+                WHERE item_id=? AND status IN ('PENDING', 'RUNNING')
+                LIMIT 1
+                """,
+                (item_id,),
+            ).fetchone()
+            if active_operation is not None:
+                raise ValueError("当前任务仍有异步操作，请等待完成后再删除")
+
+            cleanup_candidates.update(
+                str(row["managed_path"])
+                for row in connection.execute(
+                    """
+                    SELECT managed_path FROM project_assets
+                    WHERE item_id=? AND asset_type!='input_image'
+                      AND managed_path IS NOT NULL AND managed_path!=''
+                    """,
+                    (item_id,),
+                ).fetchall()
+            )
+            connection.execute("DELETE FROM project_items WHERE item_id=?", (item_id,))
+
+            remaining = connection.execute(
+                "SELECT item_id FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            for offset, row in enumerate(remaining, start=1):
+                connection.execute(
+                    "UPDATE project_items SET position=? WHERE item_id=?",
+                    (-offset, row["item_id"]),
+                )
+            for position, row in enumerate(remaining, start=1):
+                connection.execute(
+                    "UPDATE project_items SET position=? WHERE item_id=?",
+                    (position, row["item_id"]),
+                )
+
+            cleanup_paths = [
+                path
+                for path in sorted(cleanup_candidates)
+                if connection.execute(
+                    "SELECT 1 FROM project_assets WHERE managed_path=? LIMIT 1",
+                    (path,),
+                ).fetchone()
+                is None
+            ]
+            now = _now()
+            connection.execute(
+                """
+                UPDATE projects
+                SET revision=revision+1, updated_at=?
+                WHERE project_id=?
+                """,
+                (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id), cleanup_paths
+
     def get_voice_preferences(self, owner_user_id: str) -> dict[str, Any]:
         owner_id = str(owner_user_id or "").strip()
         with self._connect() as connection:
@@ -1093,6 +1192,83 @@ class ProjectStore:
             )
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
+
+    def save_item_auto_music_selection(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        bgm_identity: str,
+        music_selection: dict[str, Any],
+    ) -> bool:
+        """Persist an AI Top1 choice without overwriting an explicit manual choice."""
+
+        clean_bgm = str(bgm_identity or "").strip()
+        if not isinstance(music_selection, dict):
+            raise ValueError("音乐选择快照必须是对象")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            settings = _object(item["settings_json"], {})
+            current = settings.get("postprocess")
+            postprocess = dict(current) if isinstance(current, dict) else {}
+            if postprocess.get("bgm_selection_mode") == "manual":
+                return False
+            previous_identity = str(postprocess.get("bgm_identity") or "").strip()
+            postprocess.update(
+                {
+                    "bgm_identity": clean_bgm,
+                    "bgm_selection_mode": "auto",
+                    "music_selection": dict(music_selection),
+                }
+            )
+            if current == postprocess:
+                return True
+            settings["postprocess"] = postprocess
+            now = _now()
+            if (
+                previous_identity != clean_bgm
+                and item["current_video_asset_id"]
+                and item["status"] not in ACTIVE_ITEM_STATUSES
+            ):
+                subtitles = _object(item["subtitles_json"], _default_subtitles())
+                subtitles["render_cues"] = []
+                subtitles["bound_video_asset_id"] = None
+                subtitles["overflow_risk"] = False
+                subtitles["review_reason"] = None
+                subtitles["status"] = (
+                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+                )
+                next_status = (
+                    "BASE_VIDEO_READY"
+                    if item["current_base_video_asset_id"]
+                    else ("AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT")
+                )
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET settings_json=?, current_video_asset_id=NULL,
+                        subtitles_json=?, status=?, updated_at=?
+                    WHERE item_id=?
+                    """,
+                    (_json(settings), _json(subtitles), next_status, now, item_id),
+                )
+            else:
+                connection.execute(
+                    "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
+                    (_json(settings), now, item_id),
+                )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return True
 
     def configure_variant_settings(
         self,
@@ -1551,7 +1727,12 @@ class ProjectStore:
     def delete_project(self, owner_user_id: str, project_id: str) -> list[str]:
         with self._transaction() as connection:
             self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_inputs(connection, project_id)
+            has_items = connection.execute(
+                "SELECT 1 FROM project_items WHERE project_id=? LIMIT 1",
+                (project_id,),
+            ).fetchone()
+            if has_items is not None:
+                self._require_editable_inputs(connection, project_id)
             paths = [
                 str(row["managed_path"])
                 for row in connection.execute(
@@ -2764,6 +2945,7 @@ class ProjectStore:
         )
         return {
             "edit_inputs": status == "DRAFT",
+            "delete_item": not active and analysis_status != "PENDING",
             "replace_image": status in IMAGE_EDITABLE_ITEM_STATUSES,
             "edit_postprocess": not active,
             "generate_audio": not active,
@@ -2781,8 +2963,9 @@ class ProjectStore:
             "upload_current_video": composition_ready and not active,
             "generate_variants": composition_ready and not active,
             "retry_variants": status == "VARIANT_FAILED",
-            "analyze_content": analysis_status != "PENDING",
-            "retry_content_analysis": analysis_status in {"FAILED", "PARTIAL"},
+            "analyze_content": not active and analysis_status != "PENDING",
+            "retry_content_analysis": not active
+            and analysis_status in {"FAILED", "PARTIAL"},
         }
 
     @staticmethod

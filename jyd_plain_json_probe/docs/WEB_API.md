@@ -39,11 +39,16 @@ POST /api/new/script-imports/preview?filename=脚本.xlsx
 ```text
 PUT    /api/new/projects/{project_id}/inputs
 PATCH  /api/new/projects/{project_id}/items/{item_id}
+DELETE /api/new/projects/{project_id}/items/{item_id}
 DELETE /api/new/projects/{project_id}
 ```
 
 `PUT inputs` 在一个数据库事务内完成 ID、脚本内容和顺序的整体替换，失败时保留更新前
-数据。只有全部脚本行仍为 `DRAFT` 才能修改；清除项目也只允许尚未进入生成流程的草稿。
+数据。只有全部脚本行仍为 `DRAFT` 才能整体替换输入；清除项目也只允许尚未进入生成流程的
+草稿。单行删除允许草稿、失败或已完成任务，但禁止删除正在执行内容分析、声音、画面、后期
+或变体异步操作的行。任务可以删到 0 行，之后仍可通过“添加分段”重新创建；删除会级联移除
+该行本地素材版本、操作和外部关联，并清理该行不再被引用的本地生成文件，项目公共图片池
+不受影响。
 
 智能内容分析模块 5 增加：
 
@@ -61,7 +66,7 @@ POST /api/new/projects/{project_id}/items/{item_id}/content-analysis/retry
 }
 ```
 
-该项目接口由“生成声音预览”动作触发，但浏览器只提交本批声音目标中首次导入或脚本内容
+该项目接口由“生成声音预览和脚本分析”动作触发，但浏览器只提交本批声音目标中首次导入或脚本内容
 变化、状态为 `NOT_REQUESTED` 的行；单纯重新生成声音不调用该接口。工作台把目标行拆成
 一条脚本一次数字人后端请求，单批最多并发 10 行。普通请求对脚本哈希未变化且已有
 `PENDING`、`SUCCESS`、`PARTIAL` 或 `FAILED` 尝试的行保持幂等跳过。单行 retry 固定强制
@@ -69,7 +74,9 @@ POST /api/new/projects/{project_id}/items/{item_id}/content-analysis/retry
 `content_analysis`，项目顶层新增 `content_analysis_summary`。音乐和字幕分别保存
 `NOT_REQUESTED | SUCCESS | FAILED`，请求执行期间顶层 `overall_status=PENDING`，最终为
 `SUCCESS | PARTIAL | FAILED`。脚本修改只失效该行分析快照；分析失败返回合法项目状态，
-不重新调用 MiniMax/RunningHub/剪映，也不清空 `raw_cues` 或已有音视频。
+不重新调用 MiniMax/RunningHub/剪映，也不清空 `raw_cues` 或已有音视频。前端在请求发出时立即把
+目标行显示为“AI 分析中”；音乐分支成功后，工作台会用本地标签库预选唯一 Top1 并保存到
+`settings.postprocess`，因此同一次响应即可在背景音乐下拉框显示具体曲目。
 
 智能内容分析模块 6 不增加独立外部 API；它在既有
 `POST /api/new/projects/{project_id}/postprocess/generate` 生成浏览器 4B 预览时执行。每个
@@ -93,13 +100,15 @@ item 的 `subtitles` 增加：
 }
 ```
 
-智能内容分析模块 7 同样不增加外部模型请求。4B 请求中的每一行可显式传
-`bgm_selection_mode=auto|manual`：`auto` 从该行已保存且合法的 `music_intent`、当前音频
-真实时长和本地 46 首标签库计算唯一 Top1；`manual` 使用用户指定曲目或明确的无 BGM。
+智能内容分析模块 7 同样不增加外部模型请求。内容分析完成后先使用合法 `music_intent` 和
+本地 46 首标签库计算可见的唯一 Top1；4B 请求中的每一行仍可显式传
+`bgm_selection_mode=auto|manual`：`auto` 会结合当前音频真实时长复核唯一 Top1，`manual`
+使用用户指定曲目或明确的无 BGM。声音版本变化时保留当前推荐供界面显示并标记 `STALE`，
+4B 前再按新时长复核。
 选择结果保存在 `settings.postprocess.music_selection`，包含选择来源、当前脚本摘要、音频
 素材 ID、时长、matcher/taxonomy/profile 版本与标签库哈希；不会返回 Top3 或候选列表。
 音乐分析失败或本地匹配失败时按“项目明确默认音乐 → 无 BGM”降级，不影响字幕映射或
-4B 预览。手动曲目和手动无 BGM 都不会被 AI 覆盖；页面选择“AI 智能匹配”才会恢复自动模式。
+4B 预览。手动曲目和手动无 BGM 都不会被后续 AI 分析覆盖。
 
 模块 8 没有增加 API。跨项目 mock 验收直接使用数字人服务端实际内容分析响应，确认本节
 状态、字段和两种部分成功结果均能被工作台消费；错误字符索引只在文字完整重建原文时由
@@ -274,6 +283,7 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 GET  /api/new/projects/{project_id}/items/{item_id}/current-video
 POST /api/new/projects/{project_id}/items/{item_id}/current-video?filename=人工粗剪.mp4
 GET  /api/new/projects/{project_id}/items/{item_id}/original-materials
+GET  /api/new/projects/{project_id}/videos/download
 ```
 
 `POST current-video` 使用视频文件原始二进制作为请求体，支持 MP4、MOV、AVI、MKV、WebM，
@@ -282,6 +292,11 @@ GET  /api/new/projects/{project_id}/items/{item_id}/original-materials
 `composition_video` 素材版本并切换当前视频；旧自动成片、基础视频和 RunningHub 原始
 片段不覆盖、不删除。上传文件视为用户已处理好的完整视频，原 MiniMax cues 继续保留，
 但字幕绑定和状态改为 `INVALIDATED`。
+
+`GET /videos/download` 只打包项目中每一行当前的 `composition_video`，也就是生成变体前的
+普通成片，不包含任何 variant。必须所有脚本行都已有实际导出的当前成片；浏览器动态预览
+尚未导出时返回 `409`。工作台的一键下载会先顺序调用单行 `postprocess/export` 补齐这些
+文件，再请求 ZIP；ZIP 在响应结束后立即删除。
 
 `original-materials` 不改变任何项目状态。只有一个 RunningHub 原始片段时直接返回 MP4；
 存在多个片段时按 `video_index` 排序，返回包含全部片段及 `片段顺序清单.json` 的一次性

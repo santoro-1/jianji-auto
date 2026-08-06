@@ -42,6 +42,7 @@ from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
 from .project_composition import ProjectCompositionCoordinator
 from .project_inputs import detect_project_image, parse_project_script_file
+from .project_music import ProjectMusicSelector
 from .project_postprocess import ProjectPostprocessCoordinator
 from .project_results import ProjectResultLibrary
 from .project_variants import ProjectVariantCoordinator
@@ -1940,6 +1941,25 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.delete("/api/new/projects/{project_id}/items/{item_id}")
+    def delete_new_project_item(
+        project_id: str, item_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            project, cleanup_paths = project_store.delete_item(
+                user["user_id"], project_id, item_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或任务不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        for managed_path in cleanup_paths:
+            path = Path(managed_path).resolve()
+            if is_managed_project_file(path):
+                _unlink_if_exists(path)
+        return project
+
     @app.get("/api/new/script-template")
     def download_new_script_template() -> FileResponse:
         path = NEW_FRONTEND_ROOT / "project-script-template.xlsx"
@@ -2180,7 +2200,20 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def project_content_analysis_coordinator(
         client: AuthCenterClient,
     ) -> ProjectContentAnalysisCoordinator:
-        return ProjectContentAnalysisCoordinator(project_store, client, max_concurrency=10)
+        _, bgm_assets = project_postprocess_resources()
+        available_bgm = {
+            str(item.get("identity") or ""): item
+            for item in bgm_assets
+            if item.get("identity") and item.get("available", True)
+        }
+        return ProjectContentAnalysisCoordinator(
+            project_store,
+            client,
+            max_concurrency=10,
+            music_selector=ProjectMusicSelector(
+                MusicProfileMatcher(settings.audio_library_root), available_bgm
+            ),
+        )
 
     @app.post("/api/new/projects/{project_id}/content-analysis")
     def analyze_new_project_content(
@@ -3255,6 +3288,65 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             path,
             media_type=media_type,
             filename=str(video.get("filename") or f"{item['row_key']}-composition.mp4"),
+        )
+
+    @app.get("/api/new/projects/{project_id}/videos/download")
+    def download_new_project_current_videos(
+        project_id: str, request: Request
+    ) -> FileResponse:
+        """Download every pre-variant current video in one temporary ZIP."""
+
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        items = list(project.get("items") or [])
+        if not items:
+            raise HTTPException(status_code=409, detail="当前项目没有可下载的视频")
+        selected: list[tuple[Path, str]] = []
+        for item in items:
+            video = (item.get("outputs") or {}).get("composition_video")
+            if not isinstance(video, dict) or not video.get("managed_path"):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"任务 {item.get('row_key')} 的未变体成片尚未导出",
+                )
+            path = Path(str(video["managed_path"])).resolve()
+            if not is_managed_project_file(path) or not path.is_file():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"任务 {item.get('row_key')} 的未变体成片文件不存在",
+                )
+            selected.append(
+                (
+                    path,
+                    _safe_filename(
+                        str(video.get("filename") or f"{item.get('row_key')}-成片.mp4")
+                    ),
+                )
+            )
+        archive_root = settings.storage_root / "project_downloads"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
+        used: dict[str, int] = {}
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
+        ) as archive:
+            for path, filename in selected:
+                used[filename] = used.get(filename, 0) + 1
+                count = used[filename]
+                archive_name = filename
+                if count > 1:
+                    source = Path(filename)
+                    archive_name = f"{source.stem}-{count:02d}{source.suffix}"
+                archive.write(path, arcname=archive_name)
+        project_name = _safe_filename(str(project.get("name") or "数字人成片"))
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"{project_name}-未变体视频.zip",
+            background=BackgroundTask(_unlink_if_exists, archive_path),
         )
 
     @app.get(

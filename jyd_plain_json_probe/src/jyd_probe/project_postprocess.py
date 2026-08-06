@@ -27,12 +27,45 @@ CAPTION_MAX_LINES = 1
 CAPTION_BOTTOM_OFFSET_RATIO = 0.2
 CAPTION_TRANSFORM_Y = -0.6
 CAPTION_REFERENCE_FONT_SIZE = 11.0
-CAPTION_REFERENCE_MAX_EM = 14.0
+CAPTION_REFERENCE_MAX_EM = 13.0
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
 CAPTION_MIN_SLICE_US = 80_000
 _BREAK_CHARS = set("，,、：:。.！？!?；;")
 _HIDDEN_CAPTION_PUNCTUATION = _BREAK_CHARS | set("…")
+_HARD_SENTENCE_BREAKS = set("。.！？!?；;…\r\n")
+_SOFT_SENTENCE_BREAKS = set("，,、：:")
+_ORPHAN_PARTICLES = tuple("的地得呢啊了吧吗")
+_PROTECTED_TERMS = (
+    "表现",
+    "问题",
+    "世界冠军",
+    "核心逻辑",
+    "储存",
+    "储存机制",
+    "小时",
+    "新中年女性",
+    "女性",
+    "健康体重管理",
+    "胖肚子",
+    "以及",
+    "内脏脂肪",
+    "呼吸",
+    "形式",
+    "脂肪",
+    "糖原",
+    "二氧化碳",
+    "葡萄糖",
+)
+_PREFERRED_PHRASE_END_TERMS = (
+    "世界冠军",
+    "新中年女性",
+    "健康体重管理",
+    "核心逻辑",
+    "胖肚子",
+    "内脏脂肪",
+    "形式",
+)
 _LEADING_CONNECTORS = (
     "那么",
     "但是",
@@ -135,6 +168,132 @@ def _caption_display_text(value: str) -> tuple[str, set[int]]:
     return cleaned, {position for position in preferred_breaks if 0 < position < len(cleaned)}
 
 
+def _trailing_sentence_break(text: str) -> str:
+    normalized = str(text or "").rstrip()
+    if not normalized:
+        return ""
+    if normalized[-1] in _HARD_SENTENCE_BREAKS:
+        return "hard"
+    if normalized[-1] in _SOFT_SENTENCE_BREAKS:
+        return "soft"
+    return ""
+
+
+def _unbreakable_terms() -> tuple[str, ...]:
+    return (*_PROTECTED_TERMS, *_LEADING_CONNECTORS)
+
+
+def _merge_unbreakable_term_boundaries(
+    groups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Discard model boundaries that split a known lexical unit."""
+
+    source_text = "".join(str(group.get("text") or "") for group in groups)
+    unsafe_offsets: set[int] = set()
+    for term in _unbreakable_terms():
+        cursor = 0
+        while True:
+            position = source_text.find(term, cursor)
+            if position < 0:
+                break
+            unsafe_offsets.update(range(position + 1, position + len(term)))
+            cursor = position + 1
+
+    merged: list[dict[str, Any]] = []
+    source_offset = 0
+    for source in groups:
+        group = dict(source)
+        if merged and source_offset in unsafe_offsets:
+            previous = merged.pop()
+            group = {
+                "text": str(previous.get("text") or "") + str(group.get("text") or ""),
+                "start_us": int(previous.get("start_us") or 0),
+                "end_us": int(group.get("end_us") or 0),
+                "break_after": str(group.get("break_after") or "allow"),
+                "hard_break_after": bool(group.get("hard_break_after")),
+                "unit_count": int(previous.get("unit_count") or 1)
+                + int(group.get("unit_count") or 1),
+            }
+        merged.append(group)
+        source_offset += len(str(source.get("text") or ""))
+    return merged
+
+
+def _merge_orphan_sentence_tails(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Repair one-character tails and very short comma-led prefixes."""
+
+    merged: list[dict[str, Any]] = []
+    for source in groups:
+        group = dict(source)
+        display, _preferred = _caption_display_text(str(group.get("text") or ""))
+        if (
+            merged
+            and len(display) == 1
+            and _trailing_sentence_break(str(group.get("text") or ""))
+        ):
+            previous = merged.pop()
+            group = {
+                "text": str(previous.get("text") or "") + str(group.get("text") or ""),
+                "start_us": int(previous.get("start_us") or 0),
+                "end_us": int(group.get("end_us") or 0),
+                "break_after": str(group.get("break_after") or "allow"),
+                "hard_break_after": bool(group.get("hard_break_after")),
+                "unit_count": int(previous.get("unit_count") or 1)
+                + int(group.get("unit_count") or 1),
+            }
+        merged.append(group)
+
+    rebalanced: list[dict[str, Any]] = []
+    index = 0
+    while index < len(merged):
+        group = merged[index]
+        display, _preferred = _caption_display_text(str(group.get("text") or ""))
+        if (
+            index + 1 < len(merged)
+            and len(display) < 4
+            and _trailing_sentence_break(str(group.get("text") or "")) == "soft"
+        ):
+            following = merged[index + 1]
+            rebalanced.append(
+                {
+                    "text": str(group.get("text") or "")
+                    + str(following.get("text") or ""),
+                    "start_us": int(group.get("start_us") or 0),
+                    "end_us": int(following.get("end_us") or 0),
+                    "break_after": str(following.get("break_after") or "allow"),
+                    "hard_break_after": bool(following.get("hard_break_after")),
+                    "unit_count": int(group.get("unit_count") or 1)
+                    + int(following.get("unit_count") or 1),
+                }
+            )
+            index += 2
+            continue
+        rebalanced.append(group)
+        index += 1
+
+    attached: list[dict[str, Any]] = []
+    for group in rebalanced:
+        display, _preferred = _caption_display_text(str(group.get("text") or ""))
+        if (
+            attached
+            and display.startswith(_ORPHAN_PARTICLES)
+            and _trailing_sentence_break(str(attached[-1].get("text") or ""))
+            != "hard"
+        ):
+            previous = attached.pop()
+            group = {
+                "text": str(previous.get("text") or "") + str(group.get("text") or ""),
+                "start_us": int(previous.get("start_us") or 0),
+                "end_us": int(group.get("end_us") or 0),
+                "break_after": str(group.get("break_after") or "allow"),
+                "hard_break_after": bool(group.get("hard_break_after")),
+                "unit_count": int(previous.get("unit_count") or 1)
+                + int(group.get("unit_count") or 1),
+            }
+        attached.append(group)
+    return attached
+
+
 def _split_one_line(
     text: str, metrics: FontMetrics, *, maximum_width_em: float
 ) -> list[str]:
@@ -157,6 +316,28 @@ def _split_one_line(
                 connector_ends.add(position + len(connector))
             cursor = position + len(connector)
 
+    protected_breaks: set[int] = set()
+    for term in _unbreakable_terms():
+        cursor = 0
+        while True:
+            position = normalized.find(term, cursor)
+            if position < 0:
+                break
+            protected_breaks.update(range(position + 1, position + len(term)))
+            cursor = position + 1
+
+    preferred_term_ends: set[int] = set()
+    for term in _PREFERRED_PHRASE_END_TERMS:
+        cursor = 0
+        while True:
+            position = normalized.find(term, cursor)
+            if position < 0:
+                break
+            term_end = position + len(term)
+            if term_end < len(normalized):
+                preferred_term_ends.add(term_end)
+            cursor = position + 1
+
     # Use a whole-sentence optimum instead of greedily preferring the first
     # punctuation seen in each window.  The greedy version could turn the
     # beginning of the next window into an orphan such as ``糖，``.
@@ -178,6 +359,8 @@ def _split_one_line(
             chunk = normalized[start:end].strip()
             if not chunk:
                 continue
+            if end < length and end in protected_breaks:
+                continue
             core_length = len(chunk)
             fill_ratio = width / maximum_width_em
             score = scores[start] + (1.0 - fill_ratio) ** 2
@@ -189,8 +372,14 @@ def _split_one_line(
                     score -= 0.35
                 if end in connector_starts:
                     score -= 0.55
+                if end in preferred_term_ends:
+                    score -= 1.25
                 if end in connector_ends or chunk.endswith(_LEADING_CONNECTORS):
                     score += 4.0
+                if chunk.endswith(_ORPHAN_PARTICLES):
+                    score += 10.0
+            if start > 0 and chunk.startswith(_ORPHAN_PARTICLES):
+                score += 10.0
             if score < scores[end]:
                 scores[end] = score
                 previous[end] = start
@@ -277,6 +466,64 @@ def _layout_semantic_groups(
     *,
     maximum_width_em: float,
 ) -> list[dict[str, int | str]]:
+    groups = _merge_unbreakable_term_boundaries(groups)
+    groups = _merge_orphan_sentence_tails(groups)
+    repaired_groups: list[dict[str, Any]] = []
+    for group in groups:
+        group_text = str(group.get("text") or "")
+        sentence_break = (
+            "hard"
+            if group.get("hard_break_after")
+            else _trailing_sentence_break(group_text)
+        )
+        display, _preferred = _caption_display_text(group_text)
+        if metrics.text_width_em(display) <= maximum_width_em:
+            retained = dict(group)
+            retained["sentence_break"] = sentence_break
+            repaired_groups.append(retained)
+            continue
+
+        start_us = int(group.get("start_us") or 0)
+        end_us = int(group.get("end_us") or 0)
+        if end_us <= start_us:
+            raise SemanticSubtitleMappingError(
+                "SEMANTIC_TIME_INVALID", "超宽语义单元的派生时间范围无效"
+            )
+        try:
+            chunks = _split_one_line(
+                group_text,
+                metrics,
+                maximum_width_em=maximum_width_em,
+            )
+            repaired = _allocate_cue_chunks(
+                CaptionCue(start_us, end_us - start_us, display),
+                chunks,
+                metrics,
+            )
+        except CaptionLayoutReviewRequired as exc:
+            raise SemanticSubtitleMappingError(
+                "SEMANTIC_GROUP_REPAIR_FAILED",
+                "超宽语义单元无法在保留其余语义断点的情况下局部修复",
+            ) from exc
+        for index, cue in enumerate(repaired):
+            repaired_groups.append(
+                {
+                    "text": cue.text,
+                    "start_us": cue.start_us,
+                    "end_us": cue.end_us,
+                    "break_after": (
+                        str(group.get("break_after") or "allow")
+                        if index == len(repaired) - 1
+                        else "allow"
+                    ),
+                    "sentence_break": (
+                        sentence_break if index == len(repaired) - 1 else ""
+                    ),
+                    "unit_count": int(group.get("unit_count") or 1),
+                }
+            )
+
+    groups = repaired_groups
     displays: list[str] = []
     for group in groups:
         display, _preferred = _caption_display_text(str(group.get("text") or ""))
@@ -294,6 +541,11 @@ def _layout_semantic_groups(
     scores[0] = 0.0
     for end in range(1, length + 1):
         for start in range(end - 1, -1, -1):
+            if any(
+                groups[index].get("sentence_break") == "hard"
+                for index in range(start, end - 1)
+            ):
+                continue
             text, _preferred = _caption_display_text(
                 "".join(str(group.get("text") or "") for group in groups[start:end])
             )
@@ -306,13 +558,20 @@ def _layout_semantic_groups(
             score = scores[start] + (1.0 - fill_ratio) ** 2
             if len(text) < 4:
                 score += (4 - len(text)) * 8.0
+            if start > 0 and text.startswith(_ORPHAN_PARTICLES):
+                score += 10.0
             if end < length:
                 score += 0.25
+                sentence_break = str(groups[end - 1].get("sentence_break") or "")
                 break_after = str(groups[end - 1].get("break_after") or "allow")
-                if break_after == "prefer":
+                if sentence_break == "soft":
+                    score -= 2.0
+                elif break_after == "prefer":
                     score -= 0.45
                 elif break_after == "avoid":
                     score += 8.0
+                if text.endswith(_ORPHAN_PARTICLES):
+                    score += 10.0
             if score < scores[end]:
                 scores[end] = score
                 previous[end] = start

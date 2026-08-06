@@ -368,6 +368,7 @@ data/template_library/<template_id>/
 - `/api/new/projects/{id}/postprocess*`：4B 浏览器预览配方生成与状态查询。
 - `/api/new/projects/{id}/items/{item_id}/postprocess/export`：用户明确下载时按需启动一次剪映导出。
 - `GET/POST /api/new/projects/{id}/items/{item_id}/current-video`：下载当前视频或上传本地视频并切换版本。
+- `GET /api/new/projects/{id}/videos/download`：一次性 ZIP 下载项目所有未变体当前成片。
 - `/api/new/projects/{id}/items/{item_id}/original-materials`：下载单个原始片段或包含顺序清单的多片段 ZIP。
 
 新版浏览器入口为 `/app/new`，成果库为 `/app/new/gallery`，声音中心为
@@ -409,7 +410,12 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 `item_id`，即可重新派生字幕并刷新浏览器 BGM 预览；服务端只处理请求中明确列出的脚本行。
 字幕效果卡固定显示“这是字幕预览”，不绑定脚本或 render cue。BGM 下拉框隐藏内部 `auto`
 哨兵：自动 Top1 成功时直接显示解析后的具体曲目，尚无解析结果时显示“无音乐”；提交时仍
-保留既有 `bgm_selection_mode=auto`，因此展示调整不改变首次匹配和后续版本失效规则。
+保留既有 `bgm_selection_mode=auto`。单行分析按钮在请求开始后立即切换为“AI 分析中”，成功
+后直接保存并展示 Top1；手动曲目或手动无音乐不被覆盖。
+每条表格任务在任务 ID 下提供 `DELETE /api/new/projects/{project_id}/items/{item_id}` 入口。
+后端拒绝删除运行中或内容分析中的任务；其他状态删除时级联清理该行素材版本、操作、外部
+关联和未被其他行引用的本地生成文件，再重新排列 `position`。任务可删到 0 行并通过“添加
+分段”重新创建。共享图片池及其他任务不删除，前端必须先提示本地记录删除和第三方费用不可撤销。
 从音频已就绪点击“生成完整成片”时，只对 RunningHub 费用确认一次，4A 完成后自动执行
 4B 并进入视频预览，不再弹出字幕/BGM 二次确认。
 
@@ -419,9 +425,12 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 旧成片和 RunningHub 原始片段，同时解绑并失效原 MiniMax 字幕。原始素材下载按
 `external_ref.video_index` 排序；单片段直接返回文件，多片段使用一次性 ZIP 并附加
 `片段顺序清单.json`，响应结束后删除临时 ZIP。
+底部“一键下载未变体视频”在所有行普通成片预览就绪后启用。前端对仅有浏览器动态预览的
+行顺序调用 `POST /postprocess/export` 并等待真实 `composition_video`，再通过项目级
+`GET /videos/download` 打包；variant 素材不参与，临时 ZIP 在响应结束后删除。
 
 `project_content_analysis.py` 负责新增智能内容分析模块 5。Excel/CSV 导入、添加分段和编辑
-脚本只把相应快照置为 `NOT_REQUESTED`，不发起分析。用户点击“生成声音预览”时，前端在
+脚本只把相应快照置为 `NOT_REQUESTED`，不发起分析。用户点击“生成声音预览和脚本分析”时，前端在
 提交声音任务的同时，对本批声音目标中 `NOT_REQUESTED` 的行调用
 `POST /api/new/projects/{project_id}/content-analysis`；协调器为每个需要分析的
 `ProjectItem` 单独调用数字人后端 `/api/workbench/content-analysis`，不会把多条脚本
@@ -429,8 +438,9 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 `PENDING`/`SUCCESS`/`PARTIAL`/`FAILED` 尝试，单行显式重试使用 `force_refresh=true`。
 服务端响应在工作台再次核对脚本哈希、长度、分支状态和
 字幕文字完整覆盖后才落盘。刷新重试时，新失败不得覆盖同一脚本此前已经成功的分支。
-项目批量调用最多并发 10 行，失败按行保存并继续。模块 5 不进行字符到时间轴映射、字体
-排版或音乐 Top1。
+项目批量调用最多并发 10 行，失败按行保存并继续。模块 5 不进行字符到时间轴映射或字体
+排版；音乐分支成功后会调用 `ProjectMusicSelector.resolve_for_analysis` 产生不依赖音频时长的
+初步 Top1，并通过 `save_item_auto_music_selection` 保存，但不会覆盖显式 manual 设置。
 
 `semantic_subtitles.py` 负责智能内容分析模块 6。工作台再次拒绝带大模型时间字段、未连续
 覆盖原文或语义属性非法的 `subtitle_units`；MiniMax cue 文本允许省略原文空格/换行，但
@@ -441,11 +451,18 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 `semantic_mapping.status=FALLBACK` 并调用原有 `layout_one_line_captions`；raw cues 永久保留。
 本模块不执行音乐 Top1。
 
-`project_music.py` 负责智能内容分析模块 7。4B 自动模式只读取当前行已校验的
-`music_intent`、当前 MiniMax 音频真实时长和本地 `music_profiles.v1.json`，返回唯一 Top1
-并保存 `jyd.project-music-selection.v1` 快照；不保存候选列表或 Top3。快照绑定脚本、音频、
-时长和 matcher/taxonomy/profile 版本。音乐分支失败按项目默认音乐或无 BGM 降级；手动曲目
-及手动无 BGM 始终优先，只有显式恢复 AI 才允许覆盖。变体只冻结继承 4B 最终 BGM。
+当前单行参考宽度为 13em。若只有某个已映射语义组超过真实字宽，排版器会在该组时间范围内
+局部补切并继续使用其余 AI 断点；只有脚本、版本、原文或时间轴映射不安全等全局问题才整篇
+回退 `layout_one_line_captions`。模型组边界和局部补切必须共用保护词边界：完整词内部的模型
+断点先合并，局部补切只遍历安全字符位置，并把少量完整语义短语结尾作为优先候选。不能为了
+行宽均衡拆成“女｜性”“核心｜逻辑”“以｜及”或“形｜式”。
+
+`project_music.py` 负责智能内容分析模块 7。内容分析完成时先从当前行已校验的
+`music_intent` 和本地 `music_profiles.v1.json` 返回可见的初步唯一 Top1；4B 自动模式再加入
+当前 MiniMax 音频真实时长复核并保存最终 `jyd.project-music-selection.v1` 快照，不保存候选
+列表或 Top3。声音版本变化保留已选 identity 并标记 `STALE`，避免界面退回“无音乐”，4B
+会按新音频时长刷新绑定。音乐分支失败按项目默认音乐或无 BGM 降级；手动曲目及手动无 BGM
+始终优先。变体只冻结继承 4B 最终 BGM。
 
 智能内容分析模块 8 的跨项目验收位于数字人项目
 `tests/test_content_analysis_workbench_integration.py`。它直接把数字人服务端

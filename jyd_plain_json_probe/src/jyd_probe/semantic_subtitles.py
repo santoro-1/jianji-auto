@@ -261,16 +261,35 @@ def semantic_break_groups(
     groups: list[dict[str, Any]] = []
     current: list[dict[str, Any]] = []
     for index, unit in enumerate(units):
+        unit_text = str(unit.get("text") or "")
+        is_line_break = unit.get("kind") == "whitespace" and any(
+            character in unit_text for character in "\r\n"
+        )
+        if is_line_break:
+            # A paragraph break carries no visible text or useful timing of its own.
+            # The previous group was already closed before it, and the next unit must
+            # start a fresh group so layout can never join text across paragraphs.
+            continue
         current.append(unit)
         next_unit = units[index + 1] if index + 1 < len(units) else None
+        next_text = str(next_unit.get("text") or "") if next_unit else ""
+        next_is_line_break = bool(
+            next_unit
+            and next_unit.get("kind") == "whitespace"
+            and any(character in next_text for character in "\r\n")
+        )
         boundary_forbidden = bool(
             next_unit
+            and not next_is_line_break
             and (
                 unit.get("break_after") == "avoid"
                 or unit.get("bind") in {"right", "both"}
                 or next_unit.get("bind") in {"left", "both"}
                 or unit.get("kind") == "whitespace"
-                or next_unit.get("kind") == "whitespace"
+                or (
+                    next_unit.get("kind") == "whitespace"
+                    and not next_is_line_break
+                )
                 or next_unit.get("kind") == "punctuation"
                 or (index == 0 and unit.get("kind") == "punctuation")
             )
@@ -283,6 +302,7 @@ def semantic_break_groups(
                 "start_us": int(current[0]["start_us"]),
                 "end_us": int(current[-1]["end_us"]),
                 "break_after": str(current[-1].get("break_after") or "allow"),
+                "hard_break_after": next_is_line_break,
                 "unit_count": len(current),
             }
         )

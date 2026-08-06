@@ -145,9 +145,160 @@ def test_spaces_and_newlines_may_be_absent_from_provider_cues_without_losing_ver
 
     assert mapping["status"] == "SUCCESS"
     assert len(timed) == len(units)
-    assert "".join(str(group["text"]) for group in groups) == script
+    assert "".join(str(group["text"]) for group in groups) == script.replace("\n", "")
+    assert all("\n" not in str(group["text"]) for group in groups)
     assert "~" in "".join(str(cue["text"]) for cue in render_cues)
     assert all("\n" not in str(cue["text"]) for cue in render_cues)
+    assert not any(
+        "八十四天" in str(cue["text"]) and "糖原" in str(cue["text"])
+        for cue in render_cues
+    )
+
+
+def test_overwide_semantic_group_is_repaired_without_discarding_other_ai_breaks() -> None:
+    script = "百分之八十四另外一部分就叫到肌肉和肝脏成为肌糖原和肝糖原呼吸排出"
+    units = _units(
+        [
+            ("百分之八十四", "phrase", "none", "prefer"),
+            (
+                "另外一部分就叫到肌肉和肝脏成为肌糖原和肝糖原",
+                "phrase",
+                "none",
+                "prefer",
+            ),
+            ("呼吸排出", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 6_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert mapping["mapped_unit_count"] == len(units)
+    assert len(render_cues) >= 3
+    assert any("百分之八十四" in text for text in texts)
+    assert any("呼吸排出" in text for text in texts)
+
+
+def test_bad_model_fragments_are_repaired_and_hard_sentence_breaks_are_preserved() -> None:
+    script = (
+        "脂肪是怎么离开我们身体的呢？有人说是出汗，"
+        "出汗只是身体调节体温的表现。如果你真的这么想"
+    )
+    units = _units(
+        [
+            ("脂肪是怎么离开我们身体的", "phrase", "none", "prefer"),
+            ("呢？", "phrase", "none", "prefer"),
+            ("有人说是出汗，", "phrase", "none", "prefer"),
+            ("出汗只是身体调节体温的表", "phrase", "none", "prefer"),
+            ("现。", "phrase", "none", "prefer"),
+            ("如果你真的这么想", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 8_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert "呢有人" not in "|".join(texts)
+    assert "现如果" not in "|".join(texts)
+    assert any(text.endswith("呢") for text in texts)
+    assert any(text.endswith("表现") for text in texts)
+    assert any(text.startswith("如果") for text in texts)
+
+
+def test_soft_comma_does_not_force_an_orphan_short_caption() -> None:
+    script = "第一，脂肪是怎么储存在我们身体的。"
+    units = _units(
+        [
+            ("第一，", "phrase", "none", "prefer"),
+            ("脂肪是怎么储存在我们身体的。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert texts[0] != "第一"
+    assert texts[0].startswith("第一脂肪")
+    assert not any(
+        left.endswith("储") and right.startswith("存")
+        for left, right in zip(texts, texts[1:])
+    )
+
+
+def test_leading_particle_is_rebalanced_with_its_phrase() -> None:
+    script = "答案是让你呼吸急促心跳加速的轻活动。"
+    units = _units(
+        [
+            ("答案是让你呼吸急促心跳加速", "phrase", "none", "prefer"),
+            ("的轻活动。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert not any(text.startswith(tuple("的地得呢啊了吧吗")) for text in texts[1:])
+    assert any(text.endswith("呼吸急促") for text in texts)
+    assert any(text.endswith("的轻活动") for text in texts)
+
+
+def test_model_and_local_fallback_cannot_split_protected_phrases() -> None:
+    script = (
+        "现在专注新中年女性健康体重管理，今天给大家讲清核心逻辑。"
+        "而且优先胖肚子以及成为内脏脂肪。"
+        "也能够通过呼吸的形式帮助分解脂肪。"
+    )
+    units = _units(
+        [
+            ("现在专注新中年女性健康体重管理，", "phrase", "none", "prefer"),
+            ("今天给大家讲清核心", "phrase", "none", "prefer"),
+            ("逻", "phrase", "none", "prefer"),
+            ("辑。", "phrase", "none", "prefer"),
+            ("而且优先胖肚子以及成为内脏脂", "phrase", "none", "prefer"),
+            ("肪。", "phrase", "none", "prefer"),
+            ("也能够通过呼吸的形", "phrase", "none", "prefer"),
+            ("式帮助分解脂肪。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 9_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    joined = "|".join(texts)
+    assert mapping["status"] == "SUCCESS"
+    assert "女|性" not in joined
+    assert "核心|逻辑" not in joined
+    assert "以|及" not in joined
+    assert "内脏脂|肪" not in joined
+    assert "形|式" not in joined
+    assert "现在专注新中年女性" in texts
+    assert "而且优先胖肚子" in texts
+    assert "以及成为内脏脂肪" in texts
+    assert "也能够通过呼吸的形式" in texts
 
 
 def test_tilde_is_an_exact_character_not_a_wildcard() -> None:

@@ -789,12 +789,17 @@
 
                             <button id="btn-generate-voice-preview" disabled onclick="generateAllVoicePreviews()" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-wave-square"></i>
-                                <span>生成声音预览</span>
+                                <span>生成声音预览和脚本分析</span>
                             </button>
                             
                             <button id="btn-start-composition" disabled onclick="startGlobalFinalVideoGeneration()" class="w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                                 生成完整成片
+                            </button>
+
+                            <button id="btn-download-project-videos" disabled onclick="downloadProjectVideos()" title="全部未变体成片导出后可一键打包下载" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                                <i class="fa-solid fa-file-zipper"></i>
+                                <span>一键下载未变体视频</span>
                             </button>
 
                             <div class="flex w-full md:w-auto" aria-label="生成变体控制">
@@ -882,6 +887,7 @@
         let isGeneratingComposition = false;
         let isGeneratingPostprocess = false;
         let isStartingPostprocess = false;
+        let isDownloadingProjectVideos = false;
         let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
         let pendingConfirmAction = null;
@@ -1543,6 +1549,7 @@
                     bgmOptionsHTML += `<option value="${escapeHtml(b.id)}" ${selected}>${escapeHtml(b.name)}</option>`;
                 });
                 const canEditPostprocess = Boolean(script.allowedActions?.edit_postprocess);
+                const canDeleteItem = Boolean(script.allowedActions?.delete_item);
                 const analysisStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
                 const analysisLabels = {
                     NOT_REQUESTED: ['尚未分析', 'text-gray-500', 'fa-wand-magic-sparkles'],
@@ -1552,15 +1559,23 @@
                     FAILED: ['AI 分析失败', 'text-rose-400', 'fa-circle-exclamation']
                 };
                 const analysisLabel = analysisLabels[analysisStatus] || analysisLabels.FAILED;
-                const canRetryAnalysis = analysisStatus !== 'PENDING';
+                const canRetryAnalysis = Boolean(script.allowedActions?.analyze_content)
+                    && analysisStatus !== 'PENDING';
 
                 tr.innerHTML = `
-                    <td class="px-4 py-4 text-center font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors whitespace-nowrap">${escapeHtml(script.rowKey)}</td>
+                    <td class="px-4 py-4 text-center whitespace-nowrap">
+                        <div class="flex flex-col items-center gap-1.5">
+                            <span class="font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors">${escapeHtml(script.rowKey)}</span>
+                            <button type="button" ${canDeleteItem ? '' : 'disabled'} onclick="deleteProjectItem(this)" title="${canDeleteItem ? '删除这条任务' : '任务生成中，暂时不能删除'}" class="row-delete-item text-[9px] ${canDeleteItem ? 'text-rose-400 hover:text-rose-300' : 'text-gray-700 cursor-not-allowed'} transition-colors">
+                                <i class="fa-solid fa-trash-can mr-1"></i>删除
+                            </button>
+                        </div>
+                    </td>
                     <td class="px-4 py-4 w-[280px] max-w-[280px] overflow-hidden font-medium text-gray-300 align-top">
                         <div class="min-w-0 max-w-full overflow-hidden focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
                             <div class="row-script-editor outline-none block min-h-[2.5rem] max-h-20 w-full max-w-full overflow-y-auto overflow-x-hidden pr-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</div>
-                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="音乐意图和字幕语义分别分析；失败不会影响声音或视频">
-                                <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击重试' : ''}
+                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="只分析当前行，并把 AI 匹配到的音乐保存到背景音乐下拉框">
+                                <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${analysisStatus === 'SUCCESS' ? ' · 点击重新分析' : (['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击分析' : '')}
                             </button>
                         </div>
                     </td>
@@ -1760,6 +1775,32 @@
             }
         }
 
+        async function deleteProjectItem(button) {
+            const row = button.closest('tr');
+            const rowId = row?.getAttribute('data-id');
+            const script = uploadedScripts.find((item) => item.id === rowId);
+            if (!activeProject || !rowId || !script || button.disabled) return;
+            const confirmed = window.confirm(
+                `确定删除任务 ${script.rowKey} 吗？\n\n该行的本地声音、视频、字幕和变体记录会一并删除；已经产生的第三方费用无法撤销。`
+            );
+            if (!confirmed) return;
+            button.disabled = true;
+            try {
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${rowId}`,
+                    { method: 'DELETE' }
+                );
+                delete rowPostprocessConfigs[rowId];
+                delete rowVariantCovers[rowId];
+                syncProjectInputs(project);
+                showToast('任务已删除', `任务ID ${script.rowKey} 已从当前项目移除。`, 'success');
+            } catch (error) {
+                button.disabled = false;
+                showToast('删除失败', error.message, 'warning');
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+            }
+        }
+
         async function handleScriptBlur(element) {
             const row = element.closest('tr');
             const id = row?.getAttribute('data-id');
@@ -1806,34 +1847,59 @@
             });
         }
 
+        function markContentAnalysisPending(itemIds) {
+            const targets = new Set(itemIds);
+            uploadedScripts.forEach((script) => {
+                if (!targets.has(script.id)) return;
+                script.contentAnalysis = {
+                    ...(script.contentAnalysis || {}),
+                    overall_status: 'PENDING'
+                };
+            });
+            document.querySelectorAll('.table-data-row').forEach((row) => {
+                if (!targets.has(row.getAttribute('data-id'))) return;
+                const button = row.querySelector('.row-content-analysis-action');
+                if (!button) return;
+                button.disabled = true;
+                button.className = 'row-content-analysis-action mt-1.5 text-[9px] text-brand-primary cursor-wait transition-colors';
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中...';
+            });
+        }
+
         function startContentAnalysisForChangedScripts(projectId, rows) {
             const itemIds = contentAnalysisTargetsForRows(rows);
-            if (itemIds.length === 0) return;
+            if (itemIds.length === 0) return Promise.resolve(null);
+            markContentAnalysisPending(itemIds);
             showToast('正在分析新文本', `将分析 ${itemIds.length} 条首次导入或内容有变化的脚本；声音重生成不会重复分析旧文本。`, 'info');
-            void analyzeProjectContent(projectId, itemIds).then((project) => {
+            return analyzeProjectContent(projectId, itemIds).then((project) => {
                 if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 const targetItems = (project.items || []).filter(item => itemIds.includes(item.item_id));
                 const failed = targetItems.filter(item => item.content_analysis?.overall_status === 'FAILED').length;
                 const partial = targetItems.filter(item => item.content_analysis?.overall_status === 'PARTIAL').length;
+                const matched = targetItems.filter(item => item.settings?.postprocess?.bgm_identity).length;
                 showToast(
                     failed || partial ? '新文本分析部分完成' : '新文本分析完成',
                     failed || partial
-                        ? `${itemIds.length} 条新文本已分别保存结果；${failed} 条失败、${partial} 条部分成功，不影响声音生成。`
-                        : `${itemIds.length} 条新文本的音乐意图和字幕语义已保存。`,
+                        ? `${itemIds.length} 条新文本已分别保存结果；${failed} 条失败、${partial} 条部分成功，已匹配 ${matched} 条背景音乐。`
+                        : `${itemIds.length} 条新文本的音乐意图、字幕语义和 ${matched} 条背景音乐匹配结果已保存。`,
                     failed || partial ? 'warning' : 'success'
                 );
             }).catch((error) => {
                 showToast('新文本分析暂不可用', `${error.message}；声音任务继续执行，不会重复调用 MiniMax。`, 'warning');
+                if (activeProject?.project_id === projectId) {
+                    void workspaceApi(`/api/new/projects/${projectId}`).then(syncProjectInputs).catch(() => {});
+                }
+                return null;
             });
         }
 
         async function retryRowContentAnalysis(button) {
             const rowId = button.closest('tr')?.getAttribute('data-id') || '';
             if (!activeProject || !rowId || button.disabled) return;
-            button.disabled = true;
+            markContentAnalysisPending([rowId]);
             try {
-                showToast('正在重试内容分析', '只处理这一行，音乐和字幕分支会分别保存。', 'info');
+                showToast('正在分析当前行', '只处理这一行；完成后会保存字幕语义，并更新背景音乐选择。', 'info');
                 const project = await workspaceApi(
                     `/api/new/projects/${activeProject.project_id}/items/${rowId}/content-analysis/retry`,
                     { method: 'POST' }
@@ -1841,9 +1907,11 @@
                 syncProjectInputs(project);
                 const item = project.items?.find(candidate => candidate.item_id === rowId);
                 const status = item?.content_analysis?.overall_status || 'FAILED';
+                const bgmIdentity = item?.settings?.postprocess?.bgm_identity || '';
+                const bgmName = bgmPresets.find(candidate => candidate.id === bgmIdentity)?.name || '无音乐';
                 showToast(
                     status === 'SUCCESS' ? '内容分析完成' : '内容分析已返回',
-                    status === 'SUCCESS' ? '音乐意图和字幕语义均可用。' : '合法分支已保存，失败分支已安全降级。',
+                    status === 'SUCCESS' ? `音乐意图和字幕语义均可用；背景音乐已选择「${bgmName}」。` : `合法分支已保存；当前背景音乐为「${bgmName}」。`,
                     status === 'SUCCESS' ? 'success' : 'warning'
                 );
             } catch (error) {
@@ -1851,8 +1919,6 @@
                 try {
                     syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
                 } catch (_) {}
-            } finally {
-                button.disabled = false;
             }
         }
 
@@ -1927,14 +1993,14 @@
 
             if (isLoading) {
                 button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-brand-primary/10 border border-brand-primary/30 text-brand-accent cursor-wait font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在生成声音...</span>';
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在生成声音并分析脚本...</span>';
             } else if (enabled) {
                 button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/40 hover:border-brand-primary/70 text-brand-accent hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]";
                 const allReady = Array.from(document.querySelectorAll('.table-data-row')).every(row => row.getAttribute('data-voice-status') === 'ready');
-                button.innerHTML = `<i class="fa-solid fa-wave-square"></i><span>${allReady ? '重新生成声音预览' : '生成声音预览'}</span>`;
+                button.innerHTML = `<i class="fa-solid fa-wave-square"></i><span>${allReady ? '重新生成声音预览和脚本分析' : '生成声音预览和脚本分析'}</span>`;
             } else {
                 button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
-                button.innerHTML = '<i class="fa-solid fa-wave-square"></i><span>生成声音预览</span>';
+                button.innerHTML = '<i class="fa-solid fa-wave-square"></i><span>生成声音预览和脚本分析</span>';
             }
         }
 
@@ -1988,8 +2054,9 @@
                 showToast('没有可用声音', '请先进入声音克隆中心配置声音。', 'warning');
                 return;
             }
-            const actionText = pendingRows.length ? '生成声音' : '重新生成新的声音版本';
-            if (!window.confirm(`将为 ${targetRows.length} 条脚本调用 MiniMax ${actionText}并产生费用，旧版本会保留。是否继续？`)) return;
+            const actionText = pendingRows.length ? '生成缺失的声音' : '重新生成新的声音版本';
+            const analysisCount = contentAnalysisTargetsForRows(targetRows).length;
+            if (!window.confirm(`将为 ${targetRows.length} 条脚本调用 MiniMax ${actionText}并产生费用，同时分析 ${analysisCount} 条新增或已修改脚本；已有分析结果会继续复用。旧版本会保留，是否继续？`)) return;
 
             isGeneratingAllVoicePreviews = true;
             setVoicePreviewButtonState(false, true);
@@ -2002,7 +2069,7 @@
                 toggleRowAudioStatusUI(row, 'loading');
             });
 
-            showToast('正在提交声音生成', `正在为 ${targetRows.length} 条脚本创建真实声音任务。`, 'info');
+            showToast('正在提交声音与脚本分析', `正在为 ${targetRows.length} 条脚本创建真实声音任务，并按需分析 ${analysisCount} 条脚本。`, 'info');
             const assignments = {};
             targetRows.forEach((row) => {
                 const select = row.querySelector('.row-voice-selector');
@@ -2022,7 +2089,7 @@
                 });
                 syncProjectInputs(project);
                 scheduleAudioStatusPoll();
-                showToast('声音任务已进入队列', '完成后页面会自动显示真实音频和下载按钮。', 'success');
+                showToast('声音任务已进入队列', '脚本分析与声音生成会分别保存；完成后页面会自动显示音频、背景音乐和下载按钮。', 'success');
             } catch (error) {
                 showToast('声音生成提交失败', error.message, 'warning');
                 syncProjectInputs(activeProject);
@@ -2314,9 +2381,11 @@
             const allVideosReady = rows.length > 0 && rows.every(row => row.getAttribute('data-video-status') === 'ready');
             const mainButton = document.getElementById('btn-generate-variants');
             const settingsButton = document.getElementById('btn-variant-settings');
+            const downloadButton = document.getElementById('btn-download-project-videos');
             const backendAllowsVariants = Boolean(activeProject?.allowed_actions?.generate_variants);
             const canGenerate = backendAllowsVariants && allVideosReady && !isGeneratingVariants;
             const canConfigure = backendAllowsVariants && rows.length > 0 && !isGeneratingVariants;
+            const canDownload = allVideosReady && !isDownloadingProjectVideos;
 
             rows.forEach(row => {
                 const input = row.querySelector('.row-variant-count');
@@ -2339,6 +2408,76 @@
                 ? `px-3 py-3 rounded-r-xl border-y border-r transition-all cursor-pointer ${globalVariantConfig ? 'bg-brand-primary/25 border-brand-primary/50 text-brand-accent hover:text-white' : 'bg-slate-800 border-slate-700/60 text-gray-300 hover:bg-slate-700 hover:text-white'}`
                 : "px-3 py-3 rounded-r-xl bg-slate-800 border-y border-r border-slate-700/60 text-slate-500 cursor-not-allowed transition-all";
             settingsButton.title = globalVariantConfig ? "已使用自定义变体设置" : "使用最大差异优先算法，点击配置";
+            downloadButton.disabled = !canDownload;
+            downloadButton.innerHTML = isDownloadingProjectVideos
+                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在导出并打包...</span>'
+                : '<i class="fa-solid fa-file-zipper"></i><span>一键下载未变体视频</span>';
+            downloadButton.className = canDownload
+                ? "w-full md:w-auto px-6 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/35 hover:border-emerald-300/60 text-emerald-300 hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]"
+                : "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
+            downloadButton.title = canDownload
+                ? `导出并打包下载 ${uploadedScripts.length} 条未变体成片`
+                : (isDownloadingProjectVideos ? '正在逐条导出并打包' : '需要先完成所有普通成片预览');
+        }
+
+        async function downloadProjectVideos() {
+            if (!activeProject || !uploadedScripts.length || isDownloadingProjectVideos) return;
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            if (!rows.length || rows.some(row => row.getAttribute('data-video-status') !== 'ready')) {
+                showToast('暂时不能一键下载', '请先完成所有普通成片预览。', 'warning');
+                return;
+            }
+            const projectId = activeProject.project_id;
+            const missing = uploadedScripts.filter(item => !item.compositionVideo);
+            if (missing.length && !window.confirm(`其中 ${missing.length} 条目前只有浏览器动态预览。一键下载将逐条启动剪映导出普通成片，再统一打包；不会生成或下载变体。是否继续？`)) return;
+            isDownloadingProjectVideos = true;
+            refreshVariantActionAvailability();
+            try {
+                for (let index = 0; index < missing.length; index += 1) {
+                    const item = missing[index];
+                    showToast('正在导出未变体成片', `正在处理第 ${index + 1}/${missing.length} 条：任务ID ${item.rowKey}。`, 'info');
+                    let project = await workspaceApi(
+                        `/api/new/projects/${projectId}/items/${item.id}/postprocess/export`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ idempotency_key: `bulk-export-${item.id}-${Date.now()}` })
+                        }
+                    );
+                    syncProjectInputs(project);
+                    for (let attempt = 0; attempt < 900; attempt += 1) {
+                        const updated = (project.items || []).find(candidate => candidate.item_id === item.id);
+                        if (updated?.outputs?.composition_video) break;
+                        if (updated?.status === 'COMPOSITION_FAILED') {
+                            throw new Error(`任务ID ${item.rowKey} 导出失败，请在视频预览列重试`);
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/status`);
+                        syncProjectInputs(project);
+                        const refreshed = (project.items || []).find(candidate => candidate.item_id === item.id);
+                        if (refreshed?.outputs?.composition_video) break;
+                        if (refreshed?.status === 'COMPOSITION_FAILED') {
+                            throw new Error(`任务ID ${item.rowKey} 导出失败，请在视频预览列重试`);
+                        }
+                        if (attempt === 899) throw new Error(`任务ID ${item.rowKey} 导出等待超时`);
+                    }
+                }
+                const link = document.createElement('a');
+                link.href = `/api/new/projects/${projectId}/videos/download`;
+                link.download = '';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                showToast('正在打包下载', `共 ${uploadedScripts.length} 条未变体成片；压缩包不包含变体视频。`, 'success');
+            } catch (error) {
+                showToast('一键下载失败', error.message, 'warning');
+                try {
+                    syncProjectInputs(await workspaceApi(`/api/new/projects/${projectId}`));
+                } catch (_) {}
+            } finally {
+                isDownloadingProjectVideos = false;
+                refreshVariantActionAvailability();
+            }
         }
 
         async function startGlobalVariantGeneration() {
