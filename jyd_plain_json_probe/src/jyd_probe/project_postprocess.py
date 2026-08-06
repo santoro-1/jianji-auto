@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import re
 from typing import Any, Iterable
@@ -8,7 +9,16 @@ import uuid
 
 from fontTools.ttLib import TTFont
 
+from .music_matching import MusicProfileMatcher
+from .project_music import ProjectMusicSelector, manual_music_selection
 from .project_store import ProjectStore
+from .project_video_source import build_project_video_source
+from .semantic_subtitles import (
+    SEMANTIC_MAPPING_SCHEMA,
+    SemanticSubtitleMappingError,
+    map_subtitle_units_to_raw_cues,
+    semantic_break_groups,
+)
 from .subtitles import CaptionCue, caption_cues_from_payload
 
 
@@ -16,10 +26,31 @@ CAPTION_MAX_WIDTH_RATIO = 0.8
 CAPTION_MAX_LINES = 1
 CAPTION_BOTTOM_OFFSET_RATIO = 0.2
 CAPTION_TRANSFORM_Y = -0.6
-CAPTION_REFERENCE_FONT_SIZE = 15.0
+CAPTION_REFERENCE_FONT_SIZE = 11.0
 CAPTION_REFERENCE_MAX_EM = 14.0
+CAPTION_STROKE_COLOR = "#000000"
+CAPTION_STROKE_WIDTH = 0.06
 CAPTION_MIN_SLICE_US = 80_000
-_BREAK_CHARS = set("，,、：:。！？!?；;")
+_BREAK_CHARS = set("，,、：:。.！？!?；;")
+_HIDDEN_CAPTION_PUNCTUATION = _BREAK_CHARS | set("…")
+_LEADING_CONNECTORS = (
+    "那么",
+    "但是",
+    "所以",
+    "然后",
+    "不过",
+    "因此",
+    "同时",
+    "另外",
+    "而且",
+    "其实",
+    "如果",
+    "因为",
+    "虽然",
+    "否则",
+    "比如",
+    "例如",
+)
 _HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
@@ -73,37 +104,108 @@ def _normalized_caption_text(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip())
 
 
+def _is_numeric_separator(text: str, index: int) -> bool:
+    return (
+        text[index] in {".", ",", ":"}
+        and index > 0
+        and index + 1 < len(text)
+        and text[index - 1].isdigit()
+        and text[index + 1].isdigit()
+    )
+
+
+def _caption_display_text(value: str) -> tuple[str, set[int]]:
+    """Remove display punctuation while retaining its preferred break positions."""
+
+    normalized = _normalized_caption_text(value)
+    display: list[str] = []
+    preferred_breaks: set[int] = set()
+    for index, character in enumerate(normalized):
+        if (
+            character in _HIDDEN_CAPTION_PUNCTUATION
+            and not _is_numeric_separator(normalized, index)
+        ):
+            if display:
+                preferred_breaks.add(len(display))
+            continue
+        display.append(character)
+    cleaned = "".join(display).strip()
+    if not cleaned:
+        raise CaptionLayoutReviewRequired("字幕去除标点后内容为空")
+    return cleaned, {position for position in preferred_breaks if 0 < position < len(cleaned)}
+
+
 def _split_one_line(
     text: str, metrics: FontMetrics, *, maximum_width_em: float
 ) -> list[str]:
-    normalized = _normalized_caption_text(text)
+    normalized, preferred_breaks = _caption_display_text(text)
     if not normalized:
         raise CaptionLayoutReviewRequired("字幕内容为空")
     if metrics.text_width_em(normalized) <= maximum_width_em:
         return [normalized]
 
-    chunks: list[str] = []
-    cursor = 0
-    while cursor < len(normalized):
-        end = cursor
-        last_break: int | None = None
-        while end < len(normalized):
-            candidate = normalized[cursor : end + 1]
-            if metrics.text_width_em(candidate) > maximum_width_em:
+    connector_starts: set[int] = set()
+    connector_ends: set[int] = set()
+    for connector in _LEADING_CONNECTORS:
+        cursor = 0
+        while True:
+            position = normalized.find(connector, cursor)
+            if position < 0:
                 break
-            if normalized[end] in _BREAK_CHARS:
-                last_break = end + 1
-            end += 1
-        if end == cursor:
-            raise CaptionLayoutReviewRequired("单个字幕字符超过画面安全宽度")
-        cut = last_break if last_break and last_break > cursor else end
-        chunk = normalized[cursor:cut].strip()
-        if not chunk:
+            if position > 0:
+                connector_starts.add(position)
+                connector_ends.add(position + len(connector))
+            cursor = position + len(connector)
+
+    # Use a whole-sentence optimum instead of greedily preferring the first
+    # punctuation seen in each window.  The greedy version could turn the
+    # beginning of the next window into an orphan such as ``糖，``.
+    length = len(normalized)
+    widths = [0.0]
+    for character in normalized:
+        widths.append(widths[-1] + metrics.text_width_em(character))
+
+    scores = [float("inf")] * (length + 1)
+    previous: list[int | None] = [None] * (length + 1)
+    scores[0] = 0.0
+    for end in range(1, length + 1):
+        for start in range(end - 1, -1, -1):
+            width = widths[end] - widths[start]
+            if width > maximum_width_em:
+                break
+            if scores[start] == float("inf"):
+                continue
+            chunk = normalized[start:end].strip()
+            if not chunk:
+                continue
+            core_length = len(chunk)
+            fill_ratio = width / maximum_width_em
+            score = scores[start] + (1.0 - fill_ratio) ** 2
+            if core_length < 4:
+                score += (4 - core_length) * 8.0
+            if end < length:
+                score += 0.25
+                if end in preferred_breaks:
+                    score -= 0.35
+                if end in connector_starts:
+                    score -= 0.55
+                if end in connector_ends or chunk.endswith(_LEADING_CONNECTORS):
+                    score += 4.0
+            if score < scores[end]:
+                scores[end] = score
+                previous[end] = start
+
+    if previous[length] is None:
+        raise CaptionLayoutReviewRequired("字幕无法可靠拆成单行")
+    chunks: list[str] = []
+    cursor = length
+    while cursor > 0:
+        start = previous[cursor]
+        if start is None:
             raise CaptionLayoutReviewRequired("字幕无法可靠拆成单行")
-        chunks.append(chunk)
-        cursor = cut
-        while cursor < len(normalized) and normalized[cursor].isspace():
-            cursor += 1
+        chunks.append(normalized[start:cursor].strip())
+        cursor = start
+    chunks.reverse()
     return chunks
 
 
@@ -169,6 +271,212 @@ def layout_one_line_captions(
     return [cue.as_dict() for cue in result]
 
 
+def _layout_semantic_groups(
+    groups: list[dict[str, Any]],
+    metrics: FontMetrics,
+    *,
+    maximum_width_em: float,
+) -> list[dict[str, int | str]]:
+    displays: list[str] = []
+    for group in groups:
+        display, _preferred = _caption_display_text(str(group.get("text") or ""))
+        if metrics.text_width_em(display) > maximum_width_em:
+            raise SemanticSubtitleMappingError(
+                "SEMANTIC_GROUP_TOO_WIDE",
+                "不可拆语义组超过当前字体和画面宽度限制",
+            )
+        displays.append(display)
+
+    length = len(groups)
+    scores = [float("inf")] * (length + 1)
+    previous: list[int | None] = [None] * (length + 1)
+    rendered_texts: dict[tuple[int, int], str] = {}
+    scores[0] = 0.0
+    for end in range(1, length + 1):
+        for start in range(end - 1, -1, -1):
+            text, _preferred = _caption_display_text(
+                "".join(str(group.get("text") or "") for group in groups[start:end])
+            )
+            width = metrics.text_width_em(text)
+            if width > maximum_width_em:
+                continue
+            if scores[start] == float("inf"):
+                continue
+            fill_ratio = width / maximum_width_em
+            score = scores[start] + (1.0 - fill_ratio) ** 2
+            if len(text) < 4:
+                score += (4 - len(text)) * 8.0
+            if end < length:
+                score += 0.25
+                break_after = str(groups[end - 1].get("break_after") or "allow")
+                if break_after == "prefer":
+                    score -= 0.45
+                elif break_after == "avoid":
+                    score += 8.0
+            if score < scores[end]:
+                scores[end] = score
+                previous[end] = start
+                rendered_texts[(start, end)] = text
+    if previous[length] is None:
+        raise SemanticSubtitleMappingError(
+            "SEMANTIC_LAYOUT_FAILED", "语义字幕无法在当前真实字宽内排成单行"
+        )
+
+    slices: list[tuple[int, int]] = []
+    cursor = length
+    while cursor > 0:
+        start = previous[cursor]
+        if start is None:
+            raise SemanticSubtitleMappingError(
+                "SEMANTIC_LAYOUT_FAILED", "语义字幕断点回溯失败"
+            )
+        slices.append((start, cursor))
+        cursor = start
+    slices.reverse()
+
+    result: list[CaptionCue] = []
+    for start, end in slices:
+        start_us = int(groups[start]["start_us"])
+        end_us = int(groups[end - 1]["end_us"])
+        if end_us <= start_us:
+            raise SemanticSubtitleMappingError(
+                "SEMANTIC_TIME_INVALID", "语义字幕的派生时间范围无效"
+            )
+        result.append(
+            CaptionCue(
+                start_us=start_us,
+                duration_us=end_us - start_us,
+                text=rendered_texts[(start, end)],
+            )
+        )
+    return [cue.as_dict() for cue in result]
+
+
+def _fallback_mapping(
+    item: dict[str, Any],
+    *,
+    code: str,
+    summary: str,
+) -> dict[str, Any]:
+    analysis = dict(item.get("content_analysis") or {})
+    audio = item.get("outputs", {}).get("audio")
+    return {
+        "schema": SEMANTIC_MAPPING_SCHEMA,
+        "status": "FALLBACK",
+        "reason_code": str(code or "SEMANTIC_MAPPING_UNAVAILABLE")[:100],
+        "reason_summary": str(summary or "使用 MiniMax 原始字幕排版")[:500],
+        "script_sha256": hashlib.sha256(str(item.get("script_text") or "").encode("utf-8")).hexdigest(),
+        "analysis_script_sha256": analysis.get("script_sha256"),
+        "audio_asset_id": audio.get("asset_id") if isinstance(audio, dict) else None,
+        "audio_version": audio.get("version") if isinstance(audio, dict) else None,
+        "mapped_unit_count": 0,
+    }
+
+
+def derive_project_render_cues(
+    item: dict[str, Any],
+    *,
+    font_path: str | Path,
+    font_size: float = CAPTION_REFERENCE_FONT_SIZE,
+    max_width_ratio: float = CAPTION_MAX_WIDTH_RATIO,
+) -> tuple[list[dict[str, int | str]], dict[str, Any]]:
+    """Use semantic units only when script, analysis and current audio versions agree."""
+
+    raw_cues = item.get("subtitles", {}).get("raw_cues", [])
+    script = str(item.get("script_text") or "")
+    script_hash = hashlib.sha256(script.encode("utf-8")).hexdigest()
+    analysis = dict(item.get("content_analysis") or {})
+    audio = item.get("outputs", {}).get("audio")
+    subtitles = dict(item.get("subtitles") or {})
+
+    fallback = _fallback_mapping(
+        item,
+        code="SUBTITLE_ANALYSIS_UNAVAILABLE",
+        summary="字幕分析未成功，使用 MiniMax raw_cues 和现有排版",
+    )
+    semantic_units: list[object] | None = None
+    if analysis.get("subtitle_analysis_status") == "SUCCESS":
+        if analysis.get("script_sha256") != script_hash:
+            fallback = _fallback_mapping(
+                item,
+                code="ANALYSIS_SCRIPT_VERSION_MISMATCH",
+                summary="字幕分析结果不属于当前脚本版本",
+            )
+        elif not isinstance(audio, dict):
+            fallback = _fallback_mapping(
+                item,
+                code="CURRENT_AUDIO_MISSING",
+                summary="当前脚本没有可验证的音频版本",
+            )
+        elif subtitles.get("bound_audio_asset_id") != audio.get("asset_id"):
+            fallback = _fallback_mapping(
+                item,
+                code="RAW_CUES_AUDIO_VERSION_MISMATCH",
+                summary="MiniMax raw_cues 没有绑定当前音频版本",
+            )
+        elif audio.get("metadata", {}).get("script_sha256") != script_hash:
+            fallback = _fallback_mapping(
+                item,
+                code="AUDIO_SCRIPT_VERSION_MISMATCH",
+                summary="当前音频没有绑定当前脚本版本",
+            )
+        elif not isinstance(analysis.get("subtitle_units"), list):
+            fallback = _fallback_mapping(
+                item,
+                code="SUBTITLE_UNITS_MISSING",
+                summary="字幕分析成功状态缺少 subtitle_units",
+            )
+        else:
+            semantic_units = list(analysis["subtitle_units"])
+
+    if semantic_units is not None:
+        try:
+            metrics = FontMetrics.load(font_path)
+            maximum_width_em = (
+                CAPTION_REFERENCE_MAX_EM
+                * (float(max_width_ratio) / CAPTION_MAX_WIDTH_RATIO)
+                * (CAPTION_REFERENCE_FONT_SIZE / float(font_size))
+            )
+            timed_units = map_subtitle_units_to_raw_cues(
+                script,
+                semantic_units,
+                raw_cues,
+            )
+            groups = semantic_break_groups(timed_units)
+            render_cues = _layout_semantic_groups(
+                groups,
+                metrics,
+                maximum_width_em=maximum_width_em,
+            )
+            return render_cues, {
+                "schema": SEMANTIC_MAPPING_SCHEMA,
+                "status": "SUCCESS",
+                "reason_code": None,
+                "reason_summary": None,
+                "script_sha256": script_hash,
+                "analysis_script_sha256": analysis.get("script_sha256"),
+                "analysis_schema_version": analysis.get("schema_version"),
+                "analysis_prompt_version": analysis.get("prompt_version"),
+                "audio_asset_id": audio.get("asset_id"),
+                "audio_version": audio.get("version"),
+                "mapped_unit_count": len(timed_units),
+            }
+        except (SemanticSubtitleMappingError, CaptionLayoutReviewRequired) as exc:
+            fallback = _fallback_mapping(
+                item,
+                code=getattr(exc, "code", "SEMANTIC_LAYOUT_UNSAFE"),
+                summary=str(exc),
+            )
+
+    render_cues = layout_one_line_captions(
+        raw_cues,
+        font_path=font_path,
+        font_size=font_size,
+        max_width_ratio=max_width_ratio,
+    )
+    return render_cues, fallback
+
+
 def _latest_postprocess_operations(
     project: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
@@ -183,6 +491,20 @@ def _latest_postprocess_operations(
     return latest
 
 
+def _postprocess_target_items(
+    project: dict[str, Any], requested_item_ids: set[str]
+) -> list[dict[str, Any]]:
+    return [
+        item
+        for item in project.get("items", [])
+        if item.get("outputs", {}).get("composition_video") is None
+        and (
+            not requested_item_ids
+            or str(item.get("item_id") or "") in requested_item_ids
+        )
+    ]
+
+
 class ProjectPostprocessCoordinator:
     """Build browser preview recipes and export them only on explicit request."""
 
@@ -195,6 +517,7 @@ class ProjectPostprocessCoordinator:
         draft_root: Path,
         fonts: list[dict[str, Any]],
         bgm_assets: list[dict[str, Any]],
+        music_matcher: MusicProfileMatcher,
     ) -> None:
         self.store = store
         self.render_queue = render_queue
@@ -210,6 +533,7 @@ class ProjectPostprocessCoordinator:
             for item in bgm_assets
             if item.get("identity") and item.get("available", True)
         }
+        self.music_selector = ProjectMusicSelector(music_matcher, self.bgm_assets)
 
     def start(
         self,
@@ -248,12 +572,10 @@ class ProjectPostprocessCoordinator:
             if isinstance(item, dict) and item.get("item_id")
         }
         subtitle_updates: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        resolved_settings: dict[str, dict[str, Any]] = {}
 
-        target_items = [
-            item
-            for item in project["items"]
-            if item.get("outputs", {}).get("composition_video") is None
-        ]
+        requested_item_ids = set(supplied)
+        target_items = _postprocess_target_items(project, requested_item_ids)
         if not target_items:
             raise ValueError("当前项目没有需要生成的完整预览")
 
@@ -266,16 +588,30 @@ class ProjectPostprocessCoordinator:
             font = self.fonts.get(font_identity)
             if font is None:
                 raise ValueError(f"任务 {item['row_key']} 选择的字幕字体不可用")
-            bgm_identity = str(config.get("bgm_identity") or "").strip()
+            bgm_mode = str(config.get("bgm_selection_mode") or "manual").strip().lower()
+            if bgm_mode not in {"auto", "manual"}:
+                raise ValueError(f"任务 {item['row_key']} 的 BGM 选择模式不合法")
+            if bgm_mode == "auto":
+                bgm_identity, music_selection = self.music_selector.resolve_auto(
+                    project, item
+                )
+            else:
+                bgm_identity = str(config.get("bgm_identity") or "").strip()
+                music_selection = manual_music_selection(item, bgm_identity)
             if bgm_identity and bgm_identity not in self.bgm_assets:
                 raise ValueError(f"任务 {item['row_key']} 选择的 BGM 不可用")
+            resolved_settings[str(item["item_id"])] = {
+                **config,
+                "bgm_identity": bgm_identity,
+                "bgm_selection_mode": bgm_mode,
+                "music_selection": music_selection,
+            }
             color = str(config.get("text_color") or "#FFFFFF").strip().upper()
             if _HEX_COLOR.fullmatch(color) is None:
                 raise ValueError(f"任务 {item['row_key']} 的字幕颜色不合法")
-            raw_cues = item.get("subtitles", {}).get("raw_cues", [])
             try:
-                render_cues = layout_one_line_captions(
-                    raw_cues,
+                render_cues, semantic_mapping = derive_project_render_cues(
+                    item,
                     font_path=str(font["path"]),
                     font_size=CAPTION_REFERENCE_FONT_SIZE,
                     max_width_ratio=CAPTION_MAX_WIDTH_RATIO,
@@ -288,6 +624,11 @@ class ProjectPostprocessCoordinator:
                         "status": "REVIEW_REQUIRED",
                         "overflow_risk": True,
                         "review_reason": str(exc),
+                        "semantic_mapping": _fallback_mapping(
+                            item,
+                            code="RAW_CUE_LAYOUT_REVIEW_REQUIRED",
+                            summary=str(exc),
+                        ),
                     }
                 )
                 self.store.set_item_subtitles(
@@ -302,12 +643,15 @@ class ProjectPostprocessCoordinator:
                     "status": "PREVIEW_READY",
                     "overflow_risk": False,
                     "review_reason": None,
+                    "semantic_mapping": semantic_mapping,
                     "bound_video_asset_id": base_video.get("asset_id"),
                     "style": {
                         "font_id": font_identity,
                         "font_name": str(font.get("name") or ""),
                         "font_size": CAPTION_REFERENCE_FONT_SIZE,
                         "text_color": color,
+                        "stroke_color": CAPTION_STROKE_COLOR,
+                        "stroke_width": CAPTION_STROKE_WIDTH,
                         "max_width_ratio": CAPTION_MAX_WIDTH_RATIO,
                         "max_lines": CAPTION_MAX_LINES,
                         "bottom_offset_ratio": CAPTION_BOTTOM_OFFSET_RATIO,
@@ -317,7 +661,7 @@ class ProjectPostprocessCoordinator:
             )
             subtitle_updates.append((item, subtitles))
         for item, subtitles in subtitle_updates:
-            selected = supplied.get(str(item["item_id"]), {})
+            selected = resolved_settings[str(item["item_id"])]
             self.store.configure_item_postprocess(
                 owner_user_id,
                 project_id,
@@ -325,6 +669,10 @@ class ProjectPostprocessCoordinator:
                 font_identity=str(subtitles["style"]["font_id"]),
                 bgm_identity=str(selected.get("bgm_identity") or ""),
                 text_color=str(subtitles["style"]["text_color"]),
+                bgm_selection_mode=str(
+                    selected.get("bgm_selection_mode") or "manual"
+                ),
+                music_selection=dict(selected.get("music_selection") or {}),
             )
             self.store.set_item_subtitles(
                 owner_user_id, project_id, item["item_id"], subtitles
@@ -341,6 +689,8 @@ class ProjectPostprocessCoordinator:
                     .get("asset_id"),
                     "font_identity": subtitles["style"]["font_id"],
                     "bgm_identity": selected.get("bgm_identity") or None,
+                    "bgm_selection_mode": selected.get("bgm_selection_mode"),
+                    "music_selection": selected.get("music_selection"),
                     "caption_max_width_ratio": CAPTION_MAX_WIDTH_RATIO,
                     "caption_max_lines": CAPTION_MAX_LINES,
                     "caption_bottom_offset_ratio": CAPTION_BOTTOM_OFFSET_RATIO,
@@ -361,6 +711,8 @@ class ProjectPostprocessCoordinator:
                     .get("asset_id"),
                     "caption_cue_count": len(subtitles["render_cues"]),
                     "bgm_identity": selected.get("bgm_identity") or None,
+                    "bgm_selection_mode": selected.get("bgm_selection_mode"),
+                    "music_selection": selected.get("music_selection"),
                 },
             )
         return self.store.get_project(owner_user_id, project_id)
@@ -424,10 +776,7 @@ class ProjectPostprocessCoordinator:
         )
         job = {
             "schema": "jyd.render_job.v1",
-            "source": {
-                "type": "video",
-                "media_path": str(Path(str(base_video["managed_path"])).resolve()),
-            },
+            "source": build_project_video_source(item),
             "output": {
                 "draft_root": str(self.draft_root),
                 "mp4_path": str(output),
@@ -436,8 +785,10 @@ class ProjectPostprocessCoordinator:
             "captions": {
                 "cues": subtitles["render_cues"],
                 "track_name": "MiniMax 单行字幕",
-                "size": float(style.get("font_size") or CAPTION_REFERENCE_FONT_SIZE),
+                "size": CAPTION_REFERENCE_FONT_SIZE,
                 "color": str(style.get("text_color") or "#FFFFFF"),
+                "stroke_color": CAPTION_STROKE_COLOR,
+                "stroke_width": CAPTION_STROKE_WIDTH,
                 "transform_x": 0.0,
                 "transform_y": CAPTION_TRANSFORM_Y,
                 "line_max_width": CAPTION_MAX_WIDTH_RATIO,

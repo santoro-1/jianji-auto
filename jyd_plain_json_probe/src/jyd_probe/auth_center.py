@@ -133,6 +133,23 @@ class AuthCenterClient:
             raise AuthCenterError("数字人网站返回了错误的任务")
         return data
 
+    def analyze_workbench_content(
+        self,
+        token: str,
+        original_script: str,
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/content-analysis",
+            {
+                "access_token": token,
+                "original_script": original_script,
+                "force_refresh": force_refresh,
+            },
+            timeout_seconds=360.0,
+        )
+
     def start_workbench_composition(
         self,
         token: str,
@@ -457,7 +474,13 @@ class AuthCenterClient:
         )
         return self._read_json_response(request, timeout_seconds=300.0)
 
-    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def _post(
+        self,
+        path: str,
+        payload: dict[str, Any],
+        *,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = Request(
             f"{self.base_url}{path}",
@@ -465,7 +488,14 @@ class AuthCenterClient:
             method="POST",
             headers={"Content-Type": "application/json", "Accept": "application/json"},
         )
-        return self._read_json_response(request, timeout_seconds=self.timeout_seconds)
+        return self._read_json_response(
+            request,
+            timeout_seconds=(
+                self.timeout_seconds
+                if timeout_seconds is None
+                else max(self.timeout_seconds, float(timeout_seconds))
+            ),
+        )
 
     def _read_json_response(
         self, request: Request, *, timeout_seconds: float

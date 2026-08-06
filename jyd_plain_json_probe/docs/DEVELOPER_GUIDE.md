@@ -104,6 +104,19 @@ release/                      最终交付 ZIP
 `CREATE TABLE IF NOT EXISTS` 和缺失列
 `ALTER TABLE ADD COLUMN`，不会重建或清空既有项目及剪映任务表。
 
+智能内容分析模块 5 将项目 schema 升级到版本 7，为 `project_items` 增加
+`content_analysis_json`。快照按当前脚本 SHA-256 绑定，分别保存音乐、字幕分支状态和
+结果；脚本变化只重置该行快照，音色、音频、字体或宽度变化不删除语义分析。工作台通过
+`project_content_analysis.py` 把一个项目拆成逐行请求，单批并发最多 10；每行失败独立
+落盘并继续其余行。内容分析状态不参与原有音频、4A、4B 或变体状态机，不得借分析失败
+清空 MiniMax `raw_cues`、当前音视频指针或历史素材。
+
+智能内容分析模块 6 将项目 schema 升级到版本 8，但不新增数据库列。字幕 JSON 增加
+`semantic_mapping`；`semantic_subtitles.py` 负责严格原文复核和 MiniMax cue 锚点内的确定性
+字符时间映射，`project_postprocess.py` 负责语义组真实字宽排版和失败降级。新音频素材的
+metadata 保存脚本 SHA-256/长度；只有脚本、分析、音频和 raw cues 绑定四方一致时使用
+`subtitle_units`，否则继续使用既有 raw cues 排版。任何路径都不得覆盖 `raw_cues`。
+
 不要把以下数据混为一类：
 
 - `data/libraries`：公共、长期保留、可随完整安装包分发。
@@ -236,7 +249,7 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py `
 | 模块 | 主要职责 |
 | --- | --- |
 | `draft_crypto.py` | 高版本草稿检测和解密 |
-| `draft_factory.py` | 从 MP4 创建基础草稿 |
+| `draft_factory.py` | 从单个 MP4 或按顺序排列的多个原始视频创建基础草稿 |
 | `draft_transfer.py` | 草稿复制、重定位和元数据处理 |
 | `draft_compat.py` | 剪映版本兼容字段处理 |
 | `content_replace.py` | 视频、文字、音频和特效的基础修改 |
@@ -380,10 +393,22 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续的单行 render cues。
 普通 4B 立即把 `base_video`、render cues、字体和 BGM 登记为浏览器预览配方，不向
 `RenderJobQueue` 提交任务。固定参数为居中、画面宽度 `0.8`、`transform_y=-0.6`
-（距底部约 20%）、字号 15、BGM 音量 0.3。浏览器按视频时间动态显示字幕并同步播放 BGM；
+（距底部约 20%）、`DouyinSansBold` 11 号、默认白字、黑色 `0.06` 描边、BGM 音量 0.3。
+浏览器直接读取同一冻结样式，不得为溢出字幕临时缩字；
 无法可靠排版时状态为 `REVIEW_REQUIRED`，不会静默显示溢出字幕。只有用户明确下载普通
 成片时才调用 `postprocess/export` 提交一次剪映任务。后续变体必须把基础/上传视频与已
 冻结的字幕、BGM 配方合并到同一个变体任务中一次导出，不能依赖一个预先导出的普通成片。
+若 4A 返回多个 RunningHub 原始片段，4B 按需导出和模块 6 都使用 `video_sequence`，按
+`video_index` 将原始文件作为独立片段顺序放在同一条主轨道；字幕、BGM 和封面仍使用完整
+绝对时间轴。浏览器预览继续播放标准化 `base_video`。某一原始片段短于其音频目标时长时，
+只补该片段尾帧，不对整段视频变速。
+
+新版页面把字幕效果卡直接放在表格“字幕样式”列，点击效果卡才打开字体和颜色配置；BGM
+继续在相邻列直接选择。修改任一设置只把对应脚本行退回 `BASE_VIDEO_READY` 并保留
+`base_video`、付费任务和历史成片。前端用同一个 `POST /postprocess/generate` 仅提交该行
+`item_id`，即可重新派生字幕并刷新浏览器 BGM 预览；服务端只处理请求中明确列出的脚本行。
+从音频已就绪点击“生成完整成片”时，只对 RunningHub 费用确认一次，4A 完成后自动执行
+4B 并进入视频预览，不再弹出字幕/BGM 二次确认。
 
 模块 5 直接复用 `ProjectStore` 的素材版本和用户归属校验。上传视频以原始请求体写入当前
 用户的项目目录，限制为 MP4/MOV/AVI/MKV/WebM 和 `JYD_MAX_VIDEO_UPLOAD_BYTES`；新增
@@ -391,6 +416,40 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 旧成片和 RunningHub 原始片段，同时解绑并失效原 MiniMax 字幕。原始素材下载按
 `external_ref.video_index` 排序；单片段直接返回文件，多片段使用一次性 ZIP 并附加
 `片段顺序清单.json`，响应结束后删除临时 ZIP。
+
+`project_content_analysis.py` 负责新增智能内容分析模块 5。Excel/CSV 导入、添加分段和编辑
+脚本只把相应快照置为 `NOT_REQUESTED`，不发起分析。用户点击“生成声音预览”时，前端在
+提交声音任务的同时，对本批声音目标中 `NOT_REQUESTED` 的行调用
+`POST /api/new/projects/{project_id}/content-analysis`；协调器为每个需要分析的
+`ProjectItem` 单独调用数字人后端 `/api/workbench/content-analysis`，不会把多条脚本
+拼成一个模型输入。脚本哈希未变化时，声音重生成不会重做文本分析；普通调用跳过已有
+`PENDING`/`SUCCESS`/`PARTIAL`/`FAILED` 尝试，单行显式重试使用 `force_refresh=true`。
+服务端响应在工作台再次核对脚本哈希、长度、分支状态和
+字幕文字完整覆盖后才落盘。刷新重试时，新失败不得覆盖同一脚本此前已经成功的分支。
+项目批量调用最多并发 10 行，失败按行保存并继续。模块 5 不进行字符到时间轴映射、字体
+排版或音乐 Top1。
+
+`semantic_subtitles.py` 负责智能内容分析模块 6。工作台再次拒绝带大模型时间字段、未连续
+覆盖原文或语义属性非法的 `subtitle_units`；MiniMax cue 文本允许省略原文空格/换行，但
+所有非空白字符必须精确一致，`~` 不作通配符。每条 cue 的真实 `start_us/end_us` 是唯一
+时间锚点，cue 内字符时间只做确定性比例派生。`bind=left/right/both` 和
+`break_after=avoid` 先形成不可拆语义组，再按 11 号真实字宽组合为 `render_cues`。脚本、
+分析、当前音频脚本摘要或 raw cues 音频绑定不一致，以及映射/排版失败时，4B 记录
+`semantic_mapping.status=FALLBACK` 并调用原有 `layout_one_line_captions`；raw cues 永久保留。
+本模块不执行音乐 Top1。
+
+`project_music.py` 负责智能内容分析模块 7。4B 自动模式只读取当前行已校验的
+`music_intent`、当前 MiniMax 音频真实时长和本地 `music_profiles.v1.json`，返回唯一 Top1
+并保存 `jyd.project-music-selection.v1` 快照；不保存候选列表或 Top3。快照绑定脚本、音频、
+时长和 matcher/taxonomy/profile 版本。音乐分支失败按项目默认音乐或无 BGM 降级；手动曲目
+及手动无 BGM 始终优先，只有显式恢复 AI 才允许覆盖。变体只冻结继承 4B 最终 BGM。
+
+智能内容分析模块 8 的跨项目验收位于数字人项目
+`tests/test_content_analysis_workbench_integration.py`。它直接把数字人服务端
+`analyze_content` 的实际响应传入本项目 `_validated_remote_result`、
+`map_subtitle_units_to_raw_cues` 和 `MusicProfileMatcher`，覆盖双成功、两种部分成功、安全
+索引重算、空格、换行和 `~`。新增测试 `3 passed`；最终完整 mock 回归为数字人
+`216 passed`、本项目 `260 passed`。本轮没有真实第三方请求或生产变更。
 
 `project_variants.py` 负责模块 6。推荐设置启用视频特效、全屏贴纸和画面变化套装，组合
 选择使用确定性的加权 maximin，而不是随机抽样：裁剪比例、视频特效、全屏贴纸和四角贴纸

@@ -271,11 +271,8 @@
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-xs font-semibold text-gray-400 mb-2">字幕预览</label>
-                    <div class="bg-gradient-to-br from-slate-800 via-slate-950 to-indigo-950 rounded-xl h-24 flex items-center justify-center relative overflow-hidden border border-white/5">
-                        <p id="modal-preview-text" class="relative z-10 text-white font-bold text-center tracking-wider text-sm px-4 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" style="font-family: 'Noto Sans SC'; color: #ffffff; text-shadow: 0 0 4px #000000;">用于字体测试观看</p>
-                    </div>
+                <div class="rounded-lg border border-brand-primary/20 bg-brand-primary/5 px-3 py-2 text-[10px] leading-5 text-gray-400">
+                    表格中的字幕预览会实时显示当前字体和颜色；保存后可在“视频预览”列只重新生成这一条预览，不会重做数字人视频。
                 </div>
             </div>
 
@@ -473,7 +470,7 @@
                     <div class="absolute inset-0 bg-black/30"></div>
                 </div>
                 <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
-                <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap overflow-hidden" aria-live="off"></div>
+                <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 
                 <!-- Inner play controller simulation -->
                 <div class="relative z-10 w-full h-full flex flex-col justify-between p-6">
@@ -504,6 +501,8 @@
                 </div>
             </div>
             <div class="mt-4 flex flex-wrap justify-center gap-3">
+                <button id="video-preview-adjust-button" type="button" onclick="focusActivePreviewSettings()" class="hidden px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-sliders mr-2"></i>调整字幕/BGM</button>
+                <button id="video-preview-retry-button" type="button" onclick="retryActiveVideoPreview()" class="hidden px-5 py-2.5 rounded-xl bg-brand-primary/15 hover:bg-brand-primary/25 text-sm font-semibold text-brand-accent border border-brand-primary/30 transition-colors"><i class="fa-solid fa-rotate mr-2"></i>重新生成字幕/BGM预览</button>
                 <button type="button" onclick="downloadPreviewVideo()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-download mr-2"></i>下载此视频</button>
                 <button type="button" onclick="downloadOriginalMaterial()" class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white border border-slate-700 transition-colors"><i class="fa-solid fa-box-archive mr-2"></i>下载原始素材</button>
                 <button type="button" onclick="triggerLocalVideoUpload()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-sm font-semibold text-white shadow-lg transition-all"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>上传本地视频</button>
@@ -823,13 +822,16 @@
         let voicePreferences = {};
 
         // BGM Options
-        let bgmPresets = [{ id: 'none', name: '无背景音乐', previewUrl: '' }];
+        let bgmPresets = [
+            { id: 'auto', name: 'AI 智能匹配', previewUrl: '' },
+            { id: 'none', name: '无背景音乐', previewUrl: '' }
+        ];
         let fontPresets = [];
         let defaultPostprocessFontIdentity = '';
         const fontPreviewLoads = new Map();
         let fontPreviewSequence = 0;
-        let fontPreviewRequestToken = 0;
         let rowPostprocessConfigs = {};
+        const previewRetryingItems = new Set();
 
         // System State
         let activeProject = null;
@@ -994,6 +996,7 @@
             fontPresets = Array.isArray(options.fonts) ? options.fonts : [];
             defaultPostprocessFontIdentity = options.default_font_identity || fontPresets[0]?.identity || '';
             bgmPresets = [
+                { id: 'auto', name: 'AI 智能匹配', previewUrl: '' },
                 { id: 'none', name: '无背景音乐', previewUrl: '' },
                 ...(Array.isArray(options.bgm) ? options.bgm.map((item) => ({
                     id: item.identity,
@@ -1037,20 +1040,18 @@
             return fontPreviewLoads.get(identity);
         }
 
-        async function applySelectedFontPreview(identity) {
-            const previewText = document.getElementById('modal-preview-text');
+        async function applyFontPreviewToElement(identity, previewText) {
+            if (!previewText) return;
             const font = fontPresets.find((item) => item.identity === identity);
-            const requestToken = ++fontPreviewRequestToken;
             previewText.style.fontFamily = 'sans-serif';
             previewText.removeAttribute('data-font-preview');
             if (!font) return;
             try {
                 const family = await loadFontPreview(font);
-                if (requestToken !== fontPreviewRequestToken) return;
+                if (!previewText.isConnected) return;
                 previewText.style.fontFamily = `"${family}", sans-serif`;
                 previewText.setAttribute('data-font-preview', font.identity);
             } catch (error) {
-                if (requestToken !== fontPreviewRequestToken) return;
                 showToast('字体预览加载失败', error.message, 'warning');
             }
         }
@@ -1109,16 +1110,26 @@
                 variants: item.outputs?.variants || [],
                 variantOperation,
                 subtitles: item.subtitles || {},
+                contentAnalysis: item.content_analysis || {},
                 allowedActions: item.allowed_actions || {}
                 });
             }) : [];
             uploadedScripts.forEach((item) => {
                 const style = item.subtitles?.style || {};
                 const saved = item.postprocessSettings || {};
+                const savedBgmMode = saved.bgm_selection_mode
+                    || (saved.bgm_identity !== undefined ? 'manual' : 'auto');
                 rowPostprocessConfigs[item.id] = {
-                    bgmIdentity: saved.bgm_identity !== undefined
+                    bgmIdentity: savedBgmMode === 'auto'
+                        ? 'auto'
+                        : saved.bgm_identity !== undefined
                         ? (saved.bgm_identity || 'none')
-                        : (rowPostprocessConfigs[item.id]?.bgmIdentity || 'none'),
+                        : (rowPostprocessConfigs[item.id]?.bgmIdentity || 'auto'),
+                    resolvedBgmIdentity: saved.bgm_selection_mode
+                        ? (saved.bgm_identity || '')
+                        : (saved.bgm_identity
+                            || rowPostprocessConfigs[item.id]?.resolvedBgmIdentity
+                            || ''),
                     fontIdentity: saved.font_identity
                         || rowPostprocessConfigs[item.id]?.fontIdentity
                         || style.font_id
@@ -1153,7 +1164,9 @@
                 const project = requestedProjectId
                     ? listing.projects?.find(item => item.project_id === requestedProjectId)
                     : listing.projects?.[0];
-                if (project) syncProjectInputs(project);
+                if (project) {
+                    syncProjectInputs(project);
+                }
             } catch (error) {
                 showToast('项目加载失败', error.message, 'warning');
             }
@@ -1207,7 +1220,7 @@
                 globalVariantConfig = null;
                 rowVariantCovers = {};
                 syncProjectInputs(project);
-                showToast('解析并保存成功', `已保存 ${preview.total_rows} 行脚本，刷新页面数据不会丢失。`, 'success');
+                showToast('脚本已保存', `已保存 ${preview.total_rows} 行脚本；点击“生成声音预览”时会分析首次导入或内容有变化的脚本。`, 'success');
             } catch (error) {
                 showToast('脚本导入失败', error.message, 'warning');
             } finally {
@@ -1523,17 +1536,34 @@
                 // Render BGM options
                 let bgmOptionsHTML = '';
                 const postprocessConfig = rowPostprocessConfigs[script.id] || {};
+                const subtitlePreviewSource = script.subtitles?.render_cues?.[0]?.text || script.text || '字幕效果预览';
+                const subtitlePreviewText = subtitlePreviewSource.length > 12
+                    ? `${subtitlePreviewSource.slice(0, 12)}…`
+                    : subtitlePreviewSource;
                 bgmPresets.forEach(b => {
                     const selected = (postprocessConfig.bgmIdentity || 'none') === b.id ? 'selected' : '';
                     bgmOptionsHTML += `<option value="${escapeHtml(b.id)}" ${selected}>${escapeHtml(b.name)}</option>`;
                 });
                 const canEditPostprocess = Boolean(script.allowedActions?.edit_postprocess);
+                const analysisStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
+                const analysisLabels = {
+                    NOT_REQUESTED: ['尚未分析', 'text-gray-500', 'fa-wand-magic-sparkles'],
+                    PENDING: ['AI 分析中', 'text-brand-primary', 'fa-spinner fa-spin'],
+                    SUCCESS: ['AI 分析完成', 'text-emerald-400', 'fa-circle-check'],
+                    PARTIAL: ['AI 部分可用', 'text-amber-400', 'fa-triangle-exclamation'],
+                    FAILED: ['AI 分析失败', 'text-rose-400', 'fa-circle-exclamation']
+                };
+                const analysisLabel = analysisLabels[analysisStatus] || analysisLabels.FAILED;
+                const canRetryAnalysis = analysisStatus !== 'PENDING';
 
                 tr.innerHTML = `
                     <td class="px-4 py-4 text-center font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors whitespace-nowrap">${escapeHtml(script.rowKey)}</td>
                     <td class="px-4 py-4 w-[280px] max-w-[280px] overflow-hidden font-medium text-gray-300 align-top">
                         <div class="min-w-0 max-w-full overflow-hidden focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
                             <div class="row-script-editor outline-none block min-h-[2.5rem] max-h-20 w-full max-w-full overflow-y-auto overflow-x-hidden pr-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</div>
+                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="音乐意图和字幕语义分别分析；失败不会影响声音或视频">
+                                <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击重试' : ''}
+                            </button>
                         </div>
                     </td>
                     <td class="px-4 py-4">
@@ -1601,16 +1631,17 @@
                         </select>
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
-                        <button ${canEditPostprocess ? '' : 'disabled'} onclick="openSubtitleModal('${script.id}')" class="px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-[10px] font-semibold ${canEditPostprocess ? 'text-gray-300 hover:text-brand-accent' : 'text-gray-600 cursor-not-allowed'} flex items-center gap-1.5 mx-auto whitespace-nowrap">
-                            <i class="fa-solid fa-font text-brand-accent"></i>
-                            样式配置
+                        <button ${canEditPostprocess ? '' : 'disabled'} onclick="openSubtitleModal('${script.id}')" title="点击配置字幕样式" data-font-identity="${escapeHtml(postprocessConfig.fontIdentity || defaultPostprocessFontIdentity)}" class="row-subtitle-preview w-24 h-12 mx-auto rounded-lg overflow-hidden border ${canEditPostprocess ? 'border-brand-primary/30 hover:border-brand-accent cursor-pointer' : 'border-slate-800 cursor-not-allowed'} bg-gradient-to-br from-slate-800 via-slate-950 to-indigo-950 relative transition-colors">
+                            <span class="absolute inset-x-1 top-1 text-[7px] text-gray-500 font-semibold">字幕预览 · 点击配置</span>
+                            <span class="row-subtitle-preview-text absolute inset-x-1 bottom-2 text-[11px] leading-none font-bold truncate" style="color: ${escapeHtml(postprocessConfig.textColor || '#ffffff')}; -webkit-text-stroke: 0.45px #000000; paint-order: stroke fill; text-shadow: 0 0 1px #000000;">${escapeHtml(subtitlePreviewText)}</span>
                         </button>
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         <div class="row-video-preview-container flex flex-col items-center justify-center min-h-[76px]">
                             <div class="row-video-status-wait flex flex-col items-center gap-1 text-gray-600 text-[9px]">
                                 <i class="fa-solid fa-film text-sm"></i>
-                                <span>${script.baseVideo ? '等待生成完整成片' : '等待画面合成'}</span>
+                                <span>${script.baseVideo ? '等待生成视频预览' : '等待画面合成'}</span>
+                                ${script.baseVideo ? '<button type="button" onclick="retryRowPostprocessPreview(this)" class="text-[9px] text-brand-accent hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>生成字幕/BGM预览</button>' : ''}
                             </div>
                             <div class="row-video-status-loading hidden flex flex-col items-center gap-1 text-brand-primary text-[9px]">
                                 <i class="fa-solid fa-spinner fa-spin text-sm"></i>
@@ -1630,6 +1661,7 @@
                                 ${script.compositionVideo
                                     ? `<a href="/api/new/projects/${activeProject.project_id}/items/${script.id}/current-video" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-download mr-1"></i>下载完整成片</a>`
                                     : '<span class="text-[9px] text-gray-500">无需启动剪映</span>'}
+                                ${browserPreviewReady ? '<button type="button" onclick="retryRowPostprocessPreview(this)" class="text-[9px] text-brand-accent hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重新生成预览</button>' : ''}
                             </div>
                         </div>
                     </td>
@@ -1677,6 +1709,10 @@
                 `;
                 
                 tbody.appendChild(tr);
+                void applyFontPreviewToElement(
+                    postprocessConfig.fontIdentity || defaultPostprocessFontIdentity,
+                    tr.querySelector('.row-subtitle-preview-text')
+                );
                 toggleRowAudioStatusUI(tr, voiceStatus);
                 if (voiceStatus === 'ready') markRowAudioPreviewReady(tr);
                 toggleRowVideoStatusUI(tr, videoStatus);
@@ -1720,7 +1756,7 @@
                     body: JSON.stringify({ items })
                 });
                 syncProjectInputs(project);
-                showToast('添加分段', `任务ID ${newKey} 已保存。`, 'success');
+                showToast('添加分段', `任务ID ${newKey} 已保存；生成声音时会分析这条新脚本。`, 'success');
             } catch (error) {
                 showToast('添加失败', error.message, 'warning');
             }
@@ -1747,10 +1783,78 @@
                     }
                 );
                 syncProjectInputs(project);
-                showToast('脚本已保存', '旧素材和任务记录已保留；请重新生成这条脚本的声音。', 'success');
+                showToast('脚本已保存', '这一行的旧声音和内容分析已失效；下次生成声音时会只分析这条新文本。', 'success');
             } catch (error) {
                 element.textContent = uploadedScripts[index].text;
                 showToast('脚本保存失败', error.message, 'warning');
+            }
+        }
+
+        function analyzeProjectContent(projectId, itemIds = null, forceRefresh = false) {
+            return workspaceApi(`/api/new/projects/${projectId}/content-analysis`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...(Array.isArray(itemIds) ? { item_ids: itemIds } : {}),
+                    force_refresh: forceRefresh
+                })
+            });
+        }
+
+        function contentAnalysisTargetsForRows(rows) {
+            return rows.map(row => row.getAttribute('data-id')).filter((itemId) => {
+                const script = uploadedScripts.find(candidate => candidate.id === itemId);
+                return (script?.contentAnalysis?.overall_status || 'NOT_REQUESTED') === 'NOT_REQUESTED';
+            });
+        }
+
+        function startContentAnalysisForChangedScripts(projectId, rows) {
+            const itemIds = contentAnalysisTargetsForRows(rows);
+            if (itemIds.length === 0) return;
+            showToast('正在分析新文本', `将分析 ${itemIds.length} 条首次导入或内容有变化的脚本；声音重生成不会重复分析旧文本。`, 'info');
+            void analyzeProjectContent(projectId, itemIds).then((project) => {
+                if (activeProject?.project_id !== projectId) return;
+                syncProjectInputs(project);
+                const targetItems = (project.items || []).filter(item => itemIds.includes(item.item_id));
+                const failed = targetItems.filter(item => item.content_analysis?.overall_status === 'FAILED').length;
+                const partial = targetItems.filter(item => item.content_analysis?.overall_status === 'PARTIAL').length;
+                showToast(
+                    failed || partial ? '新文本分析部分完成' : '新文本分析完成',
+                    failed || partial
+                        ? `${itemIds.length} 条新文本已分别保存结果；${failed} 条失败、${partial} 条部分成功，不影响声音生成。`
+                        : `${itemIds.length} 条新文本的音乐意图和字幕语义已保存。`,
+                    failed || partial ? 'warning' : 'success'
+                );
+            }).catch((error) => {
+                showToast('新文本分析暂不可用', `${error.message}；声音任务继续执行，不会重复调用 MiniMax。`, 'warning');
+            });
+        }
+
+        async function retryRowContentAnalysis(button) {
+            const rowId = button.closest('tr')?.getAttribute('data-id') || '';
+            if (!activeProject || !rowId || button.disabled) return;
+            button.disabled = true;
+            try {
+                showToast('正在重试内容分析', '只处理这一行，音乐和字幕分支会分别保存。', 'info');
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${rowId}/content-analysis/retry`,
+                    { method: 'POST' }
+                );
+                syncProjectInputs(project);
+                const item = project.items?.find(candidate => candidate.item_id === rowId);
+                const status = item?.content_analysis?.overall_status || 'FAILED';
+                showToast(
+                    status === 'SUCCESS' ? '内容分析完成' : '内容分析已返回',
+                    status === 'SUCCESS' ? '音乐意图和字幕语义均可用。' : '合法分支已保存，失败分支已安全降级。',
+                    status === 'SUCCESS' ? 'success' : 'warning'
+                );
+            } catch (error) {
+                showToast('内容分析重试失败', `${error.message}；不会重新调用 MiniMax、RunningHub 或剪映。`, 'warning');
+                try {
+                    syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                } catch (_) {}
+            } finally {
+                button.disabled = false;
             }
         }
 
@@ -1906,6 +2010,7 @@
                 const select = row.querySelector('.row-voice-selector');
                 if (select?.value) assignments[row.getAttribute('data-id')] = select.value;
             });
+            startContentAnalysisForChangedScripts(activeProject.project_id, targetRows);
             try {
                 const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2161,7 +2266,7 @@
                     confirmText: '确认重试',
                     onConfirm: async () => {
                         setFinalGenerationPhase('postprocess');
-                        await startGlobalPostprocess(true);
+                        await startGlobalPostprocess();
                     }
                 });
                 return;
@@ -2669,12 +2774,6 @@
             document.getElementById('modal-text-color').value = subtitleGlobalConfig.textColor;
             document.getElementById('modal-text-color-hex').textContent = subtitleGlobalConfig.textColor.toUpperCase();
 
-            const previewText = document.getElementById('modal-preview-text');
-            previewText.textContent = '用于字体测试观看';
-            previewText.style.color = subtitleGlobalConfig.textColor;
-            previewText.style.textAlign = 'center';
-            void applySelectedFontPreview(subtitleGlobalConfig.font);
-
             modal.classList.remove('opacity-0', 'pointer-events-none');
             modalBox.classList.remove('scale-95');
             modalBox.classList.add('scale-100');
@@ -2698,7 +2797,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
-                        bgm_identity: config.bgmIdentity === 'none' ? '' : (config.bgmIdentity || ''),
+                        bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
+                        bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
                         text_color: config.textColor || '#ffffff'
                     })
                 }
@@ -2719,7 +2819,7 @@
             try {
                 const project = await persistRowPostprocessSettings(editingRowId);
                 syncProjectInputs(project);
-                showToast("字幕样式已保存", `已选择「${font?.name || '未知字体'}」。旧成片会保留，重新生成时使用新样式。`, "success");
+                showToast("字幕样式已保存", `已选择「${font?.name || '未知字体'}」。请在视频预览列点击重新生成，数字人视频不会重做。`, "success");
                 closeSubtitleModal();
             } catch (error) {
                 showToast('字幕样式保存失败', error.message, 'warning');
@@ -2737,22 +2837,105 @@
             try {
                 const project = await persistRowPostprocessSettings(rowId);
                 syncProjectInputs(project);
-                showToast('背景音乐已保存', '旧成片会保留，重新生成时使用新的背景音乐。', 'success');
+                showToast(
+                    select.value === 'auto' ? '已恢复 AI 智能匹配' : '背景音乐已手动保存',
+                    '请在视频预览列点击重新生成；只会更新字幕和 BGM。',
+                    'success'
+                );
             } catch (error) {
                 showToast('背景音乐保存失败', error.message, 'warning');
                 syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
             }
         }
 
-        // Live updating colors hex in modal
-        document.getElementById('modal-font').addEventListener('change', (e) => {
-            void applySelectedFontPreview(e.target.value);
-        });
+        async function regeneratePostprocessPreview(rowId, openAfter = false) {
+            if (!activeProject || !rowId || previewRetryingItems.has(rowId)) return;
+            const script = uploadedScripts.find((item) => item.id === rowId);
+            if (!script?.baseVideo) {
+                showToast('还不能生成预览', '这一行还没有数字人画面。', 'warning');
+                return;
+            }
+            const config = rowPostprocessConfigs[rowId] || {};
+            const row = document.querySelector(`.table-data-row[data-id="${CSS.escape(rowId)}"]`);
+            previewRetryingItems.add(rowId);
+            if (row) {
+                row.setAttribute('data-video-status', 'loading');
+                toggleRowVideoStatusUI(row, 'loading');
+            }
+            try {
+                await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/postprocess-settings`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
+                        bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
+                        font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
+                        text_color: config.textColor || '#ffffff',
+                        force_retry: true
+                    })
+                });
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idempotency_key: `preview-retry-${rowId}-${Date.now()}`,
+                        items: [{
+                            item_id: rowId,
+                            bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
+                            bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
+                            font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
+                            text_color: config.textColor || '#ffffff'
+                        }]
+                    })
+                });
+                syncProjectInputs(project);
+                const updated = (project.items || []).find((item) => item.item_id === rowId);
+                if (updated?.subtitles?.status !== 'PREVIEW_READY') {
+                    throw new Error(updated?.subtitles?.review_reason || '字幕预览尚未准备完成');
+                }
+                showToast('视频预览已更新', '只重新应用了字幕和 BGM，没有重做数字人视频。', 'success');
+                if (openAfter) openVideoModal(rowId);
+            } catch (error) {
+                showToast('视频预览重试失败', error.message, 'warning');
+                try {
+                    syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                } catch (_) {}
+            } finally {
+                previewRetryingItems.delete(rowId);
+            }
+        }
 
+        function retryRowPostprocessPreview(button) {
+            const rowId = button.closest('tr')?.getAttribute('data-id') || '';
+            void regeneratePostprocessPreview(rowId, true);
+        }
+
+        function retryActiveVideoPreview() {
+            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '';
+            if (!rowId) return;
+            closeVideoModal();
+            void regeneratePostprocessPreview(rowId, true);
+        }
+
+        function focusActivePreviewSettings() {
+            const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '';
+            if (!rowId) return;
+            closeVideoModal();
+            const row = document.querySelector(`.table-data-row[data-id="${CSS.escape(rowId)}"]`);
+            if (!row) return;
+            row.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            const controls = [
+                row.querySelector('select[onchange="handleRowBgmChange(this)"]'),
+                row.querySelector('.row-subtitle-preview')
+            ].filter(Boolean);
+            controls.forEach((control) => control.classList.add('ring-2', 'ring-brand-accent', 'ring-offset-2', 'ring-offset-slate-950'));
+            window.setTimeout(() => controls.forEach((control) => control.classList.remove('ring-2', 'ring-brand-accent', 'ring-offset-2', 'ring-offset-slate-950')), 2400);
+            showToast('调整预览设置', '修改背景音乐或点击字幕预览配置，保存后再点击“生成字幕/BGM预览”。', 'info');
+        }
+
+        // Live updating colors hex in modal
         document.getElementById('modal-text-color').addEventListener('input', (e) => {
             document.getElementById('modal-text-color-hex').textContent = e.target.value.toUpperCase();
-            const previewText = document.getElementById('modal-preview-text');
-            previewText.style.color = e.target.value;
         });
 
         // Toggle Video Preview Modal
@@ -2792,15 +2975,21 @@
             const displayedWidth = video.videoWidth * scale;
             const displayedHeight = video.videoHeight * scale;
             const verticalMargin = (frameHeight - displayedHeight) / 2;
-            const safeWidth = displayedWidth * 0.8;
+            const style = activePreviewScript()?.subtitles?.style || {};
+            const safeWidth = displayedWidth * Number(style.max_width_ratio || 0.8);
+            const fontSize = 11;
+            const strokeColor = '#000000';
+            const strokeWidth = Math.max(1, displayedWidth * 0.06 / 15);
             caption.style.left = '50%';
-            caption.style.bottom = `${verticalMargin + displayedHeight * 0.2}px`;
+            caption.style.bottom = `${verticalMargin + displayedHeight * Number(style.bottom_offset_ratio || 0.2)}px`;
             caption.style.width = `${safeWidth}px`;
             caption.style.maxWidth = `${safeWidth}px`;
-            caption.style.fontSize = `${Math.max(12, displayedWidth * 0.05)}px`;
+            caption.style.fontSize = `${Math.max(11, displayedWidth * fontSize / 220)}px`;
             caption.style.lineHeight = '1';
             caption.style.whiteSpace = 'nowrap';
-            caption.style.textShadow = 'none';
+            caption.style.webkitTextStroke = `${strokeWidth}px ${strokeColor}`;
+            caption.style.paintOrder = 'stroke fill';
+            caption.style.textShadow = `0 0 ${strokeWidth}px ${strokeColor}`;
             caption.style.transform = 'translateX(-50%)';
         }
 
@@ -2821,10 +3010,6 @@
             caption.textContent = cue?.text || '';
             caption.classList.toggle('hidden', !cue?.text);
             updatePreviewCaptionLayout();
-            if (cue?.text && caption.scrollWidth > caption.clientWidth && caption.scrollWidth > 0) {
-                const currentSize = parseFloat(caption.style.fontSize) || 12;
-                caption.style.fontSize = `${Math.max(10, currentSize * caption.clientWidth / caption.scrollWidth)}px`;
-            }
         }
 
         function stopPreviewBgm() {
@@ -2861,6 +3046,11 @@
 
         async function prepareBrowserCompositionPreview() {
             const caption = document.getElementById('video-preview-caption');
+            const retryButton = document.getElementById('video-preview-retry-button');
+            const adjustButton = document.getElementById('video-preview-adjust-button');
+            const canAdjustPreview = Boolean(activePreviewScript()?.baseVideo);
+            retryButton.classList.toggle('hidden', !canAdjustPreview);
+            adjustButton.classList.toggle('hidden', !canAdjustPreview);
             if (!isBrowserCompositionPreview()) {
                 caption.textContent = '';
                 caption.classList.add('hidden');
@@ -2879,7 +3069,10 @@
                     caption.style.fontFamily = 'sans-serif';
                 }
             }
-            const bgm = bgmPresets.find((item) => item.id === config.bgmIdentity);
+            const previewBgmIdentity = config.bgmIdentity === 'auto'
+                ? config.resolvedBgmIdentity
+                : config.bgmIdentity;
+            const bgm = bgmPresets.find((item) => item.id === previewBgmIdentity);
             const nextBgmUrl = bgm?.previewUrl || '';
             if (nextBgmUrl) {
                 const absoluteUrl = new URL(nextBgmUrl, window.location.origin).href;
@@ -3114,9 +3307,8 @@
                 || activeProject?.allowed_actions?.retry_postprocess
             );
             if (canPostprocess) {
-                if (!window.confirm(`将为 ${rows.length} 条视频生成包含字幕和所选背景音乐的完整成片，旧版本会保留。是否继续？`)) return;
                 setFinalGenerationPhase('postprocess');
-                await startGlobalPostprocess(true);
+                await startGlobalPostprocess();
                 return;
             }
             const canStartComposition = Boolean(activeProject?.allowed_actions?.start_composition);
@@ -3205,7 +3397,7 @@
             }
         }
 
-        async function startGlobalPostprocess(skipConfirmation = false) {
+        async function startGlobalPostprocess() {
             if (isStartingPostprocess) return;
             if (!(activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess) || !fontPresets.length) {
                 setFinalGenerationPhase(null);
@@ -3216,12 +3408,12 @@
                 const config = rowPostprocessConfigs[item.id] || {};
                 return {
                     item_id: item.id,
-                    bgm_identity: config.bgmIdentity === 'none' ? '' : (config.bgmIdentity || ''),
+                    bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
+                    bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
                     font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
                     text_color: config.textColor || '#ffffff'
                 };
             });
-            if (!skipConfirmation && !window.confirm(`将为 ${rows.length} 条视频生成包含字幕和所选背景音乐的完整成片，旧版本会保留。是否继续？`)) return;
             isStartingPostprocess = true;
             setFinalGenerationPhase('postprocess');
             isGeneratingPostprocess = true;
@@ -3398,7 +3590,7 @@
                 || activeProject.allowed_actions?.retry_postprocess
             );
             if (!allBaseVideosReady || !canPostprocess) return;
-            await startGlobalPostprocess(true);
+            await startGlobalPostprocess();
         }
 
         // Toggle User profile dropdown

@@ -95,3 +95,13 @@ GET  /api/audio-library/file?identity=...
 采集完成后复制整个 `audio_library` 目录。实际渲染使用 `files` 中的独立音频文件，不再依赖原电脑的剪映收藏和缓存路径。一起复制 `catalog.json` 可以保留分类和轮换位置；`metadata` 中保留原剪映素材信息。
 
 如果某首收藏音乐没有下载到本机、缓存路径为空或文件受版权限制，工具会报告缺失，无法仅凭草稿 JSON 恢复音频内容。
+
+## 智能音乐标签与 Top1 匹配
+
+首批 46 首音乐的受控语义标签保存在 `manifest/music_profiles.v1.json`，运行时通过稳定
+`music_id:*` 与音频 manifest 对应，不依赖 Excel、显示名称或分类游标。原表已确认的
+42 首允许自动选择，4 首未确认曲目保留但不进入自动候选。
+
+本地 `MusicProfileMatcher` 先检查文件、审核、使用权限、真实时长和禁用特征，再按固定
+100 分权重直接返回最优一首，不返回 Top3。完整字段、算法、降权和异常规则见
+[`MUSIC_MATCHING_V1.md`](MUSIC_MATCHING_V1.md)。

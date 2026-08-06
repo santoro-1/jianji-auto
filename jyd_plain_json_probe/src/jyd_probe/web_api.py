@@ -36,8 +36,10 @@ from .admin_auth import AdminAuth
 from .draft_crypto import is_plain_json_file
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
+from .music_matching import MusicProfileMatcher
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .project_audio import ProjectAudioCoordinator
+from .project_content_analysis import ProjectContentAnalysisCoordinator
 from .project_composition import ProjectCompositionCoordinator
 from .project_inputs import detect_project_image, parse_project_script_file
 from .project_postprocess import ProjectPostprocessCoordinator
@@ -2175,6 +2177,64 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             max_audio_bytes=settings.max_audio_upload_bytes,
         )
 
+    def project_content_analysis_coordinator(
+        client: AuthCenterClient,
+    ) -> ProjectContentAnalysisCoordinator:
+        return ProjectContentAnalysisCoordinator(project_store, client, max_concurrency=10)
+
+    @app.post("/api/new/projects/{project_id}/content-analysis")
+    def analyze_new_project_content(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(default={}),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        raw_item_ids = payload.get("item_ids")
+        if raw_item_ids is not None and not isinstance(raw_item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是数组")
+        if isinstance(raw_item_ids, list) and not raw_item_ids:
+            raise HTTPException(status_code=422, detail="item_ids 不能为空数组")
+        if type(payload.get("force_refresh", False)) is not bool:
+            raise HTTPException(status_code=422, detail="force_refresh 必须是布尔值")
+        try:
+            return project_content_analysis_coordinator(client).analyze(
+                user["user_id"],
+                project_id,
+                token,
+                item_ids=(
+                    [str(item_id) for item_id in raw_item_ids]
+                    if isinstance(raw_item_ids, list)
+                    else None
+                ),
+                force_refresh=payload.get("force_refresh") is True,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/content-analysis/retry"
+    )
+    def retry_new_project_item_content_analysis(
+        project_id: str,
+        item_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_content_analysis_coordinator(client).analyze(
+                user["user_id"],
+                project_id,
+                token,
+                item_ids=[item_id],
+                force_refresh=True,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+
     def project_composition_coordinator(
         client: AuthCenterClient,
     ) -> ProjectCompositionCoordinator:
@@ -2233,6 +2293,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             draft_root=settings.default_draft_root,
             fonts=fonts,
             bgm_assets=bgm_assets,
+            music_matcher=MusicProfileMatcher(settings.audio_library_root),
         )
 
     def project_variant_coordinator() -> ProjectVariantCoordinator:
@@ -2782,6 +2843,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 "max_width_ratio": 0.8,
                 "max_lines": 1,
                 "bottom_offset_ratio": 0.2,
+                "font_size": 11.0,
+                "stroke_color": "#000000",
+                "stroke_width": 0.06,
             },
             "fonts": [
                 {
@@ -2841,6 +2905,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         user = current_project_user(request)
         font_identity = str(payload.get("font_identity") or "").strip()
         bgm_identity = str(payload.get("bgm_identity") or "").strip()
+        bgm_selection_mode = str(
+            payload.get("bgm_selection_mode") or "manual"
+        ).strip().lower()
         text_color = str(payload.get("text_color") or "#FFFFFF").strip().upper()
         fonts, bgm_assets = project_postprocess_resources()
         available_fonts = {str(item.get("identity") or "") for item in fonts}
@@ -2849,6 +2916,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="字幕字体不可用")
         if bgm_identity and bgm_identity not in available_bgm:
             raise HTTPException(status_code=422, detail="BGM 素材不可用")
+        if bgm_selection_mode not in {"auto", "manual"}:
+            raise HTTPException(status_code=422, detail="BGM 选择模式不合法")
+        if bgm_selection_mode == "auto" and bgm_identity:
+            raise HTTPException(status_code=422, detail="AI 自动匹配时不能预设 BGM")
         if re.fullmatch(r"#[0-9A-F]{6}", text_color) is None:
             raise HTTPException(status_code=422, detail="字幕颜色格式不正确")
         try:
@@ -2859,6 +2930,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 font_identity=font_identity,
                 bgm_identity=bgm_identity,
                 text_color=text_color,
+                bgm_selection_mode=bgm_selection_mode,
+                force_invalidate=payload.get("force_retry") is True,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc

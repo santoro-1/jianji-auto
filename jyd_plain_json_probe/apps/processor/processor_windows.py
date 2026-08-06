@@ -37,23 +37,25 @@ def _load_processor_config(data_root: Path) -> dict[str, str]:
 
 
 def _resolved_network_config(config: dict[str, str]) -> tuple[str, str, str]:
+    cloud_digital_human_url = "https://video.lanyingjk01.com"
     local_digital_human_url = "http://127.0.0.1:8000"
     legacy_account_url = "http://192.168.11.28:8000"
     legacy_cloud_auth_url = "https://auth.lanyingjk01.com"
     explicit_digital_human_url = config.get("digital_human_server_url", "").strip()
     configured_auth_url = (
         explicit_digital_human_url
-        or config.get("auth_server_url", local_digital_human_url).strip()
+        or config.get("auth_server_url", cloud_digital_human_url).strip()
     ).rstrip("/")
     shared_processor_url = config.get("shared_processor_url", "").strip().rstrip("/")
-    if not explicit_digital_human_url and configured_auth_url in {
+    if configured_auth_url in {
+        local_digital_human_url,
         legacy_account_url,
         legacy_cloud_auth_url,
     }:
-        configured_auth_url = local_digital_human_url
+        configured_auth_url = cloud_digital_human_url
     if shared_processor_url == legacy_account_url:
         shared_processor_url = ""
-    return configured_auth_url or local_digital_human_url, shared_processor_url, "false"
+    return configured_auth_url or cloud_digital_human_url, shared_processor_url, "false"
 
 
 def _detect_draft_root(config: dict[str, str], data_root: Path) -> Path:
@@ -127,7 +129,11 @@ def _configure_environment() -> tuple[Path, Path]:
     return app_root, data_root
 
 
-def _lan_addresses(port: int) -> list[str]:
+def _workspace_path(deployment_mode: str) -> str:
+    return "/app/new" if deployment_mode == "standalone" else "/app"
+
+
+def _lan_addresses(port: int, workspace_path: str = "/app") -> list[str]:
     addresses: list[str] = []
     try:
         candidates = socket.gethostbyname_ex(socket.gethostname())[2]
@@ -136,7 +142,7 @@ def _lan_addresses(port: int) -> list[str]:
     for address in candidates:
         if address.startswith(("127.", "169.254.")) or ":" in address:
             continue
-        url = f"http://{address}:{port}/app"
+        url = f"http://{address}:{port}{workspace_path}"
         if url not in addresses:
             addresses.append(url)
     return addresses
@@ -211,7 +217,7 @@ def _write_shared_connection_files(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="启动剪映处理机服务")
     parser.add_argument("--host", default="")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--execution-mode", choices=("embedded", "agent"), default="embedded")
     parser.add_argument(
@@ -244,8 +250,9 @@ def main(argv: list[str] | None = None) -> int:
 
         app = create_app()
         collector_started = _start_embedded_collector()
-        local_url = f"http://127.0.0.1:{args.port}/app"
-        lan_urls = _lan_addresses(args.port)
+        workspace_path = _workspace_path(deployment_mode)
+        local_url = f"http://127.0.0.1:{args.port}{workspace_path}"
+        lan_urls = _lan_addresses(args.port, workspace_path)
         if deployment_mode == "shared":
             _write_shared_connection_files(app_root, lan_urls, str(app.state.agent_token))
         print("=" * 68)

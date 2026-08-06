@@ -122,8 +122,24 @@ class ProjectVariantTest(unittest.TestCase):
             status="READY",
             filename="base.mp4",
             managed_path=str(base),
+            metadata={"segment_count": 2},
             make_current=True,
         )
+        for index in (1, 2):
+            segment = self.root / f"segment-{index}.mp4"
+            segment.write_bytes(f"segment-{index}".encode("ascii"))
+            self.store.add_asset(
+                owner_user_id="user",
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                asset_type="original_video_segment",
+                source_type="runninghub",
+                status="READY",
+                filename=segment.name,
+                managed_path=str(segment),
+                external_ref={"video_index": index},
+                metadata={"start_seconds": index - 1, "end_seconds": index},
+            )
         self.store.configure_item_postprocess(
             "user",
             project["project_id"],
@@ -236,9 +252,13 @@ class ProjectVariantTest(unittest.TestCase):
         )
         self.assertEqual(len(self.queue.jobs), 30)
         for job in self.queue.jobs:
+            self.assertEqual(job["source"]["type"], "video_sequence")
             self.assertEqual(
-                job["source"]["media_path"], str((self.root / "base.mp4").resolve())
+                [entry["video_index"] for entry in job["source"]["items"]],
+                [1, 2],
             )
+            self.assertEqual(job["captions"]["size"], 11.0)
+            self.assertEqual(job["captions"]["stroke_color"], "#000000")
             self.assertEqual(job["captions"]["font_title"], "固定字体")
             self.assertEqual(job["audios"][0]["library_identity"], "bgm-1")
             self.assertEqual(job["cover"]["frame_count"], 3)

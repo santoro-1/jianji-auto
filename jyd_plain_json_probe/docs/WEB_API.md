@@ -45,6 +45,70 @@ DELETE /api/new/projects/{project_id}
 `PUT inputs` 在一个数据库事务内完成 ID、脚本内容和顺序的整体替换，失败时保留更新前
 数据。只有全部脚本行仍为 `DRAFT` 才能修改；清除项目也只允许尚未进入生成流程的草稿。
 
+智能内容分析模块 5 增加：
+
+```text
+POST /api/new/projects/{project_id}/content-analysis
+POST /api/new/projects/{project_id}/items/{item_id}/content-analysis/retry
+```
+
+项目接口请求体可选：
+
+```json
+{
+  "item_ids": ["可选的工作台脚本行 ID"],
+  "force_refresh": false
+}
+```
+
+该项目接口由“生成声音预览”动作触发，但浏览器只提交本批声音目标中首次导入或脚本内容
+变化、状态为 `NOT_REQUESTED` 的行；单纯重新生成声音不调用该接口。工作台把目标行拆成
+一条脚本一次数字人后端请求，单批最多并发 10 行。普通请求对脚本哈希未变化且已有
+`PENDING`、`SUCCESS`、`PARTIAL` 或 `FAILED` 尝试的行保持幂等跳过。单行 retry 固定强制
+刷新，用于用户显式重试失败分支。项目响应的每个 item 新增
+`content_analysis`，项目顶层新增 `content_analysis_summary`。音乐和字幕分别保存
+`NOT_REQUESTED | SUCCESS | FAILED`，请求执行期间顶层 `overall_status=PENDING`，最终为
+`SUCCESS | PARTIAL | FAILED`。脚本修改只失效该行分析快照；分析失败返回合法项目状态，
+不重新调用 MiniMax/RunningHub/剪映，也不清空 `raw_cues` 或已有音视频。
+
+智能内容分析模块 6 不增加独立外部 API；它在既有
+`POST /api/new/projects/{project_id}/postprocess/generate` 生成浏览器 4B 预览时执行。每个
+item 的 `subtitles` 增加：
+
+```json
+{
+  "raw_cues": ["MiniMax 原始时间戳，永久保留"],
+  "render_cues": ["语义映射或安全降级后的派生字幕"],
+  "semantic_mapping": {
+    "schema": "jyd.semantic-caption-mapping.v1",
+    "status": "NOT_REQUESTED | SUCCESS | FALLBACK",
+    "reason_code": null,
+    "reason_summary": null,
+    "script_sha256": "...",
+    "analysis_script_sha256": "...",
+    "audio_asset_id": "...",
+    "audio_version": 1,
+    "mapped_unit_count": 0
+  }
+}
+```
+
+智能内容分析模块 7 同样不增加外部模型请求。4B 请求中的每一行可显式传
+`bgm_selection_mode=auto|manual`：`auto` 从该行已保存且合法的 `music_intent`、当前音频
+真实时长和本地 46 首标签库计算唯一 Top1；`manual` 使用用户指定曲目或明确的无 BGM。
+选择结果保存在 `settings.postprocess.music_selection`，包含选择来源、当前脚本摘要、音频
+素材 ID、时长、matcher/taxonomy/profile 版本与标签库哈希；不会返回 Top3 或候选列表。
+音乐分析失败或本地匹配失败时按“项目明确默认音乐 → 无 BGM”降级，不影响字幕映射或
+4B 预览。手动曲目和手动无 BGM 都不会被 AI 覆盖；页面选择“AI 智能匹配”才会恢复自动模式。
+
+模块 8 没有增加 API。跨项目 mock 验收直接使用数字人服务端实际内容分析响应，确认本节
+状态、字段和两种部分成功结果均能被工作台消费；错误字符索引只在文字完整重建原文时由
+服务端重算，空格、换行和 `~` 仍按精确字符处理。
+
+`render_cues` 的时间只能由 MiniMax `raw_cues` 派生；`subtitle_units` 中发现模型时间字段会
+拒绝语义路径。版本错配、字符错配或语义组超过真实字宽时使用 `FALLBACK`，不会删除
+`raw_cues` 或触发任何第三方重试。
+
 项目图片池和映射接口：
 
 ```text
@@ -178,6 +242,7 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
       "item_id": "项目脚本行 ID",
       "font_identity": "system:simhei.ttf",
       "bgm_identity": "",
+      "bgm_selection_mode": "auto",
       "text_color": "#FFFFFF"
     }
   ]
@@ -196,7 +261,7 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `postprocess/export`，此时复用现有剪映队列并只导出一次。后续变体应直接把基础视频和
 同一配方放进变体任务一次导出，不以前述普通成片作为必需中间产物。接口不会自动创建变体。
 
-`postprocess-settings` 可在非运行状态随时保存字体、BGM 和文字颜色。如果该行已有最终
+`postprocess-settings` 可在非运行状态随时保存字体、BGM 选择模式和文字颜色。如果该行已有最终
 成片，修改后只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
 随后重新生成浏览器预览配方即可，不会自动再次导出。
 同理，脚本或音色修改会保留旧音频/视频但回到 `DRAFT`，图片修改会保留当前音频但回到
@@ -402,7 +467,7 @@ POST   /api/admin/assets/{asset_kind}/{asset_identity}/restore
 
 ```powershell
 cd "D:\工作内容\轻盈健\公寓\jyd_plain_json_probe"
-D:\Myanaconda\python.exe .\apps\processor\run_web_api.py --host 127.0.0.1 --port 8000
+D:\Myanaconda\python.exe .\apps\processor\run_web_api.py --host 127.0.0.1 --port 8010
 ```
 
 打开接口文档：

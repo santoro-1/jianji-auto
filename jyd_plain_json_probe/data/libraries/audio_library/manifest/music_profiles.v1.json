@@ -1,0 +1,2390 @@
+{
+  "schema": "jyd.music_profiles.v1",
+  "taxonomy_version": "music-taxonomy.v1",
+  "matcher_version": "music-matcher.v1",
+  "profile_version": "2026-08-06.1",
+  "source": {
+    "workbook": "AI剪辑音乐标签库_46首.xlsx",
+    "workbook_sha256": "52770fb7a6e993a173b17d87a71ea68b8a7a8c787b0e90ef0b3fc16c739a278f",
+    "sheet": "音乐标签库",
+    "technical_sheet": "音频技术特征",
+    "imported_at": "2026-08-06"
+  },
+  "weights": {
+    "scene": 25,
+    "content_format": 20,
+    "mood_valence": 20,
+    "energy_pace": 15,
+    "expression_axes": 10,
+    "speech_vocal": 10
+  },
+  "hard_filters": [
+    "enabled_and_available",
+    "auto_eligible",
+    "rights_allowed",
+    "duration_covers_video",
+    "forbidden_traits_absent"
+  ],
+  "profiles": [
+    {
+      "identity": "music_id:7338043534886390578",
+      "source_bgm_id": "BGM-001",
+      "name": "@Knight1.创作的原声",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth"
+      ],
+      "moods": [
+        "emotional",
+        "calm"
+      ],
+      "valence": "negative",
+      "energy": 3,
+      "pace": "medium_fast",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 4,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals",
+        "excessive_tension",
+        "excessive_sadness"
+      ],
+      "style_tags": [
+        "流行剪辑"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 65
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7165378986772433672",
+      "source_bgm_id": "BGM-002",
+      "name": "@周佳亮·马头琴（冈仁波齐转山）创作的原声",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "motivational_message",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "self_growth",
+        "motivation"
+      ],
+      "moods": [
+        "nostalgic",
+        "confident"
+      ],
+      "valence": "neutral",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 5,
+      "warmth": 2,
+      "tension": 4,
+      "speech_interference": 2,
+      "vocal_profile": "instrumental",
+      "opening_strength": 3,
+      "loop_suitability": 4,
+      "traits": [
+        "excessive_tension",
+        "ceremonial_grandness"
+      ],
+      "style_tags": [
+        "马头琴/民族氛围"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 68,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7493860627694373695",
+      "source_bgm_id": "BGM-003",
+      "name": "@唐尼（上上钢琴）创作的原声",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "interview"
+      ],
+      "topics": [
+        "science_education",
+        "lifestyle"
+      ],
+      "moods": [
+        "calm",
+        "warm"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 2,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 1,
+      "loop_suitability": 5,
+      "traits": [
+        "slow_intro"
+      ],
+      "style_tags": [
+        "钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7051534960741681957",
+      "source_bgm_id": "BGM-004",
+      "name": "@艺术家的妈妈（老歌分享）创作的原声",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "family",
+        "lifestyle"
+      ],
+      "moods": [
+        "warm",
+        "nostalgic"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 3,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "老歌/抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7035666773449902110",
+      "source_bgm_id": "BGM-005",
+      "name": "Apollo's Triumph (抖音原版)",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "weight_management",
+        "fitness_exercise"
+      ],
+      "content_formats": [
+        "motivational_message"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness",
+        "habits",
+        "motivation"
+      ],
+      "moods": [
+        "inspiring",
+        "confident"
+      ],
+      "valence": "positive",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 3,
+      "speech_interference": 2,
+      "vocal_profile": "instrumental",
+      "opening_strength": 4,
+      "loop_suitability": 3,
+      "traits": [
+        "dramatic_drop",
+        "ceremonial_grandness"
+      ],
+      "style_tags": [
+        "史诗/电子管弦"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 78
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7391026495597889552",
+      "source_bgm_id": "BGM-006",
+      "name": "Dehors（中法合唱版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "weight_management",
+        "fitness_exercise"
+      ],
+      "content_formats": [
+        "progress_checkin"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness"
+      ],
+      "moods": [
+        "cheerful",
+        "confident"
+      ],
+      "valence": "positive",
+      "energy": 5,
+      "pace": "fast",
+      "seriousness": 2,
+      "warmth": 1,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 5,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "dense_arrangement",
+        "dramatic_drop",
+        "playful_comedy",
+        "fast_percussion"
+      ],
+      "style_tags": [
+        "流行舞曲"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 95
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:6867663002858948609",
+      "source_bgm_id": "BGM-007",
+      "name": "Happy People",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "weight_management",
+        "fitness_exercise"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "progress_checkin"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness",
+        "science_education",
+        "lifestyle"
+      ],
+      "moods": [
+        "cheerful",
+        "lively"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium_fast",
+      "seriousness": 1,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 2,
+      "vocal_profile": "mixed",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [],
+      "style_tags": [
+        "轻快流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 25,
+        "weight_checkin": 78
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7433382301377103913",
+      "source_bgm_id": "BGM-008",
+      "name": "III (Find Yourself)",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "knowledge_explanation"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "tense",
+        "confident"
+      ],
+      "valence": "neutral",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 4,
+      "speech_interference": 2,
+      "vocal_profile": "mixed",
+      "opening_strength": 3,
+      "loop_suitability": 4,
+      "traits": [
+        "dense_arrangement",
+        "excessive_tension"
+      ],
+      "style_tags": [
+        "电子氛围"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 65
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7508613637859411978",
+      "source_bgm_id": "BGM-009",
+      "name": "Letting Go（Cover 蔡健雅）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth"
+      ],
+      "moods": [
+        "emotional",
+        "healing"
+      ],
+      "valence": "neutral",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 3,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7613266934335408171",
+      "source_bgm_id": "BGM-010",
+      "name": "Peach",
+      "profile_review_status": "needs_review",
+      "auto_eligible": false,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "weight_management",
+        "fitness_exercise"
+      ],
+      "content_formats": [
+        "progress_checkin"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness",
+        "lifestyle"
+      ],
+      "moods": [
+        "cheerful"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium_fast",
+      "seriousness": 1,
+      "warmth": 3,
+      "tension": 1,
+      "speech_interference": 2,
+      "vocal_profile": "mixed",
+      "opening_strength": 2,
+      "loop_suitability": 4,
+      "traits": [
+        "playful_comedy"
+      ],
+      "style_tags": [
+        "电子轻音乐"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 88,
+        "interview": 25,
+        "weight_checkin": 88
+      },
+      "source_confidence": "low",
+      "source_confirmed": false
+    },
+    {
+      "identity": "music_id:7134737655275653121",
+      "source_bgm_id": "BGM-011",
+      "name": "Take me hand",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth"
+      ],
+      "moods": [
+        "warm",
+        "emotional"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 2,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7533063885827524651",
+      "source_bgm_id": "BGM-012",
+      "name": "Tikolin Purre（Explicit）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "weight_management",
+        "fitness_exercise"
+      ],
+      "content_formats": [
+        "progress_checkin"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness"
+      ],
+      "moods": [
+        "confident",
+        "tense"
+      ],
+      "valence": "neutral",
+      "energy": 5,
+      "pace": "fast",
+      "seriousness": 2,
+      "warmth": 1,
+      "tension": 4,
+      "speech_interference": 4,
+      "vocal_profile": "mixed",
+      "opening_strength": 5,
+      "loop_suitability": 3,
+      "traits": [
+        "dense_arrangement",
+        "dramatic_drop",
+        "excessive_tension",
+        "fast_percussion"
+      ],
+      "style_tags": [
+        "Phonk/电子"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 95
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7466677529013831721",
+      "source_bgm_id": "BGM-013",
+      "name": " 世界赠与我的（Cover 王菲）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "healing",
+        "hopeful"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7504606390863890449",
+      "source_bgm_id": "BGM-014",
+      "name": "亲爱的你啊",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "personal_growth",
+        "emotional_story",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "family"
+      ],
+      "moods": [
+        "warm",
+        "emotional"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "抒情流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 78,
+        "knowledge": 25,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7545119072356206635",
+      "source_bgm_id": "BGM-015",
+      "name": "你眼里的星光",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "lifestyle"
+      ],
+      "moods": [
+        "warm",
+        "cheerful"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 2,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 3,
+      "vocal_profile": "mixed",
+      "opening_strength": 2,
+      "loop_suitability": 4,
+      "traits": [],
+      "style_tags": [
+        "轻柔流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7402551600542631937",
+      "source_bgm_id": "BGM-016",
+      "name": "你赠我独有段戒感",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth"
+      ],
+      "moods": [
+        "emotional",
+        "rational"
+      ],
+      "valence": "negative",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "excessive_sadness"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7056670833205905409",
+      "source_bgm_id": "BGM-017",
+      "name": "偏爱（钢琴版） （剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "emotional"
+      ],
+      "valence": "neutral",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 3,
+      "tension": 2,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [],
+      "style_tags": [
+        "钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 68,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7478872354421491724",
+      "source_bgm_id": "BGM-018",
+      "name": "做最好的自己",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle"
+      ],
+      "content_formats": [
+        "practical_advice",
+        "motivational_message"
+      ],
+      "topics": [
+        "habits",
+        "self_growth",
+        "motivation"
+      ],
+      "moods": [
+        "inspiring",
+        "confident"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 3,
+      "warmth": 3,
+      "tension": 1,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "励志流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 78,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7592079909348280326",
+      "source_bgm_id": "BGM-019",
+      "name": "午后 吉他 阳光 轻松（午后音乐）",
+      "profile_review_status": "needs_review",
+      "auto_eligible": false,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "nutrition_food"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice"
+      ],
+      "topics": [
+        "nutrition",
+        "science_education",
+        "lifestyle"
+      ],
+      "moods": [
+        "cheerful"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium",
+      "seriousness": 1,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 1,
+      "loop_suitability": 5,
+      "traits": [
+        "slow_intro"
+      ],
+      "style_tags": [
+        "木吉他"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 88,
+        "interview": 70,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": false
+    },
+    {
+      "identity": "music_id:7657505192778140462",
+      "source_bgm_id": "BGM-020",
+      "name": "半衰期（我还是很想你）",
+      "profile_review_status": "needs_review",
+      "auto_eligible": false,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "emotional",
+        "nostalgic"
+      ],
+      "valence": "negative",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 3,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "excessive_sadness"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 88,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "medium",
+      "source_confirmed": false
+    },
+    {
+      "identity": "music_id:7283782326893578240",
+      "source_bgm_id": "BGM-021",
+      "name": "可不可以（音乐）（Cover 张紫豪）（剪辑版2）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "emotional"
+      ],
+      "valence": "negative",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 3,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "excessive_sadness"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7016359577441437730",
+      "source_bgm_id": "BGM-022",
+      "name": "喜剧之王（剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "weight_management",
+        "fitness_exercise",
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "progress_checkin",
+        "personal_story"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness"
+      ],
+      "moods": [
+        "emotional",
+        "confident"
+      ],
+      "valence": "neutral",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 3,
+      "warmth": 2,
+      "tension": 3,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 4,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals",
+        "dense_arrangement",
+        "dramatic_drop"
+      ],
+      "style_tags": [
+        "流行/戏剧节奏"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 78,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 95
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7429070971728529418",
+      "source_bgm_id": "BGM-023",
+      "name": "国风 轻快 阳光 俏皮",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "weight_management",
+        "fitness_exercise",
+        "nutrition_food"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "progress_checkin"
+      ],
+      "topics": [
+        "nutrition",
+        "weight_loss",
+        "fitness",
+        "science_education",
+        "lifestyle"
+      ],
+      "moods": [
+        "cheerful"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium_fast",
+      "seriousness": 1,
+      "warmth": 3,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [
+        "playful_comedy"
+      ],
+      "style_tags": [
+        "国风/弹拨"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 25,
+        "weight_checkin": 78
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7470412865544472592",
+      "source_bgm_id": "BGM-024",
+      "name": "复刻回忆(无掌声版)",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "nostalgic",
+        "warm"
+      ],
+      "valence": "neutral",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [],
+      "style_tags": [
+        "钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 68,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7632723157036976166",
+      "source_bgm_id": "BGM-025",
+      "name": "妈妈的温柔",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "general_health",
+        "family"
+      ],
+      "moods": [
+        "warm",
+        "healing"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 2,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "亲情抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7363794259227805732",
+      "source_bgm_id": "BGM-026",
+      "name": "妈妈陪我长大了",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "family",
+        "self_growth"
+      ],
+      "moods": [
+        "warm"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "亲情抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 25,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7585886063152842794",
+      "source_bgm_id": "BGM-027",
+      "name": "愿妈妈平安健康（剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "general_health",
+        "family"
+      ],
+      "moods": [
+        "warm",
+        "hopeful"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "亲情抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 78,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7486776822181906448",
+      "source_bgm_id": "BGM-028",
+      "name": "时光琥珀",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "other"
+      ],
+      "moods": [
+        "nostalgic",
+        "calm"
+      ],
+      "valence": "neutral",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "mixed",
+      "opening_strength": 1,
+      "loop_suitability": 5,
+      "traits": [
+        "slow_intro"
+      ],
+      "style_tags": [
+        "氛围/钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 78,
+        "knowledge": 68,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7633188159245289523",
+      "source_bgm_id": "BGM-029",
+      "name": "是妈妈是女儿 (Live)",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "family"
+      ],
+      "moods": [
+        "emotional",
+        "warm"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 5,
+      "tension": 2,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 1,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "亲情流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 72,
+        "knowledge": 25,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7406550315586586634",
+      "source_bgm_id": "BGM-030",
+      "name": "晴（宿命感BGM）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "knowledge_explanation"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "tense"
+      ],
+      "valence": "neutral",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 5,
+      "warmth": 1,
+      "tension": 5,
+      "speech_interference": 2,
+      "vocal_profile": "instrumental",
+      "opening_strength": 4,
+      "loop_suitability": 4,
+      "traits": [
+        "dramatic_drop",
+        "excessive_tension",
+        "ceremonial_grandness"
+      ],
+      "style_tags": [
+        "电影感/电子氛围"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 65
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7634368473006934054",
+      "source_bgm_id": "BGM-031",
+      "name": "松间月 钢琴纯音乐",
+      "profile_review_status": "needs_review",
+      "auto_eligible": false,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "science_education"
+      ],
+      "moods": [
+        "calm"
+      ],
+      "valence": "neutral",
+      "energy": 1,
+      "pace": "slow",
+      "seriousness": 3,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 1,
+      "loop_suitability": 5,
+      "traits": [
+        "slow_intro"
+      ],
+      "style_tags": [
+        "钢琴/东方氛围"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 88,
+        "interview": 88,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": false
+    },
+    {
+      "identity": "music_id:7517237591881336883",
+      "source_bgm_id": "BGM-032",
+      "name": "焚情 (纯音乐）（Cover 黄凯芹）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "emotional"
+      ],
+      "valence": "negative",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 5,
+      "warmth": 3,
+      "tension": 3,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [
+        "excessive_sadness",
+        "ceremonial_grandness"
+      ],
+      "style_tags": [
+        "抒情器乐"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 68,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7549622880502892590",
+      "source_bgm_id": "BGM-033",
+      "name": "爱江山更爱美人（Cover 小阿枫）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "lifestyle"
+      ],
+      "moods": [
+        "confident",
+        "nostalgic"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 2,
+      "warmth": 3,
+      "tension": 1,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "国风流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7536835366960171048",
+      "source_bgm_id": "BGM-034",
+      "name": "独角戏（Cover 许茹芸）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "emotional",
+        "calm"
+      ],
+      "valence": "negative",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 5,
+      "warmth": 2,
+      "tension": 4,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "excessive_tension",
+        "excessive_sadness",
+        "ceremonial_grandness"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7076108218967001102",
+      "source_bgm_id": "BGM-035",
+      "name": "经济舱（钢琴版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "calm",
+        "confident"
+      ],
+      "valence": "neutral",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 2,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [],
+      "style_tags": [
+        "钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 68,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:6874387537750657031",
+      "source_bgm_id": "BGM-036",
+      "name": "美丽的神话 钢琴演奏",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "science_education"
+      ],
+      "moods": [
+        "warm",
+        "calm"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 2,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 1,
+      "loop_suitability": 5,
+      "traits": [
+        "slow_intro"
+      ],
+      "style_tags": [
+        "钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7340141583693269011",
+      "source_bgm_id": "BGM-037",
+      "name": "美好的一天（古筝版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "nutrition_food"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice"
+      ],
+      "topics": [
+        "nutrition",
+        "science_education",
+        "lifestyle"
+      ],
+      "moods": [
+        "cheerful"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium",
+      "seriousness": 1,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [],
+      "style_tags": [
+        "古筝"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 95,
+        "interview": 70,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7504573154510424115",
+      "source_bgm_id": "BGM-038",
+      "name": "致伟大的妈妈",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "family"
+      ],
+      "moods": [
+        "warm",
+        "serious"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 3,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "ceremonial_grandness"
+      ],
+      "style_tags": [
+        "亲情赞颂"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 72,
+        "knowledge": 25,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7530466682295044132",
+      "source_bgm_id": "BGM-039",
+      "name": "花海 (钢琴版)(改编版)",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "warm",
+        "emotional"
+      ],
+      "valence": "neutral",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 4,
+      "tension": 2,
+      "speech_interference": 1,
+      "vocal_profile": "instrumental",
+      "opening_strength": 2,
+      "loop_suitability": 5,
+      "traits": [],
+      "style_tags": [
+        "钢琴"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 68,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:6931987094940174343",
+      "source_bgm_id": "BGM-040",
+      "name": "萱草花 哼唱版（电影《你好，李焕英》主题曲）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "interview_conversation",
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle",
+        "family_relationship"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "general_health",
+        "family"
+      ],
+      "moods": [
+        "warm",
+        "healing"
+      ],
+      "valence": "positive",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 2,
+      "vocal_profile": "mixed",
+      "opening_strength": 1,
+      "loop_suitability": 4,
+      "traits": [
+        "slow_intro"
+      ],
+      "style_tags": [
+        "轻柔亲情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 25,
+        "knowledge": 78,
+        "interview": 95,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7555654943560026175",
+      "source_bgm_id": "BGM-041",
+      "name": "落在杯沿的光",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth",
+        "lifestyle"
+      ],
+      "moods": [
+        "healing",
+        "warm"
+      ],
+      "valence": "positive",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 3,
+      "warmth": 5,
+      "tension": 1,
+      "speech_interference": 4,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals"
+      ],
+      "style_tags": [
+        "清新抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7361650846344103948",
+      "source_bgm_id": "BGM-042",
+      "name": "请你好好爱自己（剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "health_education",
+        "general_knowledge",
+        "habit_lifestyle"
+      ],
+      "content_formats": [
+        "knowledge_explanation",
+        "practical_advice",
+        "motivational_message"
+      ],
+      "topics": [
+        "general_health",
+        "habits",
+        "self_growth"
+      ],
+      "moods": [
+        "healing",
+        "confident"
+      ],
+      "valence": "positive",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 3,
+      "warmth": 4,
+      "tension": 1,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 4,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals",
+        "dense_arrangement",
+        "dramatic_drop"
+      ],
+      "style_tags": [
+        "励志流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 78,
+        "interview": 25,
+        "weight_checkin": 65
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7051390538976626702",
+      "source_bgm_id": "BGM-043",
+      "name": "起风了（间奏加长版） ",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "nostalgic",
+        "hopeful"
+      ],
+      "valence": "neutral",
+      "energy": 3,
+      "pace": "medium_fast",
+      "seriousness": 4,
+      "warmth": 4,
+      "tension": 2,
+      "speech_interference": 3,
+      "vocal_profile": "mixed",
+      "opening_strength": 3,
+      "loop_suitability": 4,
+      "traits": [],
+      "style_tags": [
+        "流行间奏"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 78,
+        "weight_checkin": 65
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7530905227610195968",
+      "source_bgm_id": "BGM-044",
+      "name": "越界（剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "weight_management",
+        "fitness_exercise"
+      ],
+      "content_formats": [
+        "motivational_message"
+      ],
+      "topics": [
+        "weight_loss",
+        "fitness",
+        "habits",
+        "motivation"
+      ],
+      "moods": [
+        "confident",
+        "tense"
+      ],
+      "valence": "neutral",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 4,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 4,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals",
+        "dense_arrangement",
+        "dramatic_drop",
+        "excessive_tension"
+      ],
+      "style_tags": [
+        "流行节奏"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 78
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:6527484568614767364",
+      "source_bgm_id": "BGM-045",
+      "name": "还是分开",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth"
+      ],
+      "moods": [
+        "emotional",
+        "healing"
+      ],
+      "valence": "negative",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "excessive_sadness"
+      ],
+      "style_tags": [
+        "流行抒情"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7468232856016472080",
+      "source_bgm_id": "BGM-046",
+      "name": "远去的列车",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story",
+        "interview_conversation"
+      ],
+      "content_formats": [
+        "personal_story",
+        "interview"
+      ],
+      "topics": [
+        "self_growth"
+      ],
+      "moods": [
+        "nostalgic"
+      ],
+      "valence": "neutral",
+      "energy": 3,
+      "pace": "medium",
+      "seriousness": 4,
+      "warmth": 3,
+      "tension": 3,
+      "speech_interference": 4,
+      "vocal_profile": "mixed",
+      "opening_strength": 3,
+      "loop_suitability": 3,
+      "traits": [],
+      "style_tags": [
+        "叙事流行"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 78,
+        "weight_checkin": 25
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    }
+  ]
+}

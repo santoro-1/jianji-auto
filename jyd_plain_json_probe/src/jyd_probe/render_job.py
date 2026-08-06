@@ -25,7 +25,11 @@ from .content_replace import (
 )
 from .cli import load_plain_draft_json
 from .draft_crypto import prepare_plain_draft_dir
-from .draft_factory import create_plain_draft_from_video
+from .draft_factory import (
+    VideoSequenceItem,
+    create_plain_draft_from_video,
+    create_plain_draft_from_videos,
+)
 from .subtitles import (
     add_captions_to_draft,
     build_caption_cues,
@@ -94,6 +98,9 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
 
     if source_kind == "video":
         source_draft_dir, template_dir, output_name_source = _prepare_video_source(config, source)
+        default_output_root = PROJECT_ROOT / "_local_loop_test"
+    elif source_kind == "video-sequence":
+        source_draft_dir, template_dir, output_name_source = _prepare_video_sequence_source(config, source)
         default_output_root = PROJECT_ROOT / "_local_loop_test"
     elif source_kind == "template":
         source_draft_dir, template_dir, output_name_source = _prepare_template_source(config, source)
@@ -237,6 +244,58 @@ def _prepare_video_source(config: Mapping[str, Any], source: Mapping[str, Any]) 
     return created.draft_dir, created.draft_dir, media.stem
 
 
+def _prepare_video_sequence_source(
+    config: Mapping[str, Any], source: Mapping[str, Any]
+) -> tuple[Path, Path, str]:
+    raw_items = _value(source, "items", "segments", "videos", default=None)
+    if not isinstance(raw_items, list) or not raw_items:
+        raise RuntimeError("source.type=video_sequence 时必须提供 source.items")
+    items: list[VideoSequenceItem] = []
+    for index, raw in enumerate(raw_items, start=1):
+        item = _dict_value(raw)
+        media_path = _value(item, "media_path", "video_path", default="")
+        if not media_path:
+            raise RuntimeError(f"source.items[{index - 1}] 缺少 media_path")
+        items.append(
+            VideoSequenceItem(
+                media_path=_positive_path(media_path, f"第 {index} 段输入视频"),
+                target_duration_us=int(
+                    _value(item, "target_duration_us", "duration_us", default=0)
+                ),
+                source_start_us=int(
+                    _value(item, "source_start_us", "start_us", default=0)
+                ),
+            )
+        )
+
+    canvas = _dict_value(source.get("canvas"))
+    base_root = Path(
+        _value(
+            source,
+            "work_root",
+            "base_draft_work_root",
+            default=_value(
+                config,
+                "base_draft_work_root",
+                default=PROJECT_ROOT / "_generated_video_drafts",
+            ),
+        )
+    ).expanduser().resolve()
+    created = create_plain_draft_from_videos(
+        items,
+        base_root,
+        draft_name=str(_value(source, "base_draft_name", default="")),
+        width=int(
+            _value(canvas, "width", default=_value(source, "canvas_width", "width", default=0))
+        ),
+        height=int(
+            _value(canvas, "height", default=_value(source, "canvas_height", "height", default=0))
+        ),
+        fps=int(_value(canvas, "fps", default=_value(source, "canvas_fps", "fps", default=30))),
+    )
+    return created.draft_dir, created.draft_dir, items[0].media_path.stem
+
+
 def _apply_captions_to_output(
     config: Mapping[str, Any],
     output_draft_dir: Path,
@@ -300,6 +359,8 @@ def _apply_captions_to_output(
         style_json_path=style_json_path,
         size=_optional_float(captions, "size"),
         color=str(_value(captions, "color", default="")),
+        stroke_color=str(_value(captions, "stroke_color", default="")),
+        stroke_width=_optional_float(captions, "stroke_width"),
         transform_x=_optional_float(captions, "transform_x"),
         transform_y=_optional_float(captions, "transform_y"),
         line_max_width=_optional_float(captions, "line_max_width"),

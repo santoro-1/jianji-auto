@@ -48,6 +48,26 @@ class NewFrontendTest(unittest.TestCase):
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn('href="/api/new/script-template"', html)
         self.assertIn("/api/new/script-imports/preview", html)
+        self.assertIn("/content-analysis", html)
+        self.assertIn("retryRowContentAnalysis", html)
+        self.assertIn("contentAnalysisTargetsForRows", html)
+        self.assertIn("startContentAnalysisForChangedScripts", html)
+        self.assertIn("AI 智能匹配", html)
+        self.assertIn("bgm_selection_mode", html)
+        self.assertIn("resolvedBgmIdentity", html)
+        self.assertIn(
+            "=== 'NOT_REQUESTED'",
+            html,
+        )
+        self.assertIn(
+            "startContentAnalysisForChangedScripts(activeProject.project_id, targetRows)",
+            html,
+        )
+        self.assertNotIn("正在逐行分析音乐意图和字幕语义", html)
+        self.assertNotIn(
+            "void analyzeProjectContent(project.project_id).then(syncProjectInputs)",
+            html,
+        )
         self.assertIn("/image-mapping", html)
         self.assertIn("uploadProjectImage", html)
         self.assertIn("initializeProjectInputs", html)
@@ -137,7 +157,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/postprocess-settings", workspace)
         self.assertIn("continueFinalGenerationAfterComposition", workspace)
         self.assertIn("setFinalGenerationPhase('composition')", workspace)
-        self.assertIn("startGlobalPostprocess(true)", workspace)
+        self.assertIn("startGlobalPostprocess()", workspace)
         self.assertIn("data-final-video-url", workspace)
         self.assertIn("video-preview-time", workspace)
         self.assertIn("loadedmetadata", workspace)
@@ -146,7 +166,10 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("previewBgmAudio.volume = 0.3", workspace)
         self.assertIn("/postprocess/export", workspace)
         self.assertIn("下载 MP4 才会按需启动剪映并导出一次", workspace)
-        self.assertIn("displayedHeight * 0.2", workspace)
+        self.assertIn("style.bottom_offset_ratio || 0.2", workspace)
+        self.assertIn("const fontSize = 11", workspace)
+        self.assertIn("const strokeColor = '#000000'", workspace)
+        self.assertNotIn("caption.scrollWidth > caption.clientWidth", workspace)
         self.assertIn("caption.style.whiteSpace = 'nowrap'", workspace)
         self.assertIn("aspect-ratio: 9 / 16", workspace)
         self.assertIn('id="video-preview-play-button"', workspace)
@@ -163,7 +186,17 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("重试只会重新执行本地剪映后处理", workspace)
         self.assertIn("new FontFace(family, buffer).load()", workspace)
         self.assertIn("fetch(font.preview_url", workspace)
-        self.assertIn("applySelectedFontPreview", workspace)
+        self.assertIn("applyFontPreviewToElement", workspace)
+        self.assertIn("row-subtitle-preview", workspace)
+        self.assertIn("字幕预览 · 点击配置", workspace)
+        self.assertIn("retryRowPostprocessPreview", workspace)
+        self.assertIn("preview-retry-${rowId}", workspace)
+        self.assertIn("重新生成字幕/BGM预览", workspace)
+        self.assertIn("调整字幕/BGM", workspace)
+        self.assertIn("force_retry: true", workspace)
+        self.assertIn("const canAdjustPreview = Boolean(activePreviewScript()?.baseVideo)", workspace)
+        self.assertNotIn("retryButton.classList.toggle('hidden', !isBrowserCompositionPreview())", workspace)
+        self.assertNotIn("将为 ${rows.length} 条视频生成包含字幕和所选背景音乐", workspace)
         self.assertIn("allowed_actions?.retry_postprocess", workspace)
         self.assertIn("重新生成新的声音版本", workspace)
         self.assertIn("pendingRows.length ? pendingRows", workspace)

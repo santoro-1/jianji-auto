@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import datetime
+import hashlib
 import json
 from pathlib import Path
 import sqlite3
@@ -10,7 +11,7 @@ from typing import Any, Iterator
 import uuid
 
 
-PROJECT_SCHEMA_VERSION = 6
+PROJECT_SCHEMA_VERSION = 8
 MAX_PROJECT_ITEMS = 500
 
 PROJECT_ITEM_STATUSES = {
@@ -81,6 +82,12 @@ def _default_subtitles() -> dict[str, Any]:
         "render_cues": [],
         "bound_audio_asset_id": None,
         "bound_video_asset_id": None,
+        "semantic_mapping": {
+            "schema": "jyd.semantic-caption-mapping.v1",
+            "status": "NOT_REQUESTED",
+            "reason_code": None,
+            "reason_summary": None,
+        },
         "style": {
             "font_id": None,
             "font_size": 15,
@@ -92,6 +99,82 @@ def _default_subtitles() -> dict[str, Any]:
         "status": "NOT_AVAILABLE",
         "overflow_risk": False,
     }
+
+
+def _script_sha256(script: str) -> str:
+    return hashlib.sha256(script.encode("utf-8")).hexdigest()
+
+
+def _default_content_analysis(
+    script: str,
+    *,
+    invalidated_reason: str | None = None,
+) -> dict[str, Any]:
+    now = _now() if invalidated_reason else None
+    return {
+        "snapshot_schema": "jyd.project-content-analysis.v1",
+        "script_sha256": _script_sha256(script),
+        "script_length": len(script),
+        "overall_status": "NOT_REQUESTED",
+        "music_analysis_status": "NOT_REQUESTED",
+        "subtitle_analysis_status": "NOT_REQUESTED",
+        "music_intent": None,
+        "subtitle_units": None,
+        "errors": {"music": None, "subtitle": None, "request": None},
+        "schema_version": None,
+        "prompt_version": None,
+        "model": None,
+        "provider_request_id": None,
+        "provider_attempts": 0,
+        "cache_hit": False,
+        "cacheable": False,
+        "request_count": 0,
+        "requested_at": None,
+        "analyzed_at": None,
+        "invalidated_reason": invalidated_reason,
+        "invalidated_at": now,
+    }
+
+
+def _content_analysis_snapshot(value: Any, script: str) -> dict[str, Any]:
+    default = _default_content_analysis(script)
+    if not isinstance(value, dict):
+        return default
+    if not value.get("script_sha256"):
+        return default
+    if value.get("script_sha256") != default["script_sha256"]:
+        return _default_content_analysis(script, invalidated_reason="SCRIPT_CHANGED")
+    return {**default, **value}
+
+
+def _analysis_overall_status(music_status: str, subtitle_status: str) -> str:
+    success_count = sum(
+        status == "SUCCESS" for status in (music_status, subtitle_status)
+    )
+    if success_count == 2:
+        return "SUCCESS"
+    if success_count == 1:
+        return "PARTIAL"
+    return "FAILED"
+
+
+def _invalidate_auto_music_selection(
+    settings: dict[str, Any], reason_code: str
+) -> dict[str, Any]:
+    postprocess = settings.get("postprocess")
+    if not isinstance(postprocess, dict) or postprocess.get("bgm_selection_mode") != "auto":
+        return settings
+    postprocess = dict(postprocess)
+    postprocess["bgm_identity"] = ""
+    postprocess["music_selection"] = {
+        "schema": "jyd.project-music-selection.v1",
+        "status": "NOT_REQUESTED",
+        "selection_source": "ai",
+        "bgm_identity": None,
+        "reason_code": reason_code,
+    }
+    settings["postprocess"] = postprocess
+    return settings
 
 
 def _clean_name(value: Any) -> str:
@@ -204,6 +287,7 @@ class ProjectStore:
                     current_base_video_asset_id TEXT,
                     current_video_asset_id TEXT,
                     subtitles_json TEXT NOT NULL DEFAULT '{}',
+                    content_analysis_json TEXT NOT NULL DEFAULT '{}',
                     settings_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -375,6 +459,10 @@ class ProjectStore:
                 connection.execute(
                     "ALTER TABLE project_items ADD COLUMN current_base_video_asset_id TEXT"
                 )
+            if "content_analysis_json" not in item_columns:
+                connection.execute(
+                    "ALTER TABLE project_items ADD COLUMN content_analysis_json TEXT NOT NULL DEFAULT '{}'"
+                )
             connection.execute(
                 "INSERT OR REPLACE INTO project_schema_meta(key, value) VALUES('version', ?)",
                 (str(PROJECT_SCHEMA_VERSION),),
@@ -446,8 +534,9 @@ class ProjectStore:
                     """
                     INSERT INTO project_items(
                         item_id, project_id, row_key, position, script_text,
-                        status, subtitles_json, settings_json, created_at, updated_at
-                    ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?)
+                        status, subtitles_json, content_analysis_json, settings_json,
+                        created_at, updated_at
+                    ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?)
                     """,
                     (
                         item["item_id"],
@@ -456,6 +545,7 @@ class ProjectStore:
                         item["position"],
                         item["script_text"],
                         _json(_default_subtitles()),
+                        _json(_default_content_analysis(item["script_text"])),
                         _json(item["settings"]),
                         now,
                         now,
@@ -563,12 +653,14 @@ class ProjectStore:
                     updates.append("row_key=?")
                     values.append(clean_row_key)
             content_changed = False
+            script_changed = False
             if script_text is not None:
                 clean_script = _clean_script(script_text)
                 if clean_script != str(item["script_text"]):
                     updates.append("script_text=?")
                     values.append(clean_script)
                     content_changed = True
+                    script_changed = True
             if settings is not None:
                 if not isinstance(settings, dict):
                     raise ValueError("脚本行设置必须是对象")
@@ -589,6 +681,22 @@ class ProjectStore:
                         ]
                     )
                     values.append(_json(_default_subtitles()))
+                if script_changed:
+                    updates.append("content_analysis_json=?")
+                    values.append(
+                        _json(
+                            _default_content_analysis(
+                                clean_script,
+                                invalidated_reason="SCRIPT_CHANGED",
+                            )
+                        )
+                    )
+                    if settings is None:
+                        invalidated_settings = _invalidate_auto_music_selection(
+                            _object(item["settings_json"], {}), "SCRIPT_CHANGED"
+                        )
+                        updates.append("settings_json=?")
+                        values.append(_json(invalidated_settings))
                 updates.append("updated_at=?")
                 values.extend([now, item_id])
                 try:
@@ -692,6 +800,9 @@ class ProjectStore:
             now = _now()
             if changed:
                 settings["voice_asset_id"] = voice_id
+                settings = _invalidate_auto_music_selection(
+                    settings, "AUDIO_VERSION_CHANGED"
+                )
             if changed:
                 connection.execute(
                     """
@@ -750,6 +861,9 @@ class ProjectStore:
             now = _now()
             for item, settings in changed_items:
                 settings["voice_asset_id"] = voice_id
+                settings = _invalidate_auto_music_selection(
+                    settings, "AUDIO_VERSION_CHANGED"
+                )
                 connection.execute(
                     """
                     UPDATE project_items
@@ -858,17 +972,20 @@ class ProjectStore:
             item = self._owned_item(connection, project_id, item_id)
             if item["status"] in ACTIVE_ITEM_STATUSES:
                 raise ValueError("当前脚本行正在生成，不能创建新的声音任务")
+            settings = _invalidate_auto_music_selection(
+                _object(item["settings_json"], {}), "AUDIO_VERSION_CHANGED"
+            )
             now = _now()
             connection.execute(
                 """
                 UPDATE project_items
-                SET current_audio_asset_id=NULL,
+                SET settings_json=?, current_audio_asset_id=NULL,
                     current_base_video_asset_id=NULL,
                     current_video_asset_id=NULL,
                     subtitles_json=?, status='DRAFT', updated_at=?
                 WHERE item_id=?
                 """,
-                (_json(_default_subtitles()), now, item_id),
+                (_json(settings), _json(_default_subtitles()), now, item_id),
             )
             connection.execute(
                 """
@@ -890,16 +1007,24 @@ class ProjectStore:
         font_identity: str,
         bgm_identity: str,
         text_color: str,
+        bgm_selection_mode: str = "manual",
+        music_selection: dict[str, Any] | None = None,
+        force_invalidate: bool = False,
     ) -> dict[str, Any]:
         """Save editable subtitle/BGM settings and invalidate only final rendering."""
 
         clean_font = str(font_identity or "").strip()
         clean_bgm = str(bgm_identity or "").strip()
+        clean_bgm_mode = str(bgm_selection_mode or "manual").strip().lower()
         clean_color = str(text_color or "#FFFFFF").strip().upper()
         if not clean_font:
             raise ValueError("字幕字体不能为空")
         if len(clean_color) != 7 or not clean_color.startswith("#"):
             raise ValueError("字幕颜色格式不正确")
+        if clean_bgm_mode not in {"auto", "manual"}:
+            raise ValueError("BGM 选择模式只能是 auto 或 manual")
+        if music_selection is not None and not isinstance(music_selection, dict):
+            raise ValueError("音乐选择快照必须是对象")
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
             item = self._owned_item(connection, project_id, item_id)
@@ -909,9 +1034,30 @@ class ProjectStore:
             requested = {
                 "font_identity": clean_font,
                 "bgm_identity": clean_bgm,
+                "bgm_selection_mode": clean_bgm_mode,
                 "text_color": clean_color,
             }
-            if settings.get("postprocess") == requested:
+            if music_selection is not None:
+                requested["music_selection"] = music_selection
+            elif clean_bgm_mode == "manual":
+                requested["music_selection"] = {
+                    "schema": "jyd.project-music-selection.v1",
+                    "status": "MANUAL",
+                    "selection_source": "manual",
+                    "bgm_identity": clean_bgm or None,
+                    "reason_code": (
+                        "USER_SELECTED" if clean_bgm else "USER_SELECTED_NONE"
+                    ),
+                }
+            else:
+                requested["music_selection"] = {
+                    "schema": "jyd.project-music-selection.v1",
+                    "status": "NOT_REQUESTED",
+                    "selection_source": "ai",
+                    "bgm_identity": None,
+                    "reason_code": "WAITING_FOR_4B",
+                }
+            if settings.get("postprocess") == requested and not force_invalidate:
                 return self.get_project(owner_user_id, project_id)
             settings["postprocess"] = requested
             subtitles = _object(item["subtitles_json"], _default_subtitles())
@@ -1140,8 +1286,9 @@ class ProjectStore:
                         """
                         INSERT INTO project_items(
                             item_id, project_id, row_key, position, script_text,
-                            status, subtitles_json, settings_json, created_at, updated_at
-                        ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, '{}', ?, ?)
+                            status, subtitles_json, content_analysis_json, settings_json,
+                            created_at, updated_at
+                        ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, '{}', ?, ?)
                         """,
                         (
                             item["item_id"],
@@ -1150,21 +1297,35 @@ class ProjectStore:
                             item["position"],
                             item["script_text"],
                             _json(_default_subtitles()),
+                            _json(_default_content_analysis(item["script_text"])),
                             now,
                             now,
                         ),
                     )
                 else:
+                    previous = existing[item["item_id"]]
+                    script_changed = str(previous["script_text"]) != item["script_text"]
                     connection.execute(
                         """
                         UPDATE project_items
-                        SET row_key=?, position=?, script_text=?, updated_at=?
+                        SET row_key=?, position=?, script_text=?,
+                            content_analysis_json=?, updated_at=?
                         WHERE item_id=?
                         """,
                         (
                             item["row_key"],
                             item["position"],
                             item["script_text"],
+                            (
+                                _json(
+                                    _default_content_analysis(
+                                        item["script_text"],
+                                        invalidated_reason="SCRIPT_CHANGED",
+                                    )
+                                )
+                                if script_changed
+                                else str(previous["content_analysis_json"] or "{}")
+                            ),
                             now,
                             item["item_id"],
                         ),
@@ -1917,6 +2078,188 @@ class ProjectStore:
             for asset_id in clean_ids
         ]
 
+    def mark_item_content_analysis_pending(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+    ) -> bool:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _content_analysis_snapshot(
+                _object(item["content_analysis_json"], {}), script
+            )
+            snapshot.update(
+                {
+                    "overall_status": "PENDING",
+                    "request_count": int(snapshot.get("request_count") or 0) + 1,
+                    "requested_at": _now(),
+                    "invalidated_reason": None,
+                    "invalidated_at": None,
+                }
+            )
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET content_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?", (now, project_id)
+            )
+        return True
+
+    def complete_item_content_analysis(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        result: dict[str, Any],
+        previous: dict[str, Any] | None = None,
+    ) -> bool:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            current = _content_analysis_snapshot(
+                _object(item["content_analysis_json"], {}), script
+            )
+            baseline = (
+                _content_analysis_snapshot(previous, script)
+                if isinstance(previous, dict)
+                else current
+            )
+            errors = result.get("errors") if isinstance(result.get("errors"), dict) else {}
+
+            music_status = str(result.get("music_analysis_status") or "FAILED")
+            if music_status == "SUCCESS":
+                music_intent = result.get("music_intent")
+                music_error = None
+            elif baseline.get("music_analysis_status") == "SUCCESS":
+                music_status = "SUCCESS"
+                music_intent = baseline.get("music_intent")
+                music_error = None
+            else:
+                music_status = "FAILED"
+                music_intent = None
+                music_error = errors.get("music")
+
+            subtitle_status = str(result.get("subtitle_analysis_status") or "FAILED")
+            if subtitle_status == "SUCCESS":
+                subtitle_units = result.get("subtitle_units")
+                subtitle_error = None
+            elif baseline.get("subtitle_analysis_status") == "SUCCESS":
+                subtitle_status = "SUCCESS"
+                subtitle_units = baseline.get("subtitle_units")
+                subtitle_error = None
+            else:
+                subtitle_status = "FAILED"
+                subtitle_units = None
+                subtitle_error = errors.get("subtitle")
+
+            analyzed_at = _now()
+            snapshot = {
+                **current,
+                "script_sha256": expected_script_sha256,
+                "script_length": len(script),
+                "overall_status": _analysis_overall_status(
+                    music_status, subtitle_status
+                ),
+                "music_analysis_status": music_status,
+                "subtitle_analysis_status": subtitle_status,
+                "music_intent": music_intent,
+                "subtitle_units": subtitle_units,
+                "errors": {
+                    "music": music_error,
+                    "subtitle": subtitle_error,
+                    "request": None,
+                },
+                "schema_version": result.get("schema_version")
+                or baseline.get("schema_version"),
+                "prompt_version": result.get("prompt_version")
+                or baseline.get("prompt_version"),
+                "model": result.get("model") or baseline.get("model"),
+                "provider_request_id": result.get("provider_request_id")
+                or baseline.get("provider_request_id"),
+                "provider_attempts": int(result.get("provider_attempts") or 0),
+                "cache_hit": result.get("cache_hit") is True,
+                "cacheable": result.get("cacheable") is True,
+                "analyzed_at": analyzed_at,
+                "invalidated_reason": None,
+                "invalidated_at": None,
+            }
+            connection.execute(
+                "UPDATE project_items SET content_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), analyzed_at, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?",
+                (analyzed_at, project_id),
+            )
+        return True
+
+    def fail_item_content_analysis(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        error: dict[str, str],
+        previous: dict[str, Any] | None = None,
+    ) -> bool:
+        failed = {
+            "music_analysis_status": "FAILED",
+            "subtitle_analysis_status": "FAILED",
+            "music_intent": None,
+            "subtitle_units": None,
+            "errors": {"music": error, "subtitle": error},
+            "provider_attempts": 0,
+            "cache_hit": False,
+            "cacheable": False,
+        }
+        completed = self.complete_item_content_analysis(
+            owner_user_id,
+            project_id,
+            item_id,
+            expected_script_sha256=expected_script_sha256,
+            result=failed,
+            previous=previous,
+        )
+        if not completed:
+            return False
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _content_analysis_snapshot(
+                _object(item["content_analysis_json"], {}), script
+            )
+            snapshot["errors"] = {
+                **dict(snapshot.get("errors") or {}),
+                "request": error,
+            }
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET content_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?", (now, project_id)
+            )
+        return True
+
     def set_item_subtitles(
         self,
         owner_user_id: str,
@@ -2353,6 +2696,10 @@ class ProjectStore:
                 },
                 "asset_history": history,
                 "subtitles": _object(row["subtitles_json"], _default_subtitles()),
+                "content_analysis": _content_analysis_snapshot(
+                    _object(row["content_analysis_json"], {}),
+                    str(row["script_text"]),
+                ),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
             }
@@ -2386,6 +2733,7 @@ class ProjectStore:
                 self._result_batch_payload(row) for row in result_batch_rows
             ],
             "items": items,
+            "content_analysis_summary": self._content_analysis_summary(items),
             "operations": [
                 self._operation_payload(row) for row in operation_rows
             ],
@@ -2411,6 +2759,9 @@ class ProjectStore:
         )
         composition_ready = video_ready or preview_ready
         active = status in ACTIVE_ITEM_STATUSES
+        analysis_status = str(
+            item.get("content_analysis", {}).get("overall_status") or "NOT_REQUESTED"
+        )
         return {
             "edit_inputs": status == "DRAFT",
             "replace_image": status in IMAGE_EDITABLE_ITEM_STATUSES,
@@ -2430,6 +2781,38 @@ class ProjectStore:
             "upload_current_video": composition_ready and not active,
             "generate_variants": composition_ready and not active,
             "retry_variants": status == "VARIANT_FAILED",
+            "analyze_content": analysis_status != "PENDING",
+            "retry_content_analysis": analysis_status in {"FAILED", "PARTIAL"},
+        }
+
+    @staticmethod
+    def _content_analysis_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+        counts = {
+            "NOT_REQUESTED": 0,
+            "PENDING": 0,
+            "SUCCESS": 0,
+            "PARTIAL": 0,
+            "FAILED": 0,
+        }
+        for item in items:
+            status = str(
+                item.get("content_analysis", {}).get("overall_status")
+                or "NOT_REQUESTED"
+            )
+            counts[status if status in counts else "FAILED"] += 1
+        if counts["PENDING"]:
+            overall = "PENDING"
+        elif counts["FAILED"] or counts["PARTIAL"]:
+            overall = "PARTIAL" if counts["SUCCESS"] or counts["PARTIAL"] else "FAILED"
+        elif counts["SUCCESS"] == len(items) and items:
+            overall = "SUCCESS"
+        else:
+            overall = "NOT_REQUESTED"
+        return {
+            "status": overall,
+            "total": len(items),
+            "counts": counts,
+            "concurrency_limit": 10,
         }
 
     @staticmethod
@@ -2438,6 +2821,11 @@ class ProjectStore:
         return {
             "edit_inputs": bool(items)
             and all(item["allowed_actions"]["edit_inputs"] for item in items),
+            "analyze_content": bool(items)
+            and any(item["allowed_actions"]["analyze_content"] for item in items),
+            "retry_content_analysis": any(
+                item["allowed_actions"]["retry_content_analysis"] for item in items
+            ),
             "manage_input_images": bool(items)
             and all(item["allowed_actions"]["replace_image"] for item in items),
             "apply_image_mapping": bool(project.get("input_images"))

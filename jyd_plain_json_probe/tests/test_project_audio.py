@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 from pathlib import Path
 import shutil
 import sys
@@ -515,6 +516,10 @@ class ProjectAudioApiTest(unittest.TestCase):
             self.assertEqual(row["outputs"]["audio"]["version"], 1)
             self.assertEqual(row["subtitles"]["source"], "minimax_timestamps")
             self.assertEqual(row["subtitles"]["raw_cues"][0]["end_us"], 1_200_000)
+            self.assertEqual(
+                row["outputs"]["audio"]["metadata"]["script_sha256"],
+                hashlib.sha256("第一条真实声音。".encode("utf-8")).hexdigest(),
+            )
             self.assertTrue(row["allowed_actions"]["replace_image"])
             replacement = client.post(
                 f"/api/new/projects/{project_id}/images?filename=after-audio.png",

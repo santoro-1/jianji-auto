@@ -14,11 +14,18 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from apps.processor.processor_windows import (  # noqa: E402
     _load_processor_config,
     _resolved_network_config,
+    _workspace_path,
     _write_shared_connection_files,
+    build_parser,
 )
 
 
 class ProcessorLauncherTest(unittest.TestCase):
+    def test_standalone_launcher_opens_the_new_workspace_on_port_8010(self) -> None:
+        self.assertEqual(build_parser().parse_args([]).port, 8010)
+        self.assertEqual(_workspace_path("standalone"), "/app/new")
+        self.assertEqual(_workspace_path("shared"), "/app")
+
     def test_shared_launcher_keeps_loopback_file_management_enabled(self) -> None:
         launcher = (PROJECT_ROOT / "apps" / "processor" / "processor_windows.py").read_text(
             encoding="utf-8"
@@ -45,7 +52,7 @@ class ProcessorLauncherTest(unittest.TestCase):
         finally:
             shutil.rmtree(root, ignore_errors=True)
 
-    def test_migrates_old_public_machine_auth_config_to_local_digital_human(self) -> None:
+    def test_migrates_old_public_machine_auth_config_to_cloud_digital_human(self) -> None:
         auth_url, shared_url, authority = _resolved_network_config(
             {
                 "deployment_mode": "shared",
@@ -53,7 +60,7 @@ class ProcessorLauncherTest(unittest.TestCase):
                 "auth_authority": "true",
             }
         )
-        self.assertEqual(auth_url, "http://127.0.0.1:8000")
+        self.assertEqual(auth_url, "https://video.lanyingjk01.com")
         self.assertEqual(shared_url, "")
         self.assertEqual(authority, "false")
 
@@ -64,7 +71,7 @@ class ProcessorLauncherTest(unittest.TestCase):
                 "auth_authority": "false",
             }
         )
-        self.assertEqual(auth_url, "http://127.0.0.1:8000")
+        self.assertEqual(auth_url, "https://video.lanyingjk01.com")
         self.assertEqual(shared_url, "")
         self.assertEqual(authority, "false")
 
@@ -72,7 +79,14 @@ class ProcessorLauncherTest(unittest.TestCase):
         auth_url, _shared_url, authority = _resolved_network_config(
             {"auth_server_url": "https://auth.lanyingjk01.com"}
         )
-        self.assertEqual(auth_url, "http://127.0.0.1:8000")
+        self.assertEqual(auth_url, "https://video.lanyingjk01.com")
+        self.assertEqual(authority, "false")
+
+    def test_migrates_old_local_digital_human_config_to_cloud(self) -> None:
+        auth_url, _shared_url, authority = _resolved_network_config(
+            {"digital_human_server_url": "http://127.0.0.1:8000"}
+        )
+        self.assertEqual(auth_url, "https://video.lanyingjk01.com")
         self.assertEqual(authority, "false")
 
     def test_explicit_digital_human_server_is_preserved_for_production(self) -> None:

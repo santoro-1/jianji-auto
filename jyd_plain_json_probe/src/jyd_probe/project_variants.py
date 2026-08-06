@@ -10,6 +10,12 @@ import uuid
 
 from .project_results import ProjectResultLibrary
 from .project_store import ProjectStore
+from .project_video_source import build_project_video_source
+from .project_postprocess import (
+    CAPTION_REFERENCE_FONT_SIZE,
+    CAPTION_STROKE_COLOR,
+    CAPTION_STROKE_WIDTH,
+)
 
 
 VARIANT_OPERATION_TYPES = {
@@ -814,18 +820,17 @@ class ProjectVariantCoordinator:
             raise ValueError(f"任务 {item['row_key']} 冻结的 BGM 不可用")
         job: dict[str, Any] = {
             "schema": "jyd.render_job.v1",
-            "source": {
-                "type": "video",
-                "media_path": str(Path(str(source["managed_path"])).resolve()),
-            },
+            "source": build_project_video_source(item),
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
         if cues:
             job["captions"] = {
                 "cues": cues,
                 "track_name": "MiniMax 单行字幕",
-                "size": float(style.get("font_size") or 15),
+                "size": CAPTION_REFERENCE_FONT_SIZE,
                 "color": str(style.get("text_color") or "#FFFFFF"),
+                "stroke_color": CAPTION_STROKE_COLOR,
+                "stroke_width": CAPTION_STROKE_WIDTH,
                 "transform_x": 0.0,
                 "transform_y": float(style.get("transform_y") or -0.6),
                 "line_max_width": 0.8,

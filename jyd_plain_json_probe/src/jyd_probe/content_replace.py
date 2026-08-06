@@ -921,6 +921,8 @@ def _replace_cover_text_fonts_in_data(
                     material,
                     size=size,
                     color=color,
+                    stroke_color="",
+                    stroke_width=None,
                     line_max_width=0.86,
                 )
                 changed += 1
@@ -1033,6 +1035,8 @@ def _apply_text_material_overrides(
     *,
     size: float | None,
     color: str,
+    stroke_color: str,
+    stroke_width: float | None,
     line_max_width: float | None,
 ) -> None:
     content = _parse_text_material_content(material)
@@ -1042,6 +1046,7 @@ def _apply_text_material_overrides(
         content["styles"] = styles
 
     rgb = _parse_hex_color(color) if color else None
+    stroke_rgb = _parse_hex_color(stroke_color) if stroke_color else None
     for style in styles:
         if not isinstance(style, dict):
             continue
@@ -1054,6 +1059,16 @@ def _apply_text_material_overrides(
             if isinstance(solid, dict):
                 solid["color"] = rgb
             style["useLetterColor"] = True
+        if stroke_rgb is not None and stroke_width is not None and stroke_width > 0:
+            style["strokes"] = [
+                {
+                    "content": {
+                        "render_type": "solid",
+                        "solid": {"color": stroke_rgb},
+                    },
+                    "width": float(stroke_width),
+                }
+            ]
 
     material["content"] = json.dumps(content, ensure_ascii=False)
     if line_max_width is not None:
@@ -1068,6 +1083,8 @@ def apply_text_track_style(
     style_json_path: PathLike = "",
     size: float | None = None,
     color: str = "",
+    stroke_color: str = "",
+    stroke_width: float | None = None,
     transform_x: float | None = None,
     transform_y: float | None = None,
     line_max_width: float | None = None,
@@ -1113,6 +1130,8 @@ def apply_text_track_style(
                 material,
                 size=size,
                 color=color,
+                stroke_color=stroke_color,
+                stroke_width=stroke_width,
                 line_max_width=line_max_width,
             )
             if font_id and font_path:

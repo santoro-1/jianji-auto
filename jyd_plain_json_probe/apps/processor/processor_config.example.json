@@ -2,7 +2,7 @@
   "draft_root": "",
   "deployment_mode": "standalone",
   "host": "127.0.0.1",
-  "digital_human_server_url": "http://127.0.0.1:8000",
+  "digital_human_server_url": "https://video.lanyingjk01.com",
   "shared_processor_url": "",
   "auth_authority": "false"
 }

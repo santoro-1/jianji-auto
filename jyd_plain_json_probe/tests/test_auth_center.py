@@ -68,6 +68,26 @@ class AuthCenterTest(unittest.TestCase):
         self.assertEqual(result["access_token"], "center-token")
         self.assertEqual(result["user"]["username"], "tester")
 
+    def test_content_analysis_forwards_one_exact_script_with_long_timeout(self) -> None:
+        payload = {"overall_status": "SUCCESS"}
+        with patch(
+            "jyd_probe.auth_center.urlopen", return_value=_Response(payload)
+        ) as request_mock:
+            result = AuthCenterClient(
+                "http://127.0.0.1:8000", timeout_seconds=4
+            ).analyze_workbench_content(
+                "center-token",
+                "  原文\n不能 trim  ",
+                force_refresh=True,
+            )
+
+        request = request_mock.call_args.args[0]
+        submitted = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(submitted["original_script"], "  原文\n不能 trim  ")
+        self.assertTrue(submitted["force_refresh"])
+        self.assertEqual(request_mock.call_args.kwargs["timeout"], 360.0)
+        self.assertEqual(result, payload)
+
     def test_standalone_processor_uses_remote_center_for_login_and_every_request(self) -> None:
         root = PROJECT_ROOT / "runtime" / "test_tmp" / f"remote_auth_{uuid.uuid4().hex}"
         root.mkdir(parents=True)

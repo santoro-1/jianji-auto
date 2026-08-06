@@ -17,7 +17,7 @@ app = create_app()
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="启动剪映渲染 FastAPI 后端。")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--reload", action="store_true", help="开发模式自动重载")
     return parser
 

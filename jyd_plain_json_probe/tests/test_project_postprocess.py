@@ -17,6 +17,28 @@ from jyd_probe.project_store import ProjectStore  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
+def _health_music_intent() -> dict[str, object]:
+    return {
+        "primary_scene": "health_education",
+        "secondary_scenes": ["habit_lifestyle"],
+        "content_format": "knowledge_explanation",
+        "topics": ["general_health"],
+        "primary_mood": "calm",
+        "secondary_moods": ["warm"],
+        "valence": "positive",
+        "energy": 2,
+        "pace": "medium_slow",
+        "seriousness": 3,
+        "warmth": 4,
+        "tension": 1,
+        "speech_density": "high",
+        "vocal_preference": "instrumental_only",
+        "opening_preference": "soft",
+        "avoid_traits": ["strong_vocals", "dense_arrangement"],
+        "confidence": 0.9,
+    }
+
+
 class ProjectPostprocessApiTest(unittest.TestCase):
     def setUp(self) -> None:
         self.root = (
@@ -107,8 +129,24 @@ class ProjectPostprocessApiTest(unittest.TestCase):
             status="READY",
             filename="1-base.mp4",
             managed_path=str(base_path),
+            metadata={"segment_count": 2},
             make_current=True,
         )
+        for index, (start, end) in enumerate(((0.0, 1.75), (1.75, 4.0)), start=1):
+            segment_path = self.settings.storage_root / f"seed-segment-{index}.mp4"
+            segment_path.write_bytes(f"segment-{index}".encode("ascii"))
+            store.add_asset(
+                owner_user_id=user["user_id"],
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                asset_type="original_video_segment",
+                source_type="runninghub",
+                status="READY",
+                filename=segment_path.name,
+                managed_path=str(segment_path),
+                external_ref={"video_index": index},
+                metadata={"start_seconds": start, "end_seconds": end},
+            )
 
         captured: dict[str, object] = {"submit_count": 0}
 
@@ -149,6 +187,8 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 options = client.get("/api/new/postprocess/options")
                 self.assertEqual(options.status_code, 200, options.text)
                 self.assertEqual(options.json()["caption"]["bottom_offset_ratio"], 0.2)
+                self.assertEqual(options.json()["caption"]["font_size"], 11.0)
+                self.assertEqual(options.json()["caption"]["stroke_color"], "#000000")
                 self.assertEqual(
                     options.json()["default_font_identity"],
                     "resource_id:7244518590332801592",
@@ -193,6 +233,10 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(row["subtitles"]["style"]["max_width_ratio"], 0.8)
                 self.assertEqual(row["subtitles"]["style"]["bottom_offset_ratio"], 0.2)
                 self.assertEqual(row["subtitles"]["style"]["transform_y"], -0.6)
+                self.assertEqual(row["subtitles"]["style"]["font_size"], 11.0)
+                self.assertEqual(row["subtitles"]["style"]["stroke_color"], "#000000")
+                self.assertEqual(row["subtitles"]["style"]["stroke_width"], 0.06)
+                self.assertEqual(row["subtitles"]["semantic_mapping"]["status"], "FALLBACK")
                 self.assertGreater(len(row["subtitles"]["render_cues"]), 1)
                 self.assertTrue(
                     all("\n" not in cue["text"] for cue in row["subtitles"]["render_cues"])
@@ -228,12 +272,56 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertTrue(job["captions"]["single_line"])
                 self.assertEqual(job["captions"]["max_lines"], 1)
                 self.assertEqual(job["captions"]["transform_y"], -0.6)
+                self.assertEqual(job["captions"]["size"], 11.0)
+                self.assertEqual(job["captions"]["stroke_color"], "#000000")
+                self.assertEqual(job["captions"]["stroke_width"], 0.06)
+                self.assertEqual(job["source"]["type"], "video_sequence")
+                self.assertEqual(
+                    [entry["video_index"] for entry in job["source"]["items"]],
+                    [1, 2],
+                )
                 self.assertEqual(job["audios"][0]["volume"], 0.3)
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )
                 self.assertEqual(downloaded.status_code, 200, downloaded.text)
                 self.assertEqual(downloaded.content, b"captioned-with-bgm")
+
+                retried = client.patch(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/postprocess-settings",
+                    json={
+                        "font_identity": font["identity"],
+                        "bgm_identity": bgm["identity"],
+                        "text_color": "#FFFFFF",
+                        "force_retry": True,
+                    },
+                )
+                self.assertEqual(retried.status_code, 200, retried.text)
+                retried_row = retried.json()["items"][0]
+                self.assertEqual(retried_row["status"], "BASE_VIDEO_READY")
+                self.assertIsNone(retried_row["outputs"]["composition_video"])
+                self.assertEqual(
+                    len(retried_row["asset_history"].get("composition_video", [])), 1
+                )
+                regenerated = client.post(
+                    f"/api/new/projects/{project['project_id']}/postprocess/generate",
+                    json={
+                        "idempotency_key": "postprocess-retry-1",
+                        "items": [
+                            {
+                                "item_id": item["item_id"],
+                                "font_identity": font["identity"],
+                                "bgm_identity": bgm["identity"],
+                                "text_color": "#FFFFFF",
+                            }
+                        ],
+                    },
+                )
+                self.assertEqual(regenerated.status_code, 200, regenerated.text)
+                self.assertEqual(
+                    regenerated.json()["items"][0]["subtitles"]["style"]["font_size"],
+                    11.0,
+                )
 
                 changed = client.patch(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/postprocess-settings",
@@ -252,6 +340,100 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     len(changed_row["asset_history"].get("composition_video", [])), 1
                 )
                 self.assertTrue(changed_row["allowed_actions"]["start_postprocess"])
+
+                retried = client.post(
+                    f"/api/new/projects/{project['project_id']}/postprocess/generate",
+                    json={
+                        "idempotency_key": "preview-retry-one-row",
+                        "items": [
+                            {
+                                "item_id": item["item_id"],
+                                "font_identity": font["identity"],
+                                "bgm_identity": "",
+                                "text_color": "#00FF00",
+                            }
+                        ],
+                    },
+                )
+                self.assertEqual(retried.status_code, 200, retried.text)
+                retried_row = retried.json()["items"][0]
+                self.assertEqual(retried_row["subtitles"]["status"], "PREVIEW_READY")
+                self.assertEqual(retried_row["subtitles"]["style"]["text_color"], "#00FF00")
+                self.assertIsNone(retried_row["outputs"]["composition_video"])
+                self.assertEqual(captured["submit_count"], 1)
+
+                current = store.get_project(user["user_id"], project["project_id"])
+                current_row = current["items"][0]
+                expected_hash = current_row["content_analysis"]["script_sha256"]
+                self.assertTrue(
+                    store.complete_item_content_analysis(
+                        user["user_id"],
+                        project["project_id"],
+                        item["item_id"],
+                        expected_script_sha256=expected_hash,
+                        result={
+                            "music_analysis_status": "SUCCESS",
+                            "subtitle_analysis_status": "FAILED",
+                            "music_intent": _health_music_intent(),
+                            "subtitle_units": None,
+                            "errors": {
+                                "music": None,
+                                "subtitle": {"code": "INVALID_SUBTITLES"},
+                            },
+                            "schema_version": "jyd.content-analysis.v1",
+                        },
+                    )
+                )
+                auto = client.patch(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/postprocess-settings",
+                    json={
+                        "font_identity": font["identity"],
+                        "bgm_identity": "",
+                        "bgm_selection_mode": "auto",
+                        "text_color": "#00FF00",
+                    },
+                )
+                self.assertEqual(auto.status_code, 200, auto.text)
+                self.assertEqual(
+                    auto.json()["items"][0]["settings"]["postprocess"]
+                    ["music_selection"]["status"],
+                    "NOT_REQUESTED",
+                )
+                auto_preview = client.post(
+                    f"/api/new/projects/{project['project_id']}/postprocess/generate",
+                    json={
+                        "idempotency_key": "preview-ai-top1",
+                        "items": [
+                            {
+                                "item_id": item["item_id"],
+                                "font_identity": font["identity"],
+                                "bgm_identity": "",
+                                "bgm_selection_mode": "auto",
+                                "text_color": "#00FF00",
+                            }
+                        ],
+                    },
+                )
+                self.assertEqual(auto_preview.status_code, 200, auto_preview.text)
+                auto_row = auto_preview.json()["items"][0]
+                auto_settings = auto_row["settings"]["postprocess"]
+                self.assertEqual(auto_settings["bgm_selection_mode"], "auto")
+                self.assertEqual(
+                    auto_settings["bgm_identity"], "music_id:6874387537750657031"
+                )
+                selection = auto_settings["music_selection"]
+                self.assertEqual(selection["status"], "SUCCESS")
+                self.assertEqual(selection["selection_source"], "ai")
+                self.assertEqual(selection["video_duration_us"], 4_000_000)
+                self.assertEqual(selection["audio_asset_id"], audio["asset_id"])
+                self.assertIn("matcher_version", selection)
+                self.assertIn("profile_hash", selection)
+                self.assertNotIn("top3", selection)
+                self.assertNotIn("candidates", selection)
+                self.assertEqual(
+                    auto_row["content_analysis"]["subtitle_analysis_status"], "FAILED"
+                )
+                self.assertEqual(auto_row["subtitles"]["status"], "PREVIEW_READY")
 
 
 if __name__ == "__main__":

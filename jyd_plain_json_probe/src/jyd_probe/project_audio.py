@@ -162,6 +162,9 @@ class ProjectAudioCoordinator:
             resolved_items.append((item, voice_id))
 
         for item, voice_id in resolved_items:
+            script_hash = hashlib.sha256(
+                str(item["script_text"]).encode("utf-8")
+            ).hexdigest()
             self.store.prepare_item_audio_generation(
                 owner_user_id, project_id, item["item_id"]
             )
@@ -177,7 +180,12 @@ class ProjectAudioCoordinator:
                 item_id=item["item_id"],
                 operation_type="AUDIO_GENERATE",
                 idempotency_key=idempotency_key,
-                payload={"voice_asset_id": voice_id, "speech_settings": speech},
+                payload={
+                    "voice_asset_id": voice_id,
+                    "speech_settings": speech,
+                    "script_sha256": script_hash,
+                    "script_length": len(str(item["script_text"])),
+                },
             )
             grouped[voice_id].append({**item, "operation": operation})
 
@@ -238,7 +246,13 @@ class ProjectAudioCoordinator:
                         system="runninghub",
                         relation="digital_human_audio_item",
                         external_id=remote_item_id,
-                        metadata={"batch_id": batch_id},
+                        metadata={
+                            "batch_id": batch_id,
+                            "script_sha256": hashlib.sha256(
+                                str(item["script_text"]).encode("utf-8")
+                            ).hexdigest(),
+                            "script_length": len(str(item["script_text"])),
+                        },
                     )
                     self.store.transition_audio_operation(
                         owner_user_id,
@@ -345,7 +359,15 @@ class ProjectAudioCoordinator:
                                 "remote_item_id": remote_item_id,
                                 "generation_version": generation_version,
                             },
-                            metadata={"provider_status": provider_status},
+                            metadata={
+                                "provider_status": provider_status,
+                                "script_sha256": link.get("metadata", {}).get(
+                                    "script_sha256"
+                                ),
+                                "script_length": link.get("metadata", {}).get(
+                                    "script_length"
+                                ),
+                            },
                             make_current=True,
                         )
                         captions = remote_item.get("captions")

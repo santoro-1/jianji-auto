@@ -52,6 +52,23 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 }
 ```
 
+多个视频需要在剪映主轨道中保持为独立素材片段时，使用 `video_sequence`：
+
+```json
+{
+  "type": "video_sequence",
+  "items": [
+    {"media_path": "D:/素材/segment-001.mp4", "target_duration_us": 4200000},
+    {"media_path": "D:/素材/segment-002.mp4", "target_duration_us": 3800000}
+  ],
+  "canvas": {"width": 0, "height": 0, "fps": 30}
+}
+```
+
+`items` 按数组顺序进入同一条主视频轨道，不会先合并成一个媒体文件。目标时长短于素材时
+直接裁尾；目标时长长于素材时只追加该素材尾帧，避免整段变速。字幕、BGM、特效和封面均
+继续使用合计后的绝对时间轴。
+
 模板模式用于套用已经存在的剪映草稿。模板可能是明文，也可能是高版本加密草稿；加密草稿会按 `decrypt` 配置自动解密到工作副本：
 
 ```json
@@ -118,6 +135,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
   "style_json_path": "D:/项目/text_style_library/抖音美好体测试.json",
   "size": 15,
   "color": "#FFFFFF",
+  "stroke_color": "#000000",
+  "stroke_width": 0.06,
   "transform_x": 0.0,
   "transform_y": -0.8,
   "line_max_width": 0.82
@@ -299,3 +318,10 @@ jyd_plain_json_probe/data/template_library/demo_template/
 `resource_id:7244518590332801592`（`DouyinSansBold` / 抖音美好体）。这是工作台配置默认值，
 Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；历史任务仍使用其冻结
 配方中的字体。
+
+新版 4B 与模块 6 的冻结字幕样式固定为：字号 `11`、默认白色填充 `#FFFFFF`、黑色描边
+`#000000`、描边宽度 `0.06`、单行、画面宽度 `0.8`、`transform_y=-0.6`。断句由服务端按
+真实字体字宽对整个原 cue 做平衡切分，不允许新字幕以标点开头，也不会为了靠近标点生成
+只有一两个正文字符的孤句。显示字幕会隐藏逗号、句号、问号等断句标点，但保留 `24.4`
+和 `8:30` 这类数字内部符号；“那么、但是、所以、然后”等承接词优先放到下一条字幕开头，
+不会单独留在上一条末尾。浏览器预览直接使用这些参数，不得另行自动缩小字号。
