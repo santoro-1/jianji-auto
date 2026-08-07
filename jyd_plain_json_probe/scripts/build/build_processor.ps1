@@ -86,6 +86,7 @@ try {
             "font_library",
             "sticker_library",
             "corner_sticker_library",
+            "semantic_visual_library",
             "text_effect_library",
             "text_style_library"
         )) {

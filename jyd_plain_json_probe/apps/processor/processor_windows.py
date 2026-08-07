@@ -91,6 +91,7 @@ def _configure_environment() -> tuple[Path, Path]:
         "JYD_FONT_LIBRARY_ROOT": libraries_root / "font_library",
         "JYD_STICKER_LIBRARY_ROOT": libraries_root / "sticker_library",
         "JYD_CORNER_STICKER_LIBRARY_ROOT": libraries_root / "corner_sticker_library",
+        "JYD_SEMANTIC_VISUAL_LIBRARY_ROOT": libraries_root / "semantic_visual_library",
         "JYD_TEXT_EFFECT_LIBRARY_ROOT": libraries_root / "text_effect_library",
         "JYD_TEXT_STYLE_LIBRARY_ROOT": libraries_root / "text_style_library",
         "JYD_TEXT_TEMPLATE_LIBRARY_ROOT": text_template_root,

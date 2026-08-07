@@ -32,6 +32,10 @@ class ProcessorLauncherTest(unittest.TestCase):
         )
         source_launcher = (PROJECT_ROOT / "start_processor.ps1").read_text(encoding="utf-8")
         self.assertIn('os.environ["JYD_ALLOW_LOCAL_FILE_ACCESS"] = "true"', launcher)
+        self.assertIn(
+            '"JYD_SEMANTIC_VISUAL_LIBRARY_ROOT": libraries_root / "semantic_visual_library"',
+            launcher,
+        )
         self.assertIn('$env:JYD_ALLOW_LOCAL_FILE_ACCESS = "true"', source_launcher)
         self.assertIn("_start_embedded_collector()", launcher)
         processor_spec = (PROJECT_ROOT / "apps" / "processor" / "processor_windows.spec").read_text(
