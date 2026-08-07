@@ -14,7 +14,7 @@ import uuid
 from .logging_config import log_event
 
 
-PROJECT_SCHEMA_VERSION = 9
+PROJECT_SCHEMA_VERSION = 10
 logger = logging.getLogger("jyd_probe.workbench")
 MAX_PROJECT_ITEMS = 500
 
@@ -149,6 +149,125 @@ def _content_analysis_snapshot(value: Any, script: str) -> dict[str, Any]:
     if value.get("script_sha256") != default["script_sha256"]:
         return _default_content_analysis(script, invalidated_reason="SCRIPT_CHANGED")
     return {**default, **value}
+
+
+def _default_visual_analysis(
+    script: str,
+    *,
+    invalidated_reason: str | None = None,
+    retained_overlays: list[dict[str, Any]] | None = None,
+    bound_audio_asset_id: str | None = None,
+    raw_cues_sha256: str | None = None,
+) -> dict[str, Any]:
+    now = _now() if invalidated_reason else None
+    overlays = [dict(item) for item in (retained_overlays or [])]
+    return {
+        "snapshot_schema": "jyd.project-visual-analysis.v1",
+        "script_sha256": _script_sha256(script),
+        "script_length": len(script),
+        "bound_audio_asset_id": bound_audio_asset_id,
+        "raw_cues_sha256": raw_cues_sha256,
+        "analysis_status": "NOT_REQUESTED",
+        "mapping_status": "NOT_REQUESTED",
+        "catalog_version": None,
+        "candidate_set_sha256": None,
+        "candidate_request": None,
+        "mapped_candidates": [],
+        "decisions": [],
+        "recipe": {
+            "schema": "jyd.semantic-visual-recipe.v1",
+            "catalog_version": None,
+            "overlays": overlays,
+        },
+        "error": None,
+        "provider_request_id": None,
+        "provider_attempts": 0,
+        "cache_hit": False,
+        "cacheable": False,
+        "request_count": 0,
+        "requested_at": None,
+        "analyzed_at": None,
+        "invalidated_reason": invalidated_reason,
+        "invalidated_at": now,
+        "revision": 1,
+    }
+
+
+def _raw_cues_sha256(raw_cues: Any) -> str:
+    encoded = json.dumps(
+        raw_cues if isinstance(raw_cues, list) else [],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _visual_candidate_set_sha256(candidate_request: Any) -> str:
+    candidates = (
+        candidate_request.get("candidates", [])
+        if isinstance(candidate_request, dict)
+        else []
+    )
+    encoded = json.dumps(
+        candidates,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _visual_analysis_snapshot(
+    value: Any,
+    script: str,
+    *,
+    current_audio_asset_id: str | None = None,
+    current_raw_cues: Any = None,
+    validate_media_binding: bool = False,
+) -> dict[str, Any]:
+    default = _default_visual_analysis(script)
+    if not isinstance(value, dict):
+        return default
+    if value.get("script_sha256") != default["script_sha256"]:
+        recipe = value.get("recipe") if isinstance(value.get("recipe"), dict) else {}
+        retained = [
+            {**dict(item), "requires_review": True}
+            for item in recipe.get("overlays", [])
+            if isinstance(item, dict)
+            and item.get("manual") is True
+            and item.get("locked") is True
+        ]
+        return _default_visual_analysis(
+            script,
+            invalidated_reason="SCRIPT_CHANGED",
+            retained_overlays=retained,
+        )
+    snapshot = {**default, **value}
+    if not isinstance(snapshot.get("recipe"), dict):
+        snapshot["recipe"] = default["recipe"]
+    if validate_media_binding and snapshot.get("analysis_status") != "NOT_REQUESTED":
+        current_cues_hash = _raw_cues_sha256(current_raw_cues)
+        if (
+            snapshot.get("bound_audio_asset_id") != current_audio_asset_id
+            or snapshot.get("raw_cues_sha256") != current_cues_hash
+        ):
+            recipe = snapshot.get("recipe") if isinstance(snapshot.get("recipe"), dict) else {}
+            retained = [
+                {**dict(item), "requires_review": True}
+                for item in recipe.get("overlays", [])
+                if isinstance(item, dict)
+                and item.get("manual") is True
+                and item.get("locked") is True
+            ]
+            return _default_visual_analysis(
+                script,
+                invalidated_reason="AUDIO_OR_RAW_CUES_CHANGED",
+                retained_overlays=retained,
+                bound_audio_asset_id=current_audio_asset_id,
+                raw_cues_sha256=current_cues_hash,
+            )
+    return snapshot
 
 
 def _analysis_overall_status(music_status: str, subtitle_status: str) -> str:
@@ -311,6 +430,7 @@ class ProjectStore:
                     current_video_asset_id TEXT,
                     subtitles_json TEXT NOT NULL DEFAULT '{}',
                     content_analysis_json TEXT NOT NULL DEFAULT '{}',
+                    visual_analysis_json TEXT NOT NULL DEFAULT '{}',
                     settings_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
@@ -486,6 +606,10 @@ class ProjectStore:
             if "content_analysis_json" not in item_columns:
                 connection.execute(
                     "ALTER TABLE project_items ADD COLUMN content_analysis_json TEXT NOT NULL DEFAULT '{}'"
+                )
+            if "visual_analysis_json" not in item_columns:
+                connection.execute(
+                    "ALTER TABLE project_items ADD COLUMN visual_analysis_json TEXT NOT NULL DEFAULT '{}'"
                 )
             operation_columns = {
                 str(row["name"])
@@ -733,6 +857,29 @@ class ProjectStore:
                             )
                         )
                     )
+                    current_visual = _visual_analysis_snapshot(
+                        _object(item["visual_analysis_json"], {}),
+                        str(item["script_text"]),
+                    )
+                    retained_overlays = [
+                        {**dict(overlay), "requires_review": True}
+                        for overlay in current_visual.get("recipe", {}).get(
+                            "overlays", []
+                        )
+                        if isinstance(overlay, dict)
+                        and overlay.get("manual") is True
+                        and overlay.get("locked") is True
+                    ]
+                    updates.append("visual_analysis_json=?")
+                    values.append(
+                        _json(
+                            _default_visual_analysis(
+                                clean_script,
+                                invalidated_reason="SCRIPT_CHANGED",
+                                retained_overlays=retained_overlays,
+                            )
+                        )
+                    )
                     if settings is None:
                         invalidated_settings = _invalidate_auto_music_selection(
                             _object(item["settings_json"], {}), "SCRIPT_CHANGED"
@@ -779,6 +926,12 @@ class ProjectStore:
             )
             if str(analysis.get("overall_status") or "") == "PENDING":
                 raise ValueError("当前任务正在进行内容分析，请等待完成后再删除")
+            visual_analysis = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}),
+                str(item["script_text"]),
+            )
+            if str(visual_analysis.get("analysis_status") or "") == "PENDING":
+                raise ValueError("当前任务正在进行语义视觉分析，请等待完成后再删除")
             active_operation = connection.execute(
                 """
                 SELECT 1 FROM project_operations
@@ -2509,6 +2662,277 @@ class ProjectStore:
             )
         return True
 
+    def mark_item_visual_analysis_pending(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        candidate_request: dict[str, Any],
+    ) -> bool:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}), script
+            )
+            snapshot.update(
+                {
+                    "analysis_status": "PENDING",
+                    "mapping_status": "NOT_REQUESTED",
+                    "catalog_version": candidate_request.get("catalog_version"),
+                    "candidate_set_sha256": _visual_candidate_set_sha256(
+                        candidate_request
+                    ),
+                    "candidate_request": candidate_request,
+                    "decisions": [],
+                    "error": None,
+                    "request_count": int(snapshot.get("request_count") or 0) + 1,
+                    "requested_at": _now(),
+                    "invalidated_reason": None,
+                    "invalidated_at": None,
+                    "bound_audio_asset_id": item["current_audio_asset_id"],
+                    "raw_cues_sha256": _raw_cues_sha256(
+                        _object(item["subtitles_json"], _default_subtitles()).get(
+                            "raw_cues", []
+                        )
+                    ),
+                }
+            )
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET visual_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?", (now, project_id)
+            )
+        return True
+
+    def complete_item_visual_analysis(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        result: dict[str, Any],
+        recipe: dict[str, Any],
+        mapping_status: str,
+        mapping_error: dict[str, str] | None = None,
+    ) -> bool:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}), script
+            )
+            response_catalog = result.get("catalog_version") or recipe.get(
+                "catalog_version"
+            )
+            if (
+                snapshot.get("analysis_status") != "PENDING"
+                or snapshot.get("catalog_version") != response_catalog
+                or snapshot.get("candidate_set_sha256")
+                != result.get("candidate_set_sha256")
+            ):
+                return False
+            analyzed_at = _now()
+            snapshot.update(
+                {
+                    "analysis_status": str(result.get("analysis_status") or "FAILED"),
+                    "mapping_status": mapping_status,
+                    "catalog_version": result.get("catalog_version")
+                    or snapshot.get("catalog_version"),
+                    "decisions": (
+                        list(result.get("decisions") or [])
+                        if isinstance(result.get("decisions"), list)
+                        else []
+                    ),
+                    "mapped_candidates": (
+                        list(result.get("mapped_candidates") or [])
+                        if isinstance(result.get("mapped_candidates"), list)
+                        else []
+                    ),
+                    "recipe": recipe,
+                    "error": mapping_error or result.get("error"),
+                    "provider_request_id": result.get("provider_request_id"),
+                    "provider_attempts": int(result.get("provider_attempts") or 0),
+                    "cache_hit": result.get("cache_hit") is True,
+                    "cacheable": result.get("cacheable") is True,
+                    "analyzed_at": analyzed_at,
+                    "invalidated_reason": None,
+                    "invalidated_at": None,
+                    "bound_audio_asset_id": item["current_audio_asset_id"],
+                    "raw_cues_sha256": _raw_cues_sha256(
+                        _object(item["subtitles_json"], _default_subtitles()).get(
+                            "raw_cues", []
+                        )
+                    ),
+                    "revision": int(snapshot.get("revision") or 0) + 1,
+                }
+            )
+            connection.execute(
+                "UPDATE project_items SET visual_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), analyzed_at, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?",
+                (analyzed_at, project_id),
+            )
+        return True
+
+    def fail_item_visual_analysis(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        expected_catalog_version: str,
+        expected_candidate_set_sha256: str,
+        error: dict[str, str],
+    ) -> bool:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}), script
+            )
+            if (
+                snapshot.get("analysis_status") != "PENDING"
+                or snapshot.get("catalog_version") != expected_catalog_version
+                or snapshot.get("candidate_set_sha256")
+                != expected_candidate_set_sha256
+            ):
+                return False
+            snapshot.update(
+                {
+                    "analysis_status": "FAILED",
+                    "mapping_status": "FAILED",
+                    "error": error,
+                    "cache_hit": False,
+                    "cacheable": False,
+                    "analyzed_at": _now(),
+                    "revision": int(snapshot.get("revision") or 0) + 1,
+                }
+            )
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET visual_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?", (now, project_id)
+            )
+        return True
+
+    def update_item_visual_overlays(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        overlays: list[dict[str, Any]],
+        expected_revision: int,
+        catalog_version: str,
+    ) -> dict[str, Any]:
+        if not isinstance(overlays, list):
+            raise ValueError("语义贴图配方必须是数组")
+        normalized: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        valid_corners = {"top_left", "top_right"}
+        for index, raw in enumerate(overlays, start=1):
+            if not isinstance(raw, dict):
+                raise ValueError(f"第 {index} 个语义贴图不是对象")
+            overlay_id = str(raw.get("overlay_id") or "").strip()
+            asset_id = str(raw.get("asset_id") or "").strip()
+            concept_id = str(raw.get("concept_id") or "").strip()
+            corner = str(raw.get("corner") or "").strip()
+            start_us = raw.get("start_us")
+            duration_us = raw.get("duration_us")
+            scale = raw.get("scale")
+            opacity = raw.get("opacity")
+            if not overlay_id or overlay_id in seen or not asset_id or not concept_id:
+                raise ValueError("语义贴图 ID、素材或概念无效")
+            if corner not in valid_corners:
+                raise ValueError("语义贴图位置无效")
+            if type(start_us) is not int or start_us < 0:
+                raise ValueError("语义贴图开始时间无效")
+            if type(duration_us) is not int or not 100_000 <= duration_us <= 30_000_000:
+                raise ValueError("语义贴图持续时间无效")
+            if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not 0.05 <= float(scale) <= 2.0:
+                raise ValueError("语义贴图缩放无效")
+            if isinstance(opacity, bool) or not isinstance(opacity, (int, float)) or not 0.0 <= float(opacity) <= 1.0:
+                raise ValueError("语义贴图透明度无效")
+            seen.add(overlay_id)
+            normalized.append(
+                {
+                    **raw,
+                    "overlay_id": overlay_id,
+                    "asset_id": asset_id,
+                    "concept_id": concept_id,
+                    "corner": corner,
+                    "start_us": start_us,
+                    "duration_us": duration_us,
+                    "scale": float(scale),
+                    "opacity": float(opacity),
+                    "enabled": raw.get("enabled") is not False,
+                    "selection_mode": "manual",
+                    "manual": True,
+                    "locked": raw.get("locked") is True,
+                    "requires_review": False,
+                }
+            )
+        enabled = sorted(
+            (item for item in normalized if item["enabled"]),
+            key=lambda item: item["start_us"],
+        )
+        for previous, current in zip(enabled, enabled[1:]):
+            if current["start_us"] < previous["start_us"] + previous["duration_us"]:
+                raise ValueError("同一时间只能显示一张语义前景图片")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            if int(project["revision"]) != int(expected_revision):
+                raise ProjectRevisionConflict("项目已被其他操作更新，请刷新后重试")
+            item = self._owned_item(connection, project_id, item_id)
+            if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，不能修改语义贴图")
+            script = str(item["script_text"])
+            snapshot = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}), script
+            )
+            snapshot["recipe"] = {
+                "schema": "jyd.semantic-visual-recipe.v1",
+                "catalog_version": catalog_version,
+                "overlays": normalized,
+            }
+            snapshot["bound_audio_asset_id"] = item["current_audio_asset_id"]
+            snapshot["raw_cues_sha256"] = _raw_cues_sha256(
+                _object(item["subtitles_json"], _default_subtitles()).get("raw_cues", [])
+            )
+            snapshot["revision"] = int(snapshot.get("revision") or 0) + 1
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET visual_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project_id),
+            )
+        return self.get_project(owner_user_id, project_id)
+
     def set_item_subtitles(
         self,
         owner_user_id: str,
@@ -2928,6 +3352,7 @@ class ProjectStore:
                 for asset in assets
                 if asset["asset_type"] == "original_video_segment"
             ]
+            subtitles = _object(row["subtitles_json"], _default_subtitles())
             item_payload = {
                 "item_id": row["item_id"],
                 "row_key": row["row_key"],
@@ -2944,10 +3369,17 @@ class ProjectStore:
                     "variants": variants,
                 },
                 "asset_history": history,
-                "subtitles": _object(row["subtitles_json"], _default_subtitles()),
+                "subtitles": subtitles,
                 "content_analysis": _content_analysis_snapshot(
                     _object(row["content_analysis_json"], {}),
                     str(row["script_text"]),
+                ),
+                "visual_analysis": _visual_analysis_snapshot(
+                    _object(row["visual_analysis_json"], {}),
+                    str(row["script_text"]),
+                    current_audio_asset_id=row["current_audio_asset_id"],
+                    current_raw_cues=subtitles.get("raw_cues", []),
+                    validate_media_binding=True,
                 ),
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
@@ -2983,6 +3415,7 @@ class ProjectStore:
             ],
             "items": items,
             "content_analysis_summary": self._content_analysis_summary(items),
+            "visual_analysis_summary": self._visual_analysis_summary(items),
             "operations": [
                 self._operation_payload(row) for row in operation_rows
             ],
@@ -3011,6 +3444,10 @@ class ProjectStore:
         analysis_status = str(
             item.get("content_analysis", {}).get("overall_status") or "NOT_REQUESTED"
         )
+        visual_status = str(
+            item.get("visual_analysis", {}).get("analysis_status")
+            or "NOT_REQUESTED"
+        )
         return {
             "edit_inputs": status == "DRAFT",
             "delete_item": not active and analysis_status != "PENDING",
@@ -3034,6 +3471,9 @@ class ProjectStore:
             "analyze_content": not active and analysis_status != "PENDING",
             "retry_content_analysis": not active
             and analysis_status in {"FAILED", "PARTIAL"},
+            "analyze_visuals": not active and visual_status != "PENDING",
+            "retry_visual_analysis": not active and visual_status == "FAILED",
+            "edit_visual_overlays": not active,
         }
 
     @staticmethod
@@ -3067,6 +3507,35 @@ class ProjectStore:
         }
 
     @staticmethod
+    def _visual_analysis_summary(items: list[dict[str, Any]]) -> dict[str, Any]:
+        counts = {"NOT_REQUESTED": 0, "PENDING": 0, "SUCCESS": 0, "FAILED": 0}
+        overlay_count = 0
+        for item in items:
+            analysis = item.get("visual_analysis", {})
+            status = str(analysis.get("analysis_status") or "NOT_REQUESTED")
+            counts[status if status in counts else "FAILED"] += 1
+            overlay_count += sum(
+                overlay.get("enabled") is not False
+                for overlay in analysis.get("recipe", {}).get("overlays", [])
+                if isinstance(overlay, dict)
+            )
+        if counts["PENDING"]:
+            overall = "PENDING"
+        elif counts["FAILED"]:
+            overall = "PARTIAL" if counts["SUCCESS"] else "FAILED"
+        elif counts["SUCCESS"] == len(items) and items:
+            overall = "SUCCESS"
+        else:
+            overall = "NOT_REQUESTED"
+        return {
+            "status": overall,
+            "total": len(items),
+            "counts": counts,
+            "overlay_count": overlay_count,
+            "concurrency_limit": 10,
+        }
+
+    @staticmethod
     def _project_actions(project: dict[str, Any]) -> dict[str, bool]:
         items = project["items"]
         return {
@@ -3076,6 +3545,11 @@ class ProjectStore:
             and any(item["allowed_actions"]["analyze_content"] for item in items),
             "retry_content_analysis": any(
                 item["allowed_actions"]["retry_content_analysis"] for item in items
+            ),
+            "analyze_visuals": bool(items)
+            and any(item["allowed_actions"]["analyze_visuals"] for item in items),
+            "retry_visual_analysis": any(
+                item["allowed_actions"]["retry_visual_analysis"] for item in items
             ),
             "manage_input_images": bool(items)
             and all(item["allowed_actions"]["replace_image"] for item in items),

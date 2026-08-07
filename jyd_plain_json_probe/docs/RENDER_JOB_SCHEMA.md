@@ -327,3 +327,29 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 只有一两个正文字符的孤句。显示字幕会隐藏逗号、句号、问号等断句标点，但保留 `24.4`
 和 `8:30` 这类数字内部符号；“那么、但是、所以、然后”等承接词优先放到下一条字幕开头，
 不会单独留在上一条末尾。浏览器预览直接使用这些参数，不得另行自动缩小字号。
+
+## visual_overlays
+
+新版工作台 4B 冻结任务可包含：
+
+```json
+{
+  "visual_overlays": [
+    {
+      "asset_id": "egg.boiled.01",
+      "bundle_path": "受控语义贴纸包路径",
+      "enabled": true,
+      "start_us": 500000,
+      "duration_us": 1800000,
+      "corner": "top_right",
+      "scale": 0.28,
+      "opacity": 1.0
+    }
+  ]
+}
+```
+
+字段来自项目已冻结的 `jyd.semantic-visual-recipe.v1`，不是渲染时重新分析。每项写入独立
+“语义前景图片”贴纸轨道，使用画内安全区，随后与其他轨道一起应用封面时间偏移。语义贴图
+为 optional：素材缺失或单项写入失败会跳过该项，不改变语音、字幕、BGM、主视频、总时长
+或已有输出。

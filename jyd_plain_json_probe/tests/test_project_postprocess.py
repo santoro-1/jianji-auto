@@ -80,7 +80,11 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 {
                     "row_key": "1",
                     "script_text": "这是一段需要使用真实字体宽度拆成多条单行字幕的较长测试文案。",
-                }
+                },
+                {
+                    "row_key": "2",
+                    "script_text": "另一条尚未生成基础视频的脚本不应阻塞当前行。",
+                },
             ],
         )
         item = project["items"][0]

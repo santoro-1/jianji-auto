@@ -92,12 +92,15 @@ class ProjectVariantTest(unittest.TestCase):
             "enabled": True,
         }
 
-    def _project(self):
+    def _project(self, item_count: int = 1):
         project = self.store.create_project(
             owner_user_id="user",
             owner_username="tester",
             name="模块 6",
-            items=[{"row_key": "1", "script_text": "固定字幕"}],
+            items=[
+                {"row_key": str(index), "script_text": f"固定字幕{index}"}
+                for index in range(1, item_count + 1)
+            ],
         )
         script_source = self.root / "原始脚本.xlsx"
         script_source.write_bytes(b"original-xlsx")
@@ -110,82 +113,76 @@ class ProjectVariantTest(unittest.TestCase):
             sha256="test-sha256",
             managed_path=str(script_source),
         )
-        item = project["items"][0]
-        base = self.root / "base.mp4"
-        base.write_bytes(b"base")
-        self.store.add_asset(
-            owner_user_id="user",
-            project_id=project["project_id"],
-            item_id=item["item_id"],
-            asset_type="base_video",
-            source_type="runninghub_merge",
-            status="READY",
-            filename="base.mp4",
-            managed_path=str(base),
-            metadata={"segment_count": 2},
-            make_current=True,
-        )
-        for index in (1, 2):
-            segment = self.root / f"segment-{index}.mp4"
-            segment.write_bytes(f"segment-{index}".encode("ascii"))
+        for item_index, item in enumerate(project["items"], start=1):
+            base = self.root / f"base-{item_index}.mp4"
+            base.write_bytes(f"base-{item_index}".encode("ascii"))
             self.store.add_asset(
                 owner_user_id="user",
                 project_id=project["project_id"],
                 item_id=item["item_id"],
-                asset_type="original_video_segment",
-                source_type="runninghub",
+                asset_type="base_video",
+                source_type="runninghub_merge",
                 status="READY",
-                filename=segment.name,
-                managed_path=str(segment),
-                external_ref={"video_index": index},
-                metadata={"start_seconds": index - 1, "end_seconds": index},
+                filename=base.name,
+                managed_path=str(base),
+                metadata={"segment_count": 2},
+                make_current=True,
             )
-        self.store.configure_item_postprocess(
-            "user",
-            project["project_id"],
-            item["item_id"],
-            font_identity="font-1",
-            bgm_identity="bgm-1",
-            text_color="#FFFFFF",
-        )
-        self.store.set_item_subtitles(
-            "user",
-            project["project_id"],
-            item["item_id"],
-            {
-                "source": "minimax_timestamps",
-                "raw_cues": [],
-                "render_cues": [
-                    {"start_us": 0, "end_us": 1_000_000, "text": "固定字幕"}
-                ],
-                "style": {
-                    "font_id": "font-1",
-                    "font_size": 15,
-                    "text_color": "#FFFFFF",
-                    "transform_y": -0.6,
+            for segment_index in (1, 2):
+                segment = self.root / f"segment-{item_index}-{segment_index}.mp4"
+                segment.write_bytes(f"segment-{item_index}-{segment_index}".encode("ascii"))
+                self.store.add_asset(
+                    owner_user_id="user",
+                    project_id=project["project_id"],
+                    item_id=item["item_id"],
+                    asset_type="original_video_segment",
+                    source_type="runninghub",
+                    status="READY",
+                    filename=segment.name,
+                    managed_path=str(segment),
+                    external_ref={"video_index": segment_index},
+                    metadata={"start_seconds": segment_index - 1, "end_seconds": segment_index},
+                )
+            self.store.configure_item_postprocess(
+                "user", project["project_id"], item["item_id"],
+                font_identity="font-1", bgm_identity="bgm-1", text_color="#FFFFFF",
+            )
+            self.store.set_item_subtitles(
+                "user", project["project_id"], item["item_id"],
+                {
+                    "source": "minimax_timestamps", "raw_cues": [],
+                    "render_cues": [{"start_us": 0, "end_us": 1_000_000, "text": item["script_text"]}],
+                    "style": {"font_id": "font-1", "font_size": 15, "text_color": "#FFFFFF", "transform_y": -0.6},
+                    "status": "PREVIEW_READY", "overflow_risk": False,
                 },
-                "status": "PREVIEW_READY",
-                "overflow_risk": False,
-            },
-        )
-        self.store.create_operation(
-            owner_user_id="user",
-            project_id=project["project_id"],
-            item_id=item["item_id"],
-            operation_type="POSTPROCESS_GENERATE",
-            idempotency_key="preview",
-            payload={},
-        )
-        self.store.transition_operation(
+            )
+            self.store.create_operation(
+                owner_user_id="user", project_id=project["project_id"], item_id=item["item_id"],
+                operation_type="POSTPROCESS_GENERATE", idempotency_key=f"preview-{item_index}", payload={},
+            )
+            self.store.transition_operation(
+                "user", project["project_id"], item["item_id"], operation_type="POSTPROCESS_GENERATE",
+                status="SUCCEEDED", item_status="COMPOSITION_READY", result={"preview_mode": "browser"},
+            )
+        return self.store.get_project("user", project["project_id"])
+
+    def test_initial_generation_can_target_one_project_row(self) -> None:
+        project = self._project(item_count=2)
+        target = project["items"][1]
+        generated = self.coordinator.start(
             "user",
             project["project_id"],
-            item["item_id"],
-            operation_type="POSTPROCESS_GENERATE",
-            status="SUCCEEDED",
-            item_status="COMPOSITION_READY",
-            result={"preview_mode": "browser"},
+            idempotency_key="variants-single-row",
+            settings=None,
+            items=[{
+                "item_id": target["item_id"],
+                "count": 1,
+                "cover": {"enabled": True, "frame_time_seconds": 0},
+            }],
         )
-        return self.store.get_project("user", project["project_id"])
+        by_id = {item["item_id"]: item for item in generated["items"]}
+        self.assertEqual(by_id[project["items"][0]["item_id"]]["outputs"]["variants"], [])
+        self.assertEqual(len(by_id[target["item_id"]]["outputs"]["variants"]), 1)
 
     def test_maximum_difference_selection_is_unique_and_spread(self) -> None:
         candidates = list(

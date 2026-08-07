@@ -41,6 +41,20 @@ def _composition_operations(project: dict[str, Any]) -> dict[str, dict[str, Any]
     return latest
 
 
+def _normalized_execution_account_ids(
+    value: list[int] | None,
+) -> list[int] | None:
+    if value is None:
+        return None
+    if (
+        not value
+        or any(type(account_id) is not int or account_id <= 0 for account_id in value)
+        or len(set(value)) != len(value)
+    ):
+        raise ValueError("RunningHub 执行账号 ID 必须是非空且不重复的正整数列表")
+    return sorted(value)
+
+
 class ProjectCompositionCoordinator:
     """Bridge workbench projects to the existing digital-human workers.
 
@@ -69,16 +83,65 @@ class ProjectCompositionCoordinator:
         token: str,
         *,
         idempotency_key: str,
+        runninghub_execution_account_ids: list[int] | None = None,
+        item_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
-        if not project["allowed_actions"]["start_composition"]:
-            raise ValueError("当前项目状态不能开始画面生成")
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("画面生成请求缺少幂等键")
+
+        if item_ids is not None:
+            requested_ids = [str(value or "").strip() for value in item_ids]
+            if (
+                not requested_ids
+                or any(not value for value in requested_ids)
+                or len(set(requested_ids)) != len(requested_ids)
+            ):
+                raise ValueError("单条画面生成必须指定非空且不重复的脚本行 ID")
+            by_id = {str(item["item_id"]): item for item in project["items"]}
+            missing = [value for value in requested_ids if value not in by_id]
+            if missing:
+                raise KeyError("项目脚本行不存在")
+            target_items = [by_id[value] for value in requested_ids]
+            blocked = [
+                item for item in target_items
+                if item.get("outputs", {}).get("base_video") is None
+                and not item.get("allowed_actions", {}).get("start_composition")
+            ]
+            if blocked:
+                raise ValueError(f"任务 {blocked[0]['row_key']} 尚未准备好生成画面")
+            # Explicit row requests reuse a current base video.  Postprocess
+            # can still run independently if only subtitle/BGM changed.
+            target_items = [
+                item for item in target_items
+                if item.get("outputs", {}).get("base_video") is None
+            ]
+            if not target_items:
+                return project
+        else:
+            if not project["allowed_actions"]["start_composition"]:
+                raise ValueError("当前项目状态不能开始画面生成")
+            target_items = project["items"]
+
+        selected_account_ids = _normalized_execution_account_ids(
+            runninghub_execution_account_ids
+        )
+        for existing in project.get("operations", []):
+            if (
+                existing.get("operation_type") == "COMPOSITION_GENERATE"
+                and existing.get("idempotency_key") == clean_key
+                and existing.get("payload", {}).get(
+                    "runninghub_execution_account_ids"
+                )
+                != selected_account_ids
+            ):
+                raise ValueError(
+                    "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
+                )
         links_by_item = _current_audio_item_links(project["links"])
 
-        for item in project["items"]:
+        for item in target_items:
             link = links_by_item.get(str(item["item_id"]))
             if link is None:
                 raise ValueError(f"任务 {item['row_key']} 缺少数字人声音任务关联")
@@ -105,9 +168,16 @@ class ProjectCompositionCoordinator:
                     "batch_id": batch_id,
                     "remote_item_id": remote_item_id,
                     "scope": "base_video_only",
+                    "runninghub_execution_account_ids": selected_account_ids,
                 },
                 correlation_id=correlation_id or None,
             )
+            if operation.get("payload", {}).get(
+                "runninghub_execution_account_ids"
+            ) != selected_account_ids:
+                raise ValueError(
+                    "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
+                )
             try:
                 staged_image = self.client.upload_workbench_batch_asset(
                     token,
@@ -122,6 +192,7 @@ class ProjectCompositionCoordinator:
                     idempotency_key=f"{clean_key}:{item['item_id']}",
                     image_asset_id=str(staged_image.get("asset_id") or ""),
                     correlation_id=operation["correlation_id"],
+                    runninghub_execution_account_ids=selected_account_ids,
                 )
                 composition = remote.get("composition", {})
                 remote_status = str(composition.get("status") or "COMPOSITION_QUEUED")
@@ -142,6 +213,7 @@ class ProjectCompositionCoordinator:
                         "remote_status": remote_status,
                         "operation_id": operation["operation_id"],
                         "image_asset_id": staged_image.get("asset_id"),
+                        "runninghub_execution_account_ids": selected_account_ids,
                     },
                 )
             except Exception as exc:

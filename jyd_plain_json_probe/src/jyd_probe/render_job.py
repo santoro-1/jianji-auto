@@ -142,6 +142,7 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         timeline_duration_us=source_timeline_duration_us,
     )
     sticker_additions = _build_sticker_additions(config)
+    sticker_additions.extend(_build_visual_overlay_additions(config))
     visual_variant = _build_visual_variant(config)
     cover = _build_cover(config, source_data)
 
@@ -884,6 +885,45 @@ def _build_sticker_additions(config: Mapping[str, Any]) -> list[StickerAddition]
                 scale=scale,
                 rotation=float(_value(item, "rotation", default=0.0)),
                 opacity=opacity,
+                track_name=str(_value(item, "track_name", default="")),
+            )
+        )
+    return additions
+
+
+def _build_visual_overlay_additions(
+    config: Mapping[str, Any],
+) -> list[StickerAddition]:
+    additions: list[StickerAddition] = []
+    for item in _list_config(
+        _value(config, "visual_overlays", default=None), "visual_overlays"
+    ):
+        if not _as_bool(_value(item, "enabled", default=True)):
+            continue
+        bundle_text = str(_value(item, "bundle_path", default="")).strip()
+        if not bundle_text:
+            continue
+        bundle_path = Path(bundle_text).expanduser().resolve()
+        sticker_json_path = bundle_path / "sticker.json" if bundle_path.is_dir() else bundle_path
+        opacity = float(_value(item, "opacity", default=1.0))
+        scale = float(_value(item, "scale", default=1.0))
+        if not 0.0 <= opacity <= 1.0:
+            raise ValueError("语义贴图透明度必须在 0.0 到 1.0 之间")
+        if scale <= 0.0 or scale > 2.0:
+            raise ValueError("语义贴图缩放必须大于 0 且不超过 2")
+        corner = str(_value(item, "corner", default=""))
+        additions.append(
+            StickerAddition(
+                sticker_json_path=sticker_json_path,
+                start_us=int(_value(item, "start_us", default=0)),
+                duration_us=int(_value(item, "duration_us", default=1_800_000)),
+                corner="" if corner == "center" else corner,
+                visible_ratio=0.5,
+                scale=scale,
+                opacity=opacity,
+                track_name="语义前景图片",
+                optional=True,
+                inside_canvas=True,
             )
         )
     return additions

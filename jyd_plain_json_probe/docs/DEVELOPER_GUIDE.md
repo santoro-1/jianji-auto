@@ -191,12 +191,24 @@ python -m pip install pytest
 
 ### 4.3 前端开发
 
-前端是无构建步骤的原生 HTML、CSS 和 JavaScript，修改后刷新浏览器即可：
+前端主体是原生 HTML、CSS 和 JavaScript，修改后刷新浏览器即可：
 
 - `apps/processor/frontend/product.*`：普通用户工作台和批量任务主流程。
 - `apps/processor/frontend/advanced.*`：高级任务页面。
 - `apps/processor/frontend/assets.*`：素材和母版管理。
 - `apps/processor/frontend/app.*`：旧版/通用页面逻辑，修改前先确认路由实际加载的脚本。
+
+`apps/processor/frontend/new/` 的 Tailwind 与 Font Awesome 必须随工作台本地提供，运行时
+不得依赖 CDN，否则断网或 CDN 不可达时会导致 `hidden`、布局和弹层样式整体失效。页面新增
+或修改 Tailwind class 后，在项目根目录重新生成并提交 `tailwind.generated.css`：
+
+```powershell
+npx --yes tailwindcss@3.4.17 -c apps/processor/frontend/new/tailwind.config.cjs -i apps/processor/frontend/new/tailwind.input.css -o apps/processor/frontend/new/tailwind.generated.css --minify
+```
+
+Font Awesome 的 CSS 和字体位于 `apps/processor/frontend/new/vendor/fontawesome/`；打包与迁移
+不得遗漏该目录。`tests/test_new_frontend.py` 会校验四个新版页面只引用本地关键样式、静态
+路由可访问，并确保 `.woff2` 以 `font/woff2` 返回。
 
 浏览器缓存导致代码未更新时，先使用 `Ctrl+F5` 强制刷新，再检查开发者工具 Network 中返回的 JS 是否为当前文件。不要通过复制同一份逻辑到多个页面解决缓存问题。
 
@@ -491,8 +503,9 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 `project_variants.py` 负责模块 6。推荐设置启用视频特效、全屏贴纸和画面变化套装，组合
 选择使用确定性的加权 maximin，而不是随机抽样：裁剪比例、视频特效、全屏贴纸和四角贴纸
 的权重大于背景色，并把已有成功签名作为补充生成的距离参照。每行冻结基础视频（用户上传
-视频则冻结上传版本）、模块 4B 的 render cues/字体/BGM、手动封面和素材身份；全项目首次
-生成合并为一次 `submit_batch`，不会先导出普通 `composition_video`。封面固定 3 帧，封面
+视频则冻结上传版本）、模块 4B 的 render cues/字体/BGM、手动封面和素材身份；项目级生成
+可合并为一次 `submit_batch`，行级生成则只提交指定 `item_id`，不会先导出普通
+`composition_video`。封面固定 3 帧，封面
 视频片段并入主视频轨道首段，临时视频轨道随后删除；底层统一后移所有正文轨道。操作类型为
 `VARIANT_GENERATE`、`VARIANT_SUPPLEMENT` 和
 `VARIANT_RETRY`；成功文件保存为不可覆盖的 `variant_video`，失败项可原样重试。
@@ -703,3 +716,18 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   `localStorage`，收起时右侧表格跨满工作区。表头类 `table-header-input` 使用低饱和深色
   底配靛蓝标线和圆点表示输入/操作列，`table-header-output` 使用深青色底配青绿标线和
   圆点表示三个预览输出列；标题栏显示对应图例，只改变表头，不改变正文单元格状态配色。
+
+## 16. 语义前景图片（2026-08-07）
+
+- `semantic_visuals.py` 负责受控目录校验、内容哈希版本、最长别名召回、稳定字符候选、
+  MiniMax `raw_cues` 时间映射、素材选择和密度规则；本地路径从不发送到云端。
+- `project_visual_analysis.py` 逐行并发（上限 10）调用数字人网站，只接受严格的
+  `jyd.visual-analysis.v1`。脚本、目录、音频或 raw cues 变化会让自动配方失效；人工锁定项
+  保留为待复核，迟到结果需继续匹配脚本、目录和候选集合。
+- 每行 `visual_analysis` 保存语义决策、映射状态和最终 `recipe`。用户保存后条目标记
+  `selection_mode=manual`；重新分析只能保留并尊重锁定人工项。
+- 浏览器播放预览和 `project_postprocess.py` / `project_variants.py` 的 4B 冻结任务读取同一
+  配方。剪映写入独立“语义前景图片”贴纸轨道，单张失败按 optional 跳过。
+- 新版表格把“语义配图”保持在 BGM、字幕的配置区域，并将“单条生成”移到最右侧；审核
+  弹窗的“移除本行”只修改当前行配方，不删除素材库文件。全局图库新增、停用和物理删除
+  保护规则见 `docs/SEMANTIC_VISUAL_LIBRARY.md`。

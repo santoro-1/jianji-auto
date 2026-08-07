@@ -19,6 +19,7 @@ from .semantic_subtitles import (
     map_subtitle_units_to_raw_cues,
     semantic_break_groups,
 )
+from .semantic_visuals import frozen_visual_overlays
 from .subtitles import CaptionCue, caption_cues_from_payload
 
 
@@ -820,16 +821,26 @@ class ProjectPostprocessCoordinator:
             return self.sync(owner_user_id, project_id)
         if any(item["status"] == "POSTPROCESS_RUNNING" for item in project["items"]):
             raise ValueError("当前视频正在按需导出，请勿重复提交")
-        if not (
-            project["allowed_actions"].get("start_postprocess")
-            or project["allowed_actions"].get("retry_postprocess")
-        ):
-            raise ValueError("当前项目尚未准备好生成字幕与 BGM 成片")
         supplied = {
             str(item.get("item_id") or ""): item
             for item in item_settings
             if isinstance(item, dict) and item.get("item_id")
         }
+        if not supplied:
+            raise ValueError("字幕与背景音乐预览至少需要指定一条脚本行")
+        project_items = {str(item["item_id"]): item for item in project["items"]}
+        if not set(supplied).issubset(project_items):
+            raise KeyError("项目脚本行不存在")
+        blocked = [
+            project_items[item_id]
+            for item_id in supplied
+            if not (
+                project_items[item_id].get("allowed_actions", {}).get("start_postprocess")
+                or project_items[item_id].get("allowed_actions", {}).get("retry_postprocess")
+            )
+        ]
+        if blocked:
+            raise ValueError(f"任务 {blocked[0]['row_key']} 尚未准备好生成字幕与 BGM 成片")
         subtitle_updates: list[tuple[dict[str, Any], dict[str, Any]]] = []
         resolved_settings: dict[str, dict[str, Any]] = {}
 
@@ -1073,6 +1084,7 @@ class ProjectPostprocessCoordinator:
             ),
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
+        job["visual_overlays"] = frozen_visual_overlays(item)
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,

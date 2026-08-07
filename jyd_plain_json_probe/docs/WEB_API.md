@@ -144,6 +144,7 @@ MiniMax Key、官方 voice ID 校验、声音制作任务和付费音频任务�
 ```text
 GET  /api/new/voices
 PUT  /api/new/voices/default
+POST /api/new/voices/import
 POST /api/new/voices/{voice_asset_id}/preview
 GET  /api/new/voices/{voice_asset_id}/preview
 POST /api/new/voices/{voice_asset_id}/activate
@@ -187,6 +188,13 @@ save 接口成功并进入 `SAVED` 后，才会生成自定义音色卡。新卡
 和 `selectable: true`。这次调用是 MiniMax 的首次正式使用，会触发音色复刻费和短文本
 合成费。保存本身不触发首次使用费用。
 
+`POST /api/new/voices/import` 接收
+`{"voice_id": "...", "name": "...", "already_activated": true}`。工作台只代理当前登录
+账号，数字人后端会向当前配置的 MiniMax Key 查询 `voice_cloning` 列表并精确核对 ID。
+导入始终不调用 T2A：若用户确认该 ID 已在同一 MiniMax 账号成功调用过 T2A，则直接登记为
+`ACTIVE`、`selectable: true`；否则登记为 `READY`、`selectable: false`，之后仍需在音色卡
+上明确点击“激活”并确认费用。
+
 `DELETE /api/new/voices/{voice_asset_id}` 只允许删除自定义音色卡，并由前端二次确认。
 若工作台任一当前项目的默认音色或脚本行仍引用该音色，返回 `409`；删除后历史声音制作
 任务及已生成音频继续保留。MiniMax 官方音色不可从声音中心删除。
@@ -196,6 +204,10 @@ save 接口成功并进入 `SAVED` 后，才会生成自定义音色卡。新卡
 分组创建数字人音频批次，保存批次/批次行关联和 `AUDIO_GENERATE` 操作。后端只处理
 `DRAFT` 或 `AUDIO_FAILED` 行，不重新生成已就绪音频。此阶段只提交脚本、音色和语音
 参数，不上传或校验项目图片；内部远程幂等键使用固定长度哈希。
+
+请求可选传 `item_ids: ["项目脚本行 ID"]` 只处理指定行。显式单条请求采用智能复用：
+指定行仍有当前 `audio` 时直接返回项目，不创建 MiniMax 批次；脚本或音色修改后当前指针
+已失效，同一入口才会生成新音频版本。省略 `item_ids` 时保留原项目级批量行为。
 
 数字人音频批次强制启用审核门：MiniMax 成功后停在 `AWAITING_REVIEW`，不会自动创建
 RunningHub 画面任务。状态同步会把 MP3 下载到工作台项目目录，创建新的 `audio` 素材
@@ -219,6 +231,10 @@ GET  /api/new/projects/{project_id}/items/{item_id}/base-video
 音频后创建 RunningHub 子任务。脚本行状态按真实任务依次使用 `COMPOSITION_QUEUED`、
 `DIGITAL_HUMAN_RUNNING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
 `COMPOSITION_FAILED`。
+
+请求可选传 `item_ids` 只启动指定行。指定行已有当前 `base_video` 时直接复用，不再次调用
+RunningHub；若只修改字幕/BGM，则单条控制直接把该行交给 4B。4B 的 `items` 本来就是
+显式子集，其他行未完成不会阻止已具备基础视频的当前行生成完整浏览器预览。
 
 所有成功 RunningHub 分段下载为 `original_video_segment` 历史素材。标准化/拼接结果保存
 为当前 `base_video`，不会设置 `composition_video`，因此 `generate_variants` 仍为
@@ -319,13 +335,18 @@ DELETE /api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}
 ```
 
 `variant-settings` 在不清空任何音视频素材的前提下保存全局规则、逐行数量和手动封面，刷新
-页面后可恢复。首次生成必须一次提交项目全部脚本行，每行包含 `count` 和手动 `cover`。单批总任务数上限
+页面后可恢复。`variants/generate` 可提交项目全部行，也可只提交一行；每个提交项包含
+`count` 和手动 `cover`。单批总任务数上限
 500。推荐配置默认启用视频特效、全屏贴纸、`1:1`/`3:4` 裁剪、四种背景色、人物居中和
 四角贴纸；后端用加权最大差异算法选择不重复组合。字幕字体和 BGM 只从 4B 冻结配方读取，
 接口不接受它们作为变体维度。封面强制 `frame_count=3`，封面图段插入主视频轨道首段而非
 额外视频轨道；所有正文轨道从封面结束后开始。
 状态接口将完成文件登记为 `variant_video`；批次允许部分成功，`retry` 只重提失败签名，
 `supplement` 避开已有成功签名，删除一个素材不会删除同一行的其他变体。
+
+新版表格的“单条生成”同时覆盖声音、完整视频和变体。当前产物与输入配置仍匹配时按钮显示
+“复用”，前端不提交付费/渲染任务；脚本、音色、图片、字幕/BGM、变体数量、封面或规则
+变化后显示“重新生成”。历史素材不覆盖，新生成版本成为当前版本或追加为新的变体成果。
 
 ## 新版成果库接口（模块 7）
 
@@ -873,3 +894,20 @@ Invoke-RestMethod `
 ```
 
 返回里的 `plain_json=false` 表示这个草稿可能是高版本加密草稿；导入模板库时会自动调用解密流程。
+
+## 新版工作台语义配图 API（2026-08-07）
+
+- `GET /api/new/semantic-visuals/catalog`：返回公开概念、素材元数据和当前内容哈希版本，不返回
+  本地路径。
+- `GET /api/new/semantic-visuals/{asset_id}/preview`：只返回目录内已登记素材的预览图片。
+- `POST /api/new/projects/{project_id}/visual-analysis`：请求体可含 `item_ids` 和
+  `force_refresh`；逐行召回候选并调用云端，最多并发 10。
+- `POST /api/new/projects/{project_id}/visual-analysis/retry`：只重试视觉分支，不调用
+  MiniMax、RunningHub 或剪映。
+- `PUT /api/new/projects/{project_id}/items/{item_id}/visual-overlays`：请求体为
+  `revision`、可选 `catalog_version` 和 `overlays`。保存时验证项目修订、素材/概念、左上或
+  右上安全区、时间、缩放、透明度及不重叠，并冻结为人工配方。
+
+工作台向数字人网站发送的内部请求为 `jyd.visual-analysis.request.v1`，仅含脚本、SHA-256、
+目录版本和字符候选；响应为 `jyd.visual-analysis.v1`。任何一端都不信任模型返回的时间或
+本地路径。

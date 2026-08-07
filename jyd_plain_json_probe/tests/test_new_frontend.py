@@ -102,8 +102,16 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("生成结果", html)
         self.assertIn("--table-header-accent: #818cf8", html)
         self.assertIn("--table-header-accent: #2dd4bf", html)
-        self.assertEqual(html.count('scope="col" class="table-header-input'), 9)
+        self.assertEqual(html.count('scope="col" class="table-header-input'), 10)
         self.assertEqual(html.count('scope="col" class="table-header-output'), 3)
+        self.assertIn('colspan="13"', html)
+        self.assertLess(html.index(">背景音乐</th>"), html.index(">字幕样式</th>"))
+        self.assertLess(html.index(">字幕样式</th>"), html.index(">语义配图</th>"))
+        self.assertLess(html.index(">语义配图</th>"), html.index(">视频预览</th>"))
+        self.assertLess(html.index(">视频预览</th>"), html.index(">变体数</th>"))
+        self.assertLess(html.index(">再补 X 个变体</th>"), html.index(">单条生成</th>"))
+        self.assertIn("table-actions-column", html)
+        self.assertIn("row-semantic-visual-cell", html)
         self.assertIn(
             'class="table-header-output px-4 py-3.5 w-36">声音预览</th>',
             html,
@@ -117,6 +125,52 @@ class NewFrontendTest(unittest.TestCase):
             html,
         )
 
+    def test_new_frontend_styles_are_bundled_locally(self) -> None:
+        pages = ("index.html", "login.html", "voice-library.html", "gallery.html")
+        for page in pages:
+            html = (FRONTEND_ROOT / page).read_text(encoding="utf-8")
+            self.assertIn('/app-static/new/tailwind.generated.css', html, page)
+            self.assertIn(
+                '/app-static/new/vendor/fontawesome/css/all.min.css',
+                html,
+                page,
+            )
+            self.assertNotIn("cdn.tailwindcss.com", html, page)
+            self.assertNotIn("cdn.staticfile.net/ajax/libs/font-awesome", html, page)
+            self.assertNotIn("tailwind.config", html, page)
+
+        tailwind_css = (FRONTEND_ROOT / "tailwind.generated.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(".hidden{display:none}", tailwind_css)
+        self.assertIn(".fixed{position:fixed}", tailwind_css)
+        self.assertIn(".grid{display:grid}", tailwind_css)
+        self.assertIn(".w-44", tailwind_css)
+        self.assertIn(".min-h-\\[58px\\]", tailwind_css)
+        tailwind_config = (FRONTEND_ROOT / "tailwind.config.cjs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('path.join(__dirname, "*.html")', tailwind_config)
+        self.assertTrue(
+            (FRONTEND_ROOT / "vendor/fontawesome/css/all.min.css").is_file()
+        )
+        self.assertTrue(
+            (FRONTEND_ROOT / "vendor/fontawesome/webfonts/fa-solid-900.woff2").is_file()
+        )
+
+    def test_semantic_visual_review_and_dynamic_preview_share_recipe(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="semantic-visual-modal"', html)
+        self.assertIn('id="video-preview-semantic-overlay"', html)
+        self.assertIn("function retryRowVisualAnalysis(button)", html)
+        self.assertIn("function saveSemanticVisualRecipe()", html)
+        self.assertIn("function removeSemanticVisualDraft(index)", html)
+        self.assertIn("移除本行", html)
+        self.assertIn("semanticVisualDraft[index].selection_mode = 'manual'", html)
+        self.assertIn("if (field !== 'locked') semanticVisualDraft[index].locked = true", html)
+        self.assertIn("script?.visualAnalysis?.recipe?.overlays", html)
+        self.assertIn("/visual-overlays`,", html)
+
     def test_new_workspace_and_voice_center_use_real_voice_apis(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         voice_center = (FRONTEND_ROOT / "voice-library.html").read_text(
@@ -128,10 +182,17 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/items/${rowId}/audio/retry", workspace)
         self.assertIn("/projects/${activeProject.project_id}/voice", workspace)
         self.assertIn("/api/new/voice-creations", voice_center)
+        self.assertIn("/api/new/voices/import", voice_center)
         self.assertIn("submitVoiceCreation", voice_center)
+        self.assertIn("importExistingVoice", voice_center)
+        self.assertIn('id="import-voice-id"', voice_center)
+        self.assertIn('id="import-voice-already-activated"', voice_center)
+        self.assertIn("already_activated: alreadyActivated", voice_center)
+        self.assertIn("导入本身不合成语音、不触发 ¥9.9", voice_center)
         self.assertIn("saveCreatedVoice", voice_center)
         self.assertIn("生成克隆试听", voice_center)
         self.assertIn("保存到音色库", voice_center)
+
         self.assertIn("activateSavedVoice", voice_center)
         self.assertIn("deleteSavedVoice", voice_center)
         self.assertIn('id="voice-source-preview"', voice_center)
@@ -156,6 +217,16 @@ class NewFrontendTest(unittest.TestCase):
             "['idle', 'failed'].includes(row.getAttribute('data-voice-status'))",
             workspace,
         )
+
+    def test_each_project_row_has_smart_audio_video_and_variant_actions(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function runSingleAudio(buttonEl)", html)
+        self.assertIn("function runSingleVideo(buttonEl)", html)
+        self.assertIn("function runSingleVariants(buttonEl)", html)
+        self.assertIn("item_ids: [rowId]", html)
+        self.assertIn("复用声音", html)
+        self.assertIn("复用视频", html)
+        self.assertIn("复用变体", html)
 
     def test_complete_video_flow_keeps_internal_stages_out_of_user_results(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
@@ -305,6 +376,25 @@ class NewFrontendTest(unittest.TestCase):
             logo = client.get("/app-static/new/logo.png")
             self.assertEqual(logo.status_code, 200)
             self.assertEqual(logo.headers["content-type"], "image/png")
+
+            tailwind = client.get("/app-static/new/tailwind.generated.css")
+            self.assertEqual(tailwind.status_code, 200)
+            self.assertEqual(tailwind.headers["content-type"], "text/css; charset=utf-8")
+            self.assertIn(".hidden{display:none}", tailwind.text)
+
+            fontawesome = client.get(
+                "/app-static/new/vendor/fontawesome/css/all.min.css"
+            )
+            self.assertEqual(fontawesome.status_code, 200)
+            self.assertEqual(
+                fontawesome.headers["content-type"], "text/css; charset=utf-8"
+            )
+
+            font = client.get(
+                "/app-static/new/vendor/fontawesome/webfonts/fa-solid-900.woff2"
+            )
+            self.assertEqual(font.status_code, 200)
+            self.assertEqual(font.headers["content-type"], "font/woff2")
 
     def test_digital_account_login_opens_all_new_routes_and_logout_closes_them(self) -> None:
         user = {"user_id": "center-user", "username": "tester", "enabled": True}

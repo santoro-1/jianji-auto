@@ -388,6 +388,9 @@ class StickerAddition:
     scale: float = 1.0
     rotation: float = 0.0
     opacity: float = 1.0
+    track_name: str = ""
+    optional: bool = False
+    inside_canvas: bool = False
 
 
 @dataclass(frozen=True)
@@ -1642,17 +1645,24 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
         changed += 1
 
     for item in job.sticker_additions:
-        changed += add_fullscreen_sticker_to_data(
-            data,
-            item.sticker_json_path,
-            start_us=item.start_us,
-            duration_us=item.duration_us,
-            corner=item.corner,
-            visible_ratio=item.visible_ratio,
-            scale=item.scale,
-            rotation=item.rotation,
-            opacity=item.opacity,
-        )
+        try:
+            changed += add_fullscreen_sticker_to_data(
+                data,
+                item.sticker_json_path,
+                start_us=item.start_us,
+                duration_us=item.duration_us,
+                corner=item.corner,
+                visible_ratio=item.visible_ratio,
+                scale=item.scale,
+                rotation=item.rotation,
+                opacity=item.opacity,
+                track_name=item.track_name,
+                inside_canvas=item.inside_canvas,
+            )
+        except Exception as exc:
+            if not item.optional:
+                raise
+            log(f"可选语义贴图已跳过，不影响基础成片: {exc}")
 
     if job.cover is not None:
         changed += apply_cover_timeline_offset(data, job.cover)

@@ -50,7 +50,12 @@ class ProjectCompositionApiTest(unittest.TestCase):
         shutil.rmtree(self.root, ignore_errors=True)
 
     def test_generate_downloads_original_segments_and_base_video_only(self) -> None:
-        user = {"user_id": "composition-user", "username": "tester", "enabled": True}
+        user = {
+            "user_id": "composition-user",
+            "username": "tester",
+            "enabled": True,
+            "is_admin": True,
+        }
         store = ProjectStore(self.settings.storage_root / "control.db")
         project = store.create_project(
             owner_user_id=user["user_id"],
@@ -158,6 +163,15 @@ class ProjectCompositionApiTest(unittest.TestCase):
         ), patch(
             "jyd_probe.auth_center.AuthCenterClient.verify", return_value=user
         ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.list_workbench_execution_accounts",
+            return_value={
+                "accounts": [
+                    {"id": 11, "name": "pool-11"},
+                    {"id": 22, "name": "pool-22"},
+                ],
+                "default_selected_account_ids": [11, 22],
+            },
+        ), patch(
             "jyd_probe.auth_center.AuthCenterClient.upload_workbench_batch_asset",
             return_value={
                 "asset_id": "staged-image-1",
@@ -185,9 +199,37 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     json={"username": "tester", "password": "pass123"},
                 )
                 self.assertEqual(login.status_code, 200, login.text)
+                pool_summary = client.get(
+                    "/api/new/runninghub-execution-accounts"
+                )
+                self.assertEqual(pool_summary.status_code, 200, pool_summary.text)
+                self.assertEqual(
+                    pool_summary.json()["default_selected_account_ids"], [11, 22]
+                )
+                missing_selection = client.post(
+                    f"/api/new/projects/{project['project_id']}/composition/generate",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "composition-missing-selection",
+                    },
+                )
+                self.assertEqual(missing_selection.status_code, 422)
+                invalid_selection = client.post(
+                    f"/api/new/projects/{project['project_id']}/composition/generate",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "composition-invalid-selection",
+                        "runninghub_execution_account_ids": ["11"],
+                    },
+                )
+                self.assertEqual(invalid_selection.status_code, 422)
                 generated = client.post(
                     f"/api/new/projects/{project['project_id']}/composition/generate",
-                    json={"cost_confirmed": True, "idempotency_key": "composition-1"},
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "composition-1",
+                        "runninghub_execution_account_ids": [22, 11],
+                    },
                 )
                 self.assertEqual(generated.status_code, 200, generated.text)
                 payload = generated.json()
@@ -211,6 +253,21 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     start_remote.call_args.kwargs["correlation_id"],
                     "composition-correlation-1",
                 )
+                self.assertEqual(
+                    start_remote.call_args.kwargs[
+                        "runninghub_execution_account_ids"
+                    ],
+                    [11, 22],
+                )
+                operation = next(
+                    value
+                    for value in payload["operations"]
+                    if value["operation_type"] == "COMPOSITION_GENERATE"
+                )
+                self.assertEqual(
+                    operation["payload"]["runninghub_execution_account_ids"],
+                    [11, 22],
+                )
 
                 synced = client.get(
                     f"/api/new/projects/{project['project_id']}/composition/status"
@@ -221,6 +278,22 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     len(synced_item["asset_history"]["original_video_segment"]), 1
                 )
                 self.assertEqual(len(synced_item["asset_history"]["base_video"]), 1)
+
+                reused = client.post(
+                    f"/api/new/projects/{project['project_id']}/composition/generate",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "composition-single-reuse",
+                        "runninghub_execution_account_ids": [11, 22],
+                        "item_ids": [item["item_id"]],
+                    },
+                )
+                self.assertEqual(reused.status_code, 200, reused.text)
+                self.assertEqual(
+                    reused.json()["items"][0]["outputs"]["base_video"]["asset_id"],
+                    synced_item["outputs"]["base_video"]["asset_id"],
+                )
+                start_remote.assert_called_once()
 
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/base-video"

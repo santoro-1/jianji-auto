@@ -8,35 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdn.staticfile.net/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Outfit', 'Noto Sans SC', 'sans-serif'],
-                    },
-                    colors: {
-                        brand: {
-                            deep: '#030712',
-                            dark: '#0b0f19',
-                            card: 'rgba(17, 24, 39, 0.65)',
-                            primary: '#6366f1',
-                            secondary: '#a855f7',
-                            accent: '#06b6d4',
-                            success: '#10b981',
-                        }
-                    },
-                    backdropBlur: {
-                        xs: '2px',
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- Locally bundled UI styles: the workbench must remain usable without CDN access. -->
+    <link rel="stylesheet" href="/app-static/new/tailwind.generated.css">
+    <link rel="stylesheet" href="/app-static/new/vendor/fontawesome/css/all.min.css">
     <style>
         body {
             background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f0b29 50%, #030712 100%);
@@ -226,6 +200,17 @@
             background: #2dd4bf;
             box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.12);
         }
+        .table-actions-column {
+            border-left: 1px solid rgba(129, 140, 248, 0.22);
+            background: #11162a;
+            box-shadow: inset 8px 0 18px rgba(2, 6, 23, 0.18);
+        }
+        thead .table-actions-column {
+            background: linear-gradient(180deg, #232946 0%, #191f35 100%);
+        }
+        tbody tr:hover .table-actions-column {
+            background: #151b31;
+        }
     </style>
 </head>
 <body class="font-sans antialiased h-screen overflow-hidden flex flex-col">
@@ -279,6 +264,28 @@
             <div class="mt-6 flex justify-end gap-3">
                 <button onclick="closeSubtitleModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
                 <button onclick="saveSubtitleStyles()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white shadow-lg transition-all">保存设置</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Semantic foreground visual review modal -->
+    <div id="semantic-visual-modal" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/75 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="semantic-visual-title">
+        <div class="glass-panel-heavy w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-200">
+            <div class="flex items-start justify-between gap-4 mb-4">
+                <div>
+                    <h3 id="semantic-visual-title" class="text-lg font-bold text-white"><i class="fa-solid fa-images text-brand-primary mr-2"></i>语义配图审核</h3>
+                    <p id="semantic-visual-summary" class="text-[11px] text-gray-400 mt-1">按脚本文意审核；浏览器动态预览与剪映成片使用同一份冻结配方。</p>
+                </div>
+                <button type="button" onclick="closeSemanticVisualModal()" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="semantic-visual-library-summary" class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-indigo-400/15 bg-indigo-500/5 px-3 py-2 text-[10px] text-gray-400"></div>
+            <div id="semantic-visual-list" class="space-y-3"></div>
+            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-4">
+                <p class="text-[10px] text-gray-500">“移除”只删除当前脚本行的贴图，不会删除本地素材库文件。任何人工调整都会锁定，避免重新分析时被覆盖。</p>
+                <div class="flex gap-3">
+                    <button type="button" onclick="closeSemanticVisualModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300">取消</button>
+                    <button id="semantic-visual-save" type="button" onclick="saveSemanticVisualRecipe()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary text-white shadow-lg">保存配方</button>
+                </div>
             </div>
         </div>
     </div>
@@ -488,6 +495,7 @@
                     <div class="absolute inset-0 bg-black/30"></div>
                 </div>
                 <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
+                <img id="video-preview-semantic-overlay" class="hidden absolute z-10 pointer-events-none object-contain drop-shadow-2xl" src="" alt="语义前景图片">
                 <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 
                 <!-- Inner play controller simulation -->
@@ -756,27 +764,28 @@
 
                     <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
                     <div class="overflow-x-auto relative flex-1 overflow-y-auto">
-                        <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1420px]">
+                        <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1680px]">
                             <thead class="text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center whitespace-nowrap">任务ID</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-[280px] max-w-[280px]">脚本内容 (双击可修改)</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-32">声音原型</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-36">声音预览</th>
-                                    <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center">生成控制</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center">画面</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center">背景音乐</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-44 text-center whitespace-nowrap">语义配图</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">变体数</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">再补 X 个变体</th>
+                                    <th scope="col" class="table-header-input table-actions-column px-4 py-3.5 w-36 text-center whitespace-nowrap">单条生成</th>
                                 </tr>
                             </thead>
                             <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
                                 <!-- Placeholders when empty -->
                                 <tr id="empty-table-placeholder">
-                                    <td colspan="12" class="px-6 py-20 text-center text-gray-500">
+                                    <td colspan="13" class="px-6 py-20 text-center text-gray-500">
                                         <div class="flex flex-col items-center justify-center">
                                             <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
                                             <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
@@ -855,6 +864,9 @@
         let fontPreviewSequence = 0;
         let rowPostprocessConfigs = {};
         const previewRetryingItems = new Set();
+        let semanticVisualCatalog = null;
+        let activeSemanticVisualRowId = '';
+        let semanticVisualDraft = [];
 
         // System State
         let activeProject = null;
@@ -896,6 +908,8 @@
             setInputSidebarCollapsed(!grid?.classList.contains('input-sidebar-collapsed'));
         }
         let rowVariantCovers = {};
+        const variantDirtyItemIds = new Set();
+        const pendingSingleCompositionItemIds = new Set();
         let editingVariantCoverRow = null;
         let isGeneratingAllVoicePreviews = false;
         let isGeneratingVariants = false;
@@ -906,6 +920,7 @@
         let isGeneratingComposition = false;
         let isGeneratingPostprocess = false;
         let isStartingPostprocess = false;
+        let isStartingSinglePostprocess = false;
         let isDownloadingProjectVideos = false;
         let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
@@ -1199,6 +1214,7 @@
                 : [];
             uploadedScripts = Array.isArray(project?.items) ? project.items.map((item) => {
                 const variantOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
+                const variantGenerationOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id && operation.operation_type === 'VARIANT_GENERATE') || null;
                 if (variantOperation?.payload?.cover) rowVariantCovers[item.item_id] = variantOperation.payload.cover;
                 else if (item.settings?.variants?.cover) rowVariantCovers[item.item_id] = item.settings.variants.cover;
                 return ({
@@ -1217,8 +1233,11 @@
                 originalVideoSegments: item.outputs?.original_video_segments || [],
                 variants: item.outputs?.variants || [],
                 variantOperation,
+                variantGenerationOperation,
+                assetHistory: item.asset_history || {},
                 subtitles: item.subtitles || {},
                 contentAnalysis: item.content_analysis || {},
+                visualAnalysis: item.visual_analysis || {},
                 allowedActions: item.allowed_actions || {}
                 });
             }) : [];
@@ -1327,6 +1346,8 @@
                 });
                 globalVariantConfig = null;
                 rowVariantCovers = {};
+                variantDirtyItemIds.clear();
+                pendingSingleCompositionItemIds.clear();
                 syncProjectInputs(project);
                 showToast('脚本已保存', `已保存 ${preview.total_rows} 行脚本；点击“生成声音预览”时会分析首次导入或内容有变化的脚本。`, 'success');
             } catch (error) {
@@ -1350,6 +1371,8 @@
                         uploadedImages = [];
                         globalVariantConfig = null;
                         rowVariantCovers = {};
+                        variantDirtyItemIds.clear();
+                        pendingSingleCompositionItemIds.clear();
                         document.getElementById('excel-dropzone').classList.remove('hidden');
                         document.getElementById('parsed-indicator').classList.add('hidden');
                         renderImageThumbnails();
@@ -1574,6 +1597,31 @@
         }
 
         // Create HTML table layout from scratch based on uploadedScripts
+        function stableJson(value) {
+            if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+            if (value && typeof value === 'object') {
+                return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+            }
+            return JSON.stringify(value ?? null);
+        }
+
+        function rowVariantsCanReuse(script) {
+            if (!script?.variants?.length || variantDirtyItemIds.has(script.id)) return false;
+            const operation = script.variantGenerationOperation;
+            if (!operation?.payload || operation.status !== 'SUCCEEDED') return false;
+            const requestedCount = Number(script.variantSettings?.count) || 20;
+            const generatedCount = Array.isArray(operation.payload.jobs) ? operation.payload.jobs.length : 0;
+            const savedSettings = activeProject?.settings?.variants || { mode: 'recommended' };
+            const sourceAssetId = script.compositionVideo?.source_type === 'user_upload'
+                ? script.compositionVideo?.asset_id
+                : script.baseVideo?.asset_id;
+            const frozenSourceIds = new Set((operation.payload.jobs || []).map(job => job.source_video_asset_id).filter(Boolean));
+            return generatedCount === requestedCount
+                && stableJson(operation.payload.settings || {}) === stableJson(savedSettings)
+                && stableJson(operation.payload.cover || null) === stableJson(rowVariantCovers[script.id] || null)
+                && (!sourceAssetId || (frozenSourceIds.size === 1 && frozenSourceIds.has(sourceAssetId)));
+        }
+
         function updateTableLayout() {
             const tbody = document.getElementById('synthesis-table-body');
             const emptyEl = document.getElementById('empty-table-placeholder');
@@ -1665,6 +1713,30 @@
                 const analysisLabel = analysisLabels[analysisStatus] || analysisLabels.FAILED;
                 const canRetryAnalysis = Boolean(script.allowedActions?.analyze_content)
                     && analysisStatus !== 'PENDING';
+                const visualStatus = script.visualAnalysis?.analysis_status || 'NOT_REQUESTED';
+                const visualMappingStatus = script.visualAnalysis?.mapping_status || 'NOT_REQUESTED';
+                const visualOverlays = (script.visualAnalysis?.recipe?.overlays || []).filter((item) => item.enabled !== false && item.requires_review !== true);
+                const visualStatusLabels = {
+                    NOT_REQUESTED: ['待分析', 'text-gray-500', 'fa-images'],
+                    PENDING: ['分析中', 'text-brand-primary', 'fa-spinner fa-spin'],
+                    SUCCESS: [visualMappingStatus === 'FAILED' ? '待时间映射' : '已审核', visualMappingStatus === 'FAILED' ? 'text-amber-400' : 'text-emerald-400', visualMappingStatus === 'FAILED' ? 'fa-triangle-exclamation' : 'fa-circle-check'],
+                    FAILED: ['分析失败', 'text-rose-400', 'fa-circle-exclamation']
+                };
+                const visualLabel = visualStatusLabels[visualStatus] || visualStatusLabels.FAILED;
+                const canAnalyzeVisuals = Boolean(script.allowedActions?.analyze_visuals) && visualStatus !== 'PENDING';
+                const itemActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus);
+                const audioCanReuse = Boolean(script.audio);
+                const audioWasGenerated = Boolean(script.assetHistory?.audio?.length);
+                const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
+                const videoWasGenerated = Boolean(script.assetHistory?.base_video?.length || script.assetHistory?.composition_video?.length);
+                const videoActionText = videoCanReuse
+                    ? '复用视频'
+                    : (script.baseVideo
+                        ? (script.assetHistory?.composition_video?.length ? '重生成视频' : '继续生成视频')
+                        : (videoWasGenerated ? '重生成视频' : '生成视频'));
+                const variantsCanReuse = rowVariantsCanReuse(script);
+                const variantsWereGenerated = Boolean(script.variants?.length || script.variantGenerationOperation);
+                const singleActionClass = 'row-single-stage-action w-full px-2 py-1 rounded-lg border text-[9px] font-semibold transition-colors whitespace-nowrap';
 
                 tr.innerHTML = `
                     <td class="px-4 py-4 text-center whitespace-nowrap">
@@ -1721,16 +1793,6 @@
                         </div>
                     </td>
                     <td class="px-4 py-4 text-center">
-                        <div class="flex items-center justify-center gap-2">
-                            <button onclick="retryCloningAudio(this)" title="生成/重新生成声音预览" class="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 text-gray-400 hover:text-white hover:bg-slate-800 hover:border-slate-700 transition-all flex items-center justify-center">
-                                <i class="fa-solid fa-rotate"></i>
-                            </button>
-                            <button onclick="downloadClonedAudio(this)" title="导出音频" disabled class="btn-download-audio w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed">
-                                <i class="fa-solid fa-download"></i>
-                            </button>
-                        </div>
-                    </td>
-                    <td class="px-4 py-4 text-center">
                         <div class="flex flex-col items-center gap-1.5">
                             <button type="button" class="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-800 bg-slate-950 group/thumb cursor-zoom-in shadow-lg hover:border-brand-secondary transition-colors" onclick="previewImageZoom(this)" title="点击放大画面">
                                 <img class="row-thumbnail-img w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300 opacity-0" src="" alt="当前画面">
@@ -1752,6 +1814,26 @@
                             <span class="absolute inset-x-1 top-1 text-[7px] text-gray-500 font-semibold">字幕预览 · 点击配置</span>
                             <span class="row-subtitle-preview-text absolute inset-x-1 bottom-2 text-[11px] leading-none font-bold truncate" style="color: ${escapeHtml(postprocessConfig.textColor || '#ffffff')}; -webkit-text-stroke: 0.45px #000000; paint-order: stroke fill; text-shadow: 0 0 1px #000000;">${escapeHtml(subtitlePreviewText)}</span>
                         </button>
+                    </td>
+                    <td class="px-3 py-3 text-center whitespace-nowrap">
+                        <div class="row-semantic-visual-cell w-40 mx-auto space-y-1.5">
+                            <button type="button" onclick="openSemanticVisualModal('${script.id}')" title="打开语义配图审核" class="group/semantic w-full min-h-[58px] flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-500/10 via-slate-950/80 to-cyan-500/5 px-2.5 py-2 text-left hover:border-brand-accent/70 hover:bg-indigo-500/15 transition-all">
+                                <span class="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/35">
+                                    ${visualOverlays[0]?.preview_url
+                                        ? `<img src="${escapeHtml(visualOverlays[0].preview_url)}" class="h-full w-full object-contain" alt="${escapeHtml(visualOverlays[0].asset_name || '语义配图')}">`
+                                        : '<i class="fa-solid fa-images text-sm text-slate-600 group-hover/semantic:text-brand-accent transition-colors"></i>'}
+                                    <span class="absolute -bottom-px -right-px min-w-4 rounded-tl-md bg-slate-950/90 px-1 py-0.5 text-center text-[7px] font-bold text-brand-accent">${visualOverlays.length}</span>
+                                </span>
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-[10px] font-bold ${visualLabel[1]}"><i class="fa-solid ${visualLabel[2]} mr-1"></i>${visualLabel[0]}</span>
+                                    <span class="mt-1 block truncate text-[8px] text-gray-500">${visualOverlays.length ? `${visualOverlays.length} 张已启用 · 点击审核` : '暂无启用图片 · 点击查看'}</span>
+                                </span>
+                                <i class="fa-solid fa-chevron-right text-[8px] text-slate-600 group-hover/semantic:text-brand-accent"></i>
+                            </button>
+                            <button type="button" ${canAnalyzeVisuals ? '' : 'disabled'} onclick="retryRowVisualAnalysis(this)" class="row-visual-analysis-action w-full rounded-lg border px-2 py-1 text-[9px] font-semibold transition-colors ${canAnalyzeVisuals ? 'border-cyan-400/20 bg-cyan-400/5 text-brand-accent hover:border-brand-accent/60 hover:text-white' : 'border-slate-800 text-gray-600 cursor-wait'}">
+                                <i class="fa-solid ${visualStatus === 'PENDING' ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'} mr-1"></i>${visualStatus === 'NOT_REQUESTED' ? '开始语义分析' : (visualStatus === 'PENDING' ? '正在分析' : '重新分析')}
+                            </button>
+                        </div>
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         <div class="row-video-preview-container flex flex-col items-center justify-center min-h-[76px]">
@@ -1820,6 +1902,22 @@
                                 <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
                             </div>
                             <button onclick="addMoreRowVariants(this)" disabled class="row-add-variants-btn px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-900 text-[9px] font-semibold text-gray-600 cursor-not-allowed whitespace-nowrap"><i class="fa-solid fa-plus mr-1"></i>补充生成</button>
+                        </div>
+                    </td>
+                    <td class="table-actions-column px-3 py-3 text-center">
+                        <div class="flex flex-col items-stretch justify-center gap-1.5">
+                            <button ${itemActive ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${audioCanReuse ? '当前声音未失效，点击直接复用，不会调用 MiniMax' : '只生成当前行声音'}" class="${singleActionClass} ${itemActive ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
+                                <i class="fa-solid fa-wave-square mr-1"></i>${audioCanReuse ? '复用声音' : (audioWasGenerated ? '重生成声音' : '生成声音')}
+                            </button>
+                            <button ${itemActive || (!videoCanReuse && !script.audio) ? 'disabled' : ''} onclick="runSingleVideo(this)" title="${videoCanReuse ? '当前成片未失效，点击直接复用，不会重新调用 RunningHub' : '只生成当前行完整成片'}" class="${singleActionClass} ${itemActive || (!videoCanReuse && !script.audio) ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-secondary/30 text-fuchsia-300 hover:text-white hover:border-brand-secondary'}">
+                                <i class="fa-solid fa-film mr-1"></i>${videoActionText}
+                            </button>
+                            <button ${itemActive || !videoCanReuse ? 'disabled' : ''} onclick="runSingleVariants(this)" title="${variantsCanReuse ? '当前变体配置未改变，点击直接复用' : '只生成当前行变体'}" class="${singleActionClass} ${itemActive || !videoCanReuse ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-emerald-400/30 text-emerald-300 hover:text-white hover:border-emerald-300'}">
+                                <i class="fa-solid fa-photo-film mr-1"></i>${variantsCanReuse ? '复用变体' : (variantsWereGenerated ? '重生成变体' : '生成变体')}
+                            </button>
+                            <button onclick="downloadClonedAudio(this)" title="导出音频" disabled class="btn-download-audio self-center w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed">
+                                <i class="fa-solid fa-download"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -1926,7 +2024,7 @@
                     }
                 );
                 syncProjectInputs(project);
-                showToast('脚本已保存', '这一行的旧声音和内容分析已失效；下次生成声音时会只分析这条新文本。', 'success');
+                showToast('脚本已保存', '这一行的旧声音、内容分析和自动语义配图已失效；锁定的人工配方保留为待复核。', 'success');
             } catch (error) {
                 element.textContent = uploadedScripts[index].text;
                 showToast('脚本保存失败', error.message, 'warning');
@@ -2026,6 +2124,204 @@
             }
         }
 
+        async function ensureSemanticVisualCatalog() {
+            if (!semanticVisualCatalog) {
+                semanticVisualCatalog = await workspaceApi('/api/new/semantic-visuals/catalog');
+            }
+            return semanticVisualCatalog;
+        }
+
+        async function retryRowVisualAnalysis(button) {
+            const rowId = button.closest('tr')?.getAttribute('data-id') || '';
+            if (!activeProject || !rowId || button.disabled) return;
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>分析中...';
+            try {
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${rowId}/visual-analysis/retry`,
+                    { method: 'POST' }
+                );
+                syncProjectInputs(project);
+                const item = project.items?.find((candidate) => candidate.item_id === rowId);
+                const analysis = item?.visual_analysis || {};
+                const overlayCount = (analysis.recipe?.overlays || []).filter((overlay) => overlay.enabled !== false).length;
+                showToast(
+                    analysis.mapping_status === 'SUCCESS' ? '语义配图分析完成' : '语义语境已分析',
+                    analysis.mapping_status === 'SUCCESS'
+                        ? `已生成 ${overlayCount} 张可审核配图；成片前仍可关闭、换图和调时间。`
+                        : `${analysis.error?.summary || '当前缺少可安全映射的 MiniMax 时间戳'}；字幕和视频不受影响。`,
+                    analysis.mapping_status === 'SUCCESS' ? 'success' : 'warning'
+                );
+            } catch (error) {
+                showToast('语义配图分析失败', `${error.message}；字幕、BGM、语音和视频不会受影响。`, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+            }
+        }
+
+        function semanticAssetsForConcept(conceptId) {
+            return (semanticVisualCatalog?.assets || []).filter((asset) => asset.concept_id === conceptId);
+        }
+
+        function semanticConceptLabel(conceptId) {
+            return (semanticVisualCatalog?.concepts || []).find((concept) => concept.concept_id === conceptId)?.label || conceptId;
+        }
+
+        function renderSemanticVisualEditor() {
+            const list = document.getElementById('semantic-visual-list');
+            const script = uploadedScripts.find((item) => item.id === activeSemanticVisualRowId);
+            if (!script) {
+                list.innerHTML = '<p class="text-sm text-rose-400">脚本行已不存在，请关闭后刷新。</p>';
+                return;
+            }
+            const decisions = script.visualAnalysis?.decisions || [];
+            const cards = semanticVisualDraft.map((overlay, index) => {
+                const assets = semanticAssetsForConcept(overlay.concept_id);
+                const currentAsset = assets.find((asset) => asset.asset_id === overlay.asset_id);
+                const decision = decisions.find((item) => item.candidate_id === overlay.candidate_id) || {};
+                const isEnabled = overlay.enabled !== false;
+                const assetOptions = assets.map((asset) => `<option value="${escapeHtml(asset.asset_id)}" ${asset.asset_id === overlay.asset_id ? 'selected' : ''}>${escapeHtml(asset.name)}</option>`).join('');
+                return `<section class="rounded-2xl border ${isEnabled ? 'border-indigo-400/25' : 'border-slate-800'} bg-slate-950/55 p-4 shadow-lg shadow-black/10" data-visual-index="${index}">
+                    <div class="flex flex-col lg:flex-row gap-4">
+                        <div class="w-full lg:w-28 shrink-0">
+                            <div class="relative mx-auto h-24 w-24 overflow-hidden rounded-xl border border-white/10 bg-black/40">
+                                <img src="${escapeHtml(overlay.preview_url || currentAsset?.preview_url || '')}" class="h-full w-full object-contain ${isEnabled ? '' : 'opacity-35 grayscale'}" alt="语义配图">
+                                <span class="absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[8px] font-bold ${isEnabled ? 'bg-emerald-500/90 text-white' : 'bg-slate-800/95 text-gray-400'}">${isEnabled ? '已启用' : '已关闭'}</span>
+                            </div>
+                            <p class="mt-2 truncate text-center text-[10px] font-semibold text-gray-300">${escapeHtml(currentAsset?.name || overlay.asset_name || '语义配图')}</p>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="mb-3 flex flex-wrap items-center gap-2">
+                                <span class="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[9px] font-bold text-indigo-200">${escapeHtml(semanticConceptLabel(overlay.concept_id))}</span>
+                                <span class="rounded-full border border-slate-700 bg-slate-900/80 px-2 py-1 text-[9px] text-gray-400">${escapeHtml(decision.decision || overlay.selection_mode || 'MANUAL')}</span>
+                                ${decision.confidence != null ? `<span class="text-[9px] text-gray-500">置信度 ${Math.round(Number(decision.confidence) * 100)}%</span>` : ''}
+                                ${overlay.locked ? '<span class="text-[9px] font-semibold text-amber-300"><i class="fa-solid fa-lock mr-1"></i>人工锁定</span>' : ''}
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2.5 text-[10px]">
+                                <label class="col-span-2 md:col-span-3 xl:col-span-2"><span class="mb-1 block text-gray-500">使用图片</span><select onchange="updateSemanticVisualField(${index}, 'asset_id', this.value)" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none">${assetOptions}</select></label>
+                                <label><span class="mb-1 block text-gray-500">位置</span><select onchange="updateSemanticVisualField(${index}, 'corner', this.value)" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none">${['top_left','top_right'].map((corner) => `<option value="${corner}" ${corner === overlay.corner ? 'selected' : ''}>${{top_left:'左上',top_right:'右上'}[corner]}</option>`).join('')}</select></label>
+                                <label><span class="mb-1 block text-gray-500">开始时间</span><span class="flex items-center rounded-lg border border-slate-700 bg-slate-900 px-2"><input type="number" min="0" step="0.05" value="${(Number(overlay.start_us || 0) / 1000000).toFixed(2)}" onchange="updateSemanticVisualField(${index}, 'start_us', Math.round(Number(this.value) * 1000000))" class="min-w-0 w-full bg-transparent py-2 text-gray-200 focus:outline-none"><span class="text-gray-600">秒</span></span></label>
+                                <label><span class="mb-1 block text-gray-500">持续时间</span><span class="flex items-center rounded-lg border border-slate-700 bg-slate-900 px-2"><input type="number" min="0.1" max="30" step="0.1" value="${(Number(overlay.duration_us || 1800000) / 1000000).toFixed(1)}" onchange="updateSemanticVisualField(${index}, 'duration_us', Math.round(Number(this.value) * 1000000))" class="min-w-0 w-full bg-transparent py-2 text-gray-200 focus:outline-none"><span class="text-gray-600">秒</span></span></label>
+                                <label><span class="mb-1 block text-gray-500">缩放</span><input type="number" min="0.05" max="2" step="0.05" value="${Number(overlay.scale || 0.28)}" onchange="updateSemanticVisualField(${index}, 'scale', Number(this.value))" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none"></label>
+                                <label><span class="mb-1 block text-gray-500">透明度</span><input type="number" min="0" max="1" step="0.05" value="${Number(overlay.opacity ?? 1)}" onchange="updateSemanticVisualField(${index}, 'opacity', Number(this.value))" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none"></label>
+                            </div>
+                        </div>
+                        <div class="flex shrink-0 flex-row lg:w-28 lg:flex-col gap-2">
+                            <button type="button" onclick="updateSemanticVisualField(${index}, 'enabled', ${isEnabled ? 'false' : 'true'})" class="flex-1 rounded-lg border px-2.5 py-2 text-[9px] font-semibold ${isEnabled ? 'border-slate-700 text-gray-300 hover:border-amber-400/50 hover:text-amber-300' : 'border-emerald-400/30 text-emerald-300 hover:border-emerald-300'}"><i class="fa-solid ${isEnabled ? 'fa-eye-slash' : 'fa-eye'} mr-1"></i>${isEnabled ? '关闭显示' : '重新启用'}</button>
+                            <button type="button" onclick="updateSemanticVisualField(${index}, 'locked', ${overlay.locked ? 'false' : 'true'})" class="flex-1 rounded-lg border border-amber-400/25 px-2.5 py-2 text-[9px] font-semibold text-amber-300 hover:border-amber-300"><i class="fa-solid ${overlay.locked ? 'fa-lock-open' : 'fa-lock'} mr-1"></i>${overlay.locked ? '解除锁定' : '锁定修改'}</button>
+                            <button type="button" onclick="removeSemanticVisualDraft(${index})" class="flex-1 rounded-lg border border-rose-400/20 px-2.5 py-2 text-[9px] font-semibold text-rose-300 hover:border-rose-300 hover:text-white"><i class="fa-solid fa-trash-can mr-1"></i>移除本行</button>
+                        </div>
+                    </div>
+                </section>`;
+            });
+            const existingCandidateIds = new Set(semanticVisualDraft.map((overlay) => overlay.candidate_id));
+            const suggestions = decisions.filter((decision) => !existingCandidateIds.has(decision.candidate_id)).map((decision) => {
+                const canAdd = semanticAssetsForConcept(decision.concept_id).length > 0;
+                return `<section class="rounded-xl border border-dashed ${decision.decision === 'REVIEW' ? 'border-amber-500/50 bg-amber-500/5' : 'border-slate-700 bg-slate-950/30'} p-3 flex items-center justify-between gap-3 text-[11px]">
+                    <span class="min-w-0"><strong class="text-gray-200">${escapeHtml(semanticConceptLabel(decision.concept_id))}</strong><span class="mx-2 text-slate-700">/</span><span class="${decision.decision === 'REVIEW' ? 'text-amber-300' : 'text-gray-500'}">${escapeHtml(decision.decision)}</span><span class="ml-2 text-gray-500">置信度 ${Math.round(Number(decision.confidence || 0) * 100)}%</span></span>
+                    ${canAdd ? `<button type="button" onclick="addSemanticVisualFromDecision('${escapeHtml(decision.candidate_id)}','${escapeHtml(decision.concept_id)}')" class="shrink-0 px-3 py-1.5 rounded-lg border border-brand-primary/40 bg-brand-primary/5 text-brand-accent hover:text-white"><i class="fa-solid fa-plus mr-1"></i>加入本行</button>` : ''}
+                </section>`;
+            });
+            list.innerHTML = [...cards, ...suggestions].join('') || '<div class="rounded-xl border border-slate-700/60 p-5 text-center text-sm text-gray-500">尚无候选。请先点击表格中的“分析语义配图”。</div>';
+            document.getElementById('semantic-visual-summary').textContent = `任务 ${script.rowKey} · ${script.visualAnalysis?.analysis_status || 'NOT_REQUESTED'} · 当前 ${semanticVisualDraft.length} 张配图`;
+            document.getElementById('semantic-visual-library-summary').innerHTML = `<span class="font-semibold text-indigo-200"><i class="fa-solid fa-boxes-stacked mr-1"></i>本地语义图库</span><span>${semanticVisualCatalog?.assets?.length || 0} 张图片</span><span class="text-slate-700">·</span><span>${semanticVisualCatalog?.concepts?.length || 0} 个概念</span><span class="ml-auto text-gray-500">新增或删除图库素材后需重启工作台</span>`;
+        }
+
+        function updateSemanticVisualField(index, field, value) {
+            if (!semanticVisualDraft[index]) return;
+            semanticVisualDraft[index][field] = value;
+            semanticVisualDraft[index].selection_mode = 'manual';
+            semanticVisualDraft[index].manual = true;
+            if (field !== 'locked') semanticVisualDraft[index].locked = true;
+            if (field === 'asset_id') {
+                const asset = (semanticVisualCatalog?.assets || []).find((item) => item.asset_id === value);
+                if (asset) {
+                    semanticVisualDraft[index].asset_name = asset.name;
+                    semanticVisualDraft[index].preview_url = asset.preview_url;
+                }
+            }
+            if (['asset_id', 'enabled', 'locked'].includes(field)) {
+                renderSemanticVisualEditor();
+            }
+        }
+
+        function removeSemanticVisualDraft(index) {
+            if (!semanticVisualDraft[index]) return;
+            semanticVisualDraft.splice(index, 1);
+            renderSemanticVisualEditor();
+        }
+
+        function addSemanticVisualFromDecision(candidateId, conceptId) {
+            const asset = semanticAssetsForConcept(conceptId)[0];
+            if (!asset) return;
+            const script = uploadedScripts.find((item) => item.id === activeSemanticVisualRowId);
+            const mapped = (script?.visualAnalysis?.mapped_candidates || []).find((item) => item.candidate_id === candidateId) || {};
+            semanticVisualDraft.push({
+                overlay_id: `vo_manual_${Date.now()}_${semanticVisualDraft.length}`,
+                candidate_id: candidateId,
+                concept_id: conceptId,
+                asset_id: asset.asset_id,
+                asset_name: asset.name,
+                preview_url: asset.preview_url,
+                enabled: true,
+                selection_mode: 'manual',
+                locked: true,
+                manual: true,
+                corner: asset.default_corner || 'top_right',
+                scale: Number(asset.default_scale || 0.28),
+                opacity: Number(asset.default_opacity ?? 1),
+                start_us: Number(mapped.start_us || 0),
+                duration_us: Number(mapped.duration_us || 1800000)
+            });
+            renderSemanticVisualEditor();
+        }
+
+        async function openSemanticVisualModal(rowId) {
+            const script = uploadedScripts.find((item) => item.id === rowId);
+            if (!script) return;
+            try {
+                await ensureSemanticVisualCatalog();
+                activeSemanticVisualRowId = rowId;
+                semanticVisualDraft = (script.visualAnalysis?.recipe?.overlays || []).map((overlay) => ({ ...overlay }));
+                renderSemanticVisualEditor();
+                const modal = document.getElementById('semantic-visual-modal');
+                modal.classList.remove('opacity-0', 'pointer-events-none');
+                modal.querySelector('.glass-panel-heavy').classList.replace('scale-95', 'scale-100');
+            } catch (error) {
+                showToast('素材目录加载失败', error.message, 'warning');
+            }
+        }
+
+        function closeSemanticVisualModal() {
+            const modal = document.getElementById('semantic-visual-modal');
+            modal.querySelector('.glass-panel-heavy').classList.replace('scale-100', 'scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            activeSemanticVisualRowId = '';
+            semanticVisualDraft = [];
+        }
+
+        async function saveSemanticVisualRecipe() {
+            if (!activeProject || !activeSemanticVisualRowId) return;
+            const button = document.getElementById('semantic-visual-save');
+            button.disabled = true;
+            try {
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${activeSemanticVisualRowId}/visual-overlays`,
+                    {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ revision: activeProject.revision, overlays: semanticVisualDraft })
+                    }
+                );
+                closeSemanticVisualModal();
+                syncProjectInputs(project);
+                showToast('语义配图已冻结', '浏览器动态预览和剪映成片会读取同一份配方。', 'success');
+            } catch (error) {
+                showToast('语义配图保存失败', error.message, 'warning');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
         // Voice selection manual change in table row
         async function handleRowVoiceChange(selectEl) {
             selectEl.setAttribute('data-override', 'true');
@@ -2068,6 +2364,183 @@
                 scheduleAudioStatusPoll();
                 showToast('声音重新生成已提交', '旧音频版本会保留，新版本完成后自动成为当前音频。', 'success');
             } catch (error) { showToast('声音重试失败', error.message, 'warning'); syncProjectInputs(activeProject); }
+        }
+
+        async function runSingleAudio(buttonEl) {
+            const row = buttonEl.closest('tr');
+            const rowId = row?.getAttribute('data-id') || '';
+            const script = uploadedScripts.find(item => item.id === rowId);
+            if (!script || !activeProject) return;
+            if (script.audio) {
+                showToast('已复用当前声音', `任务 ${script.rowKey} 的脚本和音色没有变化，不会重复调用 MiniMax。`, 'success');
+                return;
+            }
+            if (!script.allowedActions?.generate_audio) {
+                showToast('暂时不能生成本条声音', '当前行正在处理，请等待状态更新后再试。', 'warning');
+                return;
+            }
+            const defaultVoice = voicePresets[selectedDefaultVoiceIndex];
+            const selectedVoiceId = row.querySelector('.row-voice-selector')?.value || defaultVoice?.id;
+            if (!defaultVoice || !selectedVoiceId) {
+                showToast('没有可用声音', '请先进入声音克隆中心配置声音。', 'warning');
+                return;
+            }
+            if (!window.confirm(`只为任务 ${script.rowKey} 生成声音并产生 MiniMax 费用；历史版本会保留。是否继续？`)) return;
+            buttonEl.disabled = true;
+            resetRowVideoPreview(row);
+            row.setAttribute('data-voice-status', 'loading');
+            toggleRowAudioStatusUI(row, 'loading');
+            startContentAnalysisForChangedScripts(activeProject.project_id, [row]);
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        default_voice_asset_id: defaultVoice.id,
+                        voice_assignments: { [rowId]: selectedVoiceId },
+                        voice_settings: voicePreferences.voice_settings || {},
+                        item_ids: [rowId],
+                        idempotency_key: `audio-single-${rowId}-${Date.now()}`,
+                        cost_confirmed: true
+                    })
+                });
+                syncProjectInputs(project);
+                scheduleAudioStatusPoll();
+                showToast('本条声音任务已提交', `只处理任务 ${script.rowKey}；其他行会继续复用现有声音。`, 'success');
+            } catch (error) {
+                showToast('本条声音生成失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
+        }
+
+        async function startSinglePostprocess(rowId) {
+            const script = uploadedScripts.find(item => item.id === rowId);
+            if (!script?.baseVideo || !activeProject) return;
+            const config = rowPostprocessConfigs[rowId] || {};
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idempotency_key: `postprocess-single-${rowId}-${Date.now()}`,
+                        items: [{
+                            item_id: rowId,
+                            bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
+                            bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
+                            font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
+                            text_color: config.textColor || '#ffffff'
+                        }]
+                    })
+                });
+                pendingSingleCompositionItemIds.delete(rowId);
+                syncProjectInputs(project);
+                schedulePostprocessStatusPoll();
+                showToast('本条完整预览已生成', `任务 ${script.rowKey} 已添加字幕和所选背景音乐。`, 'success');
+            } catch (error) {
+                pendingSingleCompositionItemIds.delete(rowId);
+                showToast('本条成片处理失败', error.message, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+            }
+        }
+
+        async function runSingleVideo(buttonEl) {
+            const row = buttonEl.closest('tr');
+            const rowId = row?.getAttribute('data-id') || '';
+            const script = uploadedScripts.find(item => item.id === rowId);
+            if (!script || !activeProject) return;
+            if (row.getAttribute('data-video-status') === 'ready') {
+                showToast('已复用当前视频', `任务 ${script.rowKey} 的上游素材和成片配置没有变化，不会重新调用 RunningHub。`, 'success');
+                return;
+            }
+            if (!script.audio) {
+                showToast('请先生成本条声音', '视频必须使用当前脚本对应的真实音频。', 'warning');
+                return;
+            }
+            if (script.baseVideo) {
+                buttonEl.disabled = true;
+                row.setAttribute('data-video-status', 'loading');
+                toggleRowVideoStatusUI(row, 'loading');
+                await startSinglePostprocess(rowId);
+                return;
+            }
+            if (!(script.allowedActions?.start_composition || script.allowedActions?.retry_composition)) {
+                showToast('暂时不能生成本条视频', '当前行正在处理，或缺少已经确认的声音/图片。', 'warning');
+                return;
+            }
+            if (!window.confirm(`只为任务 ${script.rowKey} 调用 RunningHub 生成数字人画面并产生费用，完成后自动添加字幕和 BGM。是否继续？`)) return;
+            buttonEl.disabled = true;
+            row.setAttribute('data-video-status', 'loading');
+            toggleRowVideoStatusUI(row, 'loading');
+            pendingSingleCompositionItemIds.add(rowId);
+            try {
+                const retry = Boolean(script.allowedActions?.retry_composition);
+                const path = retry
+                    ? `/api/new/projects/${activeProject.project_id}/items/${rowId}/composition/retry`
+                    : `/api/new/projects/${activeProject.project_id}/composition/generate`;
+                const body = retry
+                    ? { cost_confirmed: true, idempotency_key: `composition-single-retry-${rowId}-${Date.now()}` }
+                    : { cost_confirmed: true, item_ids: [rowId], idempotency_key: `composition-single-${rowId}-${Date.now()}` };
+                const project = await workspaceApi(path, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+                });
+                syncProjectInputs(project);
+                scheduleCompositionStatusPoll();
+                showToast('本条视频任务已启动', `只处理任务 ${script.rowKey}；完成画面后会自动继续完整预览。`, 'success');
+            } catch (error) {
+                pendingSingleCompositionItemIds.delete(rowId);
+                showToast('本条视频生成失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
+        }
+
+        async function runSingleVariants(buttonEl) {
+            const row = buttonEl.closest('tr');
+            const rowId = row?.getAttribute('data-id') || '';
+            const script = uploadedScripts.find(item => item.id === rowId);
+            if (!script || !activeProject) return;
+            if (rowVariantsCanReuse(script)) {
+                showToast('已复用当前变体', `任务 ${script.rowKey} 的视频、数量、封面和变体规则均未变化，不会重复启动剪映。`, 'success');
+                return;
+            }
+            if (row.getAttribute('data-video-status') !== 'ready' || !script.allowedActions?.generate_variants) {
+                showToast('暂时不能生成本条变体', '请先完成这条视频，且等待当前任务结束。', 'warning');
+                return;
+            }
+            const count = Number(row.querySelector('.row-variant-count')?.value);
+            const cover = rowVariantCovers[rowId];
+            if (!Number.isInteger(count) || count < 1 || count > 500) {
+                showToast('变体数不正确', '本条变体数必须在 1 到 500 之间。', 'warning');
+                return;
+            }
+            if (!cover) {
+                showToast('请先设置本条封面', '封面保持手动模式，请先填写这条视频的封面。', 'warning');
+                editRowVariantCover(row.querySelector('button[onclick="editRowVariantCover(this)"]'));
+                return;
+            }
+            const prefix = script.variants.length ? '配置已改变，将生成一组新变体；旧变体继续保留。' : '';
+            if (!window.confirm(`只为任务 ${script.rowKey} 生成 ${count} 个变体。${prefix}是否继续？`)) return;
+            buttonEl.disabled = true;
+            row.setAttribute('data-variant-status', 'loading');
+            toggleRowVariantStatusUI(row, 'loading');
+            setRowSupplementControls(row, false);
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/variants/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idempotency_key: `variants-single-${rowId}-${Date.now()}`,
+                        settings: globalVariantConfig,
+                        items: [{ item_id: rowId, count, cover }]
+                    })
+                });
+                variantDirtyItemIds.delete(rowId);
+                syncProjectInputs(project);
+                scheduleVariantStatusPoll();
+                showToast('本条变体任务已提交', `只生成任务 ${script.rowKey} 的变体。`, 'success');
+            } catch (error) {
+                showToast('本条变体生成失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
         }
 
         function markRowAudioPreviewReady(row) {
@@ -2191,6 +2664,7 @@
                         cost_confirmed: true
                     })
                 });
+                rows.forEach(row => variantDirtyItemIds.delete(row.getAttribute('data-id')));
                 syncProjectInputs(project);
                 scheduleAudioStatusPoll();
                 showToast('声音任务已进入队列', '脚本分析与声音生成会分别保存；完成后页面会自动显示音频、背景音乐和下载按钮。', 'success');
@@ -2453,6 +2927,11 @@
             if (!Number.isInteger(value) || value < 1 || value > 500) {
                 input.value = 20;
                 showToast("变体数不正确", "每条视频的变体数需要填写 1 到 500 之间的整数。", "warning");
+            }
+            const itemId = input.closest('tr')?.getAttribute('data-id');
+            const script = uploadedScripts.find(item => item.id === itemId);
+            if (itemId && Number(input.value) !== (Number(script?.variantSettings?.count) || 20)) {
+                variantDirtyItemIds.add(itemId);
             }
         }
 
@@ -2865,6 +3344,7 @@
         async function saveRowVariantCover() {
             if (!editingVariantCoverRow) return;
             const itemId = editingVariantCoverRow.getAttribute('data-id');
+            const previousCover = stableJson(rowVariantCovers[itemId] || null);
             rowVariantCovers[itemId] = {
                 enabled: true,
                 frame_time_seconds: 0,
@@ -2881,6 +3361,9 @@
                 text_scale: 1.4,
                 overlay_alpha: 0.5
             };
+            if (previousCover !== stableJson(rowVariantCovers[itemId])) {
+                variantDirtyItemIds.add(itemId);
+            }
             const button = editingVariantCoverRow.querySelector('button[onclick="editRowVariantCover(this)"]');
             button.classList.remove('text-amber-300');
             button.classList.add('text-emerald-300');
@@ -2951,6 +3434,7 @@
         }
 
         async function saveVariantSettings() {
+            const previousConfig = stableJson(globalVariantConfig);
             const mode = document.querySelector('input[name="variant-mode"]:checked').value;
             const useEffects = document.getElementById('variant-use-effects').checked;
             const useStickers = document.getElementById('variant-use-stickers').checked;
@@ -2989,6 +3473,9 @@
             };
 
             globalVariantConfig = mode === 'recommended' ? null : config;
+            if (previousConfig !== stableJson(globalVariantConfig)) {
+                uploadedScripts.forEach(item => variantDirtyItemIds.add(item.id));
+            }
             refreshVariantActionAvailability();
             closeVariantModal();
             if (await persistVariantSettings()) {
@@ -3253,6 +3740,49 @@
             updatePreviewCaptionLayout();
         }
 
+        function updatePreviewSemanticOverlay() {
+            const image = document.getElementById('video-preview-semantic-overlay');
+            if (!isBrowserCompositionPreview()) {
+                image.classList.add('hidden');
+                image.removeAttribute('src');
+                return;
+            }
+            const script = activePreviewScript();
+            const currentUs = document.getElementById('video-preview-local').currentTime * 1_000_000;
+            const overlay = (script?.visualAnalysis?.recipe?.overlays || []).find((item) => {
+                if (item.enabled === false || item.requires_review === true) return false;
+                const startUs = Number(item.start_us || 0);
+                return currentUs >= startUs && currentUs < startUs + Number(item.duration_us || 0);
+            });
+            if (!overlay?.preview_url) {
+                image.classList.add('hidden');
+                image.removeAttribute('src');
+                return;
+            }
+            if (image.getAttribute('src') !== overlay.preview_url) image.src = overlay.preview_url;
+            const video = document.getElementById('video-preview-local');
+            const frame = document.getElementById('video-preview-frame');
+            if (!video.videoWidth || !video.videoHeight) return;
+            const scaleToFrame = Math.min(frame.clientWidth / video.videoWidth, frame.clientHeight / video.videoHeight);
+            const width = video.videoWidth * scaleToFrame;
+            const height = video.videoHeight * scaleToFrame;
+            const left = (frame.clientWidth - width) / 2;
+            const top = (frame.clientHeight - height) / 2;
+            const visualWidth = Math.max(32, width * Number(overlay.scale || 0.28));
+            const marginX = width * 0.04;
+            const marginY = height * 0.04;
+            image.style.width = `${visualWidth}px`;
+            image.style.height = `${visualWidth}px`;
+            image.style.opacity = String(Number(overlay.opacity ?? 1));
+            image.style.left = overlay.corner?.includes('left') ? `${left + marginX}px`
+                : overlay.corner?.includes('right') ? `${left + width - marginX - visualWidth}px`
+                : `${left + (width - visualWidth) / 2}px`;
+            image.style.top = overlay.corner?.startsWith('bottom') ? `${top + height - marginY - visualWidth}px`
+                : overlay.corner?.startsWith('top') ? `${top + marginY}px`
+                : `${top + (height - visualWidth) / 2}px`;
+            image.classList.remove('hidden');
+        }
+
         function stopPreviewBgm() {
             previewBgmAudio.pause();
         }
@@ -3327,6 +3857,7 @@
                 previewBgmAudio.load();
             }
             updatePreviewCaption();
+            updatePreviewSemanticOverlay();
             if (!document.getElementById('video-preview-local').paused) void playPreviewBgm();
         }
 
@@ -3335,6 +3866,7 @@
             previewVideoElement.addEventListener(eventName, () => {
                 updatePreviewVideoTimeline();
                 updatePreviewCaption();
+                updatePreviewSemanticOverlay();
                 if (eventName === 'loadedmetadata') syncPreviewBgm(true);
                 else if (eventName === 'timeupdate') syncPreviewBgm(false);
             });
@@ -3351,12 +3883,14 @@
         previewVideoElement.addEventListener('seeked', () => {
             syncPreviewBgm(true);
             updatePreviewCaption();
+            updatePreviewSemanticOverlay();
         });
         previewVideoElement.addEventListener('ended', () => {
             stopPreviewBgm();
             syncPreviewPlayButtonState();
             updatePreviewVideoTimeline();
             updatePreviewCaption();
+            updatePreviewSemanticOverlay();
         });
         document.getElementById('video-preview-progress-track').addEventListener('click', (event) => {
             if (!Number.isFinite(previewVideoElement.duration) || previewVideoElement.duration <= 0) return;
@@ -3364,7 +3898,10 @@
             const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
             previewVideoElement.currentTime = previewVideoElement.duration * ratio;
         });
-        window.addEventListener('resize', updatePreviewCaptionLayout);
+        window.addEventListener('resize', () => {
+            updatePreviewCaptionLayout();
+            updatePreviewSemanticOverlay();
+        });
 
         function openVideoModal(rowId = '001', imageSrc = '') {
             const modal = document.getElementById('video-modal');
@@ -3407,6 +3944,7 @@
             stopPreviewBgm();
             syncPreviewPlayButtonState();
             document.getElementById('video-preview-caption').classList.add('hidden');
+            document.getElementById('video-preview-semantic-overlay').classList.add('hidden');
             modal.querySelector('.transform').classList.remove('scale-100');
             modal.querySelector('.transform').classList.add('scale-95');
             modal.classList.add('opacity-0', 'pointer-events-none');
@@ -3773,6 +4311,35 @@
             text.textContent = `${percent}%`;
         }
 
+        async function continueSingleVideoAfterComposition() {
+            if (isStartingSinglePostprocess || !pendingSingleCompositionItemIds.size) return;
+            let started = false;
+            for (const itemId of Array.from(pendingSingleCompositionItemIds)) {
+                const item = uploadedScripts.find(candidate => candidate.id === itemId);
+                if (!item) {
+                    pendingSingleCompositionItemIds.delete(itemId);
+                    continue;
+                }
+                if (item.compositionStatus === 'COMPOSITION_FAILED') {
+                    pendingSingleCompositionItemIds.delete(itemId);
+                    showToast('本条画面生成失败', `任务 ${item.rowKey} 可点击单条视频按钮重试失败阶段。`, 'warning');
+                    continue;
+                }
+                if (!item.baseVideo) continue;
+                isStartingSinglePostprocess = true;
+                started = true;
+                try {
+                    await startSinglePostprocess(itemId);
+                } finally {
+                    isStartingSinglePostprocess = false;
+                }
+                break;
+            }
+            if (started && pendingSingleCompositionItemIds.size) {
+                setTimeout(() => { void continueSingleVideoAfterComposition(); }, 0);
+            }
+        }
+
         function scheduleCompositionStatusPoll() {
             clearTimeout(compositionStatusPollTimer);
             updateCompositionProgress();
@@ -3782,6 +4349,9 @@
             isGeneratingComposition = active;
             refreshAudioStageActions();
             if (!active || !activeProject) {
+                if (!active && activeProject && pendingSingleCompositionItemIds.size) {
+                    setTimeout(() => { void continueSingleVideoAfterComposition(); }, 0);
+                }
                 if (!active && activeProject && finalGenerationPhase === 'composition') {
                     setTimeout(() => { void continueFinalGenerationAfterComposition(); }, 0);
                 }

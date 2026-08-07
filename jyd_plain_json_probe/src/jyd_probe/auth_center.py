@@ -150,6 +150,23 @@ class AuthCenterClient:
             timeout_seconds=360.0,
         )
 
+    def analyze_workbench_visuals(
+        self,
+        token: str,
+        payload: dict[str, Any],
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/visual-analysis",
+            {
+                "access_token": token,
+                **payload,
+                "force_refresh": force_refresh,
+            },
+            timeout_seconds=360.0,
+        )
+
     def start_workbench_composition(
         self,
         token: str,
@@ -159,16 +176,28 @@ class AuthCenterClient:
         idempotency_key: str,
         image_asset_id: str,
         correlation_id: str = "",
+        runninghub_execution_account_ids: list[int] | None = None,
     ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "access_token": token,
+            "cost_confirmed": True,
+            "idempotency_key": idempotency_key,
+            "image_asset_id": image_asset_id,
+            "correlation_id": correlation_id,
+        }
+        if runninghub_execution_account_ids is not None:
+            payload["runninghub_execution_account_ids"] = list(
+                runninghub_execution_account_ids
+            )
         return self._post(
             f"/api/workbench/audio-batches/{batch_id}/items/{item_id}/composition",
-            {
-                "access_token": token,
-                "cost_confirmed": True,
-                "idempotency_key": idempotency_key,
-                "image_asset_id": image_asset_id,
-                "correlation_id": correlation_id,
-            },
+            payload,
+        )
+
+    def list_workbench_execution_accounts(self, token: str) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/runninghub-execution-accounts",
+            {"access_token": token},
         )
 
     def retry_workbench_composition(
@@ -238,6 +267,24 @@ class AuthCenterClient:
         return self._post(
             f"/api/workbench/voice-creations/{task_id}/save",
             {"access_token": token},
+        )
+
+    def import_workbench_voice(
+        self,
+        token: str,
+        *,
+        voice_id: str,
+        name: str,
+        already_activated: bool,
+    ) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/voices/import",
+            {
+                "access_token": token,
+                "voice_id": voice_id,
+                "name": name,
+                "already_activated": already_activated,
+            },
         )
 
     def activate_workbench_voice(

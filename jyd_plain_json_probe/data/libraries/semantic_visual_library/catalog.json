@@ -1,0 +1,113 @@
+{
+  "schema": "jyd.semantic-visual-catalog.v1",
+  "concepts": [
+    {
+      "concept_id": "food.egg",
+      "label": "鸡蛋",
+      "description": "作为食物、食材或明确餐食示例出现的鸡蛋",
+      "aliases": ["水煮蛋", "煮鸡蛋", "鸡蛋", "蛋类"]
+    },
+    {
+      "concept_id": "food.corn",
+      "label": "玉米",
+      "description": "作为食物、食材或明确餐食示例出现的玉米",
+      "aliases": ["玉米棒", "玉米"]
+    },
+    {
+      "concept_id": "food.sweet_potato",
+      "label": "红薯",
+      "description": "作为食物、食材或明确餐食示例出现的红薯或地瓜",
+      "aliases": ["烤红薯", "红薯", "地瓜", "番薯"]
+    },
+    {
+      "concept_id": "food.oat",
+      "label": "燕麦",
+      "description": "作为食物、食材或明确餐食示例出现的燕麦",
+      "aliases": ["燕麦片", "燕麦"]
+    },
+    {
+      "concept_id": "food.soy_milk",
+      "label": "豆浆",
+      "description": "作为饮品或明确餐食示例出现的豆浆",
+      "aliases": ["无糖豆浆", "豆浆"]
+    },
+    {
+      "concept_id": "food.vegetable",
+      "label": "蔬菜",
+      "description": "作为食物、食材或明确餐食示例出现的蔬菜或青菜",
+      "aliases": ["绿叶蔬菜", "蔬菜", "青菜"]
+    }
+  ],
+  "assets": [
+    {
+      "asset_id": "egg.boiled.01",
+      "concept_id": "food.egg",
+      "name": "水煮鸡蛋",
+      "bundle": "bundles/egg_boiled",
+      "image": "bundles/egg_boiled/resources/sticker/singleImage.png",
+      "default_corner": "top_right",
+      "default_scale": 0.28,
+      "default_opacity": 1.0
+    },
+    {
+      "asset_id": "egg.carton.02",
+      "concept_id": "food.egg",
+      "name": "一盒鸡蛋",
+      "bundle": "bundles/egg_carton",
+      "image": "bundles/egg_carton/resources/sticker/singleImage.png",
+      "default_corner": "top_left",
+      "default_scale": 0.25,
+      "default_opacity": 1.0
+    },
+    {
+      "asset_id": "corn.cob.01",
+      "concept_id": "food.corn",
+      "name": "玉米棒",
+      "bundle": "bundles/corn",
+      "image": "bundles/corn/resources/sticker/singleImage.png",
+      "default_corner": "top_right",
+      "default_scale": 0.28,
+      "default_opacity": 1.0
+    },
+    {
+      "asset_id": "sweet_potato.roasted.01",
+      "concept_id": "food.sweet_potato",
+      "name": "烤红薯",
+      "bundle": "bundles/sweet_potato",
+      "image": "bundles/sweet_potato/resources/sticker/singleImage.png",
+      "default_corner": "top_left",
+      "default_scale": 0.28,
+      "default_opacity": 1.0
+    },
+    {
+      "asset_id": "oat.stalk.01",
+      "concept_id": "food.oat",
+      "name": "燕麦穗",
+      "bundle": "bundles/oat",
+      "image": "bundles/oat/resources/sticker/singleImage.png",
+      "default_corner": "top_right",
+      "default_scale": 0.27,
+      "default_opacity": 1.0
+    },
+    {
+      "asset_id": "soy_milk.glass.01",
+      "concept_id": "food.soy_milk",
+      "name": "豆浆",
+      "bundle": "bundles/soy_milk",
+      "image": "bundles/soy_milk/resources/sticker/singleImage.png",
+      "default_corner": "top_left",
+      "default_scale": 0.27,
+      "default_opacity": 1.0
+    },
+    {
+      "asset_id": "vegetable.greens.01",
+      "concept_id": "food.vegetable",
+      "name": "绿叶蔬菜",
+      "bundle": "bundles/vegetable",
+      "image": "bundles/vegetable/resources/sticker/singleImage.png",
+      "default_corner": "top_right",
+      "default_scale": 0.28,
+      "default_opacity": 1.0
+    }
+  ]
+}

@@ -285,6 +285,49 @@ class ProjectAudioApiTest(unittest.TestCase):
                 )
                 self.assertEqual(invalid.status_code, 422)
 
+    def test_existing_voice_id_is_proxied_to_current_digital_human_account(self) -> None:
+        user = {"user_id": "voice-import-user", "username": "tester", "enabled": True}
+        imported_voice = {
+            "voice_asset_id": "imported-voice-asset",
+            "provider_voice_id": "ImportedCloneVoice01",
+            "name": "抽卡音色",
+            "source": "custom",
+            "method": "clone",
+            "selectable": False,
+            "activation_required": True,
+        }
+        with patch(
+            "jyd_probe.auth_center.AuthCenterClient.login",
+            return_value={"access_token": "voice-token", "user": user},
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.verify", return_value=user
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.import_workbench_voice",
+            return_value=imported_voice,
+        ) as imported:
+            with TestClient(create_app(self.settings)) as client:
+                client.post(
+                    "/api/auth/login",
+                    json={"username": "tester", "password": "pass123"},
+                )
+                response = client.post(
+                    "/api/new/voices/import",
+                    json={
+                        "voice_id": "ImportedCloneVoice01",
+                        "name": "抽卡音色",
+                        "already_activated": True,
+                    },
+                )
+
+        self.assertEqual(response.status_code, 201, response.text)
+        self.assertFalse(response.json()["selectable"])
+        imported.assert_called_once_with(
+            "voice-token",
+            voice_id="ImportedCloneVoice01",
+            name="抽卡音色",
+            already_activated=True,
+        )
+
     def test_unactivated_voice_cannot_be_selected_and_used_voice_cannot_be_deleted(self) -> None:
         user = {"user_id": "voice-user", "username": "tester", "enabled": True}
         unactivated = {
@@ -539,6 +582,23 @@ class ProjectAudioApiTest(unittest.TestCase):
                 hashlib.sha256("第一条真实声音。".encode("utf-8")).hexdigest(),
             )
             self.assertTrue(row["allowed_actions"]["replace_image"])
+            reused = client.post(
+                f"/api/new/projects/{project_id}/audio/generate",
+                json={
+                    "default_voice_asset_id": "official-voice-1",
+                    "voice_assignments": {row["item_id"]: "official-voice-1"},
+                    "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
+                    "item_ids": [row["item_id"]],
+                    "idempotency_key": "audio-single-reuse-1",
+                    "cost_confirmed": True,
+                },
+            )
+            self.assertEqual(reused.status_code, 200, reused.text)
+            self.assertEqual(
+                reused.json()["items"][0]["outputs"]["audio"]["asset_id"],
+                row["outputs"]["audio"]["asset_id"],
+            )
+            self.assertEqual(len(created_payloads), 1)
             replacement = client.post(
                 f"/api/new/projects/{project_id}/images?filename=after-audio.png",
                 content=PNG_1X1,

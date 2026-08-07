@@ -105,12 +105,45 @@ class ProjectAudioCoordinator:
         voice_assignments: dict[str, str] | None,
         settings: dict[str, Any] | None,
         idempotency_key: str,
+        item_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
-        if not project["allowed_actions"]["generate_audio"]:
-            raise ValueError("当前项目状态不能开始声音生成")
         if not idempotency_key.strip():
             raise ValueError("声音生成请求缺少幂等键")
+
+        requested_ids: list[str] | None = None
+        if item_ids is not None:
+            requested_ids = [str(value or "").strip() for value in item_ids]
+            if (
+                not requested_ids
+                or any(not value for value in requested_ids)
+                or len(set(requested_ids)) != len(requested_ids)
+            ):
+                raise ValueError("单条声音生成必须指定非空且不重复的脚本行 ID")
+            by_id = {str(item["item_id"]): item for item in project["items"]}
+            missing = [value for value in requested_ids if value not in by_id]
+            if missing:
+                raise KeyError("项目脚本行不存在")
+            selected_items = [by_id[value] for value in requested_ids]
+            blocked = [
+                item for item in selected_items
+                if not item.get("allowed_actions", {}).get("generate_audio")
+            ]
+            if blocked:
+                raise ValueError(f"任务 {blocked[0]['row_key']} 正在生成，暂时不能生成声音")
+            # An explicit row request is a smart action: a still-current audio
+            # asset is reused instead of creating another paid TTS version.
+            selected_items = [
+                item for item in selected_items
+                if item.get("outputs", {}).get("audio") is None
+            ]
+            if not selected_items:
+                return project
+        else:
+            if not project["allowed_actions"]["generate_audio"]:
+                raise ValueError("当前项目状态不能开始声音生成")
+            selected_items = project["items"]
+
         library = self.client.list_workbench_voices(token)
         available_ids = {
             str(voice.get("voice_asset_id") or "")
@@ -137,23 +170,27 @@ class ProjectAudioCoordinator:
 
         pending_items = [
             item
-            for item in project["items"]
+            for item in selected_items
             if item.get("status") in {"DRAFT", "AUDIO_FAILED"}
         ]
-        target_items = pending_items or [
-            item
-            for item in project["items"]
-            if item.get("status") not in {
-                "AUDIO_QUEUED",
-                "AUDIO_RUNNING",
-                "COMPOSITION_QUEUED",
-                "DIGITAL_HUMAN_RUNNING",
-                "VIDEO_MERGING",
-                "POSTPROCESS_RUNNING",
-                "VARIANT_QUEUED",
-                "VARIANT_RUNNING",
-            }
-        ]
+        target_items = (
+            selected_items
+            if requested_ids is not None
+            else pending_items or [
+                item
+                for item in selected_items
+                if item.get("status") not in {
+                    "AUDIO_QUEUED",
+                    "AUDIO_RUNNING",
+                    "COMPOSITION_QUEUED",
+                    "DIGITAL_HUMAN_RUNNING",
+                    "VIDEO_MERGING",
+                    "POSTPROCESS_RUNNING",
+                    "VARIANT_QUEUED",
+                    "VARIANT_RUNNING",
+                }
+            ]
+        )
         if not target_items:
             raise ValueError("当前项目没有可创建新声音版本的脚本行")
 

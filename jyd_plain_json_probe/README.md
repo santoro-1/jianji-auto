@@ -253,3 +253,18 @@ D:\Myanaconda\python.exe .\tools\library\export_audio_library.py `
 ```
 
 默认输出会进入 `data\libraries` 下对应的素材库。
+
+新版工作台表格每行提供声音、完整视频和变体三个“单条生成”控制。当前产物仍与输入配置
+一致时点击只选择复用，不会重复调用 MiniMax、RunningHub 或剪映；修改脚本、音色、图片、
+字幕/BGM 或变体配置后，同一按钮会生成该行的新版本。底部项目级批量按钮继续保留。
+
+## 语义前景图片 MVP
+
+受控素材目录位于 `data/libraries/semantic_visual_library`，当前包含鸡蛋（两张）、玉米、
+红薯、燕麦、豆浆和蔬菜共 7 个剪映贴纸包。新版工作台逐行召回关键词、请求数字人网站做
+语境消歧、使用 MiniMax `raw_cues` 映射时间，并提供关闭、同概念换图、左上/右上位置、
+尺寸、透明度、开始时间、持续时间和人工锁定。浏览器预览与本地 4B 剪映成片读取同一份
+冻结配方；贴图失败不会中止其他成片步骤。
+
+素材库新增、停用和历史引用保护见
+[`docs/SEMANTIC_VISUAL_LIBRARY.md`](docs/SEMANTIC_VISUAL_LIBRARY.md)。

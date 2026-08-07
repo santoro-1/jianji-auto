@@ -8,32 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdn.staticfile.net/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Outfit', 'Noto Sans SC', 'sans-serif'],
-                    },
-                    colors: {
-                        brand: {
-                            deep: '#030712',
-                            dark: '#0b0f19',
-                            card: 'rgba(17, 24, 39, 0.65)',
-                            primary: '#6366f1',
-                            secondary: '#a855f7',
-                            accent: '#06b6d4',
-                            success: '#10b981',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- Locally bundled UI styles: the voice center must remain usable offline. -->
+    <link rel="stylesheet" href="/app-static/new/tailwind.generated.css">
+    <link rel="stylesheet" href="/app-static/new/vendor/fontawesome/css/all.min.css">
     <style>
         body {
             background: radial-gradient(circle at 50% 0%, #171d3d 0%, #0a0e24 50%, #030712 100%);
@@ -208,6 +185,25 @@
                         <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>
                         生成克隆试听
                     </button>
+
+                    <div class="mt-5 pt-5 border-t border-white/5">
+                        <h4 class="font-bold text-xs text-white flex items-center gap-2 mb-1.5">
+                            <i class="fa-solid fa-keyboard text-brand-accent"></i>
+                            已有 MiniMax voice_id
+                        </h4>
+                        <p class="text-[10px] text-gray-400 leading-relaxed mb-3">如果你已经通过外部克隆工具拿到 voice_id，可直接登记到当前声音库。导入本身不合成语音、不触发 ¥9.9；导入后仍需手动点击“激活”。</p>
+                        <div class="space-y-2.5">
+                            <input type="text" id="import-voice-id" autocomplete="off" placeholder="粘贴完整 voice_id" class="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-brand-accent rounded-lg px-3 py-2 text-xs text-gray-200 outline-none transition-colors">
+                            <input type="text" id="import-voice-name" value="我的克隆声音" placeholder="声音名称" class="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 focus:border-brand-accent rounded-lg px-3 py-2 text-xs text-gray-200 outline-none transition-colors">
+                            <label class="flex items-start gap-2 text-[10px] text-emerald-300 leading-relaxed rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+                                <input id="import-voice-already-activated" type="checkbox" checked class="mt-0.5">
+                                <span>该 voice_id 已经在当前 MiniMax 账号成功调用过 T2A。勾选后直接设为可用，导入过程不会再次调用 T2A。</span>
+                            </label>
+                            <button id="import-existing-voice" type="button" onclick="importExistingVoice()" class="w-full py-2.5 rounded-xl bg-brand-primary/20 border border-brand-primary/40 hover:bg-brand-primary/30 text-brand-accent font-bold text-xs transition-all">
+                                <i class="fa-solid fa-file-import mr-1.5"></i>导入到声音库
+                            </button>
+                        </div>
+                    </div>
 
                     <div id="voice-task-list" class="mt-5 space-y-2 max-h-[420px] overflow-y-auto pr-1">
                         <div class="rounded-xl border border-slate-800 bg-slate-950/30 p-3 text-[10px] text-gray-500">还没有声音制作记录。提交后会在这里显示真实任务状态、试听和保存按钮。</div>
@@ -718,6 +714,46 @@
             }
         }
 
+        async function importExistingVoice() {
+            const voiceIdInput = document.getElementById('import-voice-id');
+            const nameInput = document.getElementById('import-voice-name');
+            const button = document.getElementById('import-existing-voice');
+            const voiceId = voiceIdInput.value.trim();
+            const name = nameInput.value.trim();
+            const alreadyActivated = document.getElementById('import-voice-already-activated').checked;
+            if (!voiceId) {
+                showToast('请输入 voice_id', '请粘贴外部克隆工具返回的完整 MiniMax voice_id。', 'warning');
+                return;
+            }
+            if (!name) {
+                showToast('请输入声音名称', '声音名称用于在核心工作台中识别这个音色。', 'warning');
+                return;
+            }
+            button.disabled = true;
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>正在核对并导入';
+            try {
+                await voiceApi('/api/new/voices/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voice_id: voiceId, name, already_activated: alreadyActivated })
+                });
+                voiceIdInput.value = '';
+                showToast(
+                    'voice_id 已导入',
+                    alreadyActivated
+                        ? '已按外部 T2A 状态直接设为可用，本次导入没有调用 MiniMax T2A。'
+                        : '音色已加入声音库但尚未激活；需要使用时再点击音色卡上的“激活”。',
+                    'success'
+                );
+                await loadVoiceCenter();
+            } catch (error) {
+                showToast('voice_id 导入失败', error.message, 'warning');
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i class="fa-solid fa-file-import mr-1.5"></i>导入到声音库';
+            }
+        }
+
         function renderVoiceCards() {
             const grid = document.getElementById('voice-library-grid');
             const defaultId = voiceCenterState.preferences?.default_voice_asset_id;
@@ -746,7 +782,7 @@
                             <div class="flex items-center gap-2 shrink-0">
                                 ${isCustom && !isActivated ? `<button onclick="activateSavedVoice('${safeVoiceText(voice.voice_asset_id)}')" class="px-2.5 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[9px] font-bold text-amber-300 hover:bg-amber-500/20"><i class="fa-solid fa-bolt mr-1"></i>激活</button>` : ''}
                                 ${isCustom ? `<button onclick="deleteSavedVoice('${safeVoiceText(voice.voice_asset_id)}')" class="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20" title="删除音色"><i class="fa-solid fa-trash-can text-[10px]"></i></button>` : ''}
-                                <button onclick="playRealVoicePreview('${safeVoiceText(voice.voice_asset_id)}', ${voice.preview_available ? 'true' : 'false'}, this)" class="w-8 h-8 rounded-full bg-brand-primary/20 text-brand-accent hover:bg-brand-primary/30"><i class="fa-solid fa-play"></i></button>
+                                ${isCustom && !voice.preview_available ? `<span class="w-8 h-8 rounded-full bg-slate-900 border border-slate-800 text-gray-600 flex items-center justify-center" title="导入音色激活后会生成试听"><i class="fa-solid fa-play"></i></span>` : `<button onclick="playRealVoicePreview('${safeVoiceText(voice.voice_asset_id)}', ${voice.preview_available ? 'true' : 'false'}, this)" class="w-8 h-8 rounded-full bg-brand-primary/20 text-brand-accent hover:bg-brand-primary/30"><i class="fa-solid fa-play"></i></button>`}
                             </div>
                         </div>
                     </div>`;

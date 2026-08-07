@@ -9,6 +9,7 @@ from itertools import combinations, product
 import json
 import logging
 from math import gcd
+import mimetypes
 import os
 from pathlib import Path, PurePosixPath
 import queue as queue_module
@@ -42,6 +43,7 @@ from .logging_config import log_event
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
+from .project_visual_analysis import ProjectVisualAnalysisCoordinator
 from .project_composition import ProjectCompositionCoordinator
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
@@ -51,6 +53,7 @@ from .project_results import ProjectResultLibrary
 from .project_variants import ProjectVariantCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
+from .semantic_visuals import load_semantic_visual_catalog
 from .subtitles import (
     build_caption_cues,
     caption_cues_from_payload,
@@ -99,6 +102,12 @@ STICKER_LIBRARY_ROOT = Path(
 CORNER_STICKER_LIBRARY_ROOT = Path(
     os.environ.get(
         "JYD_CORNER_STICKER_LIBRARY_ROOT", LIBRARIES_ROOT / "corner_sticker_library"
+    )
+).expanduser().resolve()
+SEMANTIC_VISUAL_LIBRARY_ROOT = Path(
+    os.environ.get(
+        "JYD_SEMANTIC_VISUAL_LIBRARY_ROOT",
+        LIBRARIES_ROOT / "semantic_visual_library",
     )
 ).expanduser().resolve()
 
@@ -1587,9 +1596,15 @@ def default_settings() -> WebApiSettings:
 
 
 def create_app(settings: WebApiSettings | None = None) -> FastAPI:
+    # Windows may otherwise expose WOFF2 files as text/plain, which causes
+    # browsers to reject the locally bundled Font Awesome icon font.
+    mimetypes.add_type("font/woff2", ".woff2")
     settings = settings or default_settings()
     print(f"[JYD] 剪映草稿目录: {settings.default_draft_root}", flush=True)
     app = FastAPI(title="Jianying Render API", version="0.1.0")
+    semantic_visual_catalog = load_semantic_visual_catalog(
+        SEMANTIC_VISUAL_LIBRARY_ROOT
+    )
     admin_auth = AdminAuth(
         settings.storage_root,
         username=settings.admin_username,
@@ -1872,7 +1887,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "auth_center_online": center_online,
         }
 
-    def current_project_user(request: Request) -> dict[str, str]:
+    def current_project_user(request: Request) -> dict[str, Any]:
         """Return the ordinary digital-human account behind this session.
 
         Local technical administrators may access maintenance pages, but they
@@ -1893,6 +1908,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         return {
             "user_id": user_id,
             "username": str(user.get("username") or "").strip(),
+            "is_admin": user.get("is_admin") is True,
         }
 
     @app.post("/api/new/projects", status_code=201)
@@ -2277,6 +2293,143 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             ),
         )
 
+    def project_visual_analysis_coordinator(
+        client: AuthCenterClient,
+    ) -> ProjectVisualAnalysisCoordinator:
+        return ProjectVisualAnalysisCoordinator(
+            project_store,
+            client,
+            semantic_visual_catalog,
+            max_concurrency=10,
+        )
+
+    @app.get("/api/new/semantic-visuals/catalog")
+    def new_semantic_visual_catalog(request: Request) -> dict[str, Any]:
+        current_project_user(request)
+        return semantic_visual_catalog.public_payload()
+
+    @app.get("/api/new/semantic-visuals/{asset_id}/preview")
+    def new_semantic_visual_preview(asset_id: str, request: Request) -> FileResponse:
+        current_project_user(request)
+        asset = semantic_visual_catalog.asset(asset_id)
+        if asset is None:
+            raise HTTPException(status_code=404, detail="语义图片素材不存在")
+        return FileResponse(Path(asset["image_path"]), media_type="image/png")
+
+    @app.post("/api/new/projects/{project_id}/visual-analysis")
+    def analyze_new_project_visuals(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(default={}),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        raw_item_ids = payload.get("item_ids")
+        if raw_item_ids is not None and not isinstance(raw_item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是数组")
+        if isinstance(raw_item_ids, list) and not raw_item_ids:
+            raise HTTPException(status_code=422, detail="item_ids 不能为空数组")
+        if type(payload.get("force_refresh", False)) is not bool:
+            raise HTTPException(status_code=422, detail="force_refresh 必须是布尔值")
+        try:
+            return project_visual_analysis_coordinator(client).analyze(
+                user["user_id"],
+                project_id,
+                token,
+                item_ids=(
+                    [str(item_id) for item_id in raw_item_ids]
+                    if isinstance(raw_item_ids, list)
+                    else None
+                ),
+                force_refresh=payload.get("force_refresh") is True,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/visual-analysis/retry"
+    )
+    def retry_new_project_item_visual_analysis(
+        project_id: str,
+        item_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_visual_analysis_coordinator(client).analyze(
+                user["user_id"],
+                project_id,
+                token,
+                item_ids=[item_id],
+                force_refresh=True,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put(
+        "/api/new/projects/{project_id}/items/{item_id}/visual-overlays"
+    )
+    def update_new_project_item_visual_overlays(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        overlays = payload.get("overlays")
+        if not isinstance(overlays, list):
+            raise HTTPException(status_code=422, detail="overlays 必须是数组")
+        normalized: list[dict[str, Any]] = []
+        for raw in overlays:
+            if not isinstance(raw, dict):
+                raise HTTPException(status_code=422, detail="语义贴图必须是对象")
+            asset = semantic_visual_catalog.asset(str(raw.get("asset_id") or ""))
+            if asset is None or asset["concept_id"] != str(raw.get("concept_id") or ""):
+                raise HTTPException(status_code=422, detail="语义贴图素材与概念不匹配")
+            normalized.append(
+                {
+                    key: raw.get(key)
+                    for key in (
+                        "overlay_id",
+                        "candidate_id",
+                        "concept_id",
+                        "asset_id",
+                        "enabled",
+                        "locked",
+                        "corner",
+                        "scale",
+                        "opacity",
+                        "start_us",
+                        "duration_us",
+                    )
+                }
+                | {
+                    "asset_name": asset["name"],
+                    "preview_url": asset["preview_url"],
+                    "bundle_path": asset["bundle_path"],
+                }
+            )
+        try:
+            return project_store.update_item_visual_overlays(
+                user["user_id"],
+                project_id,
+                item_id,
+                overlays=normalized,
+                expected_revision=int(payload.get("revision")),
+                catalog_version=semantic_visual_catalog.catalog_version,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ProjectRevisionConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.post("/api/new/projects/{project_id}/content-analysis")
     def analyze_new_project_content(
         project_id: str,
@@ -2493,6 +2646,21 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return {"ok": True, "preferences": preferences}
+
+    @app.post("/api/new/voices/import", status_code=201)
+    def import_new_voice(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        try:
+            return client.import_workbench_voice(
+                token,
+                voice_id=str(payload.get("voice_id") or ""),
+                name=str(payload.get("name") or ""),
+                already_activated=payload.get("already_activated") is True,
+            )
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     @app.post("/api/new/voices/{voice_asset_id}/preview")
     def create_new_voice_preview(
@@ -2724,6 +2892,14 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         client, token = digital_human_access(request)
         if payload.get("cost_confirmed") is not True:
             raise HTTPException(status_code=409, detail="请确认声音生成会产生 MiniMax 费用")
+        item_ids = payload.get("item_ids")
+        if item_ids is not None and (
+            not isinstance(item_ids, list)
+            or not item_ids
+            or not all(isinstance(item_id, str) and item_id.strip() for item_id in item_ids)
+            or len(set(item_ids)) != len(item_ids)
+        ):
+            raise HTTPException(status_code=422, detail="脚本行 ID 必须是非空且不重复的字符串列表")
         coordinator = project_audio_coordinator(client)
         try:
             return coordinator.start(
@@ -2742,6 +2918,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     else {}
                 ),
                 idempotency_key=str(payload.get("idempotency_key") or ""),
+                item_ids=list(item_ids) if item_ids is not None else None,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
@@ -2817,6 +2994,22 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             filename=str(audio.get("filename") or f"{item['row_key']}.mp3"),
         )
 
+    @app.get("/api/new/runninghub-execution-accounts")
+    def new_workbench_runninghub_execution_accounts(
+        request: Request,
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        if user.get("is_admin") is not True:
+            raise HTTPException(
+                status_code=403,
+                detail="只有管理员可以查看 RunningHub 执行账号资源池",
+            )
+        client, token = digital_human_access(request)
+        try:
+            return client.list_workbench_execution_accounts(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
     @app.post("/api/new/projects/{project_id}/composition/generate")
     def generate_new_project_composition(
         project_id: str,
@@ -2830,12 +3023,49 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 status_code=409,
                 detail="请确认画面生成会产生 RunningHub 费用",
             )
+        item_ids = payload.get("item_ids")
+        if item_ids is not None and (
+            not isinstance(item_ids, list)
+            or not item_ids
+            or not all(isinstance(item_id, str) and item_id.strip() for item_id in item_ids)
+            or len(set(item_ids)) != len(item_ids)
+        ):
+            raise HTTPException(status_code=422, detail="脚本行 ID 必须是非空且不重复的字符串列表")
+        selection_provided = "runninghub_execution_account_ids" in payload
+        selected_account_ids = payload.get("runninghub_execution_account_ids")
+        if selection_provided and (
+            not isinstance(selected_account_ids, list)
+            or not selected_account_ids
+            or any(
+                type(account_id) is not int or account_id <= 0
+                for account_id in selected_account_ids
+            )
+            or len(set(selected_account_ids)) != len(selected_account_ids)
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="RunningHub 执行账号 ID 必须是非空且不重复的正整数列表",
+            )
+        if user.get("is_admin") is True and not selection_provided:
+            raise HTTPException(
+                status_code=422,
+                detail="管理员画面生成必须至少选择一个 RunningHub 执行账号",
+            )
+        if user.get("is_admin") is not True and selection_provided:
+            raise HTTPException(
+                status_code=403,
+                detail="普通用户不能指定 RunningHub 执行账号资源池",
+            )
         try:
             return project_composition_coordinator(client).start(
                 user["user_id"],
                 project_id,
                 token,
                 idempotency_key=str(payload.get("idempotency_key") or ""),
+                runninghub_execution_account_ids=(
+                    list(selected_account_ids) if selection_provided else None
+                ),
+                item_ids=list(item_ids) if item_ids is not None else None,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc

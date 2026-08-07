@@ -16,6 +16,7 @@ from .project_postprocess import (
     CAPTION_STROKE_COLOR,
     CAPTION_STROKE_WIDTH,
 )
+from .semantic_visuals import frozen_visual_overlays
 
 
 VARIANT_OPERATION_TYPES = {
@@ -239,10 +240,13 @@ class ProjectVariantCoordinator:
         supplied = {
             str(item.get("item_id") or ""): item
             for item in items
-            if isinstance(item, dict)
+            if isinstance(item, dict) and str(item.get("item_id") or "").strip()
         }
-        if set(supplied) != {str(item["item_id"]) for item in project["items"]}:
-            raise ValueError("生成变体必须一次提交项目中的全部脚本行")
+        if not supplied or len(supplied) != len(items):
+            raise ValueError("变体生成必须指定非空且不重复的脚本行")
+        project_items = {str(item["item_id"]): item for item in project["items"]}
+        if not set(supplied).issubset(project_items):
+            raise KeyError("项目脚本行不存在")
         requests = [
             {
                 "item_id": item["item_id"],
@@ -250,6 +254,7 @@ class ProjectVariantCoordinator:
                 "cover": supplied[str(item["item_id"])].get("cover"),
             }
             for item in project["items"]
+            if str(item["item_id"]) in supplied
         ]
         project = self.store.configure_variant_settings(
             owner_user_id,
@@ -864,6 +869,7 @@ class ProjectVariantCoordinator:
                     "volume": 0.3,
                 }
             ]
+        job["visual_overlays"] = frozen_visual_overlays(item)
         return {
             "job": job,
             "font_identity": font_identity or None,

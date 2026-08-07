@@ -8,32 +8,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdn.staticfile.net/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Outfit', 'Noto Sans SC', 'sans-serif'],
-                    },
-                    colors: {
-                        brand: {
-                            deep: '#030712',
-                            dark: '#05070f',
-                            card: 'rgba(10, 15, 30, 0.45)',
-                            primary: '#6366f1',
-                            secondary: '#a855f7',
-                            accent: '#06b6d4',
-                            success: '#10b981',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- Locally bundled UI styles: login must not depend on public CDNs. -->
+    <link rel="stylesheet" href="/app-static/new/tailwind.generated.css">
+    <link rel="stylesheet" href="/app-static/new/vendor/fontawesome/css/all.min.css">
     <style>
         body {
             background-color: #030408;

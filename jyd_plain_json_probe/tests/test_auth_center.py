@@ -88,6 +88,45 @@ class AuthCenterTest(unittest.TestCase):
         self.assertEqual(request_mock.call_args.kwargs["timeout"], 360.0)
         self.assertEqual(result, payload)
 
+    def test_runninghub_pool_summary_and_composition_forward_only_internal_ids(self) -> None:
+        summary = {
+            "schema": "runninghub.workbench-execution-accounts.v1",
+            "accounts": [{"id": 11, "label": "RunningHub 一号"}],
+            "default_selected_account_ids": [11],
+        }
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response(summary),
+        ) as request_mock:
+            result = AuthCenterClient(
+                "http://127.0.0.1:8000"
+            ).list_workbench_execution_accounts("center-token")
+        request = request_mock.call_args.args[0]
+        self.assertTrue(request.full_url.endswith("/api/workbench/runninghub-execution-accounts"))
+        self.assertEqual(
+            json.loads(request.data.decode("utf-8")),
+            {"access_token": "center-token"},
+        )
+        self.assertEqual(result, summary)
+
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response({"composition": {"status": "COMPOSITION_QUEUED"}}),
+        ) as request_mock:
+            AuthCenterClient("http://127.0.0.1:8000").start_workbench_composition(
+                "center-token",
+                "batch-1",
+                "item-1",
+                idempotency_key="composition-1:item-1",
+                image_asset_id="image-1",
+                runninghub_execution_account_ids=[11, 22],
+            )
+        request = request_mock.call_args.args[0]
+        submitted = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(submitted["runninghub_execution_account_ids"], [11, 22])
+        self.assertNotIn("api_key", submitted)
+        self.assertNotIn("base_url", submitted)
+
     def test_standalone_processor_uses_remote_center_for_login_and_every_request(self) -> None:
         root = PROJECT_ROOT / "runtime" / "test_tmp" / f"remote_auth_{uuid.uuid4().hex}"
         root.mkdir(parents=True)

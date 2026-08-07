@@ -41,6 +41,8 @@ def add_fullscreen_sticker_to_data(
     scale: float = 1.0,
     rotation: float = 0.0,
     opacity: float = 1.0,
+    track_name: str = "",
+    inside_canvas: bool = False,
 ) -> int:
     metadata_path = Path(sticker_json_path).expanduser().resolve()
     if not metadata_path.is_file():
@@ -95,29 +97,46 @@ def add_fullscreen_sticker_to_data(
     normalized_corner = _normalize_corner(corner)
     if normalized_corner:
         canvas_width, canvas_height = _canvas_dimensions(data)
-        _position_sticker_in_corner(
-            segment_copy,
-            normalized_corner,
-            visible_ratio=visible_ratio,
-            scale=scale,
-            rotation=rotation,
-            content_bounds=_resolve_content_bounds(payload, metadata_path),
-            alpha_reveal=_resolve_corner_alpha_reveal(
-                payload,
-                metadata_path,
+        content_bounds = _resolve_content_bounds(payload, metadata_path)
+        if inside_canvas:
+            _position_sticker_inside_canvas(
+                segment_copy,
                 normalized_corner,
-                visible_ratio,
-            ),
-            canvas_width=canvas_width,
-            canvas_height=canvas_height,
-        )
+                scale=scale,
+                rotation=rotation,
+                content_bounds=content_bounds,
+                canvas_width=canvas_width,
+                canvas_height=canvas_height,
+            )
+        else:
+            _position_sticker_in_corner(
+                segment_copy,
+                normalized_corner,
+                visible_ratio=visible_ratio,
+                scale=scale,
+                rotation=rotation,
+                content_bounds=content_bounds,
+                alpha_reveal=_resolve_corner_alpha_reveal(
+                    payload,
+                    metadata_path,
+                    normalized_corner,
+                    visible_ratio,
+                ),
+                canvas_width=canvas_width,
+                canvas_height=canvas_height,
+            )
     elif scale != 1.0 or rotation != 0.0:
         _update_clip_transform(segment_copy, scale=scale, rotation=rotation)
     tracks.append(
         {
             "id": _new_id(),
             "is_default_name": True,
-            "name": f"程序角落贴纸_{_corner_label(normalized_corner)}" if normalized_corner else "程序全屏贴纸",
+            "name": str(track_name or "").strip()
+            or (
+                f"程序角落贴纸_{_corner_label(normalized_corner)}"
+                if normalized_corner
+                else "程序全屏贴纸"
+            ),
             "segments": [segment_copy],
             "type": "sticker",
         }
@@ -136,12 +155,68 @@ def _normalize_corner(value: str) -> str:
         "left_bottom": "bottom_left",
         "bottom_right": "bottom_right",
         "right_bottom": "bottom_right",
+        "center": "center",
     }
     if not text:
         return ""
     if text not in aliases:
         raise ValueError(f"不支持的贴纸角落: {value!r}")
     return aliases[text]
+
+
+def _position_sticker_inside_canvas(
+    segment: dict[str, Any],
+    corner: str,
+    *,
+    scale: float,
+    rotation: float,
+    content_bounds: dict[str, float],
+    canvas_width: float,
+    canvas_height: float,
+) -> None:
+    """Place the complete semantic image inside the frame.
+
+    Here ``scale`` means visible image width as a ratio of canvas width, matching
+    the browser preview rather than the legacy collected-sticker multiplier.
+    """
+
+    if not 0.05 <= float(scale) <= 2.0:
+        raise ValueError("画内贴图缩放必须在 0.05 到 2.0 之间")
+    source_width = float(content_bounds.get("source_width", 0.0) or 0.0)
+    source_height = float(content_bounds.get("source_height", 0.0) or 0.0)
+    if canvas_width <= 0 or canvas_height <= 0 or source_width <= 0 or source_height <= 0:
+        raise ValueError("无法确定画内贴图或画布尺寸")
+    base_scale_x = _effective_clip_scale(segment, "x", 1.0)
+    if base_scale_x <= 0:
+        raise ValueError("画内贴图基础缩放无效")
+    multiplier = float(scale) * canvas_width / source_width / base_scale_x
+    effective_x = _effective_clip_scale(segment, "x", multiplier) * source_width / canvas_width
+    effective_y = _effective_clip_scale(segment, "y", multiplier) * source_height / canvas_height
+    left = 2.0 * content_bounds["left"] - 1.0
+    right = 2.0 * content_bounds["right"] - 1.0
+    top = 1.0 - 2.0 * content_bounds["top"]
+    bottom = 1.0 - 2.0 * content_bounds["bottom"]
+    margin_x = 0.08
+    margin_y = 0.08
+    if corner.endswith("left"):
+        x = -1.0 + margin_x - left * effective_x
+    elif corner.endswith("right"):
+        x = 1.0 - margin_x - right * effective_x
+    else:
+        x = -(left + right) * effective_x / 2.0
+    if corner.startswith("top"):
+        y = 1.0 - margin_y - top * effective_y
+    elif corner.startswith("bottom"):
+        y = -1.0 + margin_y - bottom * effective_y
+    else:
+        y = -(top + bottom) * effective_y / 2.0
+    _update_clip_transform(
+        segment,
+        x=x,
+        y=y,
+        scale=multiplier,
+        rotation=rotation,
+    )
 
 
 def _position_sticker_in_corner(

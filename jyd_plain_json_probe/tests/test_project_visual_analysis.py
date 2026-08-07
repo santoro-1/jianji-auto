@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from jyd_probe.project_store import ProjectStore
+from jyd_probe.project_visual_analysis import ProjectVisualAnalysisCoordinator
+from jyd_probe.semantic_visuals import load_semantic_visual_catalog
+
+
+CATALOG_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "data"
+    / "libraries"
+    / "semantic_visual_library"
+)
+
+
+class FakeVisualClient:
+    def __init__(self, *, show_first: bool = True) -> None:
+        self.show_first = show_first
+        self.calls: list[dict[str, Any]] = []
+
+    def analyze_workbench_visuals(
+        self,
+        token: str,
+        payload: dict[str, Any],
+        *,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        self.calls.append(payload)
+        decisions = []
+        for index, candidate in enumerate(payload["candidates"]):
+            show = self.show_first and index == 0
+            decisions.append(
+                {
+                    "candidate_id": candidate["candidate_id"],
+                    "decision": "SHOW" if show else "SKIP",
+                    "concept_id": candidate["allowed_concepts"][0]["concept_id"],
+                    "usage": "literal" if show else "idiom",
+                    "importance": 0.9 if show else 0.1,
+                    "confidence": 0.96,
+                    "reason_code": (
+                        "LITERAL_CONCRETE_OBJECT" if show else "SKIP_IDIOM"
+                    ),
+                }
+            )
+        return {
+            "schema_version": "jyd.visual-analysis.v1",
+            "analysis_status": "SUCCESS",
+            "script_sha256": payload["script_sha256"],
+            "catalog_version": payload["catalog_version"],
+            "decisions": decisions,
+            "provider_request_id": "visual-test",
+            "provider_attempts": 1,
+            "cache_hit": False,
+            "cacheable": True,
+            "error": None,
+        }
+
+
+def _project(tmp_path: Path, script: str) -> tuple[ProjectStore, dict[str, Any]]:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="语义贴图测试",
+        items=[{"row_key": "1", "script_text": script}],
+    )
+    item = project["items"][0]
+    store.set_item_subtitles(
+        "user-1",
+        project["project_id"],
+        item["item_id"],
+        {
+            **item["subtitles"],
+            "raw_cues": [{"start_us": 0, "end_us": 4_000_000, "text": script}],
+        },
+    )
+    return store, store.get_project("user-1", project["project_id"])
+
+
+def test_analysis_builds_recipe_from_cloud_context_and_local_time(tmp_path: Path) -> None:
+    script = "每天吃一个鸡蛋，鸡蛋里挑骨头。"
+    store, project = _project(tmp_path, script)
+    client = FakeVisualClient()
+    coordinator = ProjectVisualAnalysisCoordinator(
+        store, client, load_semantic_visual_catalog(CATALOG_ROOT)
+    )
+
+    result = coordinator.analyze("user-1", project["project_id"], "token")
+    visual = result["items"][0]["visual_analysis"]
+
+    assert visual["analysis_status"] == "SUCCESS"
+    assert visual["mapping_status"] == "SUCCESS"
+    assert len(visual["decisions"]) == 2
+    assert len(visual["recipe"]["overlays"]) == 1
+    assert visual["recipe"]["overlays"][0]["concept_id"] == "food.egg"
+    assert visual["recipe"]["overlays"][0]["duration_us"] == 1_800_000
+    assert len(client.calls) == 1
+
+
+def test_raw_cue_mismatch_fails_only_visual_mapping(tmp_path: Path) -> None:
+    script = "每天吃一个鸡蛋"
+    store, project = _project(tmp_path, script)
+    item = project["items"][0]
+    subtitles = dict(item["subtitles"])
+    subtitles["raw_cues"] = [
+        {"start_us": 0, "end_us": 2_000_000, "text": "每天吃一个玉米"}
+    ]
+    store.set_item_subtitles(
+        "user-1", project["project_id"], item["item_id"], subtitles
+    )
+    coordinator = ProjectVisualAnalysisCoordinator(
+        store, FakeVisualClient(), load_semantic_visual_catalog(CATALOG_ROOT)
+    )
+
+    result = coordinator.analyze("user-1", project["project_id"], "token")
+    current = result["items"][0]
+
+    assert current["visual_analysis"]["analysis_status"] == "SUCCESS"
+    assert current["visual_analysis"]["mapping_status"] == "FAILED"
+    assert current["visual_analysis"]["recipe"]["overlays"] == []
+    assert current["subtitles"]["raw_cues"] == subtitles["raw_cues"]
+
+
+def test_locked_manual_overlay_survives_reanalysis_and_script_change(tmp_path: Path) -> None:
+    script = "每天吃一个鸡蛋"
+    store, project = _project(tmp_path, script)
+    coordinator = ProjectVisualAnalysisCoordinator(
+        store, FakeVisualClient(), load_semantic_visual_catalog(CATALOG_ROOT)
+    )
+    analyzed = coordinator.analyze("user-1", project["project_id"], "token")
+    item = analyzed["items"][0]
+    overlay = dict(item["visual_analysis"]["recipe"]["overlays"][0])
+    overlay.update({"corner": "top_left", "locked": True})
+    edited = store.update_item_visual_overlays(
+        "user-1",
+        analyzed["project_id"],
+        item["item_id"],
+        overlays=[overlay],
+        expected_revision=analyzed["revision"],
+        catalog_version=load_semantic_visual_catalog(CATALOG_ROOT).catalog_version,
+    )
+
+    refreshed = coordinator.analyze(
+        "user-1", edited["project_id"], "token", force_refresh=True
+    )
+    locked = refreshed["items"][0]["visual_analysis"]["recipe"]["overlays"][0]
+    assert locked["corner"] == "top_left"
+    assert locked["manual"] is True
+    assert locked["locked"] is True
+
+    changed = store.update_item(
+        "user-1",
+        refreshed["project_id"],
+        item["item_id"],
+        script_text="每天吃一个水煮蛋",
+    )
+    retained = changed["items"][0]["visual_analysis"]
+    assert retained["analysis_status"] == "NOT_REQUESTED"
+    assert retained["recipe"]["overlays"][0]["requires_review"] is True
+
+
+def test_raw_cues_change_invalidates_only_automatic_visual_recipe(tmp_path: Path) -> None:
+    script = "每天吃一个鸡蛋"
+    store, project = _project(tmp_path, script)
+    coordinator = ProjectVisualAnalysisCoordinator(
+        store, FakeVisualClient(), load_semantic_visual_catalog(CATALOG_ROOT)
+    )
+    analyzed = coordinator.analyze("user-1", project["project_id"], "token")
+    item = analyzed["items"][0]
+    assert len(item["visual_analysis"]["recipe"]["overlays"]) == 1
+
+    subtitles = dict(item["subtitles"])
+    subtitles["raw_cues"] = [
+        {"start_us": 200_000, "end_us": 4_200_000, "text": script}
+    ]
+    changed = store.set_item_subtitles(
+        "user-1", analyzed["project_id"], item["item_id"], subtitles
+    )
+    visual = changed["items"][0]["visual_analysis"]
+
+    assert visual["analysis_status"] == "NOT_REQUESTED"
+    assert visual["invalidated_reason"] == "AUDIO_OR_RAW_CUES_CHANGED"
+    assert visual["recipe"]["overlays"] == []
+    assert changed["items"][0]["subtitles"]["raw_cues"] == subtitles["raw_cues"]
