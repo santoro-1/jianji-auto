@@ -517,7 +517,9 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
                 return _remote_result(original_script)
 
         class FakeMusicSelector:
-            def resolve_for_analysis(self, _project, item):
+            def resolve_for_analysis(
+                self, _project, item, *, recent_identity_counts=None
+            ):
                 identity = f"music_id:matched-{item['row_key']}"
                 return identity, {
                     "schema": "jyd.project-music-selection.v1",
@@ -561,6 +563,66 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertEqual(manual["bgm_identity"], "music_id:manual")
         self.assertEqual(manual["bgm_selection_mode"], "manual")
 
+    def test_batch_analysis_passes_prior_auto_music_counts_in_row_order(self) -> None:
+        class SuccessfulClient:
+            def analyze_workbench_content(
+                self, _token, original_script, *, force_refresh=False
+            ):
+                return _remote_result(original_script)
+
+        class RecordingMusicSelector:
+            def __init__(self) -> None:
+                self.seen_counts: list[dict[str, int]] = []
+
+            def resolve_for_analysis(
+                self, _project, _item, *, recent_identity_counts=None
+            ):
+                counts = dict(recent_identity_counts or {})
+                self.seen_counts.append(counts)
+                identity = f"music_id:choice-{sum(counts.values()) + 1}"
+                return identity, {
+                    "schema": "jyd.project-music-selection.v1",
+                    "status": "SUCCESS",
+                    "selection_source": "ai",
+                    "bgm_identity": identity,
+                    "video_duration_us": 0,
+                }
+
+        store = ProjectStore(self.settings.storage_root / "music_diversity.db")
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="同类脚本音乐轮换",
+            items=[
+                {"row_key": "1", "script_text": "第一条健康建议"},
+                {"row_key": "2", "script_text": "第二条健康建议"},
+                {"row_key": "3", "script_text": "第三条健康建议"},
+            ],
+        )
+        selector = RecordingMusicSelector()
+
+        analyzed = ProjectContentAnalysisCoordinator(
+            store,
+            SuccessfulClient(),
+            music_selector=selector,
+        ).analyze(self.user["user_id"], project["project_id"], "token")
+
+        self.assertEqual(
+            selector.seen_counts,
+            [
+                {},
+                {"music_id:choice-1": 1},
+                {"music_id:choice-1": 1, "music_id:choice-2": 1},
+            ],
+        )
+        self.assertEqual(
+            [
+                item["settings"]["postprocess"]["bgm_identity"]
+                for item in analyzed["items"]
+            ],
+            ["music_id:choice-1", "music_id:choice-2", "music_id:choice-3"],
+        )
+
     def test_same_script_analysis_retry_preserves_saved_auto_music(self) -> None:
         class SuccessfulClient:
             def analyze_workbench_content(
@@ -572,7 +634,9 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             def __init__(self) -> None:
                 self.calls = 0
 
-            def resolve_for_analysis(self, _project, _item):
+            def resolve_for_analysis(
+                self, _project, _item, *, recent_identity_counts=None
+            ):
                 self.calls += 1
                 identity = f"music_id:matched-{self.calls}"
                 return identity, {

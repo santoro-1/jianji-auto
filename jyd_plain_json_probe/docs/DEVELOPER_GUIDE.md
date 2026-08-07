@@ -487,9 +487,11 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 行宽均衡拆成“女｜性”“核心｜逻辑”“以｜及”或“形｜式”。
 
 `project_music.py` 负责智能内容分析模块 7。内容分析完成时先从当前行已校验的
-`music_intent` 和本地 `music_profiles.v1.json` 返回可见的初步唯一 Top1；4B 自动模式再加入
-当前 MiniMax 音频真实时长复核并保存最终 `jyd.project-music-selection.v1` 快照，不保存候选
-列表或 Top3。声音版本变化保留已选 identity 并标记 `STALE`，避免界面退回“无音乐”，4B
+`music_intent` 和本地 `music_profiles.v1.json` 返回可见的初步唯一 Top1；同一项目批量处理时
+按脚本行顺序传递 `recent_identity_counts`，在语义评分之后施加确定性的已使用次数惩罚，
+让分数接近的合格曲目适度轮换。4B 自动模式按相同项目计数加入当前 MiniMax 音频真实时长
+复核并保存最终 `jyd.project-music-selection.v1` 快照，不保存候选列表或 Top3。声音版本变化
+保留已选 identity 并标记 `STALE`，避免界面退回“无音乐”，4B
 会按新音频时长刷新绑定。音乐分支失败按项目默认音乐或无 BGM 降级；手动曲目及手动无 BGM
 始终优先。变体只冻结继承 4B 最终 BGM。
 

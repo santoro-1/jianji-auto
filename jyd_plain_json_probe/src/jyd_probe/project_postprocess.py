@@ -10,7 +10,11 @@ import uuid
 from fontTools.ttLib import TTFont
 
 from .music_matching import MusicProfileMatcher
-from .project_music import ProjectMusicSelector, manual_music_selection
+from .project_music import (
+    ProjectMusicSelector,
+    automatic_music_identity_counts,
+    manual_music_selection,
+)
 from .project_store import ProjectStore
 from .project_video_source import build_project_video_source
 from .semantic_subtitles import (
@@ -849,6 +853,18 @@ class ProjectPostprocessCoordinator:
         if not target_items:
             raise ValueError("当前项目没有需要生成的完整预览")
 
+        automatic_target_ids = {
+            str(item["item_id"])
+            for item in target_items
+            if str(supplied.get(str(item["item_id"]), {}).get("bgm_selection_mode") or "manual")
+            .strip()
+            .lower()
+            == "auto"
+        }
+        recent_identity_counts = automatic_music_identity_counts(
+            project, excluded_item_ids=automatic_target_ids
+        )
+
         for item in target_items:
             config = supplied.get(str(item["item_id"]), {})
             base_video = item.get("outputs", {}).get("base_video")
@@ -863,8 +879,14 @@ class ProjectPostprocessCoordinator:
                 raise ValueError(f"任务 {item['row_key']} 的 BGM 选择模式不合法")
             if bgm_mode == "auto":
                 bgm_identity, music_selection = self.music_selector.resolve_auto(
-                    project, item
+                    project,
+                    item,
+                    recent_identity_counts=recent_identity_counts,
                 )
+                if bgm_identity:
+                    recent_identity_counts[bgm_identity] = (
+                        recent_identity_counts.get(bgm_identity, 0) + 1
+                    )
             else:
                 bgm_identity = str(config.get("bgm_identity") or "").strip()
                 music_selection = manual_music_selection(item, bgm_identity)

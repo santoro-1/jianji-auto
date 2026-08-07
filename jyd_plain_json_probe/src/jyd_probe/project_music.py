@@ -23,6 +23,30 @@ def _script_sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def automatic_music_identity_counts(
+    project: Mapping[str, Any], *, excluded_item_ids: set[str] | None = None
+) -> dict[str, int]:
+    """Count retained automatic selections so a project can avoid monotony."""
+
+    excluded = excluded_item_ids or set()
+    counts: dict[str, int] = {}
+    for item in project.get("items") or []:
+        if not isinstance(item, Mapping) or str(item.get("item_id") or "") in excluded:
+            continue
+        settings = item.get("settings") if isinstance(item.get("settings"), Mapping) else {}
+        postprocess = (
+            settings.get("postprocess")
+            if isinstance(settings.get("postprocess"), Mapping)
+            else {}
+        )
+        if postprocess.get("bgm_selection_mode") != "auto":
+            continue
+        identity = str(postprocess.get("bgm_identity") or "").strip()
+        if identity:
+            counts[identity] = counts.get(identity, 0) + 1
+    return counts
+
+
 def item_video_duration_us(item: Mapping[str, Any]) -> int:
     """Return the best local duration fact without calling any external service."""
 
@@ -109,18 +133,34 @@ class ProjectMusicSelector:
         self,
         project: Mapping[str, Any],
         item: Mapping[str, Any],
+        *,
+        recent_identity_counts: Mapping[str, int] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         duration_us = item_video_duration_us(item)
-        return self._resolve(project, item, duration_us=duration_us, require_duration=True)
+        return self._resolve(
+            project,
+            item,
+            duration_us=duration_us,
+            require_duration=True,
+            recent_identity_counts=recent_identity_counts,
+        )
 
     def resolve_for_analysis(
         self,
         project: Mapping[str, Any],
         item: Mapping[str, Any],
+        *,
+        recent_identity_counts: Mapping[str, int] | None = None,
     ) -> tuple[str, dict[str, Any]]:
         """Choose a visible preliminary Top1 before generated audio has a duration."""
 
-        return self._resolve(project, item, duration_us=0, require_duration=False)
+        return self._resolve(
+            project,
+            item,
+            duration_us=0,
+            require_duration=False,
+            recent_identity_counts=recent_identity_counts,
+        )
 
     def _resolve(
         self,
@@ -129,6 +169,7 @@ class ProjectMusicSelector:
         *,
         duration_us: int,
         require_duration: bool,
+        recent_identity_counts: Mapping[str, int] | None,
     ) -> tuple[str, dict[str, Any]]:
         analysis = (
             item.get("content_analysis")
@@ -152,6 +193,7 @@ class ProjectMusicSelector:
                     analysis["music_intent"],
                     video_duration_us=duration_us,
                     excluded_identities=excluded,
+                    recent_identity_counts=recent_identity_counts,
                 )
                 identity = str(result.get("bgm_identity") or "")
                 if not identity or identity not in self.available_bgm:

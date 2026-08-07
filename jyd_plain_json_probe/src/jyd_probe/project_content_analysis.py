@@ -6,7 +6,7 @@ import hashlib
 from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
-from .project_music import ProjectMusicSelector
+from .project_music import ProjectMusicSelector, automatic_music_identity_counts
 from .project_store import ProjectStore
 
 
@@ -206,6 +206,9 @@ class ProjectContentAnalysisCoordinator:
         project = self.store.get_project(owner_user_id, project_id)
         if self.music_selector is not None:
             targets_by_id = {target.item_id: target for target in targets}
+            recent_identity_counts = automatic_music_identity_counts(
+                project, excluded_item_ids=set(targets_by_id)
+            )
             for item in project["items"]:
                 item_id = str(item["item_id"])
                 target = targets_by_id.get(item_id)
@@ -229,9 +232,16 @@ class ProjectContentAnalysisCoordinator:
                 if same_script_retry and has_saved_auto_music:
                     # Retrying subtitle analysis for unchanged copy must not make
                     # the already-approved automatic BGM jump to a different track.
+                    saved_identity = str(postprocess.get("bgm_identity") or "").strip()
+                    if saved_identity:
+                        recent_identity_counts[saved_identity] = (
+                            recent_identity_counts.get(saved_identity, 0) + 1
+                        )
                     continue
                 identity, selection = self.music_selector.resolve_for_analysis(
-                    project, item
+                    project,
+                    item,
+                    recent_identity_counts=recent_identity_counts,
                 )
                 self.store.save_item_auto_music_selection(
                     owner_user_id,
@@ -241,5 +251,9 @@ class ProjectContentAnalysisCoordinator:
                     bgm_identity=identity,
                     music_selection=selection,
                 )
+                if identity:
+                    recent_identity_counts[identity] = (
+                        recent_identity_counts.get(identity, 0) + 1
+                    )
             project = self.store.get_project(owner_user_id, project_id)
         return project
