@@ -117,6 +117,21 @@ release/                      最终交付 ZIP
 metadata 保存脚本 SHA-256/长度；只有脚本、分析、音频和 raw cues 绑定四方一致时使用
 `subtitle_units`，否则继续使用既有 raw cues 排版。任何路径都不得覆盖 `raw_cues`。
 
+日志第一阶段将项目 schema 升级到版本 9，为 `project_operations` 增加独立
+`correlation_id`。项目操作、云端声音批次、4A 画面生成和本地渲染都应传递该字段；
+`idempotency_key` 只负责防重复提交，不得兼作关联号。历史操作以原 `operation_id` 回填。
+
+Processor 日志位于 `data/logs/workbench.log`，本地渲染位于 `data/logs/render.log`，内嵌
+Collector 位于 `data/logs/collector.log`，`server.log` 只保留启动和致命错误。独立 Collector
+使用其状态目录下的 `logs/collector.log`；独立 Agent 使用
+`%LOCALAPPDATA%/JianyingRenderAgent/logs/agent.log`。本地日志默认单文件 10 MB、保留 14 天，
+写入前统一脱敏，不得记录访问令牌、API Key、完整脚本或完整请求体。
+
+`GET /api/new/projects/{project_id}/diagnostics` 仅允许项目所有者下载临时 ZIP。摘要不得包含
+脚本文本、素材路径、操作 `payload/result` 或错误正文；日志仅从 14 天内的 `workbench.log`、
+`render.log`、`collector.log` 及其轮转文件中选取与当前 `project_id`、`operation_id` 或
+`correlation_id` 精确匹配的行，并在打包前再次脱敏。独立 Agent 的 `agent.log` 不在本机包内。
+
 不要把以下数据混为一类：
 
 - `data/libraries`：公共、长期保留、可随完整安装包分发。
@@ -401,8 +416,10 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 冻结的字幕、BGM 配方合并到同一个变体任务中一次导出，不能依赖一个预先导出的普通成片。
 若 4A 返回多个 RunningHub 原始片段，4B 按需导出和模块 6 都使用 `video_sequence`，按
 `video_index` 将原始文件作为独立片段顺序放在同一条主轨道；字幕、BGM 和封面仍使用完整
-绝对时间轴。浏览器预览继续播放标准化 `base_video`。某一原始片段短于其音频目标时长时，
-只补该片段尾帧，不对整段视频变速。
+绝对时间轴。相邻原始片段通过 `transition_after_us=250000` 在两个真实 MP4 之间直接写入
+剪映原生“叠化”，不插入尾帧图片，也不为对齐目标音频而变速；目标时长比素材短时只裁尾，
+比素材长时采用素材实际时长。浏览器预览播放的标准化 `base_video` 仍使用同长度 FFmpeg
+叠化，以保持预览总时长和 MiniMax 字幕绝对时间轴。
 
 新版页面把字幕效果卡直接放在表格“字幕样式”列，点击效果卡才打开字体和颜色配置；BGM
 继续在相邻列直接选择。修改任一设置只把对应脚本行退回 `BASE_VIDEO_READY` 并保留

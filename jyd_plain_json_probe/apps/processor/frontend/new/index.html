@@ -418,6 +418,24 @@
         </div>
     </div>
 
+    <!-- Project activity and support diagnostics -->
+    <div id="activity-modal" class="fixed inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
+        <div class="glass-panel-heavy w-full max-w-3xl max-h-[86vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl transform scale-95 transition-all duration-200 flex flex-col">
+            <div class="flex items-start justify-between gap-4 p-6 border-b border-white/5">
+                <div>
+                    <h3 id="activity-modal-title" class="text-lg font-bold text-white"><i class="fa-solid fa-clock-rotate-left text-brand-accent mr-2"></i>项目运行记录</h3>
+                    <p id="activity-project-summary" class="text-[11px] text-gray-400 mt-1">显示当前项目的重要处理步骤，不展示技术日志正文。</p>
+                </div>
+                <button type="button" onclick="closeActivityModal()" aria-label="关闭运行记录" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="activity-list" class="flex-1 overflow-y-auto narrow-scrollbar p-6 space-y-3"></div>
+            <div class="p-5 border-t border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p class="text-[10px] text-gray-500">排查异常时可下载仅限当前项目的脱敏诊断包。</p>
+                <button type="button" onclick="downloadProjectDiagnostics()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-200 border border-slate-700 transition-colors"><i class="fa-solid fa-file-zipper mr-2 text-brand-accent"></i>下载项目诊断包</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Shared confirmation modal -->
     <div id="confirm-action-modal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="confirm-action-title">
         <div class="glass-panel-heavy w-full max-w-md rounded-2xl border border-white/10 p-6 shadow-2xl transform scale-95 transition-all duration-200">
@@ -529,6 +547,7 @@
                 <a href="/app/new" class="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-primary/10 border border-brand-primary/30 text-white transition-all shadow-inner"><i class="fa-solid fa-sliders mr-1.5 text-brand-accent"></i>核心工作台</a>
                 <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
                 <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-microphone-lines mr-1.5"></i>声音克隆中心</a>
+                <button id="activity-button" type="button" onclick="openActivityModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i>运行记录<span id="activity-count" class="hidden ml-1.5 min-w-5 px-1.5 py-0.5 rounded-full bg-brand-primary/20 text-[9px] text-brand-accent"></span></button>
             </nav>
 
             <!-- User profile & Quick Stats -->
@@ -923,6 +942,90 @@
             })[character]);
         }
 
+        const operationLabels = {
+            AUDIO_GENERATE: '声音生成',
+            COMPOSITION_GENERATE: '数字人画面生成',
+            POSTPROCESS_GENERATE: '字幕/BGM 预览',
+            POSTPROCESS_EXPORT: '完整成片导出',
+            VARIANT_GENERATE: '生成视频变体',
+            VARIANT_SUPPLEMENT: '补充视频变体',
+            VARIANT_RETRY: '重试视频变体'
+        };
+        const operationStatusLabels = {
+            PENDING: '等待中', RUNNING: '处理中', SUCCEEDED: '已完成', FAILED: '失败'
+        };
+
+        function renderProjectActivity() {
+            const list = document.getElementById('activity-list');
+            const summary = document.getElementById('activity-project-summary');
+            const count = document.getElementById('activity-count');
+            const operations = Array.isArray(activeProject?.operations)
+                ? [...activeProject.operations].sort((left, right) => String(right.updated_at || '').localeCompare(String(left.updated_at || '')))
+                : [];
+            count.textContent = String(operations.length);
+            count.classList.toggle('hidden', operations.length === 0);
+            summary.textContent = activeProject
+                ? `${activeProject.project_no || '当前项目'} · ${activeProject.name || '未命名项目'} · ${operationStatusLabels[activeProject.status] || activeProject.status || '未知状态'}`
+                : '尚未打开项目。';
+            if (!operations.length) {
+                list.innerHTML = '<div class="py-12 text-center text-xs text-gray-500"><i class="fa-regular fa-clock text-2xl mb-3 block"></i>当前项目还没有运行记录</div>';
+                return;
+            }
+            const rowsById = new Map((activeProject.items || []).map(item => [item.item_id, item.row_key]));
+            list.innerHTML = operations.map((operation) => {
+                const status = operationStatusLabels[operation.status] || operation.status || '未知';
+                const statusClass = operation.status === 'SUCCEEDED'
+                    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                    : operation.status === 'FAILED'
+                    ? 'text-red-400 bg-red-500/10 border-red-500/20'
+                    : 'text-amber-300 bg-amber-500/10 border-amber-500/20';
+                const rowKey = rowsById.get(operation.item_id);
+                const updated = operation.updated_at ? new Date(operation.updated_at).toLocaleString('zh-CN', { hour12: false }) : '时间未知';
+                const correlation = String(operation.correlation_id || operation.operation_id || '');
+                return `<div class="rounded-xl border border-white/5 bg-slate-950/30 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="min-w-0"><strong class="text-xs text-white">${escapeHtml(operationLabels[operation.operation_type] || operation.operation_type || '处理任务')}</strong>${rowKey ? `<span class="ml-2 text-[10px] text-gray-500">第 ${escapeHtml(rowKey)} 条</span>` : ''}</div>
+                        <span class="px-2 py-1 rounded-lg border text-[10px] font-semibold ${statusClass}">${escapeHtml(status)}</span>
+                    </div>
+                    <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-500"><span>${escapeHtml(updated)}</span>${correlation ? `<span>关联号 ${escapeHtml(correlation.slice(-12))}</span>` : ''}${operation.error_code ? `<span class="text-red-400">错误码 ${escapeHtml(operation.error_code)}</span>` : ''}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function openActivityModal() {
+            if (!activeProject?.project_id) {
+                showToast('暂无运行记录', '请先创建或打开一个项目。', 'warning');
+                return;
+            }
+            renderProjectActivity();
+            const modal = document.getElementById('activity-modal');
+            const box = modal.querySelector('.glass-panel-heavy');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+        }
+
+        function closeActivityModal() {
+            const modal = document.getElementById('activity-modal');
+            const box = modal.querySelector('.glass-panel-heavy');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function downloadProjectDiagnostics() {
+            if (!activeProject?.project_id) {
+                showToast('无法下载诊断包', '请先创建或打开一个项目。', 'warning');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = `/api/new/projects/${encodeURIComponent(activeProject.project_id)}/diagnostics`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
         // UI Toast Utility
         function showToast(title, message, iconType = 'info') {
             const toast = document.getElementById('toast');
@@ -1067,6 +1170,7 @@
 
         function syncProjectInputs(project) {
             activeProject = project;
+            renderProjectActivity();
             const savedFinalPhase = sessionStorage.getItem(`final-generation-phase:${project?.project_id || ''}`);
             if (savedFinalPhase === 'composition' || savedFinalPhase === 'postprocess') {
                 finalGenerationPhase = savedFinalPhase;

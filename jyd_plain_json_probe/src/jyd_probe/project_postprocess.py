@@ -1081,6 +1081,12 @@ class ProjectPostprocessCoordinator:
             idempotency_key=clean_key,
             payload={"reason": "explicit_download", "base_video_asset_id": base_video.get("asset_id")},
         )
+        job["observability"] = {
+            "project_id": project_id,
+            "item_id": item["item_id"],
+            "operation_id": operation["operation_id"],
+            "correlation_id": operation["correlation_id"],
+        }
         try:
             submitted = self.render_queue.submit_batch(
                 [job],

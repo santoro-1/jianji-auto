@@ -16,8 +16,16 @@ from jyd_probe.local_collector import (  # noqa: E402
     LocalCollectorSettings,
 )
 from jyd_probe.local_collector_api import create_local_collector_app  # noqa: E402
+from jyd_probe.logging_config import configure_file_logging  # noqa: E402
+from jyd_probe.runtime_paths import collector_state_root  # noqa: E402
 
 
+configure_file_logging(
+    collector_state_root() / "logs",
+    "collector.log",
+    logger_name="jyd_probe.collector",
+    propagate=False,
+)
 app = create_local_collector_app()
 
 
@@ -52,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
 
     import uvicorn
 
-    uvicorn.run(collector_app, host=args.host, port=args.port)
+    uvicorn.run(collector_app, host=args.host, port=args.port, log_config=None)
     return 0
 
 

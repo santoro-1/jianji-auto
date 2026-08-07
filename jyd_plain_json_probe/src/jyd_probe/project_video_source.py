@@ -4,6 +4,9 @@ from pathlib import Path
 from typing import Any
 
 
+WORKBENCH_DISSOLVE_DURATION_US = 250_000
+
+
 def _segment_index(asset: dict[str, Any]) -> int:
     try:
         return int(asset.get("external_ref", {}).get("video_index") or 0)
@@ -59,11 +62,18 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
         duration_us = round((end_seconds - start_seconds) * 1_000_000)
         if duration_us <= 0:
             raise ValueError(f"原始分段 {_segment_index(asset)} 的目标时长无效")
-        source_items.append(
-            {
-                "media_path": str(Path(str(asset["managed_path"])).resolve()),
-                "target_duration_us": duration_us,
-                "video_index": _segment_index(asset),
-            }
+        source_item = {
+            "media_path": str(Path(str(asset["managed_path"])).resolve()),
+            "target_duration_us": duration_us,
+            "video_index": _segment_index(asset),
+        }
+        source_items.append(source_item)
+    for position in range(len(source_items) - 1):
+        transition_duration = min(
+            WORKBENCH_DISSOLVE_DURATION_US,
+            int(source_items[position]["target_duration_us"]) // 2,
+            int(source_items[position + 1]["target_duration_us"]) // 2,
         )
+        if transition_duration > 0:
+            source_items[position]["transition_after_us"] = transition_duration
     return {"type": "video_sequence", "items": source_items}

@@ -83,6 +83,9 @@ class ProjectCompositionCoordinator:
             if link is None:
                 raise ValueError(f"任务 {item['row_key']} 缺少数字人声音任务关联")
             batch_id = str(link.get("metadata", {}).get("batch_id") or "")
+            correlation_id = str(
+                link.get("metadata", {}).get("correlation_id") or ""
+            ).strip()
             remote_item_id = str(link.get("external_id") or "")
             if not batch_id or not remote_item_id:
                 raise ValueError(f"任务 {item['row_key']} 的数字人任务关联不完整")
@@ -103,6 +106,7 @@ class ProjectCompositionCoordinator:
                     "remote_item_id": remote_item_id,
                     "scope": "base_video_only",
                 },
+                correlation_id=correlation_id or None,
             )
             try:
                 staged_image = self.client.upload_workbench_batch_asset(
@@ -117,6 +121,7 @@ class ProjectCompositionCoordinator:
                     remote_item_id,
                     idempotency_key=f"{clean_key}:{item['item_id']}",
                     image_asset_id=str(staged_image.get("asset_id") or ""),
+                    correlation_id=operation["correlation_id"],
                 )
                 composition = remote.get("composition", {})
                 remote_status = str(composition.get("status") or "COMPOSITION_QUEUED")

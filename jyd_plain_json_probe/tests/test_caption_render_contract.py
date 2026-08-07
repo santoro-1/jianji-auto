@@ -109,6 +109,8 @@ class CaptionRenderContractTest(unittest.TestCase):
             [entry["target_duration_us"] for entry in source["items"]],
             [1_250_000, 1_750_000],
         )
+        self.assertEqual(source["items"][0]["transition_after_us"], 250_000)
+        self.assertNotIn("transition_after_us", source["items"][1])
 
     def test_real_draft_keeps_sequence_as_two_main_track_segments(self) -> None:
         import cv2
@@ -150,6 +152,58 @@ class CaptionRenderContractTest(unittest.TestCase):
                 ],
                 ["segment-1.avi", "segment-2.avi"],
             )
+
+    def test_native_dissolve_is_attached_directly_between_real_clips(self) -> None:
+        import cv2
+        import numpy as np
+
+        with tempfile.TemporaryDirectory(prefix="jyd-dissolve-") as directory:
+            root = Path(directory)
+            videos: list[Path] = []
+            for index, value in enumerate((40, 180), start=1):
+                path = root / f"segment-{index}.avi"
+                writer = cv2.VideoWriter(
+                    str(path), cv2.VideoWriter_fourcc(*"MJPG"), 10, (64, 96)
+                )
+                self.assertTrue(writer.isOpened())
+                for _ in range(10):
+                    writer.write(np.full((96, 64, 3), value, dtype=np.uint8))
+                writer.release()
+                videos.append(path)
+
+            created = create_plain_draft_from_videos(
+                [
+                    VideoSequenceItem(
+                        videos[0],
+                        target_duration_us=1_100_000,
+                        transition_after_us=250_000,
+                    ),
+                    VideoSequenceItem(videos[1], target_duration_us=1_000_000),
+                ],
+                root / "drafts",
+                draft_name="two-segments-with-dissolve",
+            )
+            data = load_plain_draft_json(created.draft_dir)
+            video_track = next(track for track in data["tracks"] if track["type"] == "video")
+            transitions = data["materials"]["transitions"]
+
+            self.assertEqual(len(video_track["segments"]), 2)
+            self.assertEqual(
+                [segment["target_timerange"]["duration"] for segment in video_track["segments"]],
+                [1_000_000, 1_000_000],
+            )
+            self.assertEqual(
+                [segment["speed"] for segment in video_track["segments"]],
+                [1.0, 1.0],
+            )
+            self.assertEqual(len(transitions), 1)
+            self.assertEqual(transitions[0]["name"], "叠化")
+            self.assertEqual(transitions[0]["duration"], 250_000)
+            self.assertIn(
+                transitions[0]["id"],
+                video_track["segments"][0]["extra_material_refs"],
+            )
+            self.assertFalse((created.draft_dir / "_segment_holds").exists())
 
 
 if __name__ == "__main__":

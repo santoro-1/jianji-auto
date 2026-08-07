@@ -7,6 +7,7 @@ import hashlib
 import hmac
 from itertools import combinations, product
 import json
+import logging
 from math import gcd
 import os
 from pathlib import Path, PurePosixPath
@@ -37,10 +38,12 @@ from .draft_crypto import is_plain_json_file
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .music_matching import MusicProfileMatcher
+from .logging_config import log_event
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
 from .project_composition import ProjectCompositionCoordinator
+from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
 from .project_music import ProjectMusicSelector
 from .project_postprocess import ProjectPostprocessCoordinator
@@ -61,6 +64,7 @@ from .user_auth import UserAuth
 
 
 PROJECT_ROOT = project_root()
+render_logger = logging.getLogger("jyd_probe.render")
 LIBRARIES_ROOT = libraries_root()
 FRONTEND_ROOT = resource_path("apps", "processor", "frontend")
 NEW_FRONTEND_ROOT = FRONTEND_ROOT / "new"
@@ -693,10 +697,25 @@ class RenderJobQueue:
                 "queued_at": previous.get("queued_at", previous.get("created_at", _now())),
                 "started_at": _now(),
             }
+        job_payload = _read_json(job_dir / "job.json")
         _write_json(status_path, running_status)
+        observability = job_payload.get("observability", {})
+        if not isinstance(observability, dict):
+            observability = {}
+        event_context = {
+            key: observability.get(key)
+            for key in ("project_id", "item_id", "operation_id", "correlation_id")
+        }
+        log_event(
+            render_logger,
+            "render.job_started",
+            "本地渲染任务开始",
+            component="render",
+            job_id=job_id,
+            **event_context,
+        )
         print(f"[render-job] 开始任务 job_id={job_id}", flush=True)
 
-        job_payload = _read_json(job_dir / "job.json")
         try:
             result = run_render_job(job_payload)
             result_data = result.as_dict()
@@ -722,6 +741,15 @@ class RenderJobQueue:
                 f"output={result.output_mp4 or result.output_draft_dir}",
                 flush=True,
             )
+            log_event(
+                render_logger,
+                "render.job_completed",
+                "本地渲染任务完成",
+                component="render",
+                job_id=job_id,
+                exported=bool(result.exported),
+                **event_context,
+            )
         except Exception as exc:
             failed_status = {
                 **running_status,
@@ -743,6 +771,16 @@ class RenderJobQueue:
                 flush=True,
             )
             traceback.print_exc(file=sys.stderr)
+            log_event(
+                render_logger,
+                "render.job_failed",
+                "本地渲染任务失败",
+                level=logging.ERROR,
+                component="render",
+                job_id=job_id,
+                error_type=type(exc).__name__,
+                **event_context,
+            )
         finally:
             _extend_job_media_expiration(self.settings, job_payload)
             batch_id = str(job_payload.get("batch", {}).get("batch_id", "")).strip()
@@ -1893,6 +1931,30 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             return project_store.get_project(user["user_id"], project_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
+
+    @app.get("/api/new/projects/{project_id}/diagnostics")
+    def download_project_diagnostics(project_id: str, request: Request) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        archive_path = build_project_diagnostic_archive(
+            project,
+            logs_root=settings.storage_root.parent / "logs",
+            output_root=settings.storage_root / "diagnostic_downloads",
+        )
+        safe_project_no = re.sub(
+            r"[^A-Za-z0-9_-]+",
+            "-",
+            str(project.get("project_no") or "project"),
+        ).strip("-") or "project"
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"JYD-diagnostics-{safe_project_no}.zip",
+            background=BackgroundTask(_unlink_if_exists, archive_path),
+        )
 
     @app.patch("/api/new/projects/{project_id}")
     def update_new_project(

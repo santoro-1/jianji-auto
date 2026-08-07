@@ -4,14 +4,18 @@ from contextlib import contextmanager
 from datetime import datetime
 import hashlib
 import json
+import logging
 from pathlib import Path
 import sqlite3
 import threading
 from typing import Any, Iterator
 import uuid
 
+from .logging_config import log_event
 
-PROJECT_SCHEMA_VERSION = 8
+
+PROJECT_SCHEMA_VERSION = 9
+logger = logging.getLogger("jyd_probe.workbench")
 MAX_PROJECT_ITEMS = 500
 
 PROJECT_ITEM_STATUSES = {
@@ -408,6 +412,7 @@ class ProjectStore:
 
                 CREATE TABLE IF NOT EXISTS project_operations (
                     operation_id TEXT PRIMARY KEY,
+                    correlation_id TEXT NOT NULL,
                     project_id TEXT NOT NULL,
                     item_id TEXT,
                     operation_type TEXT NOT NULL,
@@ -482,6 +487,24 @@ class ProjectStore:
                 connection.execute(
                     "ALTER TABLE project_items ADD COLUMN content_analysis_json TEXT NOT NULL DEFAULT '{}'"
                 )
+            operation_columns = {
+                str(row["name"])
+                for row in connection.execute(
+                    "PRAGMA table_info(project_operations)"
+                ).fetchall()
+            }
+            if "correlation_id" not in operation_columns:
+                connection.execute(
+                    "ALTER TABLE project_operations ADD COLUMN correlation_id TEXT"
+                )
+                connection.execute(
+                    "UPDATE project_operations SET correlation_id=operation_id "
+                    "WHERE correlation_id IS NULL OR correlation_id=''"
+                )
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_project_operations_correlation "
+                "ON project_operations(correlation_id, created_at)"
+            )
             connection.execute(
                 "INSERT OR REPLACE INTO project_schema_meta(key, value) VALUES('version', ?)",
                 (str(PROJECT_SCHEMA_VERSION),),
@@ -1966,6 +1989,7 @@ class ProjectStore:
         idempotency_key: str,
         item_id: str | None = None,
         payload: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
     ) -> dict[str, Any]:
         clean_type = str(operation_type or "").strip().upper()
         clean_key = str(idempotency_key or "").strip()
@@ -1987,16 +2011,28 @@ class ProjectStore:
             if existing is not None:
                 return self._operation_payload(existing)
             operation_id = uuid.uuid4().hex
+            clean_correlation_id = str(correlation_id or "").strip()
+            if clean_correlation_id and (
+                len(clean_correlation_id) > 64
+                or any(
+                    not (character.isalnum() or character in "._:-")
+                    for character in clean_correlation_id
+                )
+            ):
+                raise ValueError("日志关联标识不合法")
+            if not clean_correlation_id:
+                clean_correlation_id = uuid.uuid4().hex
             connection.execute(
                 """
                 INSERT INTO project_operations(
-                    operation_id, project_id, item_id, operation_type,
+                    operation_id, correlation_id, project_id, item_id, operation_type,
                     status, idempotency_key, payload_json, result_json,
                     created_at, updated_at
-                ) VALUES(?, ?, ?, ?, 'PENDING', ?, ?, '{}', ?, ?)
+                ) VALUES(?, ?, ?, ?, ?, 'PENDING', ?, ?, '{}', ?, ?)
                 """,
                 (
                     operation_id,
+                    clean_correlation_id,
                     project_id,
                     item_id,
                     clean_type,
@@ -2025,7 +2061,21 @@ class ProjectStore:
                 "SELECT * FROM project_operations WHERE operation_id=?",
                 (operation_id,),
             ).fetchone()
-            return self._operation_payload(row)
+            operation_payload = self._operation_payload(row)
+        log_event(
+            logger,
+            "workbench.operation_created",
+            "工作台异步操作已创建",
+            component="workbench",
+            user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            operation_id=operation_id,
+            operation_type=clean_type,
+            status="PENDING",
+            correlation_id=clean_correlation_id,
+        )
+        return operation_payload
 
     def transition_audio_operation(
         self,
@@ -2085,6 +2135,7 @@ class ProjectStore:
             ).fetchone()
             if operation is None:
                 raise KeyError("异步操作不存在")
+            previous_status = str(operation["status"])
             started_at = operation["started_at"] or (
                 now if operation_status == "RUNNING" else None
             )
@@ -2118,6 +2169,23 @@ class ProjectStore:
                 (resolved_item_status, now, item_id),
             )
             self._refresh_project_status(connection, project_id, now=now)
+        if previous_status != operation_status:
+            log_event(
+                logger,
+                "workbench.operation_status_changed",
+                "工作台异步操作状态已变化",
+                component="workbench",
+                user_id=owner_user_id,
+                project_id=project_id,
+                item_id=item_id,
+                operation_id=operation["operation_id"],
+                operation_type=clean_type,
+                previous_status=previous_status,
+                status=operation_status,
+                item_status=resolved_item_status,
+                error_code=error_code,
+                correlation_id=operation["correlation_id"],
+            )
         return self.get_project(owner_user_id, project_id)
 
     def delete_variant_asset(
@@ -3113,6 +3181,7 @@ class ProjectStore:
     def _operation_payload(row: sqlite3.Row) -> dict[str, Any]:
         return {
             "operation_id": row["operation_id"],
+            "correlation_id": row["correlation_id"],
             "item_id": row["item_id"],
             "operation_type": row["operation_type"],
             "status": row["status"],

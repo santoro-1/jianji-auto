@@ -390,6 +390,7 @@ class ProjectAudioApiTest(unittest.TestCase):
 
         def fake_create(_self, _token, payload):
             created_payloads.append(payload)
+            self.assertEqual(len(payload["correlation_id"]), 32)
             self.assertTrue(payload["speech_options"]["costConfirmed"])
             self.assertEqual(payload["speech_options"]["voiceAssetId"], "official-voice-1")
             self.assertNotIn("asset_ids", payload)
@@ -484,6 +485,23 @@ class ProjectAudioApiTest(unittest.TestCase):
             self.assertIn(
                 "digital_human_audio_batch",
                 {link["relation"] for link in started.json()["links"]},
+            )
+            operation = next(
+                value
+                for value in started.json()["operations"]
+                if value["operation_type"] == "AUDIO_GENERATE"
+            )
+            audio_link = next(
+                value
+                for value in started.json()["links"]
+                if value["relation"] == "digital_human_audio_item"
+            )
+            self.assertEqual(
+                operation["correlation_id"], created_payloads[0]["correlation_id"]
+            )
+            self.assertEqual(
+                audio_link["metadata"]["correlation_id"],
+                created_payloads[0]["correlation_id"],
             )
 
             remote_status["value"] = {

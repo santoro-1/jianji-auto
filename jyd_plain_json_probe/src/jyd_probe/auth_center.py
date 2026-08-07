@@ -158,6 +158,7 @@ class AuthCenterClient:
         *,
         idempotency_key: str,
         image_asset_id: str,
+        correlation_id: str = "",
     ) -> dict[str, Any]:
         return self._post(
             f"/api/workbench/audio-batches/{batch_id}/items/{item_id}/composition",
@@ -166,6 +167,7 @@ class AuthCenterClient:
                 "cost_confirmed": True,
                 "idempotency_key": idempotency_key,
                 "image_asset_id": image_asset_id,
+                "correlation_id": correlation_id,
             },
         )
 

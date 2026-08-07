@@ -225,6 +225,11 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("modal-stroke-color", workspace)
         self.assertIn("Boolean(activeProject?.allowed_actions?.generate_variants)", workspace)
         self.assertNotIn("正在重新合成第 ${rowId} 条带 BGM 和字幕的视频", workspace)
+        self.assertIn("项目运行记录", workspace)
+        self.assertIn("downloadProjectDiagnostics", workspace)
+        self.assertIn("/diagnostics", workspace)
+        self.assertIn("error_code", workspace)
+        self.assertNotIn("operation.error_message", workspace)
 
     def test_module_6_uses_real_variant_api_and_manual_three_frame_cover(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")

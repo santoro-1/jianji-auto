@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 import json
+import logging
 import os
 from pathlib import Path
 import socket
@@ -149,9 +149,7 @@ def _lan_addresses(port: int, workspace_path: str = "/app") -> list[str]:
 
 
 def _append_startup_log(data_root: Path, message: str) -> None:
-    path = data_root / "logs" / "server.log"
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(f"[{datetime.now().isoformat(timespec='seconds')}] {message}\n")
+    logging.getLogger("jyd_probe.server").info(message)
 
 
 def _port_is_open(host: str, port: int) -> bool:
@@ -166,7 +164,15 @@ def _start_embedded_collector(port: int = 8765) -> bool:
     if _port_is_open("127.0.0.1", port):
         return False
     from jyd_probe.local_collector_api import create_local_collector_app
+    from jyd_probe.logging_config import configure_file_logging
     import uvicorn
+
+    configure_file_logging(
+        _application_root() / "data" / "logs",
+        "collector.log",
+        logger_name="jyd_probe.collector",
+        propagate=False,
+    )
 
     collector_server = uvicorn.Server(
         uvicorn.Config(
@@ -175,6 +181,7 @@ def _start_embedded_collector(port: int = 8765) -> bool:
             port=port,
             log_level="warning",
             access_log=False,
+            log_config=None,
         )
     )
     threading.Thread(
@@ -241,8 +248,25 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["JYD_EXECUTION_MODE"] = args.execution_mode
     # Request-level checks still restrict local file operations to loopback clients.
     os.environ["JYD_ALLOW_LOCAL_FILE_ACCESS"] = "true"
-    app_root, data_root = _configure_environment()
+    from jyd_probe.logging_config import configure_file_logging
+
+    app_root = _application_root()
+    data_root = app_root / "data"
+    configure_file_logging(
+        data_root / "logs",
+        "server.log",
+        logger_name="jyd_probe.server",
+        propagate=False,
+    )
     try:
+        app_root, data_root = _configure_environment()
+        configure_file_logging(data_root / "logs", "workbench.log")
+        configure_file_logging(
+            data_root / "logs",
+            "render.log",
+            logger_name="jyd_probe.render",
+            propagate=False,
+        )
         from jyd_probe.template_library import rebase_template_library_paths
 
         rebase_stats = rebase_template_library_paths(os.environ["JYD_TEMPLATE_LIBRARY_ROOT"])
@@ -284,7 +308,7 @@ def main(argv: list[str] | None = None) -> int:
 
         import uvicorn
 
-        uvicorn.run(app, host=host, port=args.port)
+        uvicorn.run(app, host=host, port=args.port, log_config=None)
         return 0
     except BaseException as exc:
         details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))

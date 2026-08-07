@@ -58,7 +58,7 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 {
   "type": "video_sequence",
   "items": [
-    {"media_path": "D:/素材/segment-001.mp4", "target_duration_us": 4200000},
+    {"media_path": "D:/素材/segment-001.mp4", "target_duration_us": 4200000, "transition_after_us": 250000},
     {"media_path": "D:/素材/segment-002.mp4", "target_duration_us": 3800000}
   ],
   "canvas": {"width": 0, "height": 0, "fps": 30}
@@ -66,8 +66,10 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 ```
 
 `items` 按数组顺序进入同一条主视频轨道，不会先合并成一个媒体文件。目标时长短于素材时
-直接裁尾；目标时长长于素材时只追加该素材尾帧，避免整段变速。字幕、BGM、特效和封面均
-继续使用合计后的绝对时间轴。
+直接裁尾；目标时长长于素材时按素材实际时长使用，不补尾帧、不变速。字幕、BGM、特效和
+封面仍使用既有绝对时间轴。可选 `transition_after_us` 为当前真实视频片段与下一真实视频
+片段直接添加剪映原生“叠化”，单位微秒；工作台多片段固定请求 250000 微秒，仅在任一真实
+片段本身不足 250000 微秒时按安全时长缩短。转场不会额外生成时间线片段。
 
 模板模式用于套用已经存在的剪映草稿。模板可能是明文，也可能是高版本加密草稿；加密草稿会按 `decrypt` 配置自动解密到工作副本：
 

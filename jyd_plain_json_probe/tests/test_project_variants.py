@@ -257,6 +257,10 @@ class ProjectVariantTest(unittest.TestCase):
                 [entry["video_index"] for entry in job["source"]["items"]],
                 [1, 2],
             )
+            self.assertEqual(
+                job["source"]["items"][0]["transition_after_us"],
+                250_000,
+            )
             self.assertEqual(job["captions"]["size"], 11.0)
             self.assertEqual(job["captions"]["stroke_color"], "#000000")
             self.assertEqual(job["captions"]["font_title"], "固定字体")

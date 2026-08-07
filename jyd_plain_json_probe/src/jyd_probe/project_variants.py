@@ -436,6 +436,12 @@ class ProjectVariantCoordinator:
             )
             operations[item_id] = operation
             for row in rows:
+                row["job"]["observability"] = {
+                    "project_id": project_id,
+                    "item_id": item_id,
+                    "operation_id": operation["operation_id"],
+                    "correlation_id": operation["correlation_id"],
+                }
                 flat_jobs.append(row["job"])
                 flat_variants.append(
                     {
@@ -571,6 +577,13 @@ class ProjectVariantCoordinator:
                 "archive": archive,
             },
         )
+        for row in rows:
+            row["job"]["observability"] = {
+                "project_id": project_id,
+                "item_id": item_id,
+                "operation_id": operation["operation_id"],
+                "correlation_id": operation["correlation_id"],
+            }
         try:
             submitted = self.render_queue.submit_batch(
                 [row["job"] for row in rows],

@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 import hashlib
+import logging
 from pathlib import Path
 from typing import Any
+import uuid
 
 from .auth_center import AuthCenterClient
 from .project_store import ProjectStore
+from .logging_config import log_event
 
 
 REMOTE_AUDIO_ACTIVE = {
@@ -18,6 +21,7 @@ REMOTE_AUDIO_ACTIVE = {
     "SEGMENTING",
     "HANDOFF",
 }
+logger = logging.getLogger("jyd_probe.workbench")
 
 
 def _current_audio_links(
@@ -154,6 +158,7 @@ class ProjectAudioCoordinator:
             raise ValueError("当前项目没有可创建新声音版本的脚本行")
 
         grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        correlation_by_voice: dict[str, str] = {}
         resolved_items: list[tuple[dict[str, Any], str]] = []
         for item in target_items:
             voice_id = str(assignments.get(item["item_id"]) or default_voice).strip()
@@ -162,6 +167,9 @@ class ProjectAudioCoordinator:
             resolved_items.append((item, voice_id))
 
         for item, voice_id in resolved_items:
+            correlation_id = correlation_by_voice.setdefault(
+                voice_id, uuid.uuid4().hex
+            )
             script_hash = hashlib.sha256(
                 str(item["script_text"]).encode("utf-8")
             ).hexdigest()
@@ -186,11 +194,13 @@ class ProjectAudioCoordinator:
                     "script_sha256": script_hash,
                     "script_length": len(str(item["script_text"])),
                 },
+                correlation_id=correlation_id,
             )
             grouped[voice_id].append({**item, "operation": operation})
 
         project = self.store.get_project(owner_user_id, project_id)
         for group_index, (voice_id, items) in enumerate(grouped.items(), start=1):
+            correlation_id = str(items[0]["operation"]["correlation_id"])
             try:
                 rows = [
                     {
@@ -211,6 +221,7 @@ class ProjectAudioCoordinator:
                         # internal idempotency column.  It is not a RunningHub
                         # task id and does not couple TTS to video generation.
                         "request_key": f"workbench-audio-{request_digest}",
+                        "correlation_id": correlation_id,
                         "rows": rows,
                         "speech_options": {
                             **speech,
@@ -221,13 +232,32 @@ class ProjectAudioCoordinator:
                 batch_id = str(remote.get("batch_id") or "")
                 if not batch_id:
                     raise ValueError("数字人后端没有返回声音批次编号")
+                remote_correlation_id = str(
+                    remote.get("correlation_id") or correlation_id
+                )
+                if remote_correlation_id != correlation_id:
+                    raise ValueError("数字人后端返回了不一致的日志关联标识")
+                log_event(
+                    logger,
+                    "workbench.cloud_audio_batch_accepted",
+                    "云端已接收声音批次",
+                    component="workbench",
+                    user_id=owner_user_id,
+                    project_id=project_id,
+                    batch_id=batch_id,
+                    correlation_id=correlation_id,
+                    item_count=len(items),
+                )
                 self.store.add_link(
                     owner_user_id=owner_user_id,
                     project_id=project_id,
                     system="runninghub",
                     relation="digital_human_audio_batch",
                     external_id=batch_id,
-                    metadata={"voice_asset_id": voice_id},
+                    metadata={
+                        "voice_asset_id": voice_id,
+                        "correlation_id": correlation_id,
+                    },
                 )
                 remote_by_row = {
                     str(row.get("row_key") or ""): row
@@ -248,6 +278,7 @@ class ProjectAudioCoordinator:
                         external_id=remote_item_id,
                         metadata={
                             "batch_id": batch_id,
+                            "correlation_id": correlation_id,
                             "script_sha256": hashlib.sha256(
                                 str(item["script_text"]).encode("utf-8")
                             ).hexdigest(),
@@ -267,6 +298,17 @@ class ProjectAudioCoordinator:
                         },
                     )
             except Exception as exc:
+                log_event(
+                    logger,
+                    "workbench.cloud_audio_batch_failed",
+                    "云端声音批次创建失败",
+                    level=logging.ERROR,
+                    component="workbench",
+                    user_id=owner_user_id,
+                    project_id=project_id,
+                    correlation_id=correlation_id,
+                    error_type=type(exc).__name__,
+                )
                 for item in items:
                     self.store.transition_audio_operation(
                         owner_user_id,

@@ -269,6 +269,9 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `composition_video`，也不要求剪映保持打开。只有用户明确下载普通成片时才调用单行
 `postprocess/export`，此时复用现有剪映队列并只导出一次。后续变体应直接把基础视频和
 同一配方放进变体任务一次导出，不以前述普通成片作为必需中间产物。接口不会自动创建变体。
+多分段导出使用 `video_sequence` 保留原始 MP4，在相邻两个真实视频片段之间直接写入
+250000 微秒剪映原生“叠化”；不插入尾帧图片片段、不变速，目标时长长于素材时按素材
+实际时长使用。
 
 `postprocess-settings` 可在非运行状态随时保存字体、BGM 选择模式和文字颜色。如果该行已有最终
 成片，修改后只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
@@ -354,6 +357,7 @@ POST /api/new/gallery/deletions
 POST  /api/new/projects
 GET   /api/new/projects?limit=50&offset=0
 GET   /api/new/projects/{project_id}
+GET   /api/new/projects/{project_id}/diagnostics
 PATCH /api/new/projects/{project_id}
 PATCH /api/new/projects/{project_id}/items/{item_id}
 ```
@@ -378,6 +382,10 @@ PATCH /api/new/projects/{project_id}/items/{item_id}
 成功返回 `201` 和 `jyd.project.v1` 项目详情。项目编号格式为
 `DH-YYYYMMDD-0001`，同一天在当前工作台实例内递增。一个项目最多包含 500 条脚本，
 项目内 `row_key` 不能重复。
+
+`GET diagnostics` 返回一次性 ZIP 下载，并在响应完成后删除临时文件。它只包含当前项目的
+安全摘要和 14 天内可按项目、操作或关联号精确关联的本机脱敏日志；不包含脚本文本、素材
+文件及路径、操作负载、错误正文、凭据或其他项目日志。独立 Agent 日志不在该包内。
 
 详情中的每条脚本行包含：
 

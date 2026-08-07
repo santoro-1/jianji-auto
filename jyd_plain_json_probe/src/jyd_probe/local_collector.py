@@ -5,6 +5,7 @@ from datetime import datetime
 import hashlib
 import http.client
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -28,9 +29,11 @@ from .runtime_paths import (
     is_frozen,
     libraries_root,
 )
+from .logging_config import log_event
 
 
 DEFAULT_RENDER_SERVER_URL = "http://127.0.0.1:8010"
+logger = logging.getLogger("jyd_probe.collector")
 
 
 @dataclass
@@ -93,6 +96,13 @@ class LocalCollectorService:
             self.settings.personal_library_root = self.settings.state_root / "personal_libraries"
         self.settings.personal_library_root.mkdir(parents=True, exist_ok=True)
         self._load_saved_config()
+        log_event(
+            logger,
+            "collector.initialized",
+            "草稿采集器已初始化",
+            component="collector",
+            draft_root_mode=self.settings.draft_root_mode,
+        )
 
     def get_config(self) -> dict[str, Any]:
         return {
@@ -116,6 +126,13 @@ class LocalCollectorService:
         self.settings.draft_root = root
         self.settings.draft_root_mode = "manual"
         self._save_config()
+        log_event(
+            logger,
+            "collector.draft_root_updated",
+            "剪映草稿目录已更新",
+            component="collector",
+            draft_root_mode="manual",
+        )
         return self.get_config()
 
     def set_render_server_url(self, value: str) -> dict[str, Any]:
@@ -287,6 +304,14 @@ class LocalCollectorService:
         report["report_id"] = report_id
         report_path = self._reports_root / f"{report_id}.json"
         self._write_json(report_path, report)
+        log_event(
+            logger,
+            "collector.draft_analyzed",
+            "剪映草稿分析完成",
+            component="collector",
+            report_id=report_id,
+            was_decrypted=prepared.was_decrypted,
+        )
         return report
 
     def get_report(self, report_id: str) -> dict[str, Any]:
@@ -416,6 +441,15 @@ class LocalCollectorService:
                 "size": package["path"].stat().st_size,
                 "checksum_sha256": package["checksum_sha256"],
             }
+        log_event(
+            logger,
+            "collector.assets_collected",
+            "个人素材采集完成",
+            component="collector",
+            kinds=selected_kinds,
+            uploaded=upload,
+            success_count=sum(1 for item in results.values() if item.get("ok")),
+        )
         return response
 
     def _build_personal_asset_package(self, root: Path, kinds: list[str]) -> dict[str, Any]:
@@ -506,6 +540,14 @@ class LocalCollectorService:
         plan_id = uuid.uuid4().hex
         plan["plan_id"] = plan_id
         self._write_json(self._plans_root / f"{plan_id}.json", plan)
+        log_event(
+            logger,
+            "collector.upload_plan_created",
+            "草稿上传清单已创建",
+            component="collector",
+            report_id=report_id,
+            plan_id=plan_id,
+        )
         return plan
 
     def get_upload_plan(self, plan_id: str) -> dict[str, Any]:
@@ -548,6 +590,13 @@ class LocalCollectorService:
             "server_result": response,
         }
         self._write_json(self._uploads_root / f"{plan_id}.json", result)
+        log_event(
+            logger,
+            "collector.upload_completed",
+            "草稿包上传完成",
+            component="collector",
+            plan_id=plan_id,
+        )
         return result
 
     @property

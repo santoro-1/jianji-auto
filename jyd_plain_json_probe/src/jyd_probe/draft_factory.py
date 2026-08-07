@@ -24,6 +24,7 @@ class VideoSequenceItem:
     media_path: Path
     target_duration_us: int = 0
     source_start_us: int = 0
+    transition_after_us: int = 0
 
 
 def _safe_draft_name(stem: str) -> str:
@@ -116,29 +117,6 @@ def create_plain_draft_from_video(
     )
 
 
-def _extract_tail_frame(media: Path, output: Path, duration_us: int) -> None:
-    import cv2
-
-    capture = cv2.VideoCapture(str(media))
-    if not capture.isOpened():
-        raise RuntimeError(f"无法读取分段视频尾帧: {media}")
-    try:
-        capture.set(cv2.CAP_PROP_POS_MSEC, max(0, duration_us - 40_000) / 1000.0)
-        ok, frame = capture.read()
-        if not ok or frame is None:
-            capture.set(cv2.CAP_PROP_POS_AVI_RATIO, 1.0)
-            ok, frame = capture.read()
-        if not ok or frame is None:
-            raise RuntimeError(f"无法提取分段视频尾帧: {media}")
-        output.parent.mkdir(parents=True, exist_ok=True)
-        encoded, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
-        if not encoded:
-            raise RuntimeError(f"无法编码分段视频尾帧: {media}")
-        buffer.tofile(str(output))
-    finally:
-        capture.release()
-
-
 def create_plain_draft_from_videos(
     items: Iterable[VideoSequenceItem],
     output_root: str | Path,
@@ -156,6 +134,7 @@ def create_plain_draft_from_videos(
             Path(item.media_path).expanduser().resolve(),
             max(0, int(item.target_duration_us)),
             max(0, int(item.source_start_us)),
+            max(0, int(item.transition_after_us)),
         )
         for item in items
     ]
@@ -193,28 +172,32 @@ def create_plain_draft_from_videos(
             raise RuntimeError(f"分段视频可用时长无效: {item.media_path}")
         requested = item.target_duration_us or available
         clip_duration = min(requested, available)
-        script.add_segment(
-            draft.VideoSegment(
-                material,
-                draft.Timerange(cursor, clip_duration),
-                source_timerange=draft.Timerange(item.source_start_us, clip_duration),
-            )
+        video_segment = draft.VideoSegment(
+            material,
+            draft.Timerange(cursor, clip_duration),
+            source_timerange=draft.Timerange(item.source_start_us, clip_duration),
         )
-        cursor += clip_duration
-        hold_duration = requested - clip_duration
-        if hold_duration > 0:
-            hold_path = root / draft_name / "_segment_holds" / f"segment-{index:03d}-tail.jpg"
-            _extract_tail_frame(item.media_path, hold_path, int(material.duration))
-            hold_material = draft.VideoMaterial(str(hold_path))
-            script.add_segment(
-                draft.VideoSegment(
-                    hold_material,
-                    draft.Timerange(cursor, hold_duration),
-                    source_timerange=draft.Timerange(0, hold_duration),
-                    volume=0.0,
-                )
+        if item.transition_after_us > 0 and index < len(sequence):
+            next_item = sequence[index]
+            next_material = materials[index]
+            next_available = max(
+                0,
+                int(next_material.duration) - next_item.source_start_us,
             )
-            cursor += hold_duration
+            next_requested = next_item.target_duration_us or next_available
+            next_clip_duration = min(next_requested, next_available)
+            transition_duration = min(
+                item.transition_after_us,
+                clip_duration,
+                next_clip_duration,
+            )
+            if transition_duration > 0:
+                video_segment.add_transition(
+                    draft.TransitionType.叠化,
+                    duration=transition_duration,
+                )
+        script.add_segment(video_segment)
+        cursor += clip_duration
     script.save()
 
     draft_dir = root / draft_name

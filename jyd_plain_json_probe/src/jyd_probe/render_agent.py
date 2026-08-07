@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from copy import deepcopy
 import json
+import logging
 import os
 from pathlib import Path
 import platform
@@ -17,9 +18,11 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from .render_job import run_render_job
+from .logging_config import configure_file_logging, log_event
 
 
 AGENT_VERSION = "1.0.0"
+logger = logging.getLogger("jyd_probe.agent")
 
 
 class AgentApiClient:
@@ -80,6 +83,7 @@ class RenderAgent:
         self.log_callback = log_callback
 
     def _log(self, message: str) -> None:
+        logger.info(message)
         if sys.stdout is not None:
             print(message, flush=True)
         if self.log_callback is not None:
@@ -141,6 +145,13 @@ class RenderAgent:
             self._report_failure(job_id, "中央服务返回的任务 payload 不是对象")
             return
         payload = self._localize_payload(payload)
+        observability = payload.get("observability", {})
+        if not isinstance(observability, dict):
+            observability = {}
+        event_context = {
+            key: observability.get(key)
+            for key in ("project_id", "item_id", "operation_id", "correlation_id")
+        }
         stop_heartbeat = threading.Event()
         heartbeat = threading.Thread(
             target=self._heartbeat_loop,
@@ -150,6 +161,15 @@ class RenderAgent:
         )
         heartbeat.start()
         self._log(f"开始任务：{job_id}")
+        log_event(
+            logger,
+            "agent.job_started",
+            "独立处理机开始渲染任务",
+            component="agent",
+            agent_id=self.agent_id,
+            job_id=job_id,
+            **event_context,
+        )
         try:
             result = run_render_job(payload)
             self.client.post(
@@ -157,10 +177,31 @@ class RenderAgent:
                 {"result": result.as_dict()},
             )
             self._log(f"任务完成：{job_id}")
+            log_event(
+                logger,
+                "agent.job_completed",
+                "独立处理机渲染任务完成",
+                component="agent",
+                agent_id=self.agent_id,
+                job_id=job_id,
+                **event_context,
+            )
         except Exception as exc:
+            logger.exception("任务执行失败 job_id=%s", job_id)
             if sys.stderr is not None:
                 traceback.print_exc()
             self._log(f"任务执行失败：{type(exc).__name__}: {exc}")
+            log_event(
+                logger,
+                "agent.job_failed",
+                "独立处理机渲染任务失败",
+                level=logging.ERROR,
+                component="agent",
+                agent_id=self.agent_id,
+                job_id=job_id,
+                error_type=type(exc).__name__,
+                **event_context,
+            )
             self._report_failure(job_id, f"{type(exc).__name__}: {exc}")
         finally:
             stop_heartbeat.set()
@@ -220,6 +261,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_file_logging(
+        _agent_config_root() / "logs",
+        "agent.log",
+    )
     args = build_parser().parse_args(argv)
     if args.gui or (argv is None and len(sys.argv) == 1):
         return launch_agent_gui()

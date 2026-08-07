@@ -265,6 +265,9 @@ def _prepare_video_sequence_source(
                 source_start_us=int(
                     _value(item, "source_start_us", "start_us", default=0)
                 ),
+                transition_after_us=int(
+                    _value(item, "transition_after_us", default=0)
+                ),
             )
         )
 

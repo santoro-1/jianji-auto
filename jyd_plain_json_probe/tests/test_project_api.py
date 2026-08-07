@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import io
+import json
 import shutil
 import sqlite3
 import sys
 import unittest
 import uuid
+import zipfile
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -116,6 +119,84 @@ class ProjectApiTest(unittest.TestCase):
                 hidden = client.get(f"/api/new/projects/{project['project_id']}")
                 self.assertEqual(hidden.status_code, 404)
                 self.assertEqual(client.get("/api/new/projects").json()["total"], 0)
+
+    def test_project_diagnostics_are_owned_redacted_and_project_scoped(self) -> None:
+        first_user = {"user_id": "diag-1", "username": "tester-1", "enabled": True}
+        second_user = {"user_id": "diag-2", "username": "tester-2", "enabled": True}
+        active_user = first_user
+
+        def verify(_client, _token):
+            return active_user
+
+        with patch("jyd_probe.auth_center.AuthCenterClient.verify", new=verify):
+            app = create_app(self.settings)
+            with TestClient(app) as client:
+                self._login(client, first_user)
+                project = client.post(
+                    "/api/new/projects",
+                    json={
+                        "name": "诊断测试项目",
+                        "items": [{"row_key": "001", "script_text": "不可导出的脚本文本"}],
+                    },
+                ).json()
+                operation = app.state.project_store.create_operation(
+                    owner_user_id=first_user["user_id"],
+                    project_id=project["project_id"],
+                    item_id=project["items"][0]["item_id"],
+                    operation_type="AUDIO_GENERATE",
+                    idempotency_key="diagnostics-test",
+                    payload={"script_text": "同样不可导出"},
+                    correlation_id="corr-diagnostics-1",
+                )
+                logs_root = self.settings.storage_root.parent / "logs"
+                logs_root.mkdir(parents=True, exist_ok=True)
+                (logs_root / "workbench.log").write_text(
+                    "2026-08-07 INFO app: [EVENT workbench.test] matched "
+                    f'{{"project_id":"{project["project_id"]}",'
+                    '"access_token":"top-secret"}}\n'
+                    "2026-08-07 INFO app: [EVENT workbench.test] unsafe-content "
+                    f'{{"project_id":"{project["project_id"]}",'
+                    '"script_text":"不可泄露的日志脚本"}}\n'
+                    "2026-08-07 INFO app: [EVENT workbench.test] path "
+                    f'{{"project_id":"{project["project_id"]}",'
+                    '"output_path":"D:\\\\private folder\\\\result.mp4"}}\n'
+                    "2026-08-07 INFO app: [EVENT workbench.test] unrelated "
+                    '{"project_id":"another-project","access_token":"leak"}\n',
+                    encoding="utf-8",
+                )
+
+                response = client.get(
+                    f'/api/new/projects/{project["project_id"]}/diagnostics'
+                )
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertEqual(response.headers["content-type"], "application/zip")
+                with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+                    summary_text = archive.read("项目诊断摘要.json").decode("utf-8")
+                    summary = json.loads(summary_text)
+                    log_text = archive.read("项目相关日志.txt").decode("utf-8")
+                self.assertEqual(summary["schema"], "jyd.project-diagnostics.v1")
+                self.assertEqual(
+                    summary["operations"][0]["correlation_id"],
+                    operation["correlation_id"],
+                )
+                self.assertNotIn("script_text", summary_text)
+                self.assertNotIn("不可导出的脚本文本", summary_text)
+                self.assertIn(project["project_id"], log_text)
+                self.assertIn('"access_token":"***"', log_text)
+                self.assertNotIn("top-secret", log_text)
+                self.assertNotIn("不可泄露的日志脚本", log_text)
+                self.assertNotIn("D:\\private folder", log_text)
+                self.assertIn("<redacted-path>", log_text)
+                self.assertNotIn("another-project", log_text)
+                self.assertNotIn("leak", log_text)
+
+                active_user = second_user
+                client.cookies.clear()
+                self._login(client, second_user)
+                hidden = client.get(
+                    f'/api/new/projects/{project["project_id"]}/diagnostics'
+                )
+                self.assertEqual(hidden.status_code, 404)
 
     def test_draft_project_and_item_can_be_updated(self) -> None:
         user = {"user_id": "user-1", "username": "tester", "enabled": True}
@@ -362,7 +443,7 @@ class ProjectApiTest(unittest.TestCase):
                 "SELECT value FROM project_schema_meta WHERE key='version'"
             ).fetchone()[0]
         self.assertEqual(render_schema_version, "1")
-        self.assertEqual(project_schema_version, "8")
+        self.assertEqual(project_schema_version, "9")
 
     def test_operations_are_idempotent_and_external_links_are_preserved(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")
@@ -392,6 +473,10 @@ class ProjectApiTest(unittest.TestCase):
         )
         self.assertEqual(
             first_operation["operation_id"], repeated_operation["operation_id"]
+        )
+        self.assertTrue(first_operation["correlation_id"])
+        self.assertEqual(
+            first_operation["correlation_id"], repeated_operation["correlation_id"]
         )
         self.assertEqual(
             store.get_project("user-1", project["project_id"])["status"],
@@ -438,6 +523,10 @@ class ProjectApiTest(unittest.TestCase):
         )
         self.assertEqual(
             operation_after_restart["operation_id"], first_operation["operation_id"]
+        )
+        self.assertEqual(
+            operation_after_restart["correlation_id"],
+            first_operation["correlation_id"],
         )
         self.assertEqual(link_after_restart["link_id"], first_link["link_id"])
         restarted_detail = restarted_store.get_project("user-1", project["project_id"])

@@ -9,8 +9,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.web_api import create_app  # noqa: E402
+from jyd_probe.logging_config import configure_file_logging  # noqa: E402
 
 
+configure_file_logging(PROJECT_ROOT / "data" / "logs", "workbench.log")
+configure_file_logging(
+    PROJECT_ROOT / "data" / "logs",
+    "render.log",
+    logger_name="jyd_probe.render",
+    propagate=False,
+)
 app = create_app()
 
 
@@ -34,6 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         port=args.port,
         reload=args.reload,
         app_dir=str(PROJECT_ROOT),
+        log_config=None,
     )
     return 0
 

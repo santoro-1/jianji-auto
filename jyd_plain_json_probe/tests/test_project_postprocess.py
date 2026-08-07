@@ -280,6 +280,10 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     [entry["video_index"] for entry in job["source"]["items"]],
                     [1, 2],
                 )
+                self.assertEqual(
+                    job["source"]["items"][0]["transition_after_us"],
+                    250_000,
+                )
                 self.assertEqual(job["audios"][0]["volume"], 0.3)
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"

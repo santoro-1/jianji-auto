@@ -113,7 +113,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
             system="runninghub",
             relation="digital_human_audio_item",
             external_id="remote-item-1",
-            metadata={"batch_id": "remote-batch-1"},
+            metadata={
+                "batch_id": "remote-batch-1",
+                "correlation_id": "composition-correlation-1",
+            },
         )
 
         remote_ready = {
@@ -203,6 +206,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(
                     start_remote.call_args.kwargs["image_asset_id"],
                     "staged-image-1",
+                )
+                self.assertEqual(
+                    start_remote.call_args.kwargs["correlation_id"],
+                    "composition-correlation-1",
                 )
 
                 synced = client.get(
