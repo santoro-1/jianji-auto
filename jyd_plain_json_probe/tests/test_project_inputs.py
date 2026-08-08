@@ -276,6 +276,79 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertEqual(removed.status_code, 200, removed.text)
             self.assertFalse(unused_path.exists())
 
+    def test_active_row_does_not_block_other_row_image_replacement(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "逐行图片权限",
+                    "items": [
+                        {"row_key": "1", "script_text": "第一条"},
+                        {"row_key": "2", "script_text": "第二条"},
+                    ],
+                },
+            ).json()
+            project_id = project["project_id"]
+            first_item, second_item = project["items"]
+
+            initial = client.post(
+                f"/api/new/projects/{project_id}/images?filename=initial.png",
+                content=PNG_1X1,
+            ).json()
+            mapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={"strategy": "loop", "reuse_count": 1},
+            )
+            self.assertEqual(mapped.status_code, 200, mapped.text)
+
+            client.app.state.project_store.create_operation(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=first_item["item_id"],
+                operation_type="AUDIO_GENERATE",
+                idempotency_key="active-row-image-isolation",
+            )
+
+            replacement = client.post(
+                f"/api/new/projects/{project_id}/images?filename=replacement.png",
+                content=PNG_1X1,
+            )
+            self.assertEqual(replacement.status_code, 201, replacement.text)
+            replacement_id = replacement.json()["image_id"]
+
+            replaced = client.put(
+                f"/api/new/projects/{project_id}/items/{second_item['item_id']}/image",
+                json={"image_id": replacement_id},
+            )
+            self.assertEqual(replaced.status_code, 200, replaced.text)
+            self.assertEqual(
+                replaced.json()["items"][1]["inputs"]["image"]["external_ref"][
+                    "input_image_id"
+                ],
+                replacement_id,
+            )
+            self.assertTrue(replaced.json()["allowed_actions"]["manage_input_images"])
+            self.assertFalse(replaced.json()["allowed_actions"]["apply_image_mapping"])
+
+            active_replace = client.put(
+                f"/api/new/projects/{project_id}/items/{first_item['item_id']}/image",
+                json={"image_id": replacement_id},
+            )
+            self.assertEqual(active_replace.status_code, 422, active_replace.text)
+
+            unused = client.post(
+                f"/api/new/projects/{project_id}/images?filename=unused-active.png",
+                content=PNG_1X1,
+            )
+            self.assertEqual(unused.status_code, 201, unused.text)
+            removed = client.delete(
+                f"/api/new/projects/{project_id}/images/{unused.json()['image_id']}"
+            )
+            self.assertEqual(removed.status_code, 200, removed.text)
+            self.assertNotEqual(initial["image_id"], replacement_id)
+
     def test_script_reimport_is_atomic_and_project_can_be_cleared(self) -> None:
         login_patch, verify_patch = self._client_context()
         with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:

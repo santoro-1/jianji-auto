@@ -925,7 +925,9 @@
         let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
         let pendingConfirmAction = null;
-        let activeImageRow = null;
+        // Keep a stable item id instead of a DOM row. Background polling may
+        // refresh server state while the native file chooser is open.
+        let activeImageItemId = null;
         let activeVideoPreviewRow = null;
         let pendingPreviewDownloadItemId = null;
         const previewBgmAudio = new Audio();
@@ -1183,7 +1185,15 @@
             return (stem || `数字人项目_${new Date().toLocaleDateString('zh-CN')}`).slice(0, 120);
         }
 
-        function syncProjectInputs(project) {
+        function projectHasActiveItems(project) {
+            return (project?.items || []).some((item) => [
+                'AUDIO_QUEUED', 'AUDIO_RUNNING',
+                'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING',
+                'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'
+            ].includes(item.status));
+        }
+
+        function syncProjectInputs(project, { renderTable = true } = {}) {
             activeProject = project;
             renderProjectActivity();
             const savedFinalPhase = sessionStorage.getItem(`final-generation-phase:${project?.project_id || ''}`);
@@ -1276,8 +1286,16 @@
                 document.getElementById('parsed-count-text').textContent =
                     `${project.project_no} · 已保存 ${uploadedScripts.length} 行脚本`;
             }
-            renderImageThumbnails();
-            updateTableLayout();
+            if (renderTable) {
+                renderImageThumbnails();
+                updateTableLayout();
+            } else {
+                // Status polling updates state and progress without rebuilding
+                // controls the user may be editing in another row.
+                updateCompositionProgress();
+                refreshAudioStageActions();
+                refreshVariantActionAvailability();
+            }
             scheduleAudioStatusPoll();
             scheduleCompositionStatusPoll();
             schedulePostprocessStatusPoll();
@@ -1706,6 +1724,7 @@
                     bgmOptionsHTML += `<option value="${escapeHtml(b.id)}" ${selected}>${escapeHtml(b.name)}</option>`;
                 });
                 const canEditPostprocess = Boolean(script.allowedActions?.edit_postprocess);
+                const canReplaceImage = Boolean(script.allowedActions?.replace_image);
                 const canDeleteItem = Boolean(script.allowedActions?.delete_item);
                 const analysisStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
                 const analysisLabels = {
@@ -1806,7 +1825,7 @@
                                 </span>
                                 <span class="row-thumbnail-badge absolute bottom-0 right-0 bg-slate-950/80 backdrop-blur-xs text-[7px] text-brand-accent px-1 py-[0.5px] rounded-tl font-bold hidden">P-1</span>
                             </button>
-                            <button type="button" onclick="triggerRowImageReplace(this, event)" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>替换</button>
+                            <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
                         </div>
                     </td>
                     <td class="px-4 py-4 text-center">
@@ -2690,7 +2709,7 @@
                 try {
                     const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/status`);
                     const wasActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
-                    syncProjectInputs(project);
+                    syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const isActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
                     if (wasActive && !isActive) {
                         const failed = uploadedScripts.filter((item) => item.voiceStatus === 'AUDIO_FAILED').length;
@@ -3247,10 +3266,11 @@
         // Expand/Zoom Preview Image
         function previewImageZoom(imgWrapper) {
             const imgSrc = imgWrapper.querySelector('img').src;
-            activeImageRow = imgWrapper.closest('tr');
-            const rowId = activeImageRow.getAttribute('data-id');
+            const row = imgWrapper.closest('tr');
+            activeImageItemId = row?.getAttribute('data-id') || null;
+            const script = uploadedScripts.find((item) => item.id === activeImageItemId);
             document.getElementById('image-zoom-src').src = imgSrc;
-            document.getElementById('image-zoom-summary').textContent = `第 ${rowId} 条视频画面`;
+            document.getElementById('image-zoom-summary').textContent = `任务 ${script?.rowKey || ''} 的视频画面`;
             const modal = document.getElementById('image-zoom-modal');
             const modalBox = modal.querySelector('.transform');
             modal.classList.remove('opacity-0', 'pointer-events-none');
@@ -3264,19 +3284,26 @@
             modalBox.classList.remove('scale-100');
             modalBox.classList.add('scale-95');
             modal.classList.add('opacity-0', 'pointer-events-none');
-            activeImageRow = null;
+            activeImageItemId = null;
         }
 
         function triggerRowImageReplace(button, event) {
             if (event) event.stopPropagation();
-            activeImageRow = button.closest('tr');
+            if (button.disabled) return;
+            activeImageItemId = button.closest('tr')?.getAttribute('data-id') || null;
+            if (!activeImageItemId) return;
             const input = document.getElementById('row-image-replace-input');
             input.value = '';
             input.click();
         }
 
         function triggerActiveRowImageReplace() {
-            if (!activeImageRow) return;
+            if (!activeImageItemId) return;
+            const script = uploadedScripts.find((item) => item.id === activeImageItemId);
+            if (!script?.allowedActions?.replace_image) {
+                showToast('当前行正在生成', '请等待这一行完成；其他未生成的任务仍可替换图片。', 'warning');
+                return;
+            }
             const input = document.getElementById('row-image-replace-input');
             input.value = '';
             input.click();
@@ -3284,14 +3311,13 @@
 
         async function handleRowImageReplacement(event) {
             const file = event.target.files[0];
-            const row = activeImageRow;
-            if (!file || !row) return;
+            const itemId = activeImageItemId;
+            if (!file || !itemId) return;
             if (!file.type.startsWith('image/')) {
                 showToast('图片格式不支持', '请选择 JPG、PNG 或 WEBP 等图片文件。', 'warning');
                 return;
             }
 
-            const itemId = row.getAttribute('data-id');
             try {
                 const image = await uploadProjectImage(file);
                 const project = await workspaceApi(
@@ -4242,7 +4268,7 @@
                 try {
                     const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/variants/status`);
                     const wasActive = isGeneratingVariants;
-                    syncProjectInputs(project);
+                    syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const stillActive = uploadedScripts.some(item => ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(item.compositionStatus));
                     if (wasActive && !stillActive) {
                         const failed = uploadedScripts.filter(item => item.compositionStatus === 'VARIANT_FAILED').length;
@@ -4281,7 +4307,7 @@
                     const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/status`);
                     const stillActiveInResponse = (project.items || []).some((item) => item.status === 'POSTPROCESS_RUNNING');
                     if (!stillActiveInResponse) setFinalGenerationPhase(null);
-                    syncProjectInputs(project);
+                    syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const stillActive = uploadedScripts.some((item) => item.compositionStatus === 'POSTPROCESS_RUNNING');
                     if (!stillActive) {
                         const failed = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED').length;
@@ -4372,7 +4398,7 @@
                     );
                     const failedInResponse = responseItems.filter((item) => item.status === 'COMPOSITION_FAILED').length;
                     if (!stillActiveInResponse && failedInResponse) setFinalGenerationPhase(null);
-                    syncProjectInputs(project);
+                    syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const stillActive = uploadedScripts.some((item) =>
                         ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
                     );

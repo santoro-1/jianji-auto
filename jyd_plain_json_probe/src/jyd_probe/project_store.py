@@ -1703,7 +1703,6 @@ class ProjectStore:
         now = _now()
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_images(connection, project_id)
             position = int(
                 connection.execute(
                     "SELECT COALESCE(MAX(position), 0) + 1 FROM project_input_images WHERE project_id=?",
@@ -1756,7 +1755,6 @@ class ProjectStore:
     ) -> dict[str, Any]:
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_images(connection, project_id)
             row = connection.execute(
                 "SELECT * FROM project_input_images WHERE image_id=? AND project_id=?",
                 (str(image_id or "").strip(), project_id),
@@ -3551,8 +3549,10 @@ class ProjectStore:
             "retry_visual_analysis": any(
                 item["allowed_actions"]["retry_visual_analysis"] for item in items
             ),
-            "manage_input_images": bool(items)
-            and all(item["allowed_actions"]["replace_image"] for item in items),
+            # Adding an unassigned image, or deleting an unused one, cannot mutate
+            # another row's frozen input. Per-row replacement remains guarded by
+            # that row; bulk remapping still requires every row to be editable.
+            "manage_input_images": bool(items),
             "apply_image_mapping": bool(project.get("input_images"))
             and bool(items)
             and all(item["allowed_actions"]["replace_image"] for item in items),

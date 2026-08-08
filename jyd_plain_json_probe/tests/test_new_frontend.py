@@ -161,6 +161,22 @@ class NewFrontendTest(unittest.TestCase):
             (FRONTEND_ROOT / "vendor/fontawesome/webfonts/fa-solid-900.woff2").is_file()
         )
 
+    def test_status_polling_preserves_other_row_controls_and_image_target(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function projectHasActiveItems(project)", html)
+        self.assertIn(
+            "function syncProjectInputs(project, { renderTable = true } = {})",
+            html,
+        )
+        self.assertIn(
+            "syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });",
+            html,
+        )
+        self.assertIn("let activeImageItemId = null;", html)
+        self.assertIn("const itemId = activeImageItemId;", html)
+        self.assertNotIn("let activeImageRow = null;", html)
+        self.assertNotIn("const row = activeImageRow;", html)
+
     def test_semantic_visual_review_and_dynamic_preview_share_recipe(self) -> None:
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="semantic-visual-modal"', html)
