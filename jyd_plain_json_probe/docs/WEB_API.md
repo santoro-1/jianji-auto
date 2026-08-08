@@ -246,6 +246,11 @@ GET  /api/new/projects/{project_id}/items/{item_id}/base-video
 `DIGITAL_HUMAN_RUNNING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
 `COMPOSITION_FAILED`。
 
+内部云端请求同时提交当前输入图片 SHA-256。相同摘要是幂等重试；摘要变化表示用户明确
+换图，云端保留已批准的 MiniMax 音频和原始时间戳，仅清除旧图片的画面子任务与合并结果后
+重新排队。云端清单的 `composition.image_sha256` 必须与本地 `COMPOSITION_GENERATE`
+操作快照一致，否则本地以 `REMOTE_IMAGE_VERSION_MISMATCH` 拒绝下载旧视频。
+
 请求可选传 `item_ids` 只启动指定行。指定行已有当前 `base_video` 时直接复用，不再次调用
 RunningHub；若只修改字幕/BGM，则单条控制直接把该行交给 4B。4B 的 `items` 本来就是
 显式子集，其他行未完成不会阻止已具备基础视频的当前行生成完整浏览器预览。

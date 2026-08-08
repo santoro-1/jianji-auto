@@ -144,6 +144,9 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 "status": "BASE_VIDEO_READY",
                 "segment_count": 1,
                 "base_video_ready": True,
+                "image_sha256": hashlib.sha256(
+                    replacement_path.read_bytes()
+                ).hexdigest(),
             },
         }
 
@@ -250,6 +253,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     "staged-image-1",
                 )
                 self.assertEqual(
+                    start_remote.call_args.kwargs["image_sha256"],
+                    hashlib.sha256(replacement_path.read_bytes()).hexdigest(),
+                )
+                self.assertEqual(
                     start_remote.call_args.kwargs["correlation_id"],
                     "composition-correlation-1",
                 )
@@ -300,6 +307,20 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 )
                 self.assertEqual(downloaded.status_code, 200, downloaded.text)
                 self.assertEqual(downloaded.content, b"normalized-base")
+
+                invalidated = store.invalidate_item_composition(
+                    user["user_id"],
+                    project["project_id"],
+                    item["item_id"],
+                    reason="REMOTE_IMAGE_VERSION_MISMATCH",
+                )
+                invalidated_item = invalidated["items"][0]
+                self.assertEqual(invalidated_item["status"], "AUDIO_READY")
+                self.assertIsNone(invalidated_item["outputs"]["base_video"])
+                self.assertIsNone(invalidated_item["outputs"]["composition_video"])
+                self.assertEqual(
+                    len(invalidated_item["asset_history"]["base_video"]), 1
+                )
 
 
 if __name__ == "__main__":

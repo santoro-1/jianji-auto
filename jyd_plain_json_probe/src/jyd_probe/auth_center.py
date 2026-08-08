@@ -175,6 +175,7 @@ class AuthCenterClient:
         *,
         idempotency_key: str,
         image_asset_id: str,
+        image_sha256: str,
         correlation_id: str = "",
         runninghub_execution_account_ids: list[int] | None = None,
     ) -> dict[str, Any]:
@@ -183,6 +184,7 @@ class AuthCenterClient:
             "cost_confirmed": True,
             "idempotency_key": idempotency_key,
             "image_asset_id": image_asset_id,
+            "image_sha256": image_sha256,
             "correlation_id": correlation_id,
         }
         if runninghub_execution_account_ids is not None:

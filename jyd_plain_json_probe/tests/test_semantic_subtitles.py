@@ -310,6 +310,30 @@ def test_real_draft_keeps_comma_clauses_and_number_units_intact() -> None:
     assert any("近5万名" in text for text in texts)
 
 
+def test_decimal_range_survives_a_bad_model_boundary() -> None:
+    script = "每周掉秤0.5到1公斤是最健康的速度。"
+    units = _units(
+        [
+            ("每周掉秤0.", "phrase", "none", "prefer"),
+            ("5到1公斤", "number", "none", "prefer"),
+            ("是最健康的速度。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 3_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    joined = "".join(texts)
+    assert mapping["status"] == "SUCCESS"
+    assert "0.5到1公斤" in joined
+    assert "0|.5" not in "|".join(texts)
+    assert "0.|5" not in "|".join(texts)
+
+
 def test_structural_particle_boundary_repair_is_not_tied_to_one_script() -> None:
     script = "这是团队从现场带来的关键经验，可以帮助更多普通人稳定地完成长期改变。"
     units = _units(

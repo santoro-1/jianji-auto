@@ -158,6 +158,9 @@ class ProjectCompositionCoordinator:
             image_path = Path(str(image["managed_path"])).resolve()
             if not image_path.is_file():
                 raise ValueError(f"任务 {item['row_key']} 的图片文件不存在")
+            image_sha256 = str(image.get("metadata", {}).get("sha256") or "").strip().lower()
+            if not image_sha256:
+                image_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -168,6 +171,8 @@ class ProjectCompositionCoordinator:
                     "batch_id": batch_id,
                     "remote_item_id": remote_item_id,
                     "scope": "base_video_only",
+                    "input_image_asset_id": str(image.get("asset_id") or ""),
+                    "input_image_sha256": image_sha256,
                     "runninghub_execution_account_ids": selected_account_ids,
                 },
                 correlation_id=correlation_id or None,
@@ -178,6 +183,8 @@ class ProjectCompositionCoordinator:
                 raise ValueError(
                     "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
                 )
+            if operation.get("payload", {}).get("input_image_sha256") != image_sha256:
+                raise ValueError("同一画面生成幂等键不能用于不同的项目图片")
             try:
                 staged_image = self.client.upload_workbench_batch_asset(
                     token,
@@ -191,6 +198,7 @@ class ProjectCompositionCoordinator:
                     remote_item_id,
                     idempotency_key=f"{clean_key}:{item['item_id']}",
                     image_asset_id=str(staged_image.get("asset_id") or ""),
+                    image_sha256=image_sha256,
                     correlation_id=operation["correlation_id"],
                     runninghub_execution_account_ids=selected_account_ids,
                 )
@@ -213,6 +221,7 @@ class ProjectCompositionCoordinator:
                         "remote_status": remote_status,
                         "operation_id": operation["operation_id"],
                         "image_asset_id": staged_image.get("asset_id"),
+                        "input_image_sha256": image_sha256,
                         "runninghub_execution_account_ids": selected_account_ids,
                     },
                 )
@@ -251,6 +260,30 @@ class ProjectCompositionCoordinator:
             if not isinstance(composition, dict):
                 composition = {}
             remote_status = str(composition.get("status") or "")
+            expected_image_sha256 = str(
+                operation.get("payload", {}).get("input_image_sha256") or ""
+            ).strip().lower()
+            remote_image_sha256 = str(
+                composition.get("image_sha256") or ""
+            ).strip().lower()
+            if expected_image_sha256 and remote_image_sha256 != expected_image_sha256:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    result={
+                        "remote_item_id": remote_item_id,
+                        "remote_status": remote_status,
+                        "expected_image_sha256": expected_image_sha256,
+                        "remote_image_sha256": remote_image_sha256 or None,
+                    },
+                    error_code="REMOTE_IMAGE_VERSION_MISMATCH",
+                    error_message="云端返回的视频未绑定当前项目图片，请更新云端服务后重试",
+                )
+                continue
 
             project = self.store.get_project(owner_user_id, project_id)
             local_item = next(
@@ -460,6 +493,9 @@ class ProjectCompositionCoordinator:
             "remote_item_id": remote_item_id,
             "source_task_ids": task_ids,
             "remote_updated_at": str(remote.get("updated_at") or ""),
+            "image_sha256": str(
+                remote.get("composition", {}).get("image_sha256") or ""
+            ),
         }
         current = item.get("outputs", {}).get("base_video")
         if isinstance(current, dict) and current.get("external_ref") == signature:
@@ -506,6 +542,10 @@ class ProjectCompositionCoordinator:
             metadata={
                 "segment_count": len(task_ids),
                 "normalized_to_approved_audio": True,
+                "input_image_asset_id": str(
+                    item.get("inputs", {}).get("image", {}).get("asset_id") or ""
+                ),
+                "input_image_sha256": signature["image_sha256"],
                 "module": "4A",
             },
             make_current=True,

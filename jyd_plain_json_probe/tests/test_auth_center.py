@@ -119,11 +119,13 @@ class AuthCenterTest(unittest.TestCase):
                 "item-1",
                 idempotency_key="composition-1:item-1",
                 image_asset_id="image-1",
+                image_sha256="a" * 64,
                 runninghub_execution_account_ids=[11, 22],
             )
         request = request_mock.call_args.args[0]
         submitted = json.loads(request.data.decode("utf-8"))
         self.assertEqual(submitted["runninghub_execution_account_ids"], [11, 22])
+        self.assertEqual(submitted["image_sha256"], "a" * 64)
         self.assertNotIn("api_key", submitted)
         self.assertNotIn("base_url", submitted)
 

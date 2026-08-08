@@ -117,6 +117,9 @@ _NUMBER_EXPRESSION = re.compile(
     r"|(?:大约|约|近|超过|至少|不到)?"
     r"[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+"
     r"(?:[点.．][0-9０-９零〇一二两三四五六七八九十百千万亿几多]+)?"
+    r"(?:(?:到|至|[-~～—–])"
+    r"[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+"
+    r"(?:[点.．][0-9０-９零〇一二两三四五六七八九十百千万亿几多]+)?)?"
     r"(?:个)?(?:分钟|秒钟|小时|个月|公斤|千克|厘米|毫米|公里|年|月|天|日|周|岁|名|人|斤|元|次|倍|成|餐|%|％)"
     r"|[0-9０-９]+[.:：．][0-9０-９]+)"
 )
@@ -633,6 +636,11 @@ def _layout_semantic_groups(
     # tokenizer-approved character boundaries.  This prevents a local repair
     # from crossing `。` or a MiniMax pause and also lets us override a bad model
     # split such as `头晕眼|花`.
+    # The model is allowed to suggest boundaries, but it cannot split a lexical
+    # or numeric expression.  Repair those boundaries before punctuation is
+    # interpreted: otherwise a model result such as `0.|5到1公斤` makes the
+    # decimal point look like sentence punctuation and silently removes it.
+    groups = _merge_unbreakable_term_boundaries(groups)
     clauses: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     for source in groups:
@@ -1093,11 +1101,15 @@ class ProjectPostprocessCoordinator:
                     {
                         "render_cues": [],
                         "status": "REVIEW_REQUIRED",
-                        "overflow_risk": True,
+                        "overflow_risk": isinstance(exc, CaptionLayoutReviewRequired),
                         "review_reason": str(exc),
                         "semantic_mapping": _fallback_mapping(
                             item,
-                            code="RAW_CUE_LAYOUT_REVIEW_REQUIRED",
+                            code=(
+                                "RAW_CUE_LAYOUT_REVIEW_REQUIRED"
+                                if isinstance(exc, CaptionLayoutReviewRequired)
+                                else exc.code
+                            ),
                             summary=str(exc),
                         ),
                     }

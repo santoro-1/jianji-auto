@@ -1898,6 +1898,58 @@ class ProjectStore:
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
+    def invalidate_item_composition(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        reason: str,
+    ) -> dict[str, Any]:
+        """Detach a known-stale current video without deleting its history or file."""
+
+        clean_reason = str(reason or "").strip()
+        if not clean_reason:
+            raise ValueError("基础视频失效原因不能为空")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            if item["status"] in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，不能撤回基础视频")
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            subtitles["render_cues"] = []
+            subtitles["bound_video_asset_id"] = None
+            subtitles["overflow_risk"] = False
+            subtitles["review_reason"] = None
+            subtitles["status"] = (
+                "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+            )
+            settings = _object(item["settings_json"], {})
+            settings["composition_invalidated_reason"] = clean_reason
+            next_status = "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+            now = _now()
+            connection.execute(
+                """
+                UPDATE project_items
+                SET current_base_video_asset_id=NULL, current_video_asset_id=NULL,
+                    subtitles_json=?, settings_json=?, status=?, updated_at=?
+                WHERE item_id=?
+                """,
+                (
+                    _json(subtitles),
+                    _json(settings),
+                    next_status,
+                    now,
+                    item_id,
+                ),
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
     def delete_project(self, owner_user_id: str, project_id: str) -> list[str]:
         with self._transaction() as connection:
             self._owned_project(connection, owner_user_id, project_id)
