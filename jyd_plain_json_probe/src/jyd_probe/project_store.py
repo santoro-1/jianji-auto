@@ -2258,6 +2258,7 @@ class ProjectStore:
         project_id: str,
         item_id: str,
         *,
+        operation_id: str | None = None,
         operation_type: str,
         status: str,
         item_status: str,
@@ -2276,14 +2277,24 @@ class ProjectStore:
         with self._transaction() as connection:
             self._owned_project(connection, owner_user_id, project_id)
             self._owned_item(connection, project_id, item_id)
-            operation = connection.execute(
-                """
-                SELECT * FROM project_operations
-                WHERE project_id=? AND item_id=? AND operation_type=?
-                ORDER BY rowid DESC LIMIT 1
-                """,
-                (project_id, item_id, clean_type),
-            ).fetchone()
+            if operation_id:
+                operation = connection.execute(
+                    """
+                    SELECT * FROM project_operations
+                    WHERE operation_id=? AND project_id=? AND item_id=?
+                      AND operation_type=?
+                    """,
+                    (operation_id, project_id, item_id, clean_type),
+                ).fetchone()
+            else:
+                operation = connection.execute(
+                    """
+                    SELECT * FROM project_operations
+                    WHERE project_id=? AND item_id=? AND operation_type=?
+                    ORDER BY rowid DESC LIMIT 1
+                    """,
+                    (project_id, item_id, clean_type),
+                ).fetchone()
             if operation is None:
                 raise KeyError("异步操作不存在")
             previous_status = str(operation["status"])

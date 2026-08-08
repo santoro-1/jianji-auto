@@ -25,6 +25,7 @@ class VideoSequenceItem:
     target_duration_us: int = 0
     source_start_us: int = 0
     transition_after_us: int = 0
+    volume: float = 1.0
 
 
 def _safe_draft_name(stem: str) -> str:
@@ -135,6 +136,7 @@ def create_plain_draft_from_videos(
             max(0, int(item.target_duration_us)),
             max(0, int(item.source_start_us)),
             max(0, int(item.transition_after_us)),
+            float(item.volume),
         )
         for item in items
     ]
@@ -143,6 +145,8 @@ def create_plain_draft_from_videos(
     for item in sequence:
         if not item.media_path.is_file():
             raise FileNotFoundError(f"分段视频不存在: {item.media_path}")
+        if not 0.0 <= item.volume <= 2.0:
+            raise ValueError("分段视频音量必须在 0.0 到 2.0 之间")
 
     root = Path(output_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -171,11 +175,13 @@ def create_plain_draft_from_videos(
         if available <= 0:
             raise RuntimeError(f"分段视频可用时长无效: {item.media_path}")
         requested = item.target_duration_us or available
-        clip_duration = min(requested, available)
+        source_duration = min(requested, available)
+        clip_duration = requested
         video_segment = draft.VideoSegment(
             material,
             draft.Timerange(cursor, clip_duration),
-            source_timerange=draft.Timerange(item.source_start_us, clip_duration),
+            source_timerange=draft.Timerange(item.source_start_us, source_duration),
+            volume=item.volume,
         )
         if item.transition_after_us > 0 and index < len(sequence):
             next_item = sequence[index]
@@ -185,7 +191,7 @@ def create_plain_draft_from_videos(
                 int(next_material.duration) - next_item.source_start_us,
             )
             next_requested = next_item.target_duration_us or next_available
-            next_clip_duration = min(next_requested, next_available)
+            next_clip_duration = next_requested
             transition_duration = min(
                 item.transition_after_us,
                 clip_duration,

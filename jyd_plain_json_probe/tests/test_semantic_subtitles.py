@@ -240,6 +240,73 @@ def test_soft_comma_does_not_force_an_orphan_short_caption() -> None:
     )
 
 
+def test_real_draft_keeps_comma_clauses_and_number_units_intact() -> None:
+    script = (
+        "我是蹦床世界冠军张雒，退役之后做了十年的健康体重管理，"
+        "跟着我，吃对一日三餐健康瘦，我带着近5万名女性成功瘦了下来，"
+        "我还带着我姐从原来的160斤减到现在110斤，"
+    )
+    units = _units(
+        [
+            ("我是蹦床世界冠军", "phrase", "none", "prefer"),
+            ("张雒，", "phrase", "none", "prefer"),
+            ("退役之后做了十年的健康体重", "phrase", "none", "prefer"),
+            ("管理，", "phrase", "none", "prefer"),
+            ("跟着我，", "phrase", "none", "prefer"),
+            ("吃对一日三餐", "phrase", "none", "allow"),
+            ("健康瘦，", "phrase", "none", "prefer"),
+            ("我带着近5万名女性成功", "phrase", "none", "prefer"),
+            ("瘦了下来，", "phrase", "none", "prefer"),
+            ("我还带着我姐从原", "phrase", "none", "allow"),
+            ("来的160斤减到现在", "phrase", "none", "prefer"),
+            ("110斤，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 10_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    joined = "|".join(texts)
+    assert mapping["status"] == "SUCCESS"
+    assert "我是蹦床世界冠军张雒" in texts
+    assert "张雒退役之后做了十" not in texts
+    assert not any(text.startswith("张雒退役") for text in texts)
+    assert "十|年" not in joined
+    assert "近|5万" not in joined
+    assert "5万|名" not in joined
+    assert "原|来的" not in joined
+    assert "一日三|餐" not in joined
+    assert any("十年" in text for text in texts)
+    assert any("近5万名" in text for text in texts)
+
+
+def test_structural_particle_boundary_repair_is_not_tied_to_one_script() -> None:
+    script = "这是团队从现场带来的关键经验，可以帮助更多普通人稳定地完成长期改变。"
+    units = _units(
+        [
+            ("这是团队从现场带", "phrase", "none", "allow"),
+            ("来的关键经验，", "phrase", "none", "prefer"),
+            ("可以帮助更多普通人稳定", "phrase", "none", "allow"),
+            ("地完成长期改变。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 6_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    joined = "|".join(str(cue["text"]) for cue in render_cues)
+    assert mapping["status"] == "SUCCESS"
+    assert "带|来的" not in joined
+    assert "稳定|地" not in joined
+
+
 def test_leading_particle_is_rebalanced_with_its_phrase() -> None:
     script = "答案是让你呼吸急促心跳加速的轻活动。"
     units = _units(

@@ -10,7 +10,7 @@ import uuid
 
 from .project_results import ProjectResultLibrary
 from .project_store import ProjectStore
-from .project_video_source import build_project_video_source
+from .project_video_source import build_project_speech_audio, build_project_video_source
 from .project_postprocess import (
     CAPTION_REFERENCE_FONT_SIZE,
     CAPTION_STROKE_COLOR,
@@ -839,7 +839,9 @@ class ProjectVariantCoordinator:
         job: dict[str, Any] = {
             "schema": "jyd.render_job.v1",
             "source": build_project_video_source(item),
+            "original_video_volume": 0.0,
             "export": {"resolution": "1080P", "framerate": "30fps"},
+            "audios": [build_project_speech_audio(item)],
         }
         if cues:
             job["captions"] = {
@@ -859,7 +861,7 @@ class ProjectVariantCoordinator:
                 "font_title": str(font.get("name") or ""),
             }
         if bgm_identity:
-            job["audios"] = [
+            job["audios"].append(
                 {
                     "type": "bgm",
                     "library_identity": bgm_identity,
@@ -868,7 +870,7 @@ class ProjectVariantCoordinator:
                     "fit_to_video": True,
                     "volume": 0.3,
                 }
-            ]
+            )
         job["visual_overlays"] = frozen_visual_overlays(item)
         return {
             "job": job,

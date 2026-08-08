@@ -281,14 +281,17 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["captions"]["stroke_width"], 0.06)
                 self.assertEqual(job["source"]["type"], "video_sequence")
                 self.assertEqual(
-                    [entry["video_index"] for entry in job["source"]["items"]],
-                    [1, 2],
+                    [entry["target_duration_us"] for entry in job["source"]["items"]],
+                    [1_750_000, 2_250_000],
                 )
                 self.assertEqual(
-                    job["source"]["items"][0]["transition_after_us"],
-                    250_000,
+                    [entry["volume"] for entry in job["source"]["items"]],
+                    [0.0, 0.0],
                 )
-                self.assertEqual(job["audios"][0]["volume"], 0.3)
+                self.assertEqual(job["original_video_volume"], 0.0)
+                self.assertEqual(job["audios"][0]["media_path"], str(audio_path.resolve()))
+                self.assertEqual(job["audios"][0]["volume"], 1.0)
+                self.assertEqual(job["audios"][1]["volume"], 0.3)
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )

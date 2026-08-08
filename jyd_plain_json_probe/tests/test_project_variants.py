@@ -114,6 +114,19 @@ class ProjectVariantTest(unittest.TestCase):
             managed_path=str(script_source),
         )
         for item_index, item in enumerate(project["items"], start=1):
+            audio = self.root / f"audio-{item_index}.mp3"
+            audio.write_bytes(f"audio-{item_index}".encode("ascii"))
+            self.store.add_asset(
+                owner_user_id="user",
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                asset_type="audio",
+                source_type="minimax",
+                status="READY",
+                filename=audio.name,
+                managed_path=str(audio),
+                make_current=True,
+            )
             base = self.root / f"base-{item_index}.mp4"
             base.write_bytes(f"base-{item_index}".encode("ascii"))
             self.store.add_asset(
@@ -255,13 +268,18 @@ class ProjectVariantTest(unittest.TestCase):
                 [1, 2],
             )
             self.assertEqual(
-                job["source"]["items"][0]["transition_after_us"],
-                250_000,
+                [entry["volume"] for entry in job["source"]["items"]],
+                [0.0, 0.0],
             )
+            self.assertEqual(job["original_video_volume"], 0.0)
             self.assertEqual(job["captions"]["size"], 11.0)
             self.assertEqual(job["captions"]["stroke_color"], "#000000")
             self.assertEqual(job["captions"]["font_title"], "固定字体")
-            self.assertEqual(job["audios"][0]["library_identity"], "bgm-1")
+            self.assertEqual(
+                job["audios"][0]["media_path"],
+                str((self.root / "audio-1.mp3").resolve()),
+            )
+            self.assertEqual(job["audios"][1]["library_identity"], "bgm-1")
             self.assertEqual(job["cover"]["frame_count"], 3)
             self.assertEqual(job["cover"]["text_line_1"], "手动标题")
             self.assertEqual(len(job["effects"]), 1)

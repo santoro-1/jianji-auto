@@ -269,6 +269,7 @@ def _prepare_video_sequence_source(
                 transition_after_us=int(
                     _value(item, "transition_after_us", default=0)
                 ),
+                volume=float(_value(item, "volume", default=1.0)),
             )
         )
 

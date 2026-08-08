@@ -440,6 +440,7 @@ class ProjectAudioApiTest(unittest.TestCase):
             self.assertLessEqual(len(payload["request_key"]), 64)
             self.assertNotIn("image_asset_id", payload["rows"][0])
             self.assertNotIn("image_file", payload["rows"][0])
+            self.assertNotIn("prompt", payload["rows"][0])
             return remote_status["value"]
 
         def fake_status(_self, _token, _batch_id):

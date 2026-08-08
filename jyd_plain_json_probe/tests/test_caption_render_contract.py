@@ -13,7 +13,11 @@ from jyd_probe.project_postprocess import (
     _postprocess_target_items,
     _split_one_line,
 )
-from jyd_probe.project_video_source import build_project_video_source
+from jyd_probe.project_video_source import (
+    build_normalized_project_video_source,
+    build_project_speech_audio,
+    build_project_video_source,
+)
 
 
 class _UnitWidthMetrics:
@@ -79,6 +83,7 @@ class CaptionRenderContractTest(unittest.TestCase):
         item = {
             "row_key": "1",
             "outputs": {
+                "audio": {"managed_path": "D:/voice.mp3"},
                 "base_video": {
                     "managed_path": "D:/base.mp4",
                     "metadata": {"segment_count": 2},
@@ -109,8 +114,19 @@ class CaptionRenderContractTest(unittest.TestCase):
             [entry["target_duration_us"] for entry in source["items"]],
             [1_250_000, 1_750_000],
         )
+        normalized = build_normalized_project_video_source(item)
+        self.assertEqual(normalized["type"], "video")
+        self.assertEqual(
+            normalized["media_path"],
+            str(Path("D:/base.mp4").resolve()),
+        )
         self.assertEqual(source["items"][0]["transition_after_us"], 250_000)
         self.assertNotIn("transition_after_us", source["items"][1])
+        self.assertEqual([entry["volume"] for entry in source["items"]], [0.0, 0.0])
+        speech = build_project_speech_audio(item)
+        self.assertEqual(speech["type"], "add")
+        self.assertEqual(speech["media_path"], str(Path("D:/voice.mp3").resolve()))
+        self.assertEqual(speech["volume"], 1.0)
 
     def test_real_draft_keeps_sequence_as_two_main_track_segments(self) -> None:
         import cv2
@@ -190,12 +206,10 @@ class CaptionRenderContractTest(unittest.TestCase):
             self.assertEqual(len(video_track["segments"]), 2)
             self.assertEqual(
                 [segment["target_timerange"]["duration"] for segment in video_track["segments"]],
-                [1_000_000, 1_000_000],
+                [1_100_000, 1_000_000],
             )
-            self.assertEqual(
-                [segment["speed"] for segment in video_track["segments"]],
-                [1.0, 1.0],
-            )
+            self.assertAlmostEqual(video_track["segments"][0]["speed"], 1 / 1.1, places=5)
+            self.assertEqual(video_track["segments"][1]["speed"], 1.0)
             self.assertEqual(len(transitions), 1)
             self.assertEqual(transitions[0]["name"], "叠化")
             self.assertEqual(transitions[0]["duration"], 250_000)

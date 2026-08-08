@@ -287,9 +287,13 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `composition_video`，也不要求剪映保持打开。只有用户明确下载普通成片时才调用单行
 `postprocess/export`，此时复用现有剪映队列并只导出一次。后续变体应直接把基础视频和
 同一配方放进变体任务一次导出，不以前述普通成片作为必需中间产物。接口不会自动创建变体。
-多分段导出使用 `video_sequence` 保留原始 MP4，在相邻两个真实视频片段之间直接写入
-250000 微秒剪映原生“叠化”；不插入尾帧图片片段、不变速，目标时长长于素材时按素材
-实际时长使用。
+若导出因剪映窗口状态等本地原因失败，`base_video`、`PREVIEW_READY` 配方和 render cues 均
+继续保留；客户端应只为该行使用新幂等键重调 `postprocess/export`，无需重跑预览生成，且
+不能把其他已就绪行一并提交到 `postprocess/generate`。
+浏览器预览、4B 按需导出和模块 6 始终使用同一个已按音频时长标准化的 `base_video`。
+RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不直接作为上述时间线画面源；
+这样字幕、BGM 和视频使用完全相同的绝对时间轴，不会因供应商分段的容器实际时长偏短而
+使末尾字幕越界。`base_video` 已包含 4A 生成的 250000 微秒保时长叠化。
 
 `postprocess-settings` 可在非运行状态随时保存字体、BGM 选择模式和文字颜色。如果该行已有最终
 成片，修改后只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，

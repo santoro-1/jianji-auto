@@ -533,6 +533,50 @@ class ProjectApiTest(unittest.TestCase):
         self.assertEqual(len(restarted_detail["operations"]), 1)
         self.assertEqual(len(restarted_detail["links"]), 1)
 
+    def test_transition_operation_can_finish_a_superseded_attempt(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="旧任务状态回收测试",
+            items=[{"row_key": "001", "script_text": "测试口播。"}],
+        )
+        item_id = project["items"][0]["item_id"]
+        first = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=item_id,
+            operation_type="POSTPROCESS_EXPORT",
+            idempotency_key="export-1",
+            payload={},
+        )
+        second = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=item_id,
+            operation_type="POSTPROCESS_EXPORT",
+            idempotency_key="export-2",
+            payload={},
+        )
+
+        store.transition_operation(
+            "user-1",
+            project["project_id"],
+            item_id,
+            operation_id=first["operation_id"],
+            operation_type="POSTPROCESS_EXPORT",
+            status="FAILED",
+            item_status="DRAFT",
+            error_code="OLD_ATTEMPT_FAILED",
+            error_message="旧尝试失败",
+        )
+
+        operations = store.get_project("user-1", project["project_id"])["operations"]
+        by_id = {operation["operation_id"]: operation for operation in operations}
+        self.assertEqual(by_id[first["operation_id"]]["status"], "FAILED")
+        self.assertEqual(by_id[first["operation_id"]]["error_code"], "OLD_ATTEMPT_FAILED")
+        self.assertEqual(by_id[second["operation_id"]]["status"], "PENDING")
+
     def test_current_audio_binds_subtitle_placeholder_and_enables_composition(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")
         project = store.create_project(

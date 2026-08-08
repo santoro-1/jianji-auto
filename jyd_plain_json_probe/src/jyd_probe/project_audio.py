@@ -243,7 +243,6 @@ class ProjectAudioCoordinator:
                     {
                         "row_id": item["row_key"],
                         "speech_script": item["script_text"],
-                        "prompt": "人物自然地说话",
                     }
                     for item in items
                 ]

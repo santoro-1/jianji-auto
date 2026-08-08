@@ -16,7 +16,7 @@ from .project_music import (
     manual_music_selection,
 )
 from .project_store import ProjectStore
-from .project_video_source import build_project_video_source
+from .project_video_source import build_project_speech_audio, build_project_video_source
 from .semantic_subtitles import (
     SEMANTIC_MAPPING_SCHEMA,
     SemanticSubtitleMappingError,
@@ -41,6 +41,7 @@ _HIDDEN_CAPTION_PUNCTUATION = _BREAK_CHARS | set("…")
 _HARD_SENTENCE_BREAKS = set("。.！？!?；;…\r\n")
 _SOFT_SENTENCE_BREAKS = set("，,、：:")
 _ORPHAN_PARTICLES = tuple("的地得呢啊了吧吗")
+_STRUCTURAL_PARTICLES = frozenset("的地得")
 _PROTECTED_TERMS = (
     "表现",
     "问题",
@@ -88,6 +89,14 @@ _LEADING_CONNECTORS = (
     "否则",
     "比如",
     "例如",
+)
+_NUMBER_EXPRESSION = re.compile(
+    r"(?:百分之[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+"
+    r"|(?:大约|约|近|超过|至少|不到)?"
+    r"[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+"
+    r"(?:[点.．][0-9０-９零〇一二两三四五六七八九十百千万亿几多]+)?"
+    r"(?:个)?(?:分钟|秒钟|小时|个月|公斤|千克|厘米|毫米|公里|年|月|天|日|周|岁|名|人|斤|元|次|倍|成|餐|%|％)"
+    r"|[0-9０-９]+[.:：．][0-9０-９]+)"
 )
 _HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
@@ -188,21 +197,43 @@ def _unbreakable_terms() -> tuple[str, ...]:
     return (*_PROTECTED_TERMS, *_LEADING_CONNECTORS)
 
 
+def _unsafe_break_offsets(text: str) -> set[int]:
+    """Return character boundaries that would split a lexical or numeric unit."""
+
+    unsafe_offsets: set[int] = set()
+    for term in _unbreakable_terms():
+        cursor = 0
+        while True:
+            position = text.find(term, cursor)
+            if position < 0:
+                break
+            unsafe_offsets.update(range(position + 1, position + len(term)))
+            cursor = position + 1
+    for match in _NUMBER_EXPRESSION.finditer(text):
+        unsafe_offsets.update(range(match.start() + 1, match.end()))
+    for boundary in range(1, len(text)):
+        # Chinese structural particles attach to the expression on their left.
+        # Also keep the one-character stem immediately before the particle with
+        # it, so arbitrary model units cannot produce fragments such as
+        # ``带|来的`` or ``稳定|地``.  This is grammatical, not script-specific.
+        if text[boundary] in _STRUCTURAL_PARTICLES:
+            unsafe_offsets.add(boundary)
+        if (
+            boundary + 1 < len(text)
+            and "\u4e00" <= text[boundary] <= "\u9fff"
+            and text[boundary + 1] in _STRUCTURAL_PARTICLES
+        ):
+            unsafe_offsets.add(boundary)
+    return unsafe_offsets
+
+
 def _merge_unbreakable_term_boundaries(
     groups: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Discard model boundaries that split a known lexical unit."""
 
     source_text = "".join(str(group.get("text") or "") for group in groups)
-    unsafe_offsets: set[int] = set()
-    for term in _unbreakable_terms():
-        cursor = 0
-        while True:
-            position = source_text.find(term, cursor)
-            if position < 0:
-                break
-            unsafe_offsets.update(range(position + 1, position + len(term)))
-            cursor = position + 1
+    unsafe_offsets = _unsafe_break_offsets(source_text)
 
     merged: list[dict[str, Any]] = []
     source_offset = 0
@@ -224,7 +255,12 @@ def _merge_unbreakable_term_boundaries(
     return merged
 
 
-def _merge_orphan_sentence_tails(groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _merge_orphan_sentence_tails(
+    groups: list[dict[str, Any]],
+    metrics: FontMetrics,
+    *,
+    maximum_width_em: float,
+) -> list[dict[str, Any]]:
     """Repair one-character tails and very short comma-led prefixes."""
 
     merged: list[dict[str, Any]] = []
@@ -254,10 +290,34 @@ def _merge_orphan_sentence_tails(groups: list[dict[str, Any]]) -> list[dict[str,
         group = merged[index]
         display, _preferred = _caption_display_text(str(group.get("text") or ""))
         if (
-            index + 1 < len(merged)
-            and len(display) < 4
+            len(display) < 4
             and _trailing_sentence_break(str(group.get("text") or "")) == "soft"
         ):
+            previous = rebalanced[-1] if rebalanced else None
+            if previous and _trailing_sentence_break(str(previous.get("text") or "")) != "hard":
+                combined_display, _combined_preferred = _caption_display_text(
+                    str(previous.get("text") or "") + str(group.get("text") or "")
+                )
+                if metrics.text_width_em(combined_display) <= maximum_width_em:
+                    rebalanced.pop()
+                    rebalanced.append(
+                        {
+                            "text": str(previous.get("text") or "")
+                            + str(group.get("text") or ""),
+                            "start_us": int(previous.get("start_us") or 0),
+                            "end_us": int(group.get("end_us") or 0),
+                            "break_after": str(group.get("break_after") or "allow"),
+                            "hard_break_after": bool(group.get("hard_break_after")),
+                            "unit_count": int(previous.get("unit_count") or 1)
+                            + int(group.get("unit_count") or 1),
+                        }
+                    )
+                    index += 1
+                    continue
+            if index + 1 >= len(merged):
+                rebalanced.append(group)
+                index += 1
+                continue
             following = merged[index + 1]
             rebalanced.append(
                 {
@@ -321,15 +381,7 @@ def _split_one_line(
                 connector_ends.add(position + len(connector))
             cursor = position + len(connector)
 
-    protected_breaks: set[int] = set()
-    for term in _unbreakable_terms():
-        cursor = 0
-        while True:
-            position = normalized.find(term, cursor)
-            if position < 0:
-                break
-            protected_breaks.update(range(position + 1, position + len(term)))
-            cursor = position + 1
+    protected_breaks = _unsafe_break_offsets(normalized)
 
     preferred_term_ends: set[int] = set()
     for term in _PREFERRED_PHRASE_END_TERMS:
@@ -472,7 +524,11 @@ def _layout_semantic_groups(
     maximum_width_em: float,
 ) -> list[dict[str, int | str]]:
     groups = _merge_unbreakable_term_boundaries(groups)
-    groups = _merge_orphan_sentence_tails(groups)
+    groups = _merge_orphan_sentence_tails(
+        groups,
+        metrics,
+        maximum_width_em=maximum_width_em,
+    )
     repaired_groups: list[dict[str, Any]] = []
     for group in groups:
         group_text = str(group.get("text") or "")
@@ -547,7 +603,7 @@ def _layout_semantic_groups(
     for end in range(1, length + 1):
         for start in range(end - 1, -1, -1):
             if any(
-                groups[index].get("sentence_break") == "hard"
+                groups[index].get("sentence_break") in {"hard", "soft"}
                 for index in range(start, end - 1)
             ):
                 continue
@@ -741,18 +797,22 @@ def derive_project_render_cues(
     return render_cues, fallback
 
 
-def _latest_postprocess_operations(
+def _active_postprocess_operations(
     project: dict[str, Any],
-) -> dict[str, dict[str, Any]]:
-    latest: dict[str, dict[str, Any]] = {}
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    active: list[dict[str, Any]] = []
+    latest_by_item: dict[str, str] = {}
     for operation in project.get("operations", []):
         if (
             operation.get("operation_type")
             in {"POSTPROCESS_GENERATE", "POSTPROCESS_EXPORT"}
             and operation.get("item_id")
         ):
-            latest[str(operation["item_id"])] = operation
-    return latest
+            item_id = str(operation["item_id"])
+            latest_by_item[item_id] = str(operation.get("operation_id") or "")
+            if operation.get("status") in {"PENDING", "RUNNING"}:
+                active.append(operation)
+    return active, latest_by_item
 
 
 def _postprocess_target_items(
@@ -1069,6 +1129,7 @@ class ProjectPostprocessCoordinator:
         job = {
             "schema": "jyd.render_job.v1",
             "source": build_project_video_source(item),
+            "original_video_volume": 0.0,
             "output": {
                 "draft_root": str(self.draft_root),
                 "mp4_path": str(output),
@@ -1090,8 +1151,10 @@ class ProjectPostprocessCoordinator:
                 "font_path": str(font["path"]),
                 "font_title": str(font.get("name") or ""),
             },
-            "audios": (
-                [
+            "audios": [
+                build_project_speech_audio(item),
+                *(
+                    [
                     {
                         "type": "bgm",
                         "library_identity": bgm_identity,
@@ -1100,10 +1163,11 @@ class ProjectPostprocessCoordinator:
                         "fit_to_video": True,
                         "volume": 0.3,
                     }
-                ]
-                if bgm_identity
-                else []
-            ),
+                    ]
+                    if bgm_identity
+                    else []
+                ),
+            ],
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
         job["visual_overlays"] = frozen_visual_overlays(item)
@@ -1144,6 +1208,7 @@ class ProjectPostprocessCoordinator:
                 owner_user_id,
                 project_id,
                 item["item_id"],
+                operation_id=operation["operation_id"],
                 operation_type="POSTPROCESS_EXPORT",
                 status="RUNNING",
                 item_status="POSTPROCESS_RUNNING",
@@ -1158,6 +1223,7 @@ class ProjectPostprocessCoordinator:
                 owner_user_id,
                 project_id,
                 item["item_id"],
+                operation_id=operation["operation_id"],
                 operation_type="POSTPROCESS_EXPORT",
                 status="FAILED",
                 item_status="COMPOSITION_FAILED",
@@ -1169,11 +1235,16 @@ class ProjectPostprocessCoordinator:
 
     def sync(self, owner_user_id: str, project_id: str) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
-        operations = _latest_postprocess_operations(project)
-        for item in project["items"]:
-            operation = operations.get(str(item["item_id"]))
-            if operation is None or operation.get("status") not in {"PENDING", "RUNNING"}:
+        operations, latest_by_item = _active_postprocess_operations(project)
+        items = {str(item["item_id"]): item for item in project["items"]}
+        for operation in operations:
+            item_id = str(operation.get("item_id") or "")
+            item = items.get(item_id)
+            if item is None:
                 continue
+            operation_id = str(operation.get("operation_id") or "")
+            is_latest = latest_by_item.get(item_id) == operation_id
+            preserved_item_status = str(item.get("status") or "DRAFT")
             result = operation.get("result") if isinstance(operation.get("result"), dict) else {}
             operation_type = str(operation.get("operation_type") or "POSTPROCESS_GENERATE")
             job_id = str(result.get("job_id") or "")
@@ -1186,9 +1257,10 @@ class ProjectPostprocessCoordinator:
                     owner_user_id,
                     project_id,
                     item["item_id"],
+                    operation_id=operation_id,
                     operation_type=operation_type,
                     status="FAILED",
-                    item_status="COMPOSITION_FAILED",
+                    item_status=("COMPOSITION_FAILED" if is_latest else preserved_item_status),
                     error_code=type(exc).__name__,
                     error_message=str(exc),
                 )
@@ -1201,9 +1273,10 @@ class ProjectPostprocessCoordinator:
                     owner_user_id,
                     project_id,
                     item["item_id"],
+                    operation_id=operation_id,
                     operation_type=operation_type,
                     status="FAILED",
-                    item_status="COMPOSITION_FAILED",
+                    item_status=("COMPOSITION_FAILED" if is_latest else preserved_item_status),
                     result={"job_id": job_id},
                     error_code="JY_RENDER_FAILED",
                     error_message=str(status.get("error") or "剪映后处理失败"),
@@ -1216,12 +1289,30 @@ class ProjectPostprocessCoordinator:
                     owner_user_id,
                     project_id,
                     item["item_id"],
+                    operation_id=operation_id,
                     operation_type=operation_type,
                     status="FAILED",
-                    item_status="COMPOSITION_FAILED",
+                    item_status=("COMPOSITION_FAILED" if is_latest else preserved_item_status),
                     result={"job_id": job_id},
                     error_code="OUTPUT_MISSING",
                     error_message="剪映任务完成但成片文件不存在",
+                )
+                continue
+            if not is_latest:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=operation_id,
+                    operation_type=operation_type,
+                    status="SUCCEEDED",
+                    item_status=preserved_item_status,
+                    result={
+                        "batch_id": result.get("batch_id"),
+                        "job_id": job_id,
+                        "output_mp4": str(output),
+                        "superseded": True,
+                    },
                 )
                 continue
             current = item.get("outputs", {}).get("composition_video")
@@ -1258,6 +1349,7 @@ class ProjectPostprocessCoordinator:
                 owner_user_id,
                 project_id,
                 item["item_id"],
+                operation_id=operation_id,
                 operation_type=operation_type,
                 status="SUCCEEDED",
                 item_status="COMPOSITION_READY",

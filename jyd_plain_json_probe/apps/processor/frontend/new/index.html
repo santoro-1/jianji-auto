@@ -2926,14 +2926,29 @@
         function requestRegenerateRowVideo(button) {
             const row = button.closest('tr');
             const rowId = row.getAttribute('data-id');
-            if (activeProject?.allowed_actions?.retry_postprocess) {
+            const script = uploadedScripts.find((item) => item.id === rowId);
+            const canRetryFrozenExport = Boolean(
+                script?.allowedActions?.retry_postprocess
+                && script?.baseVideo
+                && script?.subtitles?.status === 'PREVIEW_READY'
+            );
+            if (canRetryFrozenExport) {
+                openConfirmModal({
+                    title: '确认重试剪映导出？',
+                    message: `第 ${script.rowKey} 条会复用已经准备好的数字人画面、字幕和 BGM，只重新启动本地剪映导出，不会重跑 RunningHub 或 MiniMax。`,
+                    confirmText: '重试导出',
+                    onConfirm: () => retryPostprocessExport(rowId)
+                });
+                return;
+            }
+            if (script?.allowedActions?.retry_postprocess) {
                 openConfirmModal({
                     title: '确认重试完整成片？',
-                    message: `第 ${rowId} 条成片会从失败的内部阶段继续处理，已经成功的付费任务不会重做。`,
+                    message: `第 ${script.rowKey} 条成片会从失败的内部阶段继续处理，已经成功的付费任务不会重做。`,
                     confirmText: '确认重试',
                     onConfirm: async () => {
                         setFinalGenerationPhase('postprocess');
-                        await startGlobalPostprocess();
+                        await startGlobalPostprocess([rowId]);
                     }
                 });
                 return;
@@ -2944,6 +2959,37 @@
                 confirmText: '确认重试',
                 onConfirm: () => regenerateRowVideo(button)
             });
+        }
+
+        async function retryPostprocessExport(rowId) {
+            const script = uploadedScripts.find((item) => item.id === rowId);
+            if (
+                !activeProject?.project_id
+                || !script?.allowedActions?.retry_postprocess
+                || !script?.baseVideo
+                || script?.subtitles?.status !== 'PREVIEW_READY'
+            ) {
+                showToast('暂时不能重试导出', '浏览器完整预览尚未准备好，请刷新项目状态后再试。', 'warning');
+                return;
+            }
+            setFinalGenerationPhase('postprocess');
+            try {
+                const project = await workspaceApi(
+                    `/api/new/projects/${activeProject.project_id}/items/${rowId}/postprocess/export`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ idempotency_key: `preview-export-retry-${rowId}-${Date.now()}` })
+                    }
+                );
+                syncProjectInputs(project);
+                schedulePostprocessStatusPoll();
+                showToast('已重新启动剪映导出', '已复用现有画面、字幕和 BGM；请保持剪映导出窗口可用。', 'success');
+            } catch (error) {
+                setFinalGenerationPhase(null);
+                showToast('剪映导出重试失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
         }
 
         function handleVariantCountChange(input) {
@@ -4207,14 +4253,19 @@
             }
         }
 
-        async function startGlobalPostprocess() {
+        async function startGlobalPostprocess(itemIds = null) {
             if (isStartingPostprocess) return;
-            if (!(activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess) || !fontPresets.length) {
+            const requestedIds = Array.isArray(itemIds) ? new Set(itemIds) : null;
+            const targetItems = uploadedScripts.filter((item) =>
+                (!requestedIds || requestedIds.has(item.id))
+                && Boolean(item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
+            );
+            if (!(activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess) || !fontPresets.length || !targetItems.length) {
                 setFinalGenerationPhase(null);
                 showToast('暂时不能生成成片', '请先确保每一行画面素材和字幕时间轴均已准备完成。', 'warning');
                 return;
             }
-            const rows = uploadedScripts.map((item) => {
+            const rows = targetItems.map((item) => {
                 const config = rowPostprocessConfigs[item.id] || {};
                 return {
                     item_id: item.id,
@@ -4238,9 +4289,10 @@
                     })
                 });
                 syncProjectInputs(project);
-                const browserPreviewReady = (project.items || []).every((item) =>
-                    item.subtitles?.status === 'PREVIEW_READY'
-                );
+                const targetIds = new Set(targetItems.map((item) => item.id));
+                const browserPreviewReady = (project.items || [])
+                    .filter((item) => targetIds.has(item.item_id))
+                    .every((item) => item.subtitles?.status === 'PREVIEW_READY');
                 if (browserPreviewReady) {
                     setFinalGenerationPhase(null);
                     showToast('完整预览已准备', '字幕会按真实时间轴切换，背景音乐将在浏览器中同步播放；没有启动剪映导出。', 'success');
