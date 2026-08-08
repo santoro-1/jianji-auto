@@ -3,6 +3,7 @@ param(
     [switch]$Clean,
     [switch]$UpdateOnly,
     [string]$DigitalHumanServerUrl = "",
+    [string]$AsrBundleRoot = "",
     [ValidateSet("standalone", "shared")]
     [string]$DeploymentMode = "standalone",
     [ValidateSet("Fastest", "Optimal", "NoCompression")]
@@ -47,6 +48,9 @@ if ($DigitalHumanServerUrl) {
 if ($UpdateOnly -and $DigitalHumanServerUrl) {
     throw "UpdateOnly excludes data/processor_config.json; use a full build to set DigitalHumanServerUrl."
 }
+if ($UpdateOnly -and $AsrBundleRoot) {
+    throw "UpdateOnly excludes the ASR runtime; install it with a full build."
+}
 
 if (-not $Python) {
     $Python = Join-Path $BuildCacheRoot ".collector-build-cpython\Scripts\python.exe"
@@ -78,6 +82,27 @@ try {
     }
 
     if (-not $UpdateOnly) {
+        if (-not $AsrBundleRoot) {
+            $AsrBundleRoot = Join-Path $ProjectRoot "vendor\asr_runtime"
+        }
+        if (Test-Path -LiteralPath $AsrBundleRoot -PathType Container) {
+            $AsrPython = Join-Path $AsrBundleRoot "python\python.exe"
+            $AsrService = Join-Path $AsrBundleRoot "media_node\asr_service\app.py"
+            if (
+                -not (Test-Path -LiteralPath $AsrPython -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $AsrService -PathType Leaf)
+            ) {
+                throw "AsrBundleRoot is not a portable ASR runtime: $AsrBundleRoot"
+            }
+            Write-Host "Copying bundled CPU ASR runtime..." -ForegroundColor Cyan
+            Copy-Item -LiteralPath $AsrBundleRoot `
+                -Destination (Join-Path $DistDir "asr_runtime") -Recurse -Force
+        } else {
+            Write-Warning (
+                "Portable ASR runtime was not found at $AsrBundleRoot. " +
+                "The package can reuse 127.0.0.1:18084, but cannot start ASR itself."
+            )
+        }
         New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
         $LibrarySourceRoot = Join-Path $ProjectRoot "data\libraries"
         foreach ($Name in @(

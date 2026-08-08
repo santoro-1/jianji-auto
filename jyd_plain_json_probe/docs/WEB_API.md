@@ -86,6 +86,17 @@ item 的 `subtitles` 增加：
 {
   "raw_cues": ["MiniMax 原始时间戳，永久保留"],
   "render_cues": ["语义映射或安全降级后的派生字幕"],
+  "asr_alignment": {
+    "schema": "jyd.asr-caption-alignment.v1",
+    "status": "SUCCESS",
+    "script_sha256": "...",
+    "audio_asset_id": "...",
+    "audio_version": 1,
+    "provider": "funasr_http",
+    "device": "cpu",
+    "exact_match_ratio": 0.98,
+    "ranges": ["按原脚本 token 保存的字词时间范围"]
+  },
   "semantic_mapping": {
     "schema": "jyd.semantic-caption-mapping.v1",
     "status": "NOT_REQUESTED | SUCCESS | FALLBACK",
@@ -114,9 +125,12 @@ item 的 `subtitles` 增加：
 状态、字段和两种部分成功结果均能被工作台消费；错误字符索引只在文字完整重建原文时由
 服务端重算，空格、换行和 `~` 仍按精确字符处理。
 
-`render_cues` 的时间只能由 MiniMax `raw_cues` 派生；`subtitle_units` 中发现模型时间字段会
-拒绝语义路径。版本错配、字符错配或语义组超过真实字宽时使用 `FALLBACK`，不会删除
-`raw_cues` 或触发任何第三方重试。
+`subtitle_units` 只决定语义断句，模型返回的时间字段仍会被拒绝。最终排版完成后，本机
+FunASR 只识别字词位置，再与原脚本文字做确定性对齐；MiniMax `raw_cues` 继续作为不可跨越
+的句级硬边界。ASR 精确命中率低于 90%、单个 raw cue 命中率过低、脚本/音频版本变化或
+本机服务不可用时标记 `REVIEW_REQUIRED`，不会静默退回会累计漂移的等字数插值，也不会
+覆盖 `raw_cues`。成功缓存按脚本 SHA-256、音频素材 ID 和版本复用，改字体或重试 4B 不会
+再次识别。
 
 项目图片池和映射接口：
 

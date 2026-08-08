@@ -33,6 +33,7 @@ from starlette.background import BackgroundTask
 
 from .audio_catalog import AudioCatalog, CombinedAudioCatalog
 from .asset_admin import AssetAdminCatalog
+from .caption_alignment import FunASRCaptionAligner
 from .auth_center import AuthCenterClient, AuthCenterError, AuthHandoffStore
 from .admin_auth import AdminAuth
 from .draft_crypto import is_plain_json_file
@@ -152,6 +153,10 @@ class WebApiSettings:
     shared_processor_url: str = ""
     auth_authority: bool = False
     auth_timeout_seconds: int = 4
+    asr_base_url: str = ""
+    asr_timeout_seconds: int = 1800
+    asr_shared_token: str = ""
+    asr_required: bool = False
 
 
 class RenderJobQueue:
@@ -1592,6 +1597,12 @@ def default_settings() -> WebApiSettings:
         ).strip(),
         auth_authority=_as_bool(os.environ.get("JYD_AUTH_AUTHORITY", "false")),
         auth_timeout_seconds=_env_positive_int("JYD_AUTH_TIMEOUT_SECONDS", 4),
+        asr_base_url=os.environ.get(
+            "JYD_ASR_BASE_URL", "http://127.0.0.1:18084"
+        ).strip(),
+        asr_timeout_seconds=_env_positive_int("JYD_ASR_TIMEOUT_SECONDS", 1800),
+        asr_shared_token=os.environ.get("JYD_ASR_SHARED_TOKEN", "").strip(),
+        asr_required=_as_bool(os.environ.get("JYD_ASR_REQUIRED", "true")),
     )
 
 
@@ -2534,6 +2545,15 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     def project_postprocess_coordinator() -> ProjectPostprocessCoordinator:
         fonts, bgm_assets = project_postprocess_resources()
+        caption_aligner = (
+            FunASRCaptionAligner(
+                settings.asr_base_url,
+                timeout_seconds=settings.asr_timeout_seconds,
+                shared_token=settings.asr_shared_token,
+            )
+            if settings.asr_base_url
+            else None
+        )
         return ProjectPostprocessCoordinator(
             project_store,
             render_queue,
@@ -2542,6 +2562,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             fonts=fonts,
             bgm_assets=bgm_assets,
             music_matcher=MusicProfileMatcher(settings.audio_library_root),
+            caption_aligner=caption_aligner,
+            require_precise_alignment=settings.asr_required,
         )
 
     def project_variant_coordinator() -> ProjectVariantCoordinator:

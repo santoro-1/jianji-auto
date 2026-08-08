@@ -6,9 +6,14 @@ import logging
 import os
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import threading
+import time
 import traceback
+from urllib.error import URLError
+from urllib.parse import urlparse
+from urllib.request import urlopen
 import webbrowser
 
 
@@ -114,6 +119,14 @@ def _configure_environment() -> tuple[Path, Path]:
         "JYD_AUTH_AUTHORITY",
         auth_authority,
     )
+    os.environ.setdefault(
+        "JYD_ASR_BASE_URL",
+        config.get("asr_base_url", "").strip() or "http://127.0.0.1:18084",
+    )
+    os.environ.setdefault(
+        "JYD_ASR_REQUIRED",
+        config.get("asr_required", "").strip() or "true",
+    )
     storage_root.mkdir(parents=True, exist_ok=True)
     for name in (
         "audio_library",
@@ -159,6 +172,110 @@ def _port_is_open(host: str, port: int) -> bool:
             return True
     except OSError:
         return False
+
+
+def _asr_is_healthy(base_url: str) -> bool:
+    try:
+        with urlopen(base_url.rstrip("/") + "/healthz", timeout=2) as response:
+            if response.status != 200:
+                return False
+            payload = json.loads(response.read().decode("utf-8"))
+            return isinstance(payload, dict) and payload.get("status") == "ok"
+    except (URLError, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+
+
+def _asr_runtime_layout(app_root: Path, config: dict[str, str]) -> tuple[Path, Path, Path] | None:
+    configured = (
+        os.environ.get("JYD_ASR_RUNTIME_ROOT", "").strip()
+        or config.get("asr_runtime_root", "").strip()
+    )
+    candidates: list[Path] = []
+    if configured:
+        candidate = Path(configured).expanduser()
+        if not candidate.is_absolute():
+            candidate = app_root / candidate
+        candidates.append(candidate.resolve())
+    candidates.append((app_root / "asr_runtime").resolve())
+    if not getattr(sys, "frozen", False) and len(SOURCE_ROOT.parents) >= 2:
+        candidates.append(
+            (SOURCE_ROOT.parents[1] / "数字人" / "runninghub_mvp").resolve()
+        )
+
+    for root in candidates:
+        portable_python = root / "python" / "python.exe"
+        if portable_python.is_file() and (root / "media_node" / "asr_service" / "app.py").is_file():
+            return portable_python, root, root / "media_node" / ".runtime" / "models"
+        development_python = root / "media_node" / ".runtime" / "venv" / "Scripts" / "python.exe"
+        if development_python.is_file() and (root / "media_node" / "asr_service" / "app.py").is_file():
+            return development_python, root, root / "media_node" / ".runtime" / "models"
+    return None
+
+
+def _start_embedded_asr(
+    app_root: Path,
+    data_root: Path,
+    config: dict[str, str],
+) -> subprocess.Popen[bytes] | None:
+    base_url = os.environ.get("JYD_ASR_BASE_URL", "http://127.0.0.1:18084").rstrip("/")
+    if _asr_is_healthy(base_url):
+        print("本地 ASR: 已运行，直接复用")
+        return None
+    if os.environ.get("JYD_ASR_REQUIRED", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return None
+    parsed = urlparse(base_url)
+    if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"}:
+        print(f"本地 ASR: 使用外部地址 {base_url}，不由工作台启动")
+        return None
+    layout = _asr_runtime_layout(app_root, config)
+    if layout is None:
+        print("本地 ASR: 未找到内置运行时；生成精确字幕时会明确报错")
+        return None
+    python, module_root, models_root = layout
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(module_root)
+    environment["PYTHONNOUSERSITE"] = "1"
+    environment.setdefault("MODELSCOPE_CACHE", str(models_root))
+    environment.setdefault("ASR_MODEL", "paraformer-zh")
+    environment.setdefault("ASR_VAD_MODEL", "fsmn-vad")
+    environment.setdefault("ASR_DEVICE", "cpu")
+    for proxy_name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
+        environment.pop(proxy_name, None)
+    port = parsed.port or 18084
+    log_path = data_root / "logs" / "asr.log"
+    log_handle = log_path.open("ab")
+    creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    try:
+        process = subprocess.Popen(
+            [
+                str(python),
+                "-s",
+                "-m",
+                "uvicorn",
+                "media_node.asr_service.app:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+            ],
+            cwd=module_root,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            creationflags=creation_flags,
+        )
+    finally:
+        log_handle.close()
+    for _ in range(30):
+        if process.poll() is not None:
+            raise RuntimeError(f"内置 ASR 启动失败，请查看 {log_path}")
+        if _asr_is_healthy(base_url):
+            print("本地 ASR: CPU 轻量模型已就绪")
+            return process
+        time.sleep(1)
+    process.terminate()
+    raise RuntimeError(f"内置 ASR 30 秒内未就绪，请查看 {log_path}")
 
 
 def _start_embedded_collector(port: int = 8765) -> bool:
@@ -259,8 +376,10 @@ def main(argv: list[str] | None = None) -> int:
         logger_name="jyd_probe.server",
         propagate=False,
     )
+    asr_process: subprocess.Popen[bytes] | None = None
     try:
         app_root, data_root = _configure_environment()
+        asr_process = _start_embedded_asr(app_root, data_root, startup_config)
         configure_file_logging(data_root / "logs", "workbench.log")
         configure_file_logging(
             data_root / "logs",
@@ -298,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
             print("添加处理电脑说明: 公用工作台连接说明.txt")
         print(f"本机是否为账号中心: {os.environ['JYD_AUTH_AUTHORITY']}")
         print(f"剪映草稿目录: {os.environ['JYD_WEB_DRAFT_ROOT']}")
+        print(f"精确字幕 ASR: {os.environ['JYD_ASR_BASE_URL']}")
         print("草稿采集工具: 已集成启动" if collector_started else "草稿采集工具: 已有程序在运行")
         print("=" * 68)
         _append_startup_log(
@@ -316,6 +436,13 @@ def main(argv: list[str] | None = None) -> int:
         _append_startup_log(data_root, details)
         print(details, file=sys.stderr)
         return 1
+    finally:
+        if asr_process is not None and asr_process.poll() is None:
+            asr_process.terminate()
+            try:
+                asr_process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                asr_process.kill()
 
 
 if __name__ == "__main__":

@@ -13,6 +13,18 @@
 素材库。安装后无需手工修改服务器地址；若使用更新包覆盖旧安装，原有 `data` 和连接配置
 仍按更新包规则保留。
 
+## 精确字幕 ASR
+
+字幕精确校准默认使用本机 `http://127.0.0.1:18084` 的 CPU FunASR。工作台启动时会先复用已经运行的兼容服务；完整包内存在 `asr_runtime` 时会自动静默启动，关闭工作台时自动结束。模型只提供字词时间，不改写脚本，也不决定断句。
+
+完整打包时，把 `runninghub_mvp/media_node/build-portable-media-node.ps1` 生成并展开的完整便携运行时传给：
+
+```powershell
+.\scripts\build\build_processor.ps1 -AsrBundleRoot "D:\path\to\expanded-rh-media-full"
+```
+
+第一次完整安装需要携带约 1 GB 模型和 CPU 推理依赖；以后的 `-UpdateOnly` 代码更新不会重复携带该运行时。若未内置，工作台仍可复用电脑上已经运行的 18084 服务，但生成精确字幕时不会静默退回旧的等字数插值。
+
 ## 第一次打开
 
 1. 双击 `JianyingRenderServer.exe`。

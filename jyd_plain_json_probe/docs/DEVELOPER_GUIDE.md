@@ -117,6 +117,14 @@ release/                      最终交付 ZIP
 metadata 保存脚本 SHA-256/长度；只有脚本、分析、音频和 raw cues 绑定四方一致时使用
 `subtitle_units`，否则继续使用既有 raw cues 排版。任何路径都不得覆盖 `raw_cues`。
 
+精确字幕时间校准由 `caption_alignment.py` 完成。FunASR 仅产生候选字词时间，随后必须与
+原脚本 token 做顺序精确匹配；全局命中率至少 90%，每个 MiniMax raw cue 也必须通过局部
+质量门。`project_postprocess.py` 先完成语义断句和真实字宽排版，再把最终 `render_cues`
+重新绑定到 ASR 时间，并始终用 raw cue 作为硬边界。成功结果保存在
+`subtitles.asr_alignment`，缓存键由脚本 SHA-256、音频素材 ID 和版本组成；不得把 ASR
+识别文本作为字幕落盘，也不得覆盖 `raw_cues`。默认工作台要求精确对齐，服务故障或质量门
+失败时标记 `REVIEW_REQUIRED`；只有测试或显式关闭配置允许旧插值路径。
+
 日志第一阶段将项目 schema 升级到版本 9，为 `project_operations` 增加独立
 `correlation_id`。项目操作、云端声音批次、4A 画面生成和本地渲染都应传递该字段；
 `idempotency_key` 只负责防重复提交，不得兼作关联号。历史操作以原 `operation_id` 回填。

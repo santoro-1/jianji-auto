@@ -12,6 +12,11 @@ import jieba
 import jieba.posseg as pseg
 from fontTools.ttLib import TTFont
 
+from .caption_alignment import (
+    CaptionAlignmentError,
+    alignment_matches,
+    retime_render_cues,
+)
 from .music_matching import MusicProfileMatcher
 from .project_music import (
     ProjectMusicSelector,
@@ -734,6 +739,8 @@ def derive_project_render_cues(
     font_path: str | Path,
     font_size: float = CAPTION_REFERENCE_FONT_SIZE,
     max_width_ratio: float = CAPTION_MAX_WIDTH_RATIO,
+    asr_alignment: dict[str, Any] | None = None,
+    require_precise_alignment: bool = False,
 ) -> tuple[list[dict[str, int | str]], dict[str, Any]]:
     """Use semantic units only when script, analysis and current audio versions agree."""
 
@@ -803,6 +810,14 @@ def derive_project_render_cues(
                 metrics,
                 maximum_width_em=maximum_width_em,
             )
+            if asr_alignment is not None:
+                render_cues = retime_render_cues(
+                    script, raw_cues, render_cues, asr_alignment
+                )
+            elif require_precise_alignment:
+                raise CaptionAlignmentError(
+                    "ASR_ALIGNMENT_REQUIRED", "当前音频尚未完成 ASR 精确字幕校准"
+                )
             return render_cues, {
                 "schema": SEMANTIC_MAPPING_SCHEMA,
                 "status": "SUCCESS",
@@ -815,6 +830,11 @@ def derive_project_render_cues(
                 "audio_asset_id": audio.get("asset_id"),
                 "audio_version": audio.get("version"),
                 "mapped_unit_count": len(timed_units),
+                "timing_source": (
+                    "funasr_word_timestamps"
+                    if asr_alignment is not None
+                    else "minimax_raw_cue_interpolation"
+                ),
             }
         except (SemanticSubtitleMappingError, CaptionLayoutReviewRequired) as exc:
             fallback = _fallback_mapping(
@@ -829,6 +849,15 @@ def derive_project_render_cues(
         font_size=font_size,
         max_width_ratio=max_width_ratio,
     )
+    if asr_alignment is not None:
+        render_cues = retime_render_cues(script, raw_cues, render_cues, asr_alignment)
+        fallback["timing_source"] = "funasr_word_timestamps"
+    elif require_precise_alignment:
+        raise CaptionAlignmentError(
+            "ASR_ALIGNMENT_REQUIRED", "当前音频尚未完成 ASR 精确字幕校准"
+        )
+    else:
+        fallback["timing_source"] = "minimax_raw_cue_interpolation"
     return render_cues, fallback
 
 
@@ -877,6 +906,8 @@ class ProjectPostprocessCoordinator:
         fonts: list[dict[str, Any]],
         bgm_assets: list[dict[str, Any]],
         music_matcher: MusicProfileMatcher,
+        caption_aligner: Any | None = None,
+        require_precise_alignment: bool = False,
     ) -> None:
         self.store = store
         self.render_queue = render_queue
@@ -893,6 +924,8 @@ class ProjectPostprocessCoordinator:
             if item.get("identity") and item.get("available", True)
         }
         self.music_selector = ProjectMusicSelector(music_matcher, self.bgm_assets)
+        self.caption_aligner = caption_aligner
+        self.require_precise_alignment = bool(require_precise_alignment)
 
     def start(
         self,
@@ -996,15 +1029,66 @@ class ProjectPostprocessCoordinator:
             color = str(config.get("text_color") or "#FFFFFF").strip().upper()
             if _HEX_COLOR.fullmatch(color) is None:
                 raise ValueError(f"任务 {item['row_key']} 的字幕颜色不合法")
+            subtitles = dict(item.get("subtitles") or {})
+            audio = item.get("outputs", {}).get("audio")
+            asr_alignment = subtitles.get("asr_alignment")
+            alignment_is_current = bool(
+                isinstance(audio, dict)
+                and alignment_matches(
+                    asr_alignment,
+                    script=str(item.get("script_text") or ""),
+                    audio_asset_id=str(audio.get("asset_id") or ""),
+                    audio_version=audio.get("version"),
+                )
+            )
+            if not alignment_is_current and self.caption_aligner is not None:
+                if not isinstance(audio, dict) or not audio.get("managed_path"):
+                    raise ValueError(f"任务 {item['row_key']} 缺少可供 ASR 校准的音频")
+                try:
+                    asr_alignment = self.caption_aligner.align(
+                        audio["managed_path"],
+                        script=str(item.get("script_text") or ""),
+                        raw_cues=subtitles.get("raw_cues", []),
+                        audio_asset_id=str(audio.get("asset_id") or ""),
+                        audio_version=audio.get("version"),
+                    )
+                    subtitles["asr_alignment"] = asr_alignment
+                    alignment_is_current = True
+                except CaptionAlignmentError as exc:
+                    subtitles.update(
+                        {
+                            "render_cues": [],
+                            "status": "REVIEW_REQUIRED",
+                            "overflow_risk": False,
+                            "review_reason": str(exc),
+                            "asr_alignment": {
+                                "status": "FAILED",
+                                "reason_code": exc.code,
+                                "reason_summary": str(exc)[:500],
+                            },
+                        }
+                    )
+                    self.store.set_item_subtitles(
+                        owner_user_id, project_id, item["item_id"], subtitles
+                    )
+                    raise ValueError(
+                        f"任务 {item['row_key']} 精确字幕校准失败：{exc}"
+                    ) from exc
+            if self.require_precise_alignment and not alignment_is_current:
+                raise ValueError(
+                    f"任务 {item['row_key']} 尚未配置或启动本地 ASR 精确字幕服务"
+                )
+            render_item = {**item, "subtitles": subtitles}
             try:
                 render_cues, semantic_mapping = derive_project_render_cues(
-                    item,
+                    render_item,
                     font_path=str(font["path"]),
                     font_size=CAPTION_REFERENCE_FONT_SIZE,
                     max_width_ratio=CAPTION_MAX_WIDTH_RATIO,
+                    asr_alignment=(asr_alignment if alignment_is_current else None),
+                    require_precise_alignment=self.require_precise_alignment,
                 )
-            except CaptionLayoutReviewRequired as exc:
-                subtitles = dict(item.get("subtitles") or {})
+            except (CaptionLayoutReviewRequired, CaptionAlignmentError) as exc:
                 subtitles.update(
                     {
                         "render_cues": [],
@@ -1023,7 +1107,6 @@ class ProjectPostprocessCoordinator:
                 )
                 raise ValueError(f"任务 {item['row_key']} 字幕需要人工检查：{exc}") from exc
 
-            subtitles = dict(item.get("subtitles") or {})
             subtitles.update(
                 {
                     "render_cues": render_cues,
