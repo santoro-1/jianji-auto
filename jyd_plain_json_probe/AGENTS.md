@@ -26,10 +26,11 @@
 - 修改公用机或多处理机：读 `docs/SHARED_PROCESSOR_QUICK_START.md`、`docs/MULTI_PROCESSOR.md`。
 - 修改本地草稿读取或采集器：读 `docs/LOCAL_COLLECTOR.md`；分析已有草稿时再读 `docs/DRAFT_IMPORT_ANALYZER.md`。
 - 修改素材库时，只读对应专项文档：`AUDIO_LIBRARY.md`、`FONT_LIBRARY.md`、`FLOWER_TEXT_LIBRARY.md`、`TEXT_TEMPLATE_LIBRARY.md`、`STICKER_LIBRARY.md` 或 `EFFECT_LIBRARY.md`。
+- 修改 MiniMax 文本合成、脚本标点、人工停顿、语音配方、音频幂等或 raw cues 绑定时，
+  还必须读取 `D:\工作内容\轻盈健\数字人\语音标点停顿配方开发文档.md`。
 
 ## 历史文档的使用方式
 
-- `docs/DEVELOPMENT_HISTORY.md` 只用于了解早期验证，不代表当前架构。
 - `apps/auth_center/README.md` 是旧认证中心资料，不得作为当前普通账号设计依据。
 - 当前普通用户账号来自数字人网站；工作台的 `/local-admin/login` 只用于本地技术管理。
 

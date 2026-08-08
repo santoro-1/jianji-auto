@@ -272,3 +272,11 @@ D:\Myanaconda\python.exe .\tools\library\export_audio_library.py `
 
 素材库新增、停用和历史引用保护见
 [`docs/SEMANTIC_VISUAL_LIBRARY.md`](docs/SEMANTIC_VISUAL_LIBRARY.md)。
+
+## 语音标点停顿配方（待开发）
+
+下一阶段将按
+[`语音标点停顿配方开发文档`](../../数字人/语音标点停顿配方开发文档.md)
+在第一次 MiniMax 调用前自动把逗号、顿号、分号、冒号、句号、问号、感叹号和真实换行
+编译为版本化停顿配方，并允许少量人工覆盖。该方案不调用大模型，不把服务商标记写入
+字幕、字数、内容分析或语义配图。当前代码尚未实施，现有音频仍按原始脚本直接合成。
