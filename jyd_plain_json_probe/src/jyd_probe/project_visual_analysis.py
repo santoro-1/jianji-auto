@@ -10,6 +10,8 @@ from .auth_center import AuthCenterClient, AuthCenterError
 from .project_store import ProjectStore
 from .semantic_subtitles import SemanticSubtitleMappingError
 from .semantic_visuals import (
+    DEFAULT_LIBRARY_ID,
+    RECIPE_SCHEMA,
     SemanticVisualCatalog,
     build_visual_recipe,
     map_visual_candidates_to_raw_cues,
@@ -242,8 +244,10 @@ class ProjectVisualAnalysisCoordinator:
                     "cacheable": True,
                 },
                 recipe={
-                    "schema": "jyd.semantic-visual-recipe.v1",
+                    "schema": RECIPE_SCHEMA,
+                    "library_id": self.catalog.library_id or DEFAULT_LIBRARY_ID,
                     "catalog_version": self.catalog.catalog_version,
+                    "media_policy": "image_only",
                     "overlays": self._locked_overlays(target.previous),
                 },
                 mapping_status="SUCCESS",
@@ -334,8 +338,10 @@ class ProjectVisualAnalysisCoordinator:
                                 "mapped_candidates": [],
                             },
                             recipe={
-                                "schema": "jyd.semantic-visual-recipe.v1",
+                                "schema": RECIPE_SCHEMA,
+                                "library_id": self.catalog.library_id or DEFAULT_LIBRARY_ID,
                                 "catalog_version": self.catalog.catalog_version,
+                                "media_policy": "image_only",
                                 "overlays": self._locked_overlays(target.previous),
                             },
                             mapping_status="FAILED",
@@ -355,13 +361,34 @@ class ProjectVisualAnalysisCoordinator:
                         )
         return self.store.get_project(owner_user_id, project_id)
 
-    @staticmethod
-    def _locked_overlays(snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
+    def _locked_overlays(self, snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
         recipe = snapshot.get("recipe") if isinstance(snapshot.get("recipe"), Mapping) else {}
-        return [
-            dict(item)
-            for item in recipe.get("overlays", [])
-            if isinstance(item, Mapping)
-            and item.get("manual") is True
-            and item.get("locked") is True
-        ]
+        locked: list[dict[str, Any]] = []
+        for item in recipe.get("overlays", []):
+            if (
+                not isinstance(item, Mapping)
+                or item.get("manual") is not True
+                or item.get("locked") is not True
+            ):
+                continue
+            overlay = dict(item)
+            asset = self.catalog.asset(str(overlay.get("asset_id") or ""))
+            for absolute_key in ("bundle_path", "image_path", "video_path"):
+                overlay.pop(absolute_key, None)
+            if asset is None:
+                overlay["requires_review"] = True
+            else:
+                media_type = asset["media_type"]
+                overlay.update(
+                    {
+                        "media_type": media_type,
+                        "renderer": asset["renderer"],
+                        "resource_path": (
+                            asset["resource"]["bundle"]
+                            if media_type == "image"
+                            else asset["resource"]["video"]
+                        ),
+                    }
+                )
+            locked.append(overlay)
+        return locked

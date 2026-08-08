@@ -152,7 +152,7 @@ class WebApiSettings:
     auth_server_url: str = "http://127.0.0.1:8000"
     shared_processor_url: str = ""
     auth_authority: bool = False
-    auth_timeout_seconds: int = 4
+    auth_timeout_seconds: int = 15
     asr_base_url: str = ""
     asr_timeout_seconds: int = 1800
     asr_shared_token: str = ""
@@ -1596,7 +1596,7 @@ def default_settings() -> WebApiSettings:
             "JYD_SHARED_PROCESSOR_URL", ""
         ).strip(),
         auth_authority=_as_bool(os.environ.get("JYD_AUTH_AUTHORITY", "false")),
-        auth_timeout_seconds=_env_positive_int("JYD_AUTH_TIMEOUT_SECONDS", 4),
+        auth_timeout_seconds=_env_positive_int("JYD_AUTH_TIMEOUT_SECONDS", 15),
         asr_base_url=os.environ.get(
             "JYD_ASR_BASE_URL", "http://127.0.0.1:18084"
         ).strip(),
@@ -2325,7 +2325,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         asset = semantic_visual_catalog.asset(asset_id)
         if asset is None:
             raise HTTPException(status_code=404, detail="语义图片素材不存在")
-        return FileResponse(Path(asset["image_path"]), media_type="image/png")
+        preview_path = Path(asset["preview_path"])
+        preview_type = mimetypes.guess_type(preview_path.name)[0] or "application/octet-stream"
+        return FileResponse(preview_path, media_type=preview_type)
 
     @app.post("/api/new/projects/{project_id}/visual-analysis")
     def analyze_new_project_visuals(
@@ -2400,10 +2402,12 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             if not isinstance(raw, dict):
                 raise HTTPException(status_code=422, detail="语义贴图必须是对象")
             asset = semantic_visual_catalog.asset(str(raw.get("asset_id") or ""))
-            if asset is None or asset["concept_id"] != str(raw.get("concept_id") or ""):
+            concept_id = str(raw.get("concept_id") or "")
+            if asset is None or concept_id not in asset["concept_ids"]:
                 raise HTTPException(status_code=422, detail="语义贴图素材与概念不匹配")
-            normalized.append(
-                {
+            media_type = asset["media_type"]
+            defaults = asset["defaults"]
+            overlay = {
                     key: raw.get(key)
                     for key in (
                         "overlay_id",
@@ -2418,13 +2422,37 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                         "start_us",
                         "duration_us",
                     )
-                }
-                | {
+                } | {
                     "asset_name": asset["name"],
                     "preview_url": asset["preview_url"],
-                    "bundle_path": asset["bundle_path"],
+                    "media_type": media_type,
+                    "renderer": asset["renderer"],
+                    "resource_path": (
+                        asset["resource"]["bundle"]
+                        if media_type == "image"
+                        else asset["resource"]["video"]
+                    ),
                 }
-            )
+            if media_type == "video":
+                overlay.update(
+                    {
+                        "source_start_us": int(
+                            raw.get("source_start_us", defaults["source_start_us"])
+                        ),
+                        "mute": raw.get("mute", defaults["mute"]) is not False,
+                        "loop": raw.get("loop", defaults["loop"]) is True,
+                        "fit": str(raw.get("fit") or defaults["fit"]),
+                    }
+                )
+            normalized.append(overlay)
+        media_types = {item["media_type"] for item in normalized}
+        media_policy = (
+            "mixed"
+            if media_types == {"image", "video"}
+            else "video_only"
+            if media_types == {"video"}
+            else "image_only"
+        )
         try:
             return project_store.update_item_visual_overlays(
                 user["user_id"],
@@ -2433,6 +2461,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 overlays=normalized,
                 expected_revision=int(payload.get("revision")),
                 catalog_version=semantic_visual_catalog.catalog_version,
+                library_id=(
+                    semantic_visual_catalog.library_id or "jyd.semantic-visual-library.default"
+                ),
+                media_policy=media_policy,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
@@ -2564,6 +2596,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             music_matcher=MusicProfileMatcher(settings.audio_library_root),
             caption_aligner=caption_aligner,
             require_precise_alignment=settings.asr_required,
+            semantic_visual_library_root=semantic_visual_catalog.root,
         )
 
     def project_variant_coordinator() -> ProjectVariantCoordinator:
@@ -2599,6 +2632,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             fullscreen_stickers=fullscreen_stickers,
             corner_stickers=corner_stickers,
             result_library_root=project_result_library.root,
+            semantic_visual_library_root=semantic_visual_catalog.root,
         )
 
     def selectable_voice_ids(library: dict[str, Any]) -> set[str]:

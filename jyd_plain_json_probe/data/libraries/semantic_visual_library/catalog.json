@@ -1,5 +1,6 @@
 {
-  "schema": "jyd.semantic-visual-catalog.v1",
+  "schema": "jyd.semantic-visual-catalog.v2",
+  "library_id": "jyd.semantic-visual-library.default",
   "concepts": [
     {
       "concept_id": "food.egg",
@@ -36,78 +37,346 @@
       "label": "蔬菜",
       "description": "作为食物、食材或明确餐食示例出现的蔬菜或青菜",
       "aliases": ["绿叶蔬菜", "蔬菜", "青菜"]
+    },
+    {
+      "concept_id": "nutrition.protein",
+      "label": "蛋白质食物",
+      "description": "明确讨论蛋白质、优质蛋白或高蛋白食物集合",
+      "aliases": ["蛋白质食物", "优质蛋白", "高蛋白", "蛋白质"]
+    },
+    {
+      "concept_id": "nutrition.carbohydrate",
+      "label": "优质碳水",
+      "description": "明确讨论碳水化合物、优质碳水或主食集合",
+      "aliases": ["碳水化合物", "优质碳水", "主食", "碳水"]
+    },
+    {
+      "concept_id": "food.nuts",
+      "label": "坚果",
+      "description": "作为食物、加餐或明确营养搭配出现的坚果",
+      "aliases": ["混合坚果", "巴旦木", "坚果", "核桃", "杏仁"]
+    },
+    {
+      "concept_id": "meal.breakfast",
+      "label": "早餐",
+      "description": "明确泛指早餐、早饭或营养早餐搭配",
+      "aliases": ["早餐搭配", "营养早餐", "早餐", "早饭"]
+    },
+    {
+      "concept_id": "food.milk",
+      "label": "牛奶",
+      "description": "作为饮品或明确餐食组成出现的牛奶",
+      "aliases": ["低脂牛奶", "脱脂牛奶", "纯牛奶", "牛奶"]
+    },
+    {
+      "concept_id": "food.fish",
+      "label": "鱼",
+      "description": "作为食物、食材或明确餐食示例出现的鱼肉或鱼类菜品",
+      "aliases": ["清蒸鱼", "鱼肉", "鱼类", "吃鱼"]
+    },
+    {
+      "concept_id": "food.shrimp",
+      "label": "虾",
+      "description": "作为食物、食材或明确餐食示例出现的虾或虾仁",
+      "aliases": ["水煮虾", "虾仁", "大虾", "虾"]
+    },
+    {
+      "concept_id": "food.beef",
+      "label": "牛肉",
+      "description": "作为食物、食材或明确餐食示例出现的牛肉",
+      "aliases": ["瘦牛肉", "牛肉片", "牛肉"]
+    },
+    {
+      "concept_id": "food.chicken_breast",
+      "label": "鸡胸肉",
+      "description": "作为食物、食材或明确餐食示例出现的鸡胸肉",
+      "aliases": ["鸡胸肉", "鸡脯肉", "鸡胸"]
+    },
+    {
+      "concept_id": "food.tofu",
+      "label": "豆腐",
+      "description": "作为食物、食材或明确餐食示例出现的豆腐",
+      "aliases": ["老豆腐", "嫩豆腐", "豆制品", "豆腐"]
+    },
+    {
+      "concept_id": "food.cucumber",
+      "label": "黄瓜",
+      "description": "作为食物、食材或明确餐食示例出现的黄瓜",
+      "aliases": ["生吃黄瓜", "黄瓜", "青瓜"]
+    },
+    {
+      "concept_id": "food.fruit",
+      "label": "水果",
+      "description": "明确泛指水果、新鲜水果或水果拼盘",
+      "aliases": ["水果拼盘", "新鲜水果", "水果"]
     }
   ],
   "assets": [
     {
       "asset_id": "egg.boiled.01",
-      "concept_id": "food.egg",
+      "concept_ids": ["food.egg"],
       "name": "水煮鸡蛋",
-      "bundle": "bundles/egg_boiled",
-      "image": "bundles/egg_boiled/resources/sticker/singleImage.png",
-      "default_corner": "top_right",
-      "default_scale": 0.28,
-      "default_opacity": 1.0
+      "description": "剥壳水煮鸡蛋",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["鸡蛋", "熟食", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/egg_boiled",
+        "preview": "bundles/egg_boiled/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.28, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "egg.carton.02",
-      "concept_id": "food.egg",
+      "concept_ids": ["food.egg"],
       "name": "一盒鸡蛋",
-      "bundle": "bundles/egg_carton",
-      "image": "bundles/egg_carton/resources/sticker/singleImage.png",
-      "default_corner": "top_left",
-      "default_scale": 0.25,
-      "default_opacity": 1.0
+      "description": "纸盒中的带壳鸡蛋",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["鸡蛋", "食材", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/egg_carton",
+        "preview": "bundles/egg_carton/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.25, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "corn.cob.01",
-      "concept_id": "food.corn",
+      "concept_ids": ["food.corn"],
       "name": "玉米棒",
-      "bundle": "bundles/corn",
-      "image": "bundles/corn/resources/sticker/singleImage.png",
-      "default_corner": "top_right",
-      "default_scale": 0.28,
-      "default_opacity": 1.0
+      "description": "完整玉米棒",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["玉米", "主食", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/corn",
+        "preview": "bundles/corn/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.28, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "sweet_potato.roasted.01",
-      "concept_id": "food.sweet_potato",
+      "concept_ids": ["food.sweet_potato"],
       "name": "烤红薯",
-      "bundle": "bundles/sweet_potato",
-      "image": "bundles/sweet_potato/resources/sticker/singleImage.png",
-      "default_corner": "top_left",
-      "default_scale": 0.28,
-      "default_opacity": 1.0
+      "description": "烤制红薯",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["红薯", "主食", "熟食", "照片"],
+      "resource": {
+        "bundle": "bundles/sweet_potato",
+        "preview": "bundles/sweet_potato/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.28, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "oat.stalk.01",
-      "concept_id": "food.oat",
+      "concept_ids": ["food.oat"],
       "name": "燕麦穗",
-      "bundle": "bundles/oat",
-      "image": "bundles/oat/resources/sticker/singleImage.png",
-      "default_corner": "top_right",
-      "default_scale": 0.27,
-      "default_opacity": 1.0
+      "description": "燕麦植株和麦穗",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["燕麦", "食材", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/oat",
+        "preview": "bundles/oat/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "soy_milk.glass.01",
-      "concept_id": "food.soy_milk",
+      "concept_ids": ["food.soy_milk"],
       "name": "豆浆",
-      "bundle": "bundles/soy_milk",
-      "image": "bundles/soy_milk/resources/sticker/singleImage.png",
-      "default_corner": "top_left",
-      "default_scale": 0.27,
-      "default_opacity": 1.0
+      "description": "一杯豆浆",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["豆浆", "饮品", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/soy_milk",
+        "preview": "bundles/soy_milk/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "vegetable.greens.01",
-      "concept_id": "food.vegetable",
+      "concept_ids": ["food.vegetable"],
       "name": "绿叶蔬菜",
-      "bundle": "bundles/vegetable",
-      "image": "bundles/vegetable/resources/sticker/singleImage.png",
-      "default_corner": "top_right",
-      "default_scale": 0.28,
-      "default_opacity": 1.0
+      "description": "一组绿叶蔬菜",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["蔬菜", "绿叶菜", "食材", "照片"],
+      "resource": {
+        "bundle": "bundles/vegetable",
+        "preview": "bundles/vegetable/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.28, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "protein.food_guide.01",
+      "concept_ids": ["nutrition.protein"],
+      "name": "蛋白质食物指南",
+      "description": "展示多种蛋白质食物的指南图片",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["蛋白质", "食物集合", "信息图"],
+      "resource": {
+        "bundle": "bundles/protein_food_guide_01",
+        "preview": "bundles/protein_food_guide_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.23, "opacity": 0.98, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "carbohydrate.quality_guide.01",
+      "concept_ids": ["nutrition.carbohydrate"],
+      "name": "优质碳水指南",
+      "description": "展示多种优质碳水食物的指南图片",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["碳水", "主食集合", "信息图"],
+      "resource": {
+        "bundle": "bundles/carbohydrate_quality_guide_01",
+        "preview": "bundles/carbohydrate_quality_guide_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.23, "opacity": 0.98, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "nuts.mixed.01",
+      "concept_ids": ["food.nuts"],
+      "name": "混合坚果",
+      "description": "多种坚果组合",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["坚果", "加餐", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/nuts_mixed_01",
+        "preview": "bundles/nuts_mixed_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "breakfast.balanced_plate.01",
+      "concept_ids": ["meal.breakfast"],
+      "name": "营养早餐餐盘",
+      "description": "包含多种食物的早餐餐盘",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["早餐", "餐盘", "搭配", "照片"],
+      "resource": {
+        "bundle": "bundles/breakfast_balanced_plate_01",
+        "preview": "bundles/breakfast_balanced_plate_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.25, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "milk.glass.01",
+      "concept_ids": ["food.milk"],
+      "name": "一杯牛奶",
+      "description": "杯装牛奶",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["牛奶", "饮品", "照片", "主体居中"],
+      "resource": {
+        "bundle": "bundles/milk_glass_01",
+        "preview": "bundles/milk_glass_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "fish.steamed.01",
+      "concept_ids": ["food.fish"],
+      "name": "清蒸鱼",
+      "description": "一盘清蒸鱼",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["鱼", "熟食", "菜品", "照片"],
+      "resource": {
+        "bundle": "bundles/fish_steamed_01",
+        "preview": "bundles/fish_steamed_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "shrimp.cooked.01",
+      "concept_ids": ["food.shrimp"],
+      "name": "熟虾",
+      "description": "一盘煮熟的虾",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["虾", "熟食", "菜品", "照片"],
+      "resource": {
+        "bundle": "bundles/shrimp_cooked_01",
+        "preview": "bundles/shrimp_cooked_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "beef.boiled.01",
+      "concept_ids": ["food.beef"],
+      "name": "水煮牛肉片",
+      "description": "一盘熟牛肉片",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["牛肉", "熟食", "菜品", "照片"],
+      "resource": {
+        "bundle": "bundles/beef_boiled_01",
+        "preview": "bundles/beef_boiled_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "chicken_breast.cooked.01",
+      "concept_ids": ["food.chicken_breast"],
+      "name": "熟鸡胸肉",
+      "description": "切片熟鸡胸肉",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["鸡胸肉", "熟食", "菜品", "照片"],
+      "resource": {
+        "bundle": "bundles/chicken_breast_cooked_01",
+        "preview": "bundles/chicken_breast_cooked_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "tofu.plain.01",
+      "concept_ids": ["food.tofu"],
+      "name": "白豆腐",
+      "description": "白色豆腐块",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["豆腐", "豆制品", "食材", "照片"],
+      "resource": {
+        "bundle": "bundles/tofu_plain_01",
+        "preview": "bundles/tofu_plain_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.26, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "cucumber.salad.01",
+      "concept_ids": ["food.cucumber"],
+      "name": "凉拌黄瓜",
+      "description": "切块黄瓜菜品",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["黄瓜", "蔬菜", "菜品", "照片"],
+      "resource": {
+        "bundle": "bundles/cucumber_salad_01",
+        "preview": "bundles/cucumber_salad_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_right", "scale": 0.25, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "fruit.platter.01",
+      "concept_ids": ["food.fruit"],
+      "name": "水果拼盘",
+      "description": "多种切分水果组成的拼盘",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["水果", "拼盘", "照片", "多食物"],
+      "resource": {
+        "bundle": "bundles/fruit_platter_01",
+        "preview": "bundles/fruit_platter_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "top_left", "scale": 0.25, "opacity": 1.0, "duration_us": 1800000}
     }
   ]
 }

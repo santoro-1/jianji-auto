@@ -168,6 +168,7 @@ class ProjectVariantCoordinator:
         fullscreen_stickers: list[dict[str, Any]],
         corner_stickers: list[dict[str, Any]],
         result_library_root: Path | None = None,
+        semantic_visual_library_root: Path | None = None,
     ) -> None:
         self.store = store
         self.render_queue = render_queue
@@ -180,6 +181,15 @@ class ProjectVariantCoordinator:
         self.effects = _enabled_assets(effects)
         self.fullscreen_stickers = _enabled_assets(fullscreen_stickers)
         self.corner_stickers = _enabled_assets(corner_stickers)
+        self.semantic_visual_library_root = Path(
+            semantic_visual_library_root
+            or (
+                Path(__file__).resolve().parents[2]
+                / "data"
+                / "libraries"
+                / "semantic_visual_library"
+            )
+        ).resolve()
         self.result_library = ProjectResultLibrary(
             store, result_library_root or (self.storage_root / "result_library")
         )
@@ -871,7 +881,9 @@ class ProjectVariantCoordinator:
                     "volume": 0.3,
                 }
             )
-        job["visual_overlays"] = frozen_visual_overlays(item)
+        job["visual_overlays"] = frozen_visual_overlays(
+            item, library_root=self.semantic_visual_library_root
+        )
         return {
             "job": job,
             "font_identity": font_identity or None,

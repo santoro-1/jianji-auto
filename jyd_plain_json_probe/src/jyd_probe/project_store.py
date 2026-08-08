@@ -12,6 +12,7 @@ from typing import Any, Iterator
 import uuid
 
 from .logging_config import log_event
+from .semantic_visuals import DEFAULT_LIBRARY_ID, MEDIA_POLICIES, RECIPE_SCHEMA
 
 
 PROJECT_SCHEMA_VERSION = 10
@@ -175,8 +176,10 @@ def _default_visual_analysis(
         "mapped_candidates": [],
         "decisions": [],
         "recipe": {
-            "schema": "jyd.semantic-visual-recipe.v1",
+            "schema": RECIPE_SCHEMA,
+            "library_id": DEFAULT_LIBRARY_ID,
             "catalog_version": None,
+            "media_policy": "image_only",
             "overlays": overlays,
         },
         "error": None,
@@ -2907,9 +2910,16 @@ class ProjectStore:
         overlays: list[dict[str, Any]],
         expected_revision: int,
         catalog_version: str,
+        library_id: str = DEFAULT_LIBRARY_ID,
+        media_policy: str = "image_only",
     ) -> dict[str, Any]:
         if not isinstance(overlays, list):
             raise ValueError("语义贴图配方必须是数组")
+        clean_library_id = str(library_id).strip()
+        if not clean_library_id:
+            raise ValueError("语义视觉素材库 ID 无效")
+        if media_policy not in MEDIA_POLICIES:
+            raise ValueError("语义视觉媒体策略无效")
         normalized: list[dict[str, Any]] = []
         seen: set[str] = set()
         valid_corners = {"top_left", "top_right"}
@@ -2924,6 +2934,9 @@ class ProjectStore:
             duration_us = raw.get("duration_us")
             scale = raw.get("scale")
             opacity = raw.get("opacity")
+            media_type = str(raw.get("media_type") or "").strip()
+            renderer = str(raw.get("renderer") or "").strip()
+            resource_path = str(raw.get("resource_path") or "").strip()
             if not overlay_id or overlay_id in seen or not asset_id or not concept_id:
                 raise ValueError("语义贴图 ID、素材或概念无效")
             if corner not in valid_corners:
@@ -2936,6 +2949,22 @@ class ProjectStore:
                 raise ValueError("语义贴图缩放无效")
             if isinstance(opacity, bool) or not isinstance(opacity, (int, float)) or not 0.0 <= float(opacity) <= 1.0:
                 raise ValueError("语义贴图透明度无效")
+            if (media_type, renderer) not in {
+                ("image", "jyd_sticker_bundle"),
+                ("video", "video_overlay"),
+            }:
+                raise ValueError("语义视觉媒体类型或渲染器无效")
+            resource = Path(resource_path)
+            if not resource_path or resource.is_absolute() or ".." in resource.parts:
+                raise ValueError("语义视觉资源路径必须是素材库内相对路径")
+            if media_type == "video":
+                source_start_us = raw.get("source_start_us")
+                if type(source_start_us) is not int or source_start_us < 0:
+                    raise ValueError("语义视频素材起始时间无效")
+                if not isinstance(raw.get("mute"), bool) or not isinstance(raw.get("loop"), bool):
+                    raise ValueError("语义视频静音或循环参数无效")
+                if raw.get("fit") not in {"cover", "contain"}:
+                    raise ValueError("语义视频填充方式无效")
             seen.add(overlay_id)
             normalized.append(
                 {
@@ -2948,6 +2977,9 @@ class ProjectStore:
                     "duration_us": duration_us,
                     "scale": float(scale),
                     "opacity": float(opacity),
+                    "media_type": media_type,
+                    "renderer": renderer,
+                    "resource_path": resource_path,
                     "enabled": raw.get("enabled") is not False,
                     "selection_mode": "manual",
                     "manual": True,
@@ -2961,7 +2993,7 @@ class ProjectStore:
         )
         for previous, current in zip(enabled, enabled[1:]):
             if current["start_us"] < previous["start_us"] + previous["duration_us"]:
-                raise ValueError("同一时间只能显示一张语义前景图片")
+                raise ValueError("同一时间只能显示一个语义视觉素材")
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
             if int(project["revision"]) != int(expected_revision):
@@ -2974,8 +3006,10 @@ class ProjectStore:
                 _object(item["visual_analysis_json"], {}), script
             )
             snapshot["recipe"] = {
-                "schema": "jyd.semantic-visual-recipe.v1",
+                "schema": RECIPE_SCHEMA,
+                "library_id": clean_library_id,
                 "catalog_version": catalog_version,
+                "media_policy": media_policy,
                 "overlays": normalized,
             }
             snapshot["bound_audio_asset_id"] = item["current_audio_asset_id"]

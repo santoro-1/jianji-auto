@@ -916,6 +916,7 @@ class ProjectPostprocessCoordinator:
         music_matcher: MusicProfileMatcher,
         caption_aligner: Any | None = None,
         require_precise_alignment: bool = False,
+        semantic_visual_library_root: Path | None = None,
     ) -> None:
         self.store = store
         self.render_queue = render_queue
@@ -934,6 +935,15 @@ class ProjectPostprocessCoordinator:
         self.music_selector = ProjectMusicSelector(music_matcher, self.bgm_assets)
         self.caption_aligner = caption_aligner
         self.require_precise_alignment = bool(require_precise_alignment)
+        self.semantic_visual_library_root = Path(
+            semantic_visual_library_root
+            or (
+                Path(__file__).resolve().parents[2]
+                / "data"
+                / "libraries"
+                / "semantic_visual_library"
+            )
+        ).resolve()
 
     def start(
         self,
@@ -1300,7 +1310,9 @@ class ProjectPostprocessCoordinator:
             ],
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
-        job["visual_overlays"] = frozen_visual_overlays(item)
+        job["visual_overlays"] = frozen_visual_overlays(
+            item, library_root=self.semantic_visual_library_root
+        )
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,
