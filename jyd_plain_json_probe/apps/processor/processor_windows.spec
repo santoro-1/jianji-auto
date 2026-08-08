@@ -9,12 +9,13 @@ app_root = project_root / "apps" / "processor"
 pyjyd_datas, pyjyd_binaries, pyjyd_hiddenimports = collect_all("pyJianYingDraft")
 uia_datas, uia_binaries, uia_hiddenimports = collect_all("uiautomation")
 cv2_datas, cv2_binaries, cv2_hiddenimports = collect_all("cv2")
+jieba_datas, jieba_binaries, jieba_hiddenimports = collect_all("jieba")
 
 datas = [
     (str(app_root / "frontend"), "apps/processor/frontend"),
     (str(project_root / "apps" / "collector" / "frontend"), "apps/collector/frontend"),
-] + pyjyd_datas + uia_datas + cv2_datas
-binaries = pyjyd_binaries + uia_binaries + cv2_binaries
+] + pyjyd_datas + uia_datas + cv2_datas + jieba_datas
+binaries = pyjyd_binaries + uia_binaries + cv2_binaries + jieba_binaries
 hiddenimports = [
     "uvicorn.logging",
     "uvicorn.loops.auto",
@@ -24,7 +25,7 @@ hiddenimports = [
     "pyJianYingDraft.jianying_controller",
     "tkinter",
     "tkinter.filedialog",
-] + pyjyd_hiddenimports + uia_hiddenimports + cv2_hiddenimports
+] + pyjyd_hiddenimports + uia_hiddenimports + cv2_hiddenimports + jieba_hiddenimports
 
 a = Analysis(
     [str(app_root / "processor_windows.py")],

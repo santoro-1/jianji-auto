@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import logging
 from pathlib import Path
 import re
 from typing import Any, Iterable
 import uuid
 
+import jieba
+import jieba.posseg as pseg
 from fontTools.ttLib import TTFont
 
 from .music_matching import MusicProfileMatcher
@@ -40,8 +43,22 @@ _BREAK_CHARS = set("，,、：:。.！？!?；;")
 _HIDDEN_CAPTION_PUNCTUATION = _BREAK_CHARS | set("…")
 _HARD_SENTENCE_BREAKS = set("。.！？!?；;…\r\n")
 _SOFT_SENTENCE_BREAKS = set("，,、：:")
+_CLAUSE_BREAKS = set("，,：:。.！？!?；;…")
 _ORPHAN_PARTICLES = tuple("的地得呢啊了吧吗")
 _STRUCTURAL_PARTICLES = frozenset("的地得")
+_RIGHT_BINDING_CLAUSES = frozenset(
+    {
+        "第一",
+        "第二",
+        "第三",
+        "第四",
+        "第五",
+        "首先",
+        "其次",
+        "再次",
+        "最后",
+    }
+)
 _PROTECTED_TERMS = (
     "表现",
     "问题",
@@ -99,6 +116,71 @@ _NUMBER_EXPRESSION = re.compile(
     r"|[0-9０-９]+[.:：．][0-9０-９]+)"
 )
 _HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_QUANTITY_TAIL = re.compile(r"[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+个$")
+_COUNTING_TAIL = re.compile(
+    r"[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+(?:个|名|位|只|条|份|组|家|本|张|件|辆|台)$"
+)
+_RELATIVE_PREFIXES = ("能", "能够", "可", "可以", "会", "要", "应该")
+_BAD_LINE_ENDINGS = (
+    "就",
+    "都",
+    "能",
+    "会",
+    "要",
+    "把",
+    "被",
+    "从",
+    "向",
+    "往",
+    "给",
+    "对",
+    "和",
+    "与",
+    "及",
+    "或",
+    "并",
+)
+
+jieba.setLogLevel(logging.ERROR)
+_JIEBA_TOKENIZER = jieba.Tokenizer()
+_JIEBA_POS_TOKENIZER = pseg.POSTokenizer(_JIEBA_TOKENIZER)
+
+
+def _discouraged_break_offsets(text: str) -> dict[int, float]:
+    """Score grammatical token boundaries that are legal but usually unnatural."""
+
+    tagged: list[tuple[str, str, int, int]] = []
+    cursor = 0
+    for token in _JIEBA_POS_TOKENIZER.cut(text, HMM=False):
+        word = str(token.word)
+        start = cursor
+        end = start + len(word)
+        tagged.append((word, str(token.flag), start, end))
+        cursor = end
+    penalties: dict[int, float] = {}
+    for left, right in zip(tagged, tagged[1:]):
+        _left_word, left_flag, _left_start, boundary = left
+        right_word, right_flag, _right_start, _right_end = right
+        if (
+            (left_flag.startswith("n") or left_flag == "vn")
+            and (right_flag.startswith("n") or right_flag == "vn")
+        ):
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 4.0)
+        elif left_flag in {"a", "d"} and (
+            right_flag.startswith("v") or right_flag.startswith("a")
+        ):
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 2.0)
+        elif left_flag.startswith("v") and right_flag.startswith("a"):
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 2.0)
+        elif (
+            left_flag.startswith("v")
+            and right_word == "点"
+            and right_flag.startswith("m")
+        ):
+            # Verb + quantity constructions such as `做点活动` should not leave
+            # the quantifier at the start of the following subtitle.
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 12.0)
+    return penalties
 
 
 class CaptionLayoutReviewRequired(ValueError):
@@ -201,6 +283,10 @@ def _unsafe_break_offsets(text: str) -> set[int]:
     """Return character boundaries that would split a lexical or numeric unit."""
 
     unsafe_offsets: set[int] = set()
+    for token, start, end in _JIEBA_TOKENIZER.tokenize(text, mode="default", HMM=False):
+        if len(token) <= 1 or token.isspace():
+            continue
+        unsafe_offsets.update(range(int(start) + 1, int(end)))
     for term in _unbreakable_terms():
         cursor = 0
         while True:
@@ -212,16 +298,13 @@ def _unsafe_break_offsets(text: str) -> set[int]:
     for match in _NUMBER_EXPRESSION.finditer(text):
         unsafe_offsets.update(range(match.start() + 1, match.end()))
     for boundary in range(1, len(text)):
-        # Chinese structural particles attach to the expression on their left.
-        # Also keep the one-character stem immediately before the particle with
-        # it, so arbitrary model units cannot produce fragments such as
-        # ``带|来的`` or ``稳定|地``.  This is grammatical, not script-specific.
-        if text[boundary] in _STRUCTURAL_PARTICLES:
-            unsafe_offsets.add(boundary)
+        # Structural particles may neither start nor end a rendered line.  The
+        # boundary value means "before text[boundary]"; checking both adjacent
+        # characters avoids the former off-by-one that incorrectly protected
+        # `，|管得` instead of `管|得`.
         if (
-            boundary + 1 < len(text)
-            and "\u4e00" <= text[boundary] <= "\u9fff"
-            and text[boundary + 1] in _STRUCTURAL_PARTICLES
+            text[boundary] in _STRUCTURAL_PARTICLES
+            or text[boundary - 1] in _STRUCTURAL_PARTICLES
         ):
             unsafe_offsets.add(boundary)
     return unsafe_offsets
@@ -360,9 +443,14 @@ def _merge_orphan_sentence_tails(
 
 
 def _split_one_line(
-    text: str, metrics: FontMetrics, *, maximum_width_em: float
+    text: str,
+    metrics: FontMetrics,
+    *,
+    maximum_width_em: float,
+    preferred_offsets: set[int] | None = None,
 ) -> list[str]:
     normalized, preferred_breaks = _caption_display_text(text)
+    preferred_breaks.update(preferred_offsets or set())
     if not normalized:
         raise CaptionLayoutReviewRequired("字幕内容为空")
     if metrics.text_width_em(normalized) <= maximum_width_em:
@@ -382,6 +470,7 @@ def _split_one_line(
             cursor = position + len(connector)
 
     protected_breaks = _unsafe_break_offsets(normalized)
+    discouraged_breaks = _discouraged_break_offsets(normalized)
 
     preferred_term_ends: set[int] = set()
     for term in _PREFERRED_PHRASE_END_TERMS:
@@ -426,7 +515,8 @@ def _split_one_line(
             if end < length:
                 score += 0.25
                 if end in preferred_breaks:
-                    score -= 0.35
+                    score -= 0.05
+                score += discouraged_breaks.get(end, 0.0)
                 if end in connector_starts:
                     score -= 0.55
                 if end in preferred_term_ends:
@@ -435,6 +525,16 @@ def _split_one_line(
                     score += 4.0
                 if chunk.endswith(_ORPHAN_PARTICLES):
                     score += 10.0
+                if chunk.endswith(_BAD_LINE_ENDINGS):
+                    score += 12.0
+                next_text = normalized[end:]
+                if (
+                    _QUANTITY_TAIL.search(chunk)
+                    and next_text.startswith(_RELATIVE_PREFIXES)
+                ):
+                    score += 8.0
+                if _COUNTING_TAIL.search(chunk) and next_text:
+                    score += 4.0
             if start > 0 and chunk.startswith(_ORPHAN_PARTICLES):
                 score += 10.0
             if score < scores[end]:
@@ -523,152 +623,87 @@ def _layout_semantic_groups(
     *,
     maximum_width_em: float,
 ) -> list[dict[str, int | str]]:
-    groups = _merge_unbreakable_term_boundaries(groups)
-    groups = _merge_orphan_sentence_tails(
-        groups,
-        metrics,
-        maximum_width_em=maximum_width_em,
-    )
-    repaired_groups: list[dict[str, Any]] = []
-    for group in groups:
-        group_text = str(group.get("text") or "")
-        sentence_break = (
-            "hard"
-            if group.get("hard_break_after")
-            else _trailing_sentence_break(group_text)
-        )
-        display, _preferred = _caption_display_text(group_text)
-        if metrics.text_width_em(display) <= maximum_width_em:
-            retained = dict(group)
-            retained["sentence_break"] = sentence_break
-            repaired_groups.append(retained)
+    # Model boundaries are preferences, not trusted indivisible chunks.  Build
+    # punctuation/raw-cue-bounded clauses first, then lay each clause out over
+    # tokenizer-approved character boundaries.  This prevents a local repair
+    # from crossing `。` or a MiniMax pause and also lets us override a bad model
+    # split such as `头晕眼|花`.
+    clauses: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for source in groups:
+        group = dict(source)
+        if current and int(group.get("start_us") or 0) > int(
+            current[-1].get("end_us") or 0
+        ):
+            clauses.append(current)
+            current = []
+        current.append(group)
+        group_text = str(group.get("text") or "").rstrip()
+        if group.get("hard_break_after") or (
+            group_text and group_text[-1] in _CLAUSE_BREAKS
+        ):
+            clauses.append(current)
+            current = []
+    if current:
+        clauses.append(current)
+
+    # Ordinal/discourse markers such as `第一，` bind to what follows.  Other
+    # punctuation remains a hard layout boundary because punctuation is hidden
+    # in rendered captions and merging it would create text such as `花掉的`.
+    joined_clauses: list[list[dict[str, Any]]] = []
+    index = 0
+    while index < len(clauses):
+        clause = clauses[index]
+        clause_text = "".join(str(group.get("text") or "") for group in clause)
+        display, _preferred = _caption_display_text(clause_text)
+        if (
+            display in _RIGHT_BINDING_CLAUSES
+            and index + 1 < len(clauses)
+            and int(clauses[index + 1][0].get("start_us") or 0)
+            == int(clause[-1].get("end_us") or 0)
+        ):
+            joined_clauses.append(clause + clauses[index + 1])
+            index += 2
             continue
-
-        start_us = int(group.get("start_us") or 0)
-        end_us = int(group.get("end_us") or 0)
-        if end_us <= start_us:
-            raise SemanticSubtitleMappingError(
-                "SEMANTIC_TIME_INVALID", "超宽语义单元的派生时间范围无效"
-            )
-        try:
-            chunks = _split_one_line(
-                group_text,
-                metrics,
-                maximum_width_em=maximum_width_em,
-            )
-            repaired = _allocate_cue_chunks(
-                CaptionCue(start_us, end_us - start_us, display),
-                chunks,
-                metrics,
-            )
-        except CaptionLayoutReviewRequired as exc:
-            raise SemanticSubtitleMappingError(
-                "SEMANTIC_GROUP_REPAIR_FAILED",
-                "超宽语义单元无法在保留其余语义断点的情况下局部修复",
-            ) from exc
-        for index, cue in enumerate(repaired):
-            repaired_groups.append(
-                {
-                    "text": cue.text,
-                    "start_us": cue.start_us,
-                    "end_us": cue.end_us,
-                    "break_after": (
-                        str(group.get("break_after") or "allow")
-                        if index == len(repaired) - 1
-                        else "allow"
-                    ),
-                    "sentence_break": (
-                        sentence_break if index == len(repaired) - 1 else ""
-                    ),
-                    "unit_count": int(group.get("unit_count") or 1),
-                }
-            )
-
-    groups = repaired_groups
-    displays: list[str] = []
-    for group in groups:
-        display, _preferred = _caption_display_text(str(group.get("text") or ""))
-        if metrics.text_width_em(display) > maximum_width_em:
-            raise SemanticSubtitleMappingError(
-                "SEMANTIC_GROUP_TOO_WIDE",
-                "不可拆语义组超过当前字体和画面宽度限制",
-            )
-        displays.append(display)
-
-    length = len(groups)
-    scores = [float("inf")] * (length + 1)
-    previous: list[int | None] = [None] * (length + 1)
-    rendered_texts: dict[tuple[int, int], str] = {}
-    scores[0] = 0.0
-    for end in range(1, length + 1):
-        for start in range(end - 1, -1, -1):
-            if any(
-                groups[index].get("sentence_break") in {"hard", "soft"}
-                for index in range(start, end - 1)
-            ):
-                continue
-            text, _preferred = _caption_display_text(
-                "".join(str(group.get("text") or "") for group in groups[start:end])
-            )
-            width = metrics.text_width_em(text)
-            if width > maximum_width_em:
-                continue
-            if scores[start] == float("inf"):
-                continue
-            fill_ratio = width / maximum_width_em
-            score = scores[start] + (1.0 - fill_ratio) ** 2
-            if len(text) < 4:
-                score += (4 - len(text)) * 8.0
-            if start > 0 and text.startswith(_ORPHAN_PARTICLES):
-                score += 10.0
-            if end < length:
-                score += 0.25
-                sentence_break = str(groups[end - 1].get("sentence_break") or "")
-                break_after = str(groups[end - 1].get("break_after") or "allow")
-                if sentence_break == "soft":
-                    score -= 2.0
-                elif break_after == "prefer":
-                    score -= 0.45
-                elif break_after == "avoid":
-                    score += 8.0
-                if text.endswith(_ORPHAN_PARTICLES):
-                    score += 10.0
-            if score < scores[end]:
-                scores[end] = score
-                previous[end] = start
-                rendered_texts[(start, end)] = text
-    if previous[length] is None:
-        raise SemanticSubtitleMappingError(
-            "SEMANTIC_LAYOUT_FAILED", "语义字幕无法在当前真实字宽内排成单行"
-        )
-
-    slices: list[tuple[int, int]] = []
-    cursor = length
-    while cursor > 0:
-        start = previous[cursor]
-        if start is None:
-            raise SemanticSubtitleMappingError(
-                "SEMANTIC_LAYOUT_FAILED", "语义字幕断点回溯失败"
-            )
-        slices.append((start, cursor))
-        cursor = start
-    slices.reverse()
+        joined_clauses.append(clause)
+        index += 1
 
     result: list[CaptionCue] = []
-    for start, end in slices:
-        start_us = int(groups[start]["start_us"])
-        end_us = int(groups[end - 1]["end_us"])
+    for clause in joined_clauses:
+        text = "".join(str(group.get("text") or "") for group in clause)
+        display, _punctuation_breaks = _caption_display_text(text)
+        preferred_offsets: set[int] = set()
+        display_cursor = 0
+        for group in clause[:-1]:
+            part, _part_breaks = _caption_display_text(str(group.get("text") or ""))
+            display_cursor += len(part)
+            if str(group.get("break_after") or "allow") == "prefer":
+                preferred_offsets.add(display_cursor)
+        start_us = int(clause[0].get("start_us") or 0)
+        end_us = int(clause[-1].get("end_us") or 0)
         if end_us <= start_us:
             raise SemanticSubtitleMappingError(
                 "SEMANTIC_TIME_INVALID", "语义字幕的派生时间范围无效"
             )
-        result.append(
-            CaptionCue(
-                start_us=start_us,
-                duration_us=end_us - start_us,
-                text=rendered_texts[(start, end)],
+        try:
+            chunks = _split_one_line(
+                text,
+                metrics,
+                maximum_width_em=maximum_width_em,
+                preferred_offsets=preferred_offsets,
             )
-        )
+            result.extend(
+                _allocate_cue_chunks(
+                    CaptionCue(start_us, end_us - start_us, display),
+                    chunks,
+                    metrics,
+                )
+            )
+        except CaptionLayoutReviewRequired as exc:
+            raise SemanticSubtitleMappingError(
+                "SEMANTIC_LAYOUT_FAILED",
+                "语义字幕无法在当前真实字宽内排成单行",
+            ) from exc
     return [cue.as_dict() for cue in result]
 
 

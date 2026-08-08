@@ -155,6 +155,32 @@ def test_spaces_and_newlines_may_be_absent_from_provider_cues_without_losing_ver
     )
 
 
+def test_contiguous_raw_cues_remain_hard_timing_boundaries() -> None:
+    script = "少走十年弯路觉得我说的对你有用"
+    units = _units([(script, "phrase", "none", "avoid")])
+    raw_cues = [
+        {"start_us": 0, "end_us": 1_600_000, "text": "少走十年弯路"},
+        {"start_us": 1_600_000, "end_us": 3_600_000, "text": "觉得我说的对你有用"},
+    ]
+
+    timed = map_subtitle_units_to_raw_cues(script, units, raw_cues)
+    groups = semantic_break_groups(timed)
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert len(timed) == 2
+    assert [int(unit["raw_cue_index"]) for unit in timed] == [0, 1]
+    assert len(groups) == 2
+    assert int(groups[0]["end_us"]) == int(groups[1]["start_us"])
+    assert not any(
+        "弯路" in str(cue["text"]) and "觉得我说" in str(cue["text"])
+        for cue in render_cues
+    )
+
+
 def test_overwide_semantic_group_is_repaired_without_discarding_other_ai_breaks() -> None:
     script = "百分之八十四另外一部分就叫到肌肉和肝脏成为肌糖原和肝糖原呼吸排出"
     units = _units(
@@ -325,7 +351,7 @@ def test_leading_particle_is_rebalanced_with_its_phrase() -> None:
     texts = [str(cue["text"]) for cue in render_cues]
     assert mapping["status"] == "SUCCESS"
     assert not any(text.startswith(tuple("的地得呢啊了吧吗")) for text in texts[1:])
-    assert any(text.endswith("呼吸急促") for text in texts)
+    assert any("呼吸急促" in text for text in texts)
     assert any(text.endswith("的轻活动") for text in texts)
 
 
@@ -366,6 +392,89 @@ def test_model_and_local_fallback_cannot_split_protected_phrases() -> None:
     assert "而且优先胖肚子" in texts
     assert "以及成为内脏脂肪" in texts
     assert "也能够通过呼吸的形式" in texts
+
+
+def test_real_model_mistakes_are_reflowed_without_crossing_clauses_or_raw_cues() -> None:
+    script = (
+        "原因是，你一直都在用减重的思维去减脂。"
+        "你会不会干脆破罐子破摔，觉得自己就是易胖体质。"
+        "结果饿到头晕眼花，掉的都是水分。"
+        "最后，每天抽十几分钟做点简单的活动就够了。"
+        "你控制得了工作上的情绪，管得了家里的大小事。"
+        "我见过太多四十多五十多的姐姐。"
+        "少走十年弯路。"
+        "觉得我说的对你有用，我每天都会分享一个能落地的体重管理小方法。"
+    )
+    units = _units(
+        [
+            ("原因是，", "phrase", "none", "prefer"),
+            ("你一直都在用减重的思维", "phrase", "none", "prefer"),
+            ("去减脂。", "phrase", "none", "prefer"),
+            ("你会不会干脆破罐子", "phrase", "none", "prefer"),
+            ("破摔，", "phrase", "none", "prefer"),
+            ("觉得自己就是易胖体质。", "phrase", "none", "prefer"),
+            ("结果饿到头晕眼", "phrase", "none", "allow"),
+            ("花，", "phrase", "none", "prefer"),
+            ("掉的都是水分。", "phrase", "none", "prefer"),
+            ("最后，", "phrase", "none", "prefer"),
+            ("每天抽十几分钟做点简单的活动就够", "phrase", "none", "prefer"),
+            ("了。", "phrase", "none", "prefer"),
+            ("你控制得了工作上的情绪，", "phrase", "none", "prefer"),
+            ("管得了家里的大小", "phrase", "none", "allow"),
+            ("事。", "phrase", "none", "prefer"),
+            ("我见过太多四十多五十多", "phrase", "none", "prefer"),
+            ("的姐姐。", "phrase", "none", "prefer"),
+            ("少走十年弯路。", "phrase", "none", "prefer"),
+            ("觉得我说的对你有", "phrase", "none", "allow"),
+            ("用，", "phrase", "none", "prefer"),
+            ("我每天都会分享一个能落地的体重管理小方", "phrase", "none", "prefer"),
+            ("法。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_texts = [
+        "原因是，你一直都在用减重的思维去减脂。",
+        "你会不会干脆破罐子破摔，觉得自己就是易胖体质。",
+        "结果饿到头晕眼花，掉的都是水分。",
+        "最后，每天抽十几分钟做点简单的活动就够了。",
+        "你控制得了工作上的情绪，管得了家里的大小事。",
+        "我见过太多四十多五十多的姐姐。",
+        "少走十年弯路。",
+        "觉得我说的对你有用，我每天都会分享一个能落地的体重管理小方法。",
+    ]
+    raw_cues: list[dict[str, object]] = []
+    cursor = 0
+    for text in raw_texts:
+        duration = max(1_000_000, len(text) * 100_000)
+        raw_cues.append({"start_us": cursor, "end_us": cursor + duration, "text": text})
+        cursor += duration + 200_000
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    joined = "|".join(texts)
+    assert mapping["status"] == "SUCCESS"
+    assert "破罐子|破摔" not in joined
+    assert "头晕眼|花" not in joined
+    assert "做|点" not in joined
+    assert "情|绪" not in joined
+    assert "四十|多" not in joined
+    assert "弯|路" not in joined
+    assert "一个|能" not in joined
+    assert any("破罐子破摔" in text for text in texts)
+    assert any("头晕眼花" in text for text in texts)
+    assert any("工作上的情绪" in text for text in texts)
+    assert any("少走十年弯路" in text for text in texts)
+    previous_raw = raw_cues[-2]
+    following_raw = raw_cues[-1]
+    assert max(int(cue["end_us"]) for cue in render_cues if "弯路" in str(cue["text"])) <= int(
+        previous_raw["end_us"]
+    )
+    assert min(int(cue["start_us"]) for cue in render_cues if "觉得我说" in str(cue["text"])) >= int(
+        following_raw["start_us"]
+    )
 
 
 def test_tilde_is_an_exact_character_not_a_wildcard() -> None:

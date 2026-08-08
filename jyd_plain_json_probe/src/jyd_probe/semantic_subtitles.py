@@ -32,6 +32,7 @@ class TimedSemanticUnit:
     break_after: str
     start_us: int
     end_us: int
+    raw_cue_index: int
 
     def as_dict(self) -> dict[str, int | str]:
         return {
@@ -44,6 +45,7 @@ class TimedSemanticUnit:
             "start_us": self.start_us,
             "end_us": self.end_us,
             "duration_us": self.end_us - self.start_us,
+            "raw_cue_index": self.raw_cue_index,
         }
 
 
@@ -136,7 +138,7 @@ def _spoken_characters(value: str) -> list[str]:
 def _character_time_ranges(
     original_script: str,
     raw_cues: Iterable[object],
-) -> dict[int, tuple[int, int]]:
+) -> dict[int, tuple[int, int, int]]:
     try:
         cues = caption_cues_from_payload(raw_cues)
     except (TypeError, ValueError) as exc:
@@ -163,9 +165,9 @@ def _character_time_ranges(
             "MiniMax raw_cues 去除空白后不能逐字符重建当前脚本",
         )
 
-    ranges: dict[int, tuple[int, int]] = {}
+    ranges: dict[int, tuple[int, int, int]] = {}
     position_cursor = 0
-    for cue in cues:
+    for cue_index, cue in enumerate(cues):
         cue_characters = _spoken_characters(cue.text)
         count = len(cue_characters)
         if count <= 0:
@@ -184,9 +186,35 @@ def _character_time_ranges(
                 raise SemanticSubtitleMappingError(
                     "RAW_CUE_RESOLUTION_TOO_LOW", "MiniMax cue 时间精度不足以映射全部字符"
                 )
-            ranges[script_index] = (start_us, end_us)
+            ranges[script_index] = (start_us, end_us, cue_index)
             position_cursor += 1
     return ranges
+
+
+def _unit_raw_cue_slices(
+    unit: Mapping[str, Any],
+    character_ranges: Mapping[int, tuple[int, int, int]],
+) -> list[tuple[int, int, int | None]]:
+    """Split one model unit at every MiniMax raw-cue boundary."""
+
+    start = int(unit["start"])
+    end = int(unit["end"])
+    spoken = [position for position in range(start, end) if position in character_ranges]
+    if not spoken:
+        return [(start, end, None)]
+
+    slices: list[tuple[int, int, int | None]] = []
+    slice_start = start
+    cue_index = character_ranges[spoken[0]][2]
+    for position in spoken[1:]:
+        current_cue_index = character_ranges[position][2]
+        if current_cue_index == cue_index:
+            continue
+        slices.append((slice_start, position, cue_index))
+        slice_start = position
+        cue_index = current_cue_index
+    slices.append((slice_start, end, cue_index))
+    return slices
 
 
 def map_subtitle_units_to_raw_cues(
@@ -201,52 +229,65 @@ def map_subtitle_units_to_raw_cues(
     result: list[TimedSemanticUnit] = []
     previous_end_us = -1
     for unit in units:
-        spoken_positions = [
-            index
-            for index in range(unit["start"], unit["end"])
-            if index in character_ranges
-        ]
-        if spoken_positions:
-            start_us = character_ranges[spoken_positions[0]][0]
-            end_us = character_ranges[spoken_positions[-1]][1]
-        else:
-            previous_positions = [
-                position for position in character_ranges if position < unit["start"]
+        slices = _unit_raw_cue_slices(unit, character_ranges)
+        for slice_index, (slice_start, slice_end, raw_cue_index) in enumerate(slices):
+            spoken_positions = [
+                index
+                for index in range(slice_start, slice_end)
+                if index in character_ranges
             ]
-            next_positions = [
-                position for position in character_ranges if position >= unit["end"]
-            ]
-            previous_time = (
-                character_ranges[max(previous_positions)][1]
-                if previous_positions
-                else None
+            if spoken_positions:
+                start_us = character_ranges[spoken_positions[0]][0]
+                end_us = character_ranges[spoken_positions[-1]][1]
+            else:
+                previous_positions = [
+                    position for position in character_ranges if position < slice_start
+                ]
+                next_positions = [
+                    position for position in character_ranges if position >= slice_end
+                ]
+                previous_time = (
+                    character_ranges[max(previous_positions)][1]
+                    if previous_positions
+                    else None
+                )
+                next_time = (
+                    character_ranges[min(next_positions)][0]
+                    if next_positions
+                    else None
+                )
+                start_us = (
+                    previous_time if previous_time is not None else int(next_time or 0)
+                )
+                end_us = next_time if next_time is not None else int(previous_time or 0)
+                if previous_positions:
+                    raw_cue_index = character_ranges[max(previous_positions)][2]
+                elif next_positions:
+                    raw_cue_index = character_ranges[min(next_positions)][2]
+            if start_us < previous_end_us or end_us < start_us or (
+                end_us == start_us and unit["kind"] != "whitespace"
+            ):
+                raise SemanticSubtitleMappingError(
+                    "SEMANTIC_TIME_NOT_MONOTONIC", "语义单元映射后的时间范围不单调"
+                )
+            result.append(
+                TimedSemanticUnit(
+                    start=slice_start,
+                    end=slice_end,
+                    text=original_script[slice_start:slice_end],
+                    kind=unit["kind"],
+                    bind=unit["bind"],
+                    break_after=(
+                        unit["break_after"]
+                        if slice_index == len(slices) - 1
+                        else "avoid"
+                    ),
+                    start_us=start_us,
+                    end_us=end_us,
+                    raw_cue_index=int(raw_cue_index or 0),
+                )
             )
-            next_time = (
-                character_ranges[min(next_positions)][0]
-                if next_positions
-                else None
-            )
-            start_us = previous_time if previous_time is not None else int(next_time or 0)
-            end_us = next_time if next_time is not None else int(previous_time or 0)
-        if start_us < previous_end_us or end_us < start_us or (
-            end_us == start_us and unit["kind"] != "whitespace"
-        ):
-            raise SemanticSubtitleMappingError(
-                "SEMANTIC_TIME_NOT_MONOTONIC", "语义单元映射后的时间范围不单调"
-            )
-        result.append(
-            TimedSemanticUnit(
-                start=unit["start"],
-                end=unit["end"],
-                text=unit["text"],
-                kind=unit["kind"],
-                bind=unit["bind"],
-                break_after=unit["break_after"],
-                start_us=start_us,
-                end_us=end_us,
-            )
-        )
-        previous_end_us = end_us
+            previous_end_us = end_us
     return [unit.as_dict() for unit in result]
 
 
@@ -278,9 +319,15 @@ def semantic_break_groups(
             and next_unit.get("kind") == "whitespace"
             and any(character in next_text for character in "\r\n")
         )
+        raw_cue_boundary = bool(
+            next_unit
+            and int(next_unit.get("raw_cue_index") or 0)
+            != int(unit.get("raw_cue_index") or 0)
+        )
         boundary_forbidden = bool(
             next_unit
             and not next_is_line_break
+            and not raw_cue_boundary
             and (
                 unit.get("break_after") == "avoid"
                 or unit.get("bind") in {"right", "both"}
@@ -302,7 +349,8 @@ def semantic_break_groups(
                 "start_us": int(current[0]["start_us"]),
                 "end_us": int(current[-1]["end_us"]),
                 "break_after": str(current[-1].get("break_after") or "allow"),
-                "hard_break_after": next_is_line_break,
+                "hard_break_after": next_is_line_break or raw_cue_boundary,
+                "raw_cue_index": int(current[0].get("raw_cue_index") or 0),
                 "unit_count": len(current),
             }
         )
