@@ -273,7 +273,7 @@
         <div class="glass-panel-heavy w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-200">
             <div class="flex items-start justify-between gap-4 mb-4">
                 <div>
-                    <h3 id="semantic-visual-title" class="text-lg font-bold text-white"><i class="fa-solid fa-images text-brand-primary mr-2"></i>语义配图审核</h3>
+                    <h3 id="semantic-visual-title" class="text-lg font-bold text-white"><i class="fa-solid fa-images text-brand-primary mr-2"></i>语义视觉审核</h3>
                     <p id="semantic-visual-summary" class="text-[11px] text-gray-400 mt-1">按脚本文意审核；浏览器动态预览与剪映成片使用同一份冻结配方。</p>
                 </div>
                 <button type="button" onclick="closeSemanticVisualModal()" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"><i class="fa-solid fa-xmark"></i></button>
@@ -496,6 +496,8 @@
                 </div>
                 <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
                 <img id="video-preview-semantic-overlay" class="hidden absolute z-10 pointer-events-none object-contain drop-shadow-2xl" src="" alt="语义前景图片">
+                <video id="video-preview-semantic-video" class="hidden absolute z-10 pointer-events-none object-contain" muted playsinline preload="metadata"></video>
+                <img id="video-preview-fixed-nameplate" class="hidden absolute z-[15] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview" alt="张雒人名牌">
                 <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 
                 <!-- Inner play controller simulation -->
@@ -601,8 +603,21 @@
                         </a>
                     </div>
 
+                    <div class="mb-4 rounded-xl border border-slate-800/80 bg-slate-950/40 p-3">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <label for="project-selector" class="text-[10px] font-bold text-gray-300">当前批次 / 项目</label>
+                            <button type="button" onclick="beginNewProjectBatch()" class="text-[10px] font-semibold text-brand-accent hover:text-white">
+                                <i class="fa-solid fa-plus mr-1"></i>新建批次
+                            </button>
+                        </div>
+                        <select id="project-selector" onchange="switchWorkspaceProject(this.value)" class="w-full rounded-lg border border-slate-700/80 bg-slate-950 px-2.5 py-2 text-[11px] text-gray-200 focus:border-brand-primary focus:outline-none">
+                            <option value="">新批次（等待导入脚本）</option>
+                        </select>
+                        <p class="mt-2 text-[9px] leading-relaxed text-gray-500">切换批次不会删除或覆盖其他测试内容；新批次导入后会独立保存。</p>
+                    </div>
+
                     <!-- Dropzone -->
-                    <div id="excel-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-brand-primary/60 bg-slate-950/20 hover:bg-brand-primary/5 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300" onclick="triggerFileInput('excel-file-input')">
+                    <div id="excel-dropzone" class="border-2 border-dashed border-slate-700/80 hover:border-brand-primary/60 bg-slate-950/20 hover:bg-brand-primary/5 rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-300" onclick="beginScriptImport('create')">
                         <input type="file" id="excel-file-input" class="hidden" accept=".xlsx,.csv" onchange="handleExcelUpload(event)">
                         <div class="w-12 h-12 rounded-full bg-slate-900/60 border border-slate-800/80 flex items-center justify-center text-slate-400 mb-3 shadow-inner" id="excel-icon-box">
                             <i class="fa-solid fa-cloud-arrow-up text-lg text-brand-primary"></i>
@@ -612,12 +627,15 @@
                     </div>
 
                     <!-- Parsed indicator -->
-                    <div id="parsed-indicator" class="hidden mt-3 p-3 bg-emerald-950/20 border border-emerald-800/30 rounded-xl flex items-center justify-between">
+                    <div id="parsed-indicator" class="hidden mt-3 p-3 bg-emerald-950/20 border border-emerald-800/30 rounded-xl flex items-center justify-between gap-3">
                         <div class="flex items-center gap-2 text-emerald-400">
                             <i class="fa-solid fa-circle-check text-xs"></i>
                             <span class="text-xs font-semibold" id="parsed-count-text">成功解析 6 行脚本</span>
                         </div>
-                        <button onclick="clearParsedData()" class="text-[10px] text-red-400 hover:text-red-300 font-medium"><i class="fa-solid fa-trash-can mr-1"></i>清除</button>
+                        <div class="flex items-center gap-3 shrink-0">
+                            <button type="button" onclick="beginScriptImport('append')" class="text-[10px] text-brand-accent hover:text-white font-medium"><i class="fa-solid fa-file-circle-plus mr-1"></i>追加表格</button>
+                            <button onclick="clearParsedData()" class="text-[10px] text-red-400 hover:text-red-300 font-medium"><i class="fa-solid fa-trash-can mr-1"></i>清除</button>
+                        </div>
                     </div>
                 </div>
 
@@ -729,6 +747,20 @@
                         </label>
                     </div>
                 </div>
+
+                <!-- Input 4: Project-wide digital-human generation settings -->
+                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                    <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
+                        <span class="w-6 h-6 rounded bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-xs"><i class="fa-solid fa-expand"></i></span>
+                        4. 数字人画面设置
+                    </h3>
+                    <label for="digital-human-resolution" class="block text-xs font-bold text-gray-300 mb-2">最长边分辨率</label>
+                    <div class="flex items-center rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 focus-within:border-brand-accent">
+                        <input id="digital-human-resolution" type="number" min="1" step="1" value="1024" onchange="saveDigitalHumanResolution(this)" class="min-w-0 w-full bg-transparent py-2.5 text-xs text-white focus:outline-none" inputmode="numeric">
+                        <span class="text-[10px] text-gray-500 whitespace-nowrap">像素</span>
+                    </div>
+                    <p id="digital-human-resolution-hint" class="text-[10px] text-gray-500 mt-2 leading-relaxed">直接输入需要的最长边像素，默认 1024；按当前项目保存，全部分段共用。</p>
+                </div>
             </section>
 
             <!-- Right Side Generation Processing Area (Table) -->
@@ -762,11 +794,25 @@
                         </div>
                     </div>
 
+                    <div id="batch-selection-toolbar" class="hidden px-5 py-3 border-b border-white/5 bg-indigo-950/20 flex flex-wrap items-center gap-2">
+                        <span id="selected-row-count" class="text-[10px] font-bold text-indigo-200">已选 0 条</span>
+                        <div class="flex items-center rounded-lg border border-slate-700/80 bg-slate-950/80 px-2 py-1">
+                            <input id="quick-select-task-ids" type="text" placeholder="序号/任务ID：3,5,8-12" class="w-40 bg-transparent text-[10px] text-white placeholder:text-slate-600 focus:outline-none" onkeydown="if(event.key === 'Enter') applyQuickTaskSelection()">
+                            <button type="button" onclick="applyQuickTaskSelection()" class="text-[10px] text-brand-accent hover:text-white">选择</button>
+                        </div>
+                        <button type="button" onclick="clearRowSelection()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] text-gray-400 hover:text-white">清空</button>
+                        <span class="hidden sm:inline h-5 w-px bg-slate-700"></span>
+                        <button type="button" onclick="analyzeSelectedRows()" class="px-3 py-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/5 text-[10px] font-semibold text-cyan-200 hover:text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>统一分析</button>
+                        <button type="button" onclick="generateSelectedAudio()" class="px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white"><i class="fa-solid fa-wave-square mr-1"></i>生成声音</button>
+                        <button type="button" onclick="generateSelectedVideos()" class="px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white"><i class="fa-solid fa-film mr-1"></i>生成完整成片</button>
+                    </div>
+
                     <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
                     <div class="overflow-x-auto relative flex-1 overflow-y-auto">
                         <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1680px]">
                             <thead class="text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
+                                    <th scope="col" class="table-header-input px-3 py-3.5 w-12 text-center whitespace-nowrap"><input id="select-all-project-items" type="checkbox" aria-label="全选脚本行" onchange="toggleSelectAllRows(this.checked)" class="rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary"></th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center whitespace-nowrap">任务ID</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-[280px] max-w-[280px]">脚本内容 (双击可修改)</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-32">声音原型</th>
@@ -774,7 +820,7 @@
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center">画面</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center">背景音乐</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
-                                    <th scope="col" class="table-header-input px-4 py-3.5 w-44 text-center whitespace-nowrap">语义配图</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-44 text-center whitespace-nowrap">语义视觉</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">变体数</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>
@@ -785,7 +831,7 @@
                             <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
                                 <!-- Placeholders when empty -->
                                 <tr id="empty-table-placeholder">
-                                    <td colspan="13" class="px-6 py-20 text-center text-gray-500">
+                                    <td colspan="14" class="px-6 py-20 text-center text-gray-500">
                                         <div class="flex flex-col items-center justify-center">
                                             <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
                                             <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
@@ -867,11 +913,15 @@
         let semanticVisualCatalog = null;
         let activeSemanticVisualRowId = '';
         let semanticVisualDraft = [];
+        const pendingScriptSaves = new Map();
 
         // System State
         let activeProject = null;
+        let availableProjects = [];
         let uploadedScripts = [];
         let uploadedImages = [];
+        let scriptImportMode = 'create';
+        const selectedProjectItemIds = new Set();
         let selectedDefaultVoiceIndex = 0; // Index of voicePresets
         let currentStrategy = 'count'; // 'count' or 'loop'
         let currentStrategyCountVal = 1; // Count per image
@@ -915,6 +965,7 @@
         let isGeneratingVariants = false;
         let audioStatusPollTimer = null;
         let compositionStatusPollTimer = null;
+        let compositionStatusPollFailureCount = 0;
         let postprocessStatusPollTimer = null;
         let variantStatusPollTimer = null;
         let isGeneratingComposition = false;
@@ -1185,12 +1236,135 @@
             return (stem || `数字人项目_${new Date().toLocaleDateString('zh-CN')}`).slice(0, 120);
         }
 
+        function selectedDigitalHumanResolution() {
+            const raw = String(document.getElementById('digital-human-resolution')?.value || '1024').trim();
+            return /^\d+$/.test(raw) && Number(raw) > 0 ? raw : '1024';
+        }
+
+        async function saveDigitalHumanResolution(select) {
+            const previous = String(activeProject?.settings?.digital_human?.resolution || '1024');
+            const resolution = String(select?.value || '').trim();
+            if (!/^\d+$/.test(resolution) || Number(resolution) <= 0) {
+                select.value = previous;
+                showToast('分辨率格式不正确', '请输入大于 0 的整数像素值。', 'warning');
+                return;
+            }
+            if (!activeProject?.project_id) {
+                showToast('分辨率已选择', `创建项目后将使用 ${resolution}。`, 'success');
+                return;
+            }
+            select.disabled = true;
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/digital-human-settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resolution })
+                });
+                syncProjectInputs(project);
+                showToast(
+                    '数字人分辨率已保存',
+                    `当前项目后续画面统一使用最长边 ${resolution}；已有画面版本保留在历史中，需要时会重新生成。`,
+                    'success'
+                );
+            } catch (error) {
+                select.value = previous;
+                select.disabled = false;
+                showToast('分辨率保存失败', error.message, 'warning');
+            }
+        }
+
         function projectHasActiveItems(project) {
             return (project?.items || []).some((item) => [
                 'AUDIO_QUEUED', 'AUDIO_RUNNING',
                 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING',
                 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'
             ].includes(item.status));
+        }
+
+        function renderProjectSelector(selectedProjectId = activeProject?.project_id || '') {
+            const selector = document.getElementById('project-selector');
+            if (!selector) return;
+            const options = ['<option value="">新批次（等待导入脚本）</option>'];
+            availableProjects.forEach((project) => {
+                const count = Array.isArray(project.items) ? project.items.length : 0;
+                const label = `${project.project_no} · ${project.name} · ${count} 条`;
+                options.push(`<option value="${escapeHtml(project.project_id)}">${escapeHtml(label)}</option>`);
+            });
+            selector.innerHTML = options.join('');
+            selector.value = selectedProjectId || '';
+        }
+
+        function updateProjectQuery(projectId = '') {
+            const url = new URL(window.location.href);
+            if (projectId) url.searchParams.set('project', projectId);
+            else url.searchParams.delete('project');
+            window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+        }
+
+        async function refreshProjectListing(preferredProjectId = activeProject?.project_id || '') {
+            const listing = await workspaceApi('/api/new/projects?limit=100&offset=0');
+            availableProjects = Array.isArray(listing.projects) ? listing.projects : [];
+            renderProjectSelector(preferredProjectId);
+            return listing;
+        }
+
+        function resetWorkspaceForNewBatch({ notify = true } = {}) {
+            clearTimeout(audioStatusPollTimer);
+            clearTimeout(compositionStatusPollTimer);
+            clearTimeout(postprocessStatusPollTimer);
+            clearTimeout(variantStatusPollTimer);
+            activeProject = null;
+            uploadedScripts = [];
+            uploadedImages = [];
+            selectedProjectItemIds.clear();
+            globalVariantConfig = null;
+            rowVariantCovers = {};
+            variantDirtyItemIds.clear();
+            pendingSingleCompositionItemIds.clear();
+            document.getElementById('excel-dropzone').classList.remove('hidden');
+            document.getElementById('parsed-indicator').classList.add('hidden');
+            document.getElementById('digital-human-resolution').disabled = false;
+            renderProjectSelector('');
+            renderProjectActivity();
+            renderImageThumbnails();
+            updateTableLayout();
+            updateProjectQuery('');
+            if (notify) {
+                showToast('已打开新批次', '当前测试项目仍然保留；导入新脚本后会创建独立项目。', 'success');
+            }
+        }
+
+        function beginNewProjectBatch() {
+            resetWorkspaceForNewBatch();
+        }
+
+        async function switchWorkspaceProject(projectId) {
+            const cleanId = String(projectId || '').trim();
+            if (!cleanId) {
+                resetWorkspaceForNewBatch({ notify: false });
+                return;
+            }
+            if (activeProject?.project_id === cleanId) return;
+            try {
+                const project = await workspaceApi(`/api/new/projects/${cleanId}`);
+                selectedProjectItemIds.clear();
+                pendingSingleCompositionItemIds.clear();
+                syncProjectInputs(project);
+                updateProjectQuery(cleanId);
+                showToast('已切换批次', `${project.project_no} · ${project.name}`, 'success');
+            } catch (error) {
+                renderProjectSelector(activeProject?.project_id || '');
+                showToast('批次切换失败', error.message, 'warning');
+            }
+        }
+
+        function beginScriptImport(mode = 'create') {
+            if (mode === 'append' && !activeProject?.project_id) {
+                showToast('请先选择现有批次', '新批次请直接导入表格；追加需要一个已保存项目。', 'warning');
+                return;
+            }
+            scriptImportMode = mode === 'append' ? 'append' : 'create';
+            triggerFileInput('excel-file-input');
         }
 
         function syncProjectInputs(project, { renderTable = true } = {}) {
@@ -1201,6 +1375,13 @@
                 finalGenerationPhase = savedFinalPhase;
             }
             const mapping = project?.settings?.image_mapping || {};
+            const digitalHumanResolution = String(project?.settings?.digital_human?.resolution || '1024');
+            const resolutionSelect = document.getElementById('digital-human-resolution');
+            resolutionSelect.value = digitalHumanResolution;
+            resolutionSelect.disabled = projectHasActiveItems(project);
+            document.getElementById('digital-human-resolution-hint').textContent = resolutionSelect.disabled
+                ? '当前有分段正在生成，完成后才能修改分辨率。'
+                : '直接输入需要的最长边像素，默认 1024；按当前项目保存，全部分段共用。';
             const savedVariantSettings = project?.settings?.variants || null;
             globalVariantConfig = savedVariantSettings?.mode === 'custom' ? {
                 mode: 'custom',
@@ -1222,7 +1403,7 @@
             const variantOperations = Array.isArray(project?.operations)
                 ? project.operations.filter(operation => ['VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY'].includes(operation.operation_type))
                 : [];
-            uploadedScripts = Array.isArray(project?.items) ? project.items.map((item) => {
+            uploadedScripts = Array.isArray(project?.items) ? project.items.map((item, itemIndex) => {
                 const variantOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
                 const variantGenerationOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id && operation.operation_type === 'VARIANT_GENERATE') || null;
                 if (variantOperation?.payload?.cover) rowVariantCovers[item.item_id] = variantOperation.payload.cover;
@@ -1230,6 +1411,7 @@
                 return ({
                 id: item.item_id,
                 rowKey: item.row_key,
+                displayIndex: itemIndex + 1,
                 text: item.script_text,
                 image: item.inputs?.image || null,
                 voiceAssetId: item.settings?.voice_asset_id || null,
@@ -1251,6 +1433,16 @@
                 allowedActions: item.allowed_actions || {}
                 });
             }) : [];
+            const currentItemIds = new Set(uploadedScripts.map((item) => item.id));
+            Array.from(selectedProjectItemIds).forEach((itemId) => {
+                if (!currentItemIds.has(itemId)) selectedProjectItemIds.delete(itemId);
+            });
+            const listedProjectIndex = availableProjects.findIndex(
+                (item) => item.project_id === project?.project_id
+            );
+            if (listedProjectIndex >= 0) availableProjects[listedProjectIndex] = project;
+            else if (project?.project_id) availableProjects.unshift(project);
+            renderProjectSelector(project?.project_id || '');
             uploadedScripts.forEach((item) => {
                 const style = item.subtitles?.style || {};
                 const saved = item.postprocessSettings || {};
@@ -1305,12 +1497,18 @@
         async function initializeProjectInputs() {
             try {
                 const requestedProjectId = new URLSearchParams(window.location.search).get('project');
-                const listing = await workspaceApi(`/api/new/projects?limit=${requestedProjectId ? 100 : 1}&offset=0`);
-                const project = requestedProjectId
+                const listing = await refreshProjectListing(requestedProjectId || '');
+                let project = requestedProjectId
                     ? listing.projects?.find(item => item.project_id === requestedProjectId)
                     : listing.projects?.[0];
+                if (requestedProjectId && !project) {
+                    project = await workspaceApi(`/api/new/projects/${requestedProjectId}`);
+                }
                 if (project) {
                     syncProjectInputs(project);
+                    updateProjectQuery(project.project_id);
+                } else {
+                    resetWorkspaceForNewBatch({ notify: false });
                 }
             } catch (error) {
                 showToast('项目加载失败', error.message, 'warning');
@@ -1326,13 +1524,20 @@
                     `/api/new/script-imports/preview?filename=${encodeURIComponent(file.name)}`,
                     { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: file }
                 );
+                const isAppend = scriptImportMode === 'append';
                 const items = preview.rows.map((row, index) => ({
-                    item_id: activeProject?.items?.[index]?.item_id || undefined,
+                    ...(isAppend ? {} : { item_id: activeProject?.items?.[index]?.item_id || undefined }),
                     row_key: row.row_key,
                     script_text: row.script_text
                 }));
                 let project;
-                if (activeProject?.project_id && activeProject.allowed_actions?.edit_inputs) {
+                if (isAppend) {
+                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/batch`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items })
+                    });
+                } else if (activeProject?.project_id && activeProject.allowed_actions?.edit_inputs) {
                     project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/inputs`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
@@ -1347,7 +1552,13 @@
                     project = await workspaceApi('/api/new/projects', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name: projectNameFromFile(file.name), items })
+                        body: JSON.stringify({
+                            name: projectNameFromFile(file.name),
+                            items,
+                            settings: {
+                                digital_human: { resolution: selectedDigitalHumanResolution() }
+                            }
+                        })
                     });
                 }
                 if (project.input_images?.length) {
@@ -1357,21 +1568,32 @@
                         body: JSON.stringify({ strategy: currentStrategy, reuse_count: currentStrategyCountVal })
                     });
                 }
-                project = await workspaceApi(`/api/new/projects/${project.project_id}/script-source?filename=${encodeURIComponent(file.name)}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/octet-stream' },
-                    body: file
-                });
+                if (!isAppend) {
+                    project = await workspaceApi(`/api/new/projects/${project.project_id}/script-source?filename=${encodeURIComponent(file.name)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/octet-stream' },
+                        body: file
+                    });
+                }
                 globalVariantConfig = null;
                 rowVariantCovers = {};
                 variantDirtyItemIds.clear();
                 pendingSingleCompositionItemIds.clear();
                 syncProjectInputs(project);
-                showToast('脚本已保存', `已保存 ${preview.total_rows} 行脚本；点击“生成声音预览”时会分析首次导入或内容有变化的脚本。`, 'success');
+                updateProjectQuery(project.project_id);
+                await refreshProjectListing(project.project_id);
+                showToast(
+                    isAppend ? '脚本已追加' : '脚本已保存',
+                    isAppend
+                        ? `已向当前批次原子追加 ${preview.total_rows} 行，原测试内容保持不变。`
+                        : `已保存 ${preview.total_rows} 行脚本；点击“生成声音预览”时会分析首次导入或内容有变化的脚本。`,
+                    'success'
+                );
             } catch (error) {
                 showToast('脚本导入失败', error.message, 'warning');
             } finally {
                 event.target.value = '';
+                scriptImportMode = 'create';
             }
         }
 
@@ -1384,17 +1606,8 @@
                 onConfirm: async () => {
                     try {
                         await workspaceApi(`/api/new/projects/${activeProject.project_id}`, { method: 'DELETE' });
-                        activeProject = null;
-                        uploadedScripts = [];
-                        uploadedImages = [];
-                        globalVariantConfig = null;
-                        rowVariantCovers = {};
-                        variantDirtyItemIds.clear();
-                        pendingSingleCompositionItemIds.clear();
-                        document.getElementById('excel-dropzone').classList.remove('hidden');
-                        document.getElementById('parsed-indicator').classList.add('hidden');
-                        renderImageThumbnails();
-                        updateTableLayout();
+                        await refreshProjectListing('');
+                        resetWorkspaceForNewBatch({ notify: false });
                         showToast('数据已清空', '当前草稿项目及其输入图片已删除。', 'success');
                     } catch (error) {
                         showToast('无法清除项目', error.message, 'warning');
@@ -1510,10 +1723,14 @@
             }
             showToast('正在导入图片集', `正在上传并校验 ${files.length} 张图片...`);
             try {
-                for (const file of files) await uploadProjectImage(file);
+                const results = [];
+                for (const file of files) results.push(await uploadProjectImage(file));
+                const duplicateCount = results.filter((image) => image.deduplicated).length;
+                const importedCount = results.length - duplicateCount;
                 syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
-                await applyStrategyChange(false);
-                showToast('图片导入成功', `${files.length} 张图片已保存并按当前策略完成分配。`, 'success');
+                if (importedCount > 0) await applyStrategyChange(false);
+                const duplicateText = duplicateCount > 0 ? `，另有 ${duplicateCount} 张同名或相同内容图片已自动跳过` : '';
+                showToast('图片导入完成', `${importedCount} 张新图片已保存${duplicateText}。`, 'success');
             } catch (error) {
                 syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
                 showToast('部分图片未能导入', error.message, 'warning');
@@ -1539,7 +1756,7 @@
                 wrapper.className = "relative group aspect-square rounded-lg overflow-hidden border border-slate-700 bg-slate-900";
                 wrapper.innerHTML = `
                     <img src="${image.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="${escapeHtml(image.filename)}">
-                    <button onclick="removeImage('${image.image_id}', event)" class="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-600 hover:bg-red-500 text-white flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100 transition-opacity"><i class="fa-solid fa-xmark"></i></button>
+                    <button type="button" title="删除图片" aria-label="删除图片 ${escapeHtml(image.filename)}" onclick="removeImage('${image.image_id}', event)" class="absolute z-20 top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-600/95 hover:bg-red-500 text-white flex items-center justify-center text-sm shadow-lg ring-1 ring-white/30"><i class="fa-solid fa-trash-can"></i></button>
                 `;
                 container.appendChild(wrapper);
             });
@@ -1547,6 +1764,8 @@
 
         async function removeImage(imageId, event) {
             event.stopPropagation();
+            const image = uploadedImages.find((entry) => entry.image_id === imageId);
+            if (!window.confirm(`确定从当前项目删除图片「${image?.filename || '未命名图片'}」吗？\n\n使用该图片且当前未在生成的脚本会自动改用剩余图片；如果这是最后一张，相关行会暂时清空画面。`)) return;
             try {
                 await workspaceApi(`/api/new/projects/${activeProject.project_id}/images/${imageId}`, { method: 'DELETE' });
                 syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
@@ -1640,6 +1859,78 @@
                 && (!sourceAssetId || (frozenSourceIds.size === 1 && frozenSourceIds.has(sourceAssetId)));
         }
 
+        function selectedProjectItems() {
+            return uploadedScripts.filter((item) => selectedProjectItemIds.has(item.id));
+        }
+
+        function refreshRowSelectionControls() {
+            const selectedCount = selectedProjectItems().length;
+            const toolbar = document.getElementById('batch-selection-toolbar');
+            const count = document.getElementById('selected-row-count');
+            const selectAll = document.getElementById('select-all-project-items');
+            if (toolbar) toolbar.classList.toggle('hidden', uploadedScripts.length === 0);
+            if (count) count.textContent = `已选 ${selectedCount} 条`;
+            if (selectAll) {
+                selectAll.checked = uploadedScripts.length > 0 && selectedCount === uploadedScripts.length;
+                selectAll.indeterminate = selectedCount > 0 && selectedCount < uploadedScripts.length;
+            }
+            document.querySelectorAll('.row-select-checkbox').forEach((checkbox) => {
+                checkbox.checked = selectedProjectItemIds.has(checkbox.value);
+            });
+        }
+
+        function toggleRowSelection(checkbox) {
+            const itemId = String(checkbox?.value || '');
+            if (!itemId) return;
+            if (checkbox.checked) selectedProjectItemIds.add(itemId);
+            else selectedProjectItemIds.delete(itemId);
+            refreshRowSelectionControls();
+        }
+
+        function toggleSelectAllRows(checked) {
+            uploadedScripts.forEach((item) => {
+                if (checked) selectedProjectItemIds.add(item.id);
+                else selectedProjectItemIds.delete(item.id);
+            });
+            refreshRowSelectionControls();
+        }
+
+        function clearRowSelection() {
+            selectedProjectItemIds.clear();
+            refreshRowSelectionControls();
+        }
+
+        function applyQuickTaskSelection() {
+            const input = document.getElementById('quick-select-task-ids');
+            const raw = String(input?.value || '').trim();
+            if (!raw) {
+                showToast('请输入任务序号', '示例：3,5,8-12；也可以填写表格中的原任务ID。', 'warning');
+                return;
+            }
+            const selected = new Set();
+            const tokens = raw.split(/[，,\s]+/).map((value) => value.trim()).filter(Boolean);
+            tokens.forEach((token) => {
+                const range = token.match(/^(\d+)-(\d+)$/);
+                if (range) {
+                    const start = Math.min(Number(range[1]), Number(range[2]));
+                    const end = Math.max(Number(range[1]), Number(range[2]));
+                    uploadedScripts.forEach((item) => {
+                        const display = Number(item.displayIndex);
+                        const rowKey = /^\d+$/.test(String(item.rowKey)) ? Number(item.rowKey) : NaN;
+                        if ((display >= start && display <= end) || (rowKey >= start && rowKey <= end)) selected.add(item.id);
+                    });
+                    return;
+                }
+                uploadedScripts.forEach((item) => {
+                    if (String(item.displayIndex) === token || String(item.rowKey) === token) selected.add(item.id);
+                });
+            });
+            selectedProjectItemIds.clear();
+            selected.forEach((itemId) => selectedProjectItemIds.add(itemId));
+            refreshRowSelectionControls();
+            showToast('任务选择已更新', selected.size ? `已选中 ${selected.size} 条。` : '没有找到匹配的序号或任务ID。', selected.size ? 'success' : 'warning');
+        }
+
         function updateTableLayout() {
             const tbody = document.getElementById('synthesis-table-body');
             const emptyEl = document.getElementById('empty-table-placeholder');
@@ -1655,6 +1946,7 @@
                 btnCompose.disabled = true;
                 btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
                 document.getElementById('table-row-count-badge').textContent = `共 0 行数据 · 脚本总字数 0`;
+                refreshRowSelectionControls();
                 refreshVariantActionAvailability();
                 return;
             }
@@ -1763,9 +2055,12 @@
                 const singleActionClass = 'row-single-stage-action w-full px-2 py-1 rounded-lg border text-[9px] font-semibold transition-colors whitespace-nowrap';
 
                 tr.innerHTML = `
+                    <td class="px-3 py-4 text-center align-top">
+                        <input type="checkbox" value="${escapeHtml(script.id)}" aria-label="选择任务 ${escapeHtml(script.rowKey)}" onchange="toggleRowSelection(this)" class="row-select-checkbox mt-1 rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary" ${selectedProjectItemIds.has(script.id) ? 'checked' : ''}>
+                    </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
                         <div class="flex flex-col items-center gap-1.5">
-                            <span class="font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors">${escapeHtml(script.rowKey)}</span>
+                            <span class="font-bold font-mono text-gray-500 group-hover:text-brand-accent transition-colors" title="内部任务编号 ${escapeHtml(script.rowKey)}">${escapeHtml(script.displayIndex)}</span>
                             <button type="button" ${canDeleteItem ? '' : 'disabled'} onclick="deleteProjectItem(this)" title="${canDeleteItem ? '删除这条任务' : '任务生成中，暂时不能删除'}" class="row-delete-item text-[9px] ${canDeleteItem ? 'text-rose-400 hover:text-rose-300' : 'text-gray-700 cursor-not-allowed'} transition-colors">
                                 <i class="fa-solid fa-trash-can mr-1"></i>删除
                             </button>
@@ -1774,7 +2069,7 @@
                     <td class="px-4 py-4 w-[280px] max-w-[280px] overflow-hidden font-medium text-gray-300 align-top">
                         <div class="min-w-0 max-w-full overflow-hidden focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
                             <div class="row-script-editor outline-none block min-h-[2.5rem] max-h-20 w-full max-w-full overflow-y-auto overflow-x-hidden pr-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</div>
-                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="只分析当前行，并把 AI 匹配到的音乐保存到背景音乐下拉框">
+                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="一次分析当前行的音乐意图、字幕语义和视觉计划">
                                 <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${analysisStatus === 'SUCCESS' ? ' · 点击重新分析' : (['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击分析' : '')}
                             </button>
                         </div>
@@ -1841,21 +2136,21 @@
                     </td>
                     <td class="px-3 py-3 text-center whitespace-nowrap">
                         <div class="row-semantic-visual-cell w-40 mx-auto space-y-1.5">
-                            <button type="button" onclick="openSemanticVisualModal('${script.id}')" title="打开语义配图审核" class="group/semantic w-full min-h-[58px] flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-500/10 via-slate-950/80 to-cyan-500/5 px-2.5 py-2 text-left hover:border-brand-accent/70 hover:bg-indigo-500/15 transition-all">
+                            <button type="button" onclick="openSemanticVisualModal('${script.id}')" title="打开语义视觉审核" class="group/semantic w-full min-h-[58px] flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-500/10 via-slate-950/80 to-cyan-500/5 px-2.5 py-2 text-left hover:border-brand-accent/70 hover:bg-indigo-500/15 transition-all">
                                 <span class="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-black/35">
                                     ${visualOverlays[0]?.preview_url
-                                        ? `<img src="${escapeHtml(visualOverlays[0].preview_url)}" class="h-full w-full object-contain" alt="${escapeHtml(visualOverlays[0].asset_name || '语义配图')}">`
+                                        ? `<img src="${escapeHtml(visualOverlays[0].preview_url)}" class="h-full w-full object-contain" alt="${escapeHtml(visualOverlays[0].asset_name || '语义视觉')}">`
                                         : '<i class="fa-solid fa-images text-sm text-slate-600 group-hover/semantic:text-brand-accent transition-colors"></i>'}
                                     <span class="absolute -bottom-px -right-px min-w-4 rounded-tl-md bg-slate-950/90 px-1 py-0.5 text-center text-[7px] font-bold text-brand-accent">${visualOverlays.length}</span>
                                 </span>
                                 <span class="min-w-0 flex-1">
                                     <span class="block truncate text-[10px] font-bold ${visualLabel[1]}"><i class="fa-solid ${visualLabel[2]} mr-1"></i>${visualLabel[0]}</span>
-                                    <span class="mt-1 block truncate text-[8px] text-gray-500">${visualOverlays.length ? `${visualOverlays.length} 张已启用 · 点击审核` : '暂无启用图片 · 点击查看'}</span>
+                                    <span class="mt-1 block truncate text-[8px] text-gray-500">${visualOverlays.length ? `${visualOverlays.length} 项已启用 · 点击审核` : '暂无启用素材 · 点击查看'}</span>
                                 </span>
                                 <i class="fa-solid fa-chevron-right text-[8px] text-slate-600 group-hover/semantic:text-brand-accent"></i>
                             </button>
                             <button type="button" ${canAnalyzeVisuals ? '' : 'disabled'} onclick="retryRowVisualAnalysis(this)" class="row-visual-analysis-action w-full rounded-lg border px-2 py-1 text-[9px] font-semibold transition-colors ${canAnalyzeVisuals ? 'border-cyan-400/20 bg-cyan-400/5 text-brand-accent hover:border-brand-accent/60 hover:text-white' : 'border-slate-800 text-gray-600 cursor-wait'}">
-                                <i class="fa-solid ${visualStatus === 'PENDING' ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'} mr-1"></i>${visualStatus === 'NOT_REQUESTED' ? '开始语义分析' : (visualStatus === 'PENDING' ? '正在分析' : '重新分析')}
+                                <i class="fa-solid ${visualStatus === 'PENDING' ? 'fa-spinner fa-spin' : 'fa-wand-magic-sparkles'} mr-1"></i>${visualStatus === 'NOT_REQUESTED' ? '统一分析' : (visualStatus === 'PENDING' ? '正在分析' : (visualStatus === 'SUCCESS' && visualMappingStatus !== 'SUCCESS' ? '重新映射' : '重新统一分析'))}
                             </button>
                         </div>
                     </td>
@@ -1930,8 +2225,8 @@
                     </td>
                     <td class="table-actions-column px-3 py-3 text-center">
                         <div class="flex flex-col items-stretch justify-center gap-1.5">
-                            <button ${itemActive ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${audioCanReuse ? '当前声音未失效，点击直接复用，不会调用 MiniMax' : '只生成当前行声音'}" class="${singleActionClass} ${itemActive ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
-                                <i class="fa-solid fa-wave-square mr-1"></i>${audioCanReuse ? '复用声音' : (audioWasGenerated ? '重生成声音' : '生成声音')}
+                            <button ${itemActive ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${audioCanReuse ? '重新调用 MiniMax 生成当前行的新声音版本' : '只生成当前行声音'}" class="${singleActionClass} ${itemActive ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
+                                <i class="fa-solid fa-wave-square mr-1"></i>${audioCanReuse ? '重新生成声音' : (audioWasGenerated ? '重生成声音' : '生成声音')}
                             </button>
                             <button ${itemActive || (!videoCanReuse && !script.audio) ? 'disabled' : ''} onclick="runSingleVideo(this)" title="${videoCanReuse ? '当前成片未失效，点击直接复用，不会重新调用 RunningHub' : '只生成当前行完整成片'}" class="${singleActionClass} ${itemActive || (!videoCanReuse && !script.audio) ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-secondary/30 text-fuchsia-300 hover:text-white hover:border-brand-secondary'}">
                                 <i class="fa-solid fa-film mr-1"></i>${videoActionText}
@@ -1969,6 +2264,7 @@
                 }
             });
 
+            refreshRowSelectionControls();
             applyImageMappingToTable();
             refreshAudioStageActions();
             refreshVariantActionAvailability();
@@ -1982,17 +2278,11 @@
             const numericKeys = uploadedScripts.map((script) => Number(script.rowKey)).filter(Number.isInteger);
             let newKey = String(numericKeys.length ? Math.max(...numericKeys) + 1 : uploadedScripts.length + 1);
             while (uploadedScripts.some((script) => script.rowKey === newKey)) newKey = String(Number(newKey) + 1);
-            const items = uploadedScripts.map((script) => ({
-                item_id: script.id,
-                row_key: script.rowKey,
-                script_text: script.text
-            }));
-            items.push({ row_key: newKey, script_text: '在此处输入新的脚本文案。' });
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/inputs`, {
-                    method: 'PUT',
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items`, {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ items })
+                    body: JSON.stringify({ row_key: newKey, script_text: '在此处输入新的脚本文案。' })
                 });
                 syncProjectInputs(project);
                 showToast('添加分段', `任务ID ${newKey} 已保存；生成声音时会分析这条新脚本。`, 'success');
@@ -2038,7 +2328,7 @@
                 showToast('脚本不能为空', '请输入脚本内容后再保存。', 'warning');
                 return;
             }
-            try {
+            const savePromise = (async () => {
                 const project = await workspaceApi(
                     `/api/new/projects/${activeProject.project_id}/items/${id}`,
                     {
@@ -2048,10 +2338,16 @@
                     }
                 );
                 syncProjectInputs(project);
-                showToast('脚本已保存', '这一行的旧声音、内容分析和自动语义配图已失效；锁定的人工配方保留为待复核。', 'success');
+                showToast('脚本已保存', '这一行的旧声音、内容分析和自动语义视觉已失效；锁定的人工配方保留为待复核。', 'success');
+            })();
+            pendingScriptSaves.set(id, savePromise);
+            try {
+                await savePromise;
             } catch (error) {
                 element.textContent = uploadedScripts[index].text;
                 showToast('脚本保存失败', error.message, 'warning');
+            } finally {
+                if (pendingScriptSaves.get(id) === savePromise) pendingScriptSaves.delete(id);
             }
         }
 
@@ -2069,7 +2365,10 @@
         function contentAnalysisTargetsForRows(rows) {
             return rows.map(row => row.getAttribute('data-id')).filter((itemId) => {
                 const script = uploadedScripts.find(candidate => candidate.id === itemId);
-                return (script?.contentAnalysis?.overall_status || 'NOT_REQUESTED') === 'NOT_REQUESTED';
+                if (!script || !(script.allowedActions?.analyze_content || script.allowedActions?.analyze_visuals)) return false;
+                const contentStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
+                const visualStatus = script.visualAnalysis?.analysis_status || 'NOT_REQUESTED';
+                return contentStatus === 'NOT_REQUESTED' || visualStatus === 'NOT_REQUESTED';
             });
         }
 
@@ -2081,14 +2380,24 @@
                     ...(script.contentAnalysis || {}),
                     overall_status: 'PENDING'
                 };
+                script.visualAnalysis = {
+                    ...(script.visualAnalysis || {}),
+                    analysis_status: 'PENDING'
+                };
             });
             document.querySelectorAll('.table-data-row').forEach((row) => {
                 if (!targets.has(row.getAttribute('data-id'))) return;
-                const button = row.querySelector('.row-content-analysis-action');
-                if (!button) return;
-                button.disabled = true;
-                button.className = 'row-content-analysis-action mt-1.5 text-[9px] text-brand-primary cursor-wait transition-colors';
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中...';
+                const contentButton = row.querySelector('.row-content-analysis-action');
+                if (contentButton) {
+                    contentButton.disabled = true;
+                    contentButton.className = 'row-content-analysis-action mt-1.5 text-[9px] text-brand-primary cursor-wait transition-colors';
+                    contentButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中...';
+                }
+                const visualButton = row.querySelector('.row-visual-analysis-action');
+                if (visualButton) {
+                    visualButton.disabled = true;
+                    visualButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>正在分析';
+                }
             });
         }
 
@@ -2125,7 +2434,7 @@
             if (!activeProject || !rowId || button.disabled) return;
             markContentAnalysisPending([rowId]);
             try {
-                showToast('正在分析当前行', '只处理这一行；完成后会保存字幕语义，并更新背景音乐选择。', 'info');
+                showToast('正在统一分析当前行', '一次处理音乐意图、字幕语义和视觉计划；本地随后独立完成选材和时间绑定。', 'info');
                 const project = await workspaceApi(
                     `/api/new/projects/${activeProject.project_id}/items/${rowId}/content-analysis/retry`,
                     { method: 'POST' }
@@ -2136,8 +2445,8 @@
                 const bgmIdentity = item?.settings?.postprocess?.bgm_identity || '';
                 const bgmName = bgmPresets.find(candidate => candidate.id === bgmIdentity)?.name || '无音乐';
                 showToast(
-                    status === 'SUCCESS' ? '内容分析完成' : '内容分析已返回',
-                    status === 'SUCCESS' ? `音乐意图和字幕语义均可用；背景音乐已选择「${bgmName}」。` : `合法分支已保存；当前背景音乐为「${bgmName}」。`,
+                    status === 'SUCCESS' ? '统一内容分析完成' : '统一内容分析已返回',
+                    status === 'SUCCESS' ? `音乐意图、字幕语义和视觉计划均可用；背景音乐已选择「${bgmName}」。` : `合法分支已分别保存；当前背景音乐为「${bgmName}」。`,
                     status === 'SUCCESS' ? 'success' : 'warning'
                 );
             } catch (error) {
@@ -2158,36 +2467,67 @@
         async function retryRowVisualAnalysis(button) {
             const rowId = button.closest('tr')?.getAttribute('data-id') || '';
             if (!activeProject || !rowId || button.disabled) return;
-            button.disabled = true;
-            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>分析中...';
+            const script = uploadedScripts.find((candidate) => candidate.id === rowId);
+            const visualStatus = script?.visualAnalysis?.analysis_status || 'NOT_REQUESTED';
+            const mappingStatus = script?.visualAnalysis?.mapping_status || 'NOT_REQUESTED';
+            const canReuseSavedResult = visualStatus === 'NOT_REQUESTED'
+                || (visualStatus === 'SUCCESS' && mappingStatus !== 'SUCCESS');
+            markContentAnalysisPending([rowId]);
             try {
-                const project = await workspaceApi(
-                    `/api/new/projects/${activeProject.project_id}/items/${rowId}/visual-analysis/retry`,
-                    { method: 'POST' }
-                );
+                const project = canReuseSavedResult
+                    ? await analyzeProjectContent(activeProject.project_id, [rowId], false)
+                    : await workspaceApi(
+                        `/api/new/projects/${activeProject.project_id}/items/${rowId}/content-analysis/retry`,
+                        { method: 'POST' }
+                    );
                 syncProjectInputs(project);
                 const item = project.items?.find((candidate) => candidate.item_id === rowId);
                 const analysis = item?.visual_analysis || {};
                 const overlayCount = (analysis.recipe?.overlays || []).filter((overlay) => overlay.enabled !== false).length;
                 showToast(
-                    analysis.mapping_status === 'SUCCESS' ? '语义配图分析完成' : '语义语境已分析',
+                    analysis.mapping_status === 'SUCCESS' ? '统一分析与本地选材完成' : '统一分析已完成',
                     analysis.mapping_status === 'SUCCESS'
-                        ? `已生成 ${overlayCount} 张可审核配图；成片前仍可关闭、换图和调时间。`
+                        ? `已生成 ${overlayCount} 项可审核视觉素材；成片前仍可关闭、换素材和调时间。`
                         : `${analysis.error?.summary || '当前缺少可安全映射的 MiniMax 时间戳'}；字幕和视频不受影响。`,
                     analysis.mapping_status === 'SUCCESS' ? 'success' : 'warning'
                 );
             } catch (error) {
-                showToast('语义配图分析失败', `${error.message}；字幕、BGM、语音和视频不会受影响。`, 'warning');
+                showToast('统一内容分析失败', `${error.message}；已有字幕、BGM、语音和视频不会受影响。`, 'warning');
                 try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
             }
         }
 
         function semanticAssetsForConcept(conceptId) {
-            return (semanticVisualCatalog?.assets || []).filter((asset) => asset.concept_id === conceptId);
+            return (semanticVisualCatalog?.assets || []).filter((asset) =>
+                (asset.concept_ids || [asset.concept_id]).includes(conceptId)
+            );
         }
 
         function semanticConceptLabel(conceptId) {
             return (semanticVisualCatalog?.concepts || []).find((concept) => concept.concept_id === conceptId)?.label || conceptId;
+        }
+
+        function normalizeAutomaticSemanticOverlay(overlay) {
+            const normalized = { ...overlay };
+            if (normalized.selection_mode !== 'auto' || normalized.manual === true || normalized.locked === true) {
+                return normalized;
+            }
+            const asset = (semanticVisualCatalog?.assets || []).find((item) => item.asset_id === normalized.asset_id);
+            if (!asset) return normalized;
+            normalized.asset_name = asset.name;
+            normalized.preview_url = asset.preview_url || normalized.preview_url;
+            normalized.media_type = asset.media_type || normalized.media_type || 'image';
+            normalized.renderer = asset.renderer || normalized.renderer;
+            normalized.corner = asset.default_corner || asset.defaults?.corner || normalized.corner;
+            normalized.scale = Number(asset.default_scale || asset.defaults?.scale || normalized.scale || 1);
+            normalized.opacity = Number(asset.default_opacity ?? asset.defaults?.opacity ?? normalized.opacity ?? 1);
+            if (normalized.media_type === 'video') {
+                normalized.source_start_us = Number(asset.defaults?.source_start_us ?? normalized.source_start_us ?? 0);
+                normalized.mute = asset.defaults?.mute !== false;
+                normalized.loop = asset.defaults?.loop === true;
+                normalized.fit = asset.defaults?.fit || normalized.fit || 'cover';
+            }
+            return normalized;
         }
 
         function renderSemanticVisualEditor() {
@@ -2202,27 +2542,30 @@
                 const assets = semanticAssetsForConcept(overlay.concept_id);
                 const currentAsset = assets.find((asset) => asset.asset_id === overlay.asset_id);
                 const decision = decisions.find((item) => item.candidate_id === overlay.candidate_id) || {};
+                const priorityLabel = decision.priority === 2
+                    ? '关键画面'
+                    : (decision.priority === 1 ? '普通画面' : (decision.priority === 0 ? '仅供审核' : ''));
                 const isEnabled = overlay.enabled !== false;
                 const assetOptions = assets.map((asset) => `<option value="${escapeHtml(asset.asset_id)}" ${asset.asset_id === overlay.asset_id ? 'selected' : ''}>${escapeHtml(asset.name)}</option>`).join('');
                 return `<section class="rounded-2xl border ${isEnabled ? 'border-indigo-400/25' : 'border-slate-800'} bg-slate-950/55 p-4 shadow-lg shadow-black/10" data-visual-index="${index}">
                     <div class="flex flex-col lg:flex-row gap-4">
                         <div class="w-full lg:w-28 shrink-0">
                             <div class="relative mx-auto h-24 w-24 overflow-hidden rounded-xl border border-white/10 bg-black/40">
-                                <img src="${escapeHtml(overlay.preview_url || currentAsset?.preview_url || '')}" class="h-full w-full object-contain ${isEnabled ? '' : 'opacity-35 grayscale'}" alt="语义配图">
+                                <img src="${escapeHtml(overlay.preview_url || currentAsset?.preview_url || '')}" class="h-full w-full object-contain ${isEnabled ? '' : 'opacity-35 grayscale'}" alt="语义视觉素材">
                                 <span class="absolute left-1.5 top-1.5 rounded-full px-2 py-0.5 text-[8px] font-bold ${isEnabled ? 'bg-emerald-500/90 text-white' : 'bg-slate-800/95 text-gray-400'}">${isEnabled ? '已启用' : '已关闭'}</span>
                             </div>
-                            <p class="mt-2 truncate text-center text-[10px] font-semibold text-gray-300">${escapeHtml(currentAsset?.name || overlay.asset_name || '语义配图')}</p>
+                            <p class="mt-2 truncate text-center text-[10px] font-semibold text-gray-300">${escapeHtml(currentAsset?.name || overlay.asset_name || '语义视觉素材')}</p>
                         </div>
                         <div class="min-w-0 flex-1">
                             <div class="mb-3 flex flex-wrap items-center gap-2">
                                 <span class="rounded-full border border-indigo-400/20 bg-indigo-500/10 px-2 py-1 text-[9px] font-bold text-indigo-200">${escapeHtml(semanticConceptLabel(overlay.concept_id))}</span>
                                 <span class="rounded-full border border-slate-700 bg-slate-900/80 px-2 py-1 text-[9px] text-gray-400">${escapeHtml(decision.decision || overlay.selection_mode || 'MANUAL')}</span>
-                                ${decision.confidence != null ? `<span class="text-[9px] text-gray-500">置信度 ${Math.round(Number(decision.confidence) * 100)}%</span>` : ''}
+                                ${priorityLabel ? `<span class="text-[9px] text-gray-500">${priorityLabel}</span>` : ''}
                                 ${overlay.locked ? '<span class="text-[9px] font-semibold text-amber-300"><i class="fa-solid fa-lock mr-1"></i>人工锁定</span>' : ''}
                             </div>
                             <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-2.5 text-[10px]">
-                                <label class="col-span-2 md:col-span-3 xl:col-span-2"><span class="mb-1 block text-gray-500">使用图片</span><select onchange="updateSemanticVisualField(${index}, 'asset_id', this.value)" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none">${assetOptions}</select></label>
-                                <label><span class="mb-1 block text-gray-500">位置</span><select onchange="updateSemanticVisualField(${index}, 'corner', this.value)" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none">${['top_left','top_right'].map((corner) => `<option value="${corner}" ${corner === overlay.corner ? 'selected' : ''}>${{top_left:'左上',top_right:'右上'}[corner]}</option>`).join('')}</select></label>
+                                <label class="col-span-2 md:col-span-3 xl:col-span-2"><span class="mb-1 block text-gray-500">使用素材</span><select onchange="updateSemanticVisualField(${index}, 'asset_id', this.value)" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none">${assetOptions}</select></label>
+                                <label><span class="mb-1 block text-gray-500">位置</span><select onchange="updateSemanticVisualField(${index}, 'corner', this.value)" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none">${['top_left','top_right','bottom_left','bottom_right','bottom_center','center'].map((corner) => `<option value="${corner}" ${corner === overlay.corner ? 'selected' : ''}>${{top_left:'左上',top_right:'右上',bottom_left:'左下',bottom_right:'右下',bottom_center:'底部居中',center:'居中'}[corner]}</option>`).join('')}</select></label>
                                 <label><span class="mb-1 block text-gray-500">开始时间</span><span class="flex items-center rounded-lg border border-slate-700 bg-slate-900 px-2"><input type="number" min="0" step="0.05" value="${(Number(overlay.start_us || 0) / 1000000).toFixed(2)}" onchange="updateSemanticVisualField(${index}, 'start_us', Math.round(Number(this.value) * 1000000))" class="min-w-0 w-full bg-transparent py-2 text-gray-200 focus:outline-none"><span class="text-gray-600">秒</span></span></label>
                                 <label><span class="mb-1 block text-gray-500">持续时间</span><span class="flex items-center rounded-lg border border-slate-700 bg-slate-900 px-2"><input type="number" min="0.1" max="30" step="0.1" value="${(Number(overlay.duration_us || 1800000) / 1000000).toFixed(1)}" onchange="updateSemanticVisualField(${index}, 'duration_us', Math.round(Number(this.value) * 1000000))" class="min-w-0 w-full bg-transparent py-2 text-gray-200 focus:outline-none"><span class="text-gray-600">秒</span></span></label>
                                 <label><span class="mb-1 block text-gray-500">缩放</span><input type="number" min="0.05" max="2" step="0.05" value="${Number(overlay.scale || 0.28)}" onchange="updateSemanticVisualField(${index}, 'scale', Number(this.value))" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-gray-200 focus:border-brand-primary focus:outline-none"></label>
@@ -2240,14 +2583,17 @@
             const existingCandidateIds = new Set(semanticVisualDraft.map((overlay) => overlay.candidate_id));
             const suggestions = decisions.filter((decision) => !existingCandidateIds.has(decision.candidate_id)).map((decision) => {
                 const canAdd = semanticAssetsForConcept(decision.concept_id).length > 0;
+                const priorityLabel = decision.priority === 2
+                    ? '关键画面'
+                    : (decision.priority === 1 ? '普通画面' : '待人工确认');
                 return `<section class="rounded-xl border border-dashed ${decision.decision === 'REVIEW' ? 'border-amber-500/50 bg-amber-500/5' : 'border-slate-700 bg-slate-950/30'} p-3 flex items-center justify-between gap-3 text-[11px]">
-                    <span class="min-w-0"><strong class="text-gray-200">${escapeHtml(semanticConceptLabel(decision.concept_id))}</strong><span class="mx-2 text-slate-700">/</span><span class="${decision.decision === 'REVIEW' ? 'text-amber-300' : 'text-gray-500'}">${escapeHtml(decision.decision)}</span><span class="ml-2 text-gray-500">置信度 ${Math.round(Number(decision.confidence || 0) * 100)}%</span></span>
+                    <span class="min-w-0"><strong class="text-gray-200">${escapeHtml(semanticConceptLabel(decision.concept_id))}</strong><span class="mx-2 text-slate-700">/</span><span class="${decision.decision === 'REVIEW' ? 'text-amber-300' : 'text-gray-500'}">${escapeHtml(decision.decision)}</span><span class="ml-2 text-gray-500">${priorityLabel}</span></span>
                     ${canAdd ? `<button type="button" onclick="addSemanticVisualFromDecision('${escapeHtml(decision.candidate_id)}','${escapeHtml(decision.concept_id)}')" class="shrink-0 px-3 py-1.5 rounded-lg border border-brand-primary/40 bg-brand-primary/5 text-brand-accent hover:text-white"><i class="fa-solid fa-plus mr-1"></i>加入本行</button>` : ''}
                 </section>`;
             });
-            list.innerHTML = [...cards, ...suggestions].join('') || '<div class="rounded-xl border border-slate-700/60 p-5 text-center text-sm text-gray-500">尚无候选。请先点击表格中的“分析语义配图”。</div>';
-            document.getElementById('semantic-visual-summary').textContent = `任务 ${script.rowKey} · ${script.visualAnalysis?.analysis_status || 'NOT_REQUESTED'} · 当前 ${semanticVisualDraft.length} 张配图`;
-            document.getElementById('semantic-visual-library-summary').innerHTML = `<span class="font-semibold text-indigo-200"><i class="fa-solid fa-boxes-stacked mr-1"></i>本地语义图库</span><span>${semanticVisualCatalog?.assets?.length || 0} 张图片</span><span class="text-slate-700">·</span><span>${semanticVisualCatalog?.concepts?.length || 0} 个概念</span><span class="ml-auto text-gray-500">新增或删除图库素材后需重启工作台</span>`;
+            list.innerHTML = [...cards, ...suggestions].join('') || '<div class="rounded-xl border border-slate-700/60 p-5 text-center text-sm text-gray-500">尚无候选。请先点击表格中的“统一分析”。</div>';
+            document.getElementById('semantic-visual-summary').textContent = `任务 ${script.rowKey} · ${script.visualAnalysis?.analysis_status || 'NOT_REQUESTED'} · 当前 ${semanticVisualDraft.length} 项素材`;
+            document.getElementById('semantic-visual-library-summary').innerHTML = `<span class="font-semibold text-indigo-200"><i class="fa-solid fa-boxes-stacked mr-1"></i>本地语义素材库</span><span>${semanticVisualCatalog?.assets?.length || 0} 项素材</span><span class="text-slate-700">·</span><span>${semanticVisualCatalog?.concepts?.length || 0} 个概念</span><span class="ml-auto text-gray-500">新增或删除素材后需重启工作台</span>`;
         }
 
         function updateSemanticVisualField(index, field, value) {
@@ -2261,6 +2607,17 @@
                 if (asset) {
                     semanticVisualDraft[index].asset_name = asset.name;
                     semanticVisualDraft[index].preview_url = asset.preview_url;
+                    semanticVisualDraft[index].media_type = asset.media_type || 'image';
+                    semanticVisualDraft[index].renderer = asset.renderer;
+                    semanticVisualDraft[index].corner = asset.default_corner || asset.defaults?.corner || 'center';
+                    semanticVisualDraft[index].scale = Number(asset.default_scale || asset.defaults?.scale || 1);
+                    semanticVisualDraft[index].opacity = Number(asset.default_opacity ?? asset.defaults?.opacity ?? 1);
+                    if (asset.media_type === 'video') {
+                        semanticVisualDraft[index].source_start_us = Number(asset.defaults?.source_start_us || 0);
+                        semanticVisualDraft[index].mute = asset.defaults?.mute !== false;
+                        semanticVisualDraft[index].loop = asset.defaults?.loop === true;
+                        semanticVisualDraft[index].fit = asset.defaults?.fit || 'cover';
+                    }
                 }
             }
             if (['asset_id', 'enabled', 'locked'].includes(field)) {
@@ -2275,7 +2632,10 @@
         }
 
         function addSemanticVisualFromDecision(candidateId, conceptId) {
-            const asset = semanticAssetsForConcept(conceptId)[0];
+            const assets = semanticAssetsForConcept(conceptId);
+            const asset = conceptId.startsWith('activity.')
+                ? assets.find((item) => item.media_type === 'video') || assets[0]
+                : assets.find((item) => item.media_type !== 'video') || assets[0];
             if (!asset) return;
             const script = uploadedScripts.find((item) => item.id === activeSemanticVisualRowId);
             const mapped = (script?.visualAnalysis?.mapped_candidates || []).find((item) => item.candidate_id === candidateId) || {};
@@ -2286,6 +2646,8 @@
                 asset_id: asset.asset_id,
                 asset_name: asset.name,
                 preview_url: asset.preview_url,
+                media_type: asset.media_type || 'image',
+                renderer: asset.renderer,
                 enabled: true,
                 selection_mode: 'manual',
                 locked: true,
@@ -2294,7 +2656,13 @@
                 scale: Number(asset.default_scale || 0.28),
                 opacity: Number(asset.default_opacity ?? 1),
                 start_us: Number(mapped.start_us || 0),
-                duration_us: Number(mapped.duration_us || 1800000)
+                duration_us: Number(mapped.duration_us || 1800000),
+                ...(asset.media_type === 'video' ? {
+                    source_start_us: Number(asset.defaults?.source_start_us || 0),
+                    mute: asset.defaults?.mute !== false,
+                    loop: asset.defaults?.loop === true,
+                    fit: asset.defaults?.fit || 'cover'
+                } : {})
             });
             renderSemanticVisualEditor();
         }
@@ -2305,7 +2673,7 @@
             try {
                 await ensureSemanticVisualCatalog();
                 activeSemanticVisualRowId = rowId;
-                semanticVisualDraft = (script.visualAnalysis?.recipe?.overlays || []).map((overlay) => ({ ...overlay }));
+                semanticVisualDraft = (script.visualAnalysis?.recipe?.overlays || []).map(normalizeAutomaticSemanticOverlay);
                 renderSemanticVisualEditor();
                 const modal = document.getElementById('semantic-visual-modal');
                 modal.classList.remove('opacity-0', 'pointer-events-none');
@@ -2338,9 +2706,9 @@
                 );
                 closeSemanticVisualModal();
                 syncProjectInputs(project);
-                showToast('语义配图已冻结', '浏览器动态预览和剪映成片会读取同一份配方。', 'success');
+                showToast('语义视觉已冻结', '浏览器动态预览和剪映成片会读取同一份配方。', 'success');
             } catch (error) {
-                showToast('语义配图保存失败', error.message, 'warning');
+                showToast('语义视觉保存失败', error.message, 'warning');
             } finally {
                 button.disabled = false;
             }
@@ -2393,10 +2761,14 @@
         async function runSingleAudio(buttonEl) {
             const row = buttonEl.closest('tr');
             const rowId = row?.getAttribute('data-id') || '';
+            const pendingSave = pendingScriptSaves.get(rowId);
+            if (pendingSave) {
+                try { await pendingSave; } catch (_) { return; }
+            }
             const script = uploadedScripts.find(item => item.id === rowId);
             if (!script || !activeProject) return;
             if (script.audio) {
-                showToast('已复用当前声音', `任务 ${script.rowKey} 的脚本和音色没有变化，不会重复调用 MiniMax。`, 'success');
+                await retryCloningAudio(buttonEl);
                 return;
             }
             if (!script.allowedActions?.generate_audio) {
@@ -2423,6 +2795,7 @@
                         default_voice_asset_id: defaultVoice.id,
                         voice_assignments: { [rowId]: selectedVoiceId },
                         voice_settings: voicePreferences.voice_settings || {},
+                        resolution: selectedDigitalHumanResolution(),
                         item_ids: [rowId],
                         idempotency_key: `audio-single-${rowId}-${Date.now()}`,
                         cost_confirmed: true
@@ -2503,7 +2876,12 @@
                     : `/api/new/projects/${activeProject.project_id}/composition/generate`;
                 const body = retry
                     ? { cost_confirmed: true, idempotency_key: `composition-single-retry-${rowId}-${Date.now()}` }
-                    : { cost_confirmed: true, item_ids: [rowId], idempotency_key: `composition-single-${rowId}-${Date.now()}` };
+                    : {
+                        cost_confirmed: true,
+                        resolution: selectedDigitalHumanResolution(),
+                        item_ids: [rowId],
+                        idempotency_key: `composition-single-${rowId}-${Date.now()}`
+                    };
                 const project = await workspaceApi(path, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
                 });
@@ -2597,8 +2975,13 @@
                 button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在生成声音并分析脚本...</span>';
             } else if (enabled) {
                 button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-brand-primary/10 hover:bg-brand-primary/20 border border-brand-primary/40 hover:border-brand-primary/70 text-brand-accent hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]";
-                const allReady = Array.from(document.querySelectorAll('.table-data-row')).every(row => row.getAttribute('data-voice-status') === 'ready');
-                button.innerHTML = `<i class="fa-solid fa-wave-square"></i><span>${allReady ? '重新生成声音预览和脚本分析' : '生成声音预览和脚本分析'}</span>`;
+                const rows = Array.from(document.querySelectorAll('.table-data-row'));
+                const allReady = rows.every(row => row.getAttribute('data-voice-status') === 'ready');
+                const hasPendingAnalysis = contentAnalysisTargetsForRows(rows).length > 0;
+                const label = allReady && hasPendingAnalysis
+                    ? '补齐脚本分析'
+                    : (allReady ? '重新生成声音预览和脚本分析' : '生成声音预览和脚本分析');
+                button.innerHTML = `<i class="fa-solid fa-wave-square"></i><span>${label}</span>`;
             } else {
                 button.className = "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
                 button.innerHTML = '<i class="fa-solid fa-wave-square"></i><span>生成声音预览和脚本分析</span>';
@@ -2642,6 +3025,179 @@
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
         }
 
+        function selectedRowsOrWarn() {
+            const items = selectedProjectItems();
+            if (!items.length) {
+                showToast('还没有选择任务', '请勾选脚本行，或输入序号/任务ID后点击“选择”。', 'warning');
+                return null;
+            }
+            return items;
+        }
+
+        async function waitForSelectedScriptSaves(items) {
+            const saves = items
+                .map((item) => pendingScriptSaves.get(item.id))
+                .filter(Boolean);
+            if (saves.length) await Promise.allSettled(saves);
+            return selectedProjectItems();
+        }
+
+        async function analyzeSelectedRows() {
+            let items = selectedRowsOrWarn();
+            if (!items || !activeProject) return;
+            items = await waitForSelectedScriptSaves(items);
+            const targets = items.filter((item) =>
+                (item.allowedActions?.analyze_content || item.allowedActions?.analyze_visuals)
+                && item.contentAnalysis?.overall_status !== 'PENDING'
+            );
+            if (!targets.length) {
+                showToast('选中任务暂不可分析', '任务可能正在运行，请完成后再试。', 'warning');
+                return;
+            }
+            if (!window.confirm(`将强制重新统一分析选中的 ${targets.length} 条脚本，会调用大模型，但不会重新生成声音或视频。是否继续？`)) return;
+            const itemIds = targets.map((item) => item.id);
+            markContentAnalysisPending(itemIds);
+            try {
+                const project = await analyzeProjectContent(activeProject.project_id, itemIds, true);
+                syncProjectInputs(project);
+                showToast('选中任务分析完成', `已刷新 ${targets.length} 条脚本的音乐、字幕和视觉计划。`, 'success');
+            } catch (error) {
+                showToast('选中任务分析失败', error.message, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+            }
+        }
+
+        async function generateSelectedAudio() {
+            let items = selectedRowsOrWarn();
+            if (!items || !activeProject) return;
+            items = await waitForSelectedScriptSaves(items);
+            const activeStatuses = new Set(['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING']);
+            const blocked = items.filter((item) => activeStatuses.has(item.compositionStatus));
+            if (blocked.length) {
+                showToast('部分选中任务正在运行', `请取消选择正在运行的 ${blocked.length} 条后再生成声音。`, 'warning');
+                return;
+            }
+            const defaultVoice = voicePresets[selectedDefaultVoiceIndex];
+            if (!defaultVoice) {
+                showToast('没有可用声音', '请先进入声音克隆中心配置声音。', 'warning');
+                return;
+            }
+            const replacing = items.filter((item) => Boolean(item.audio)).length;
+            if (!window.confirm(`将为选中的 ${items.length} 条脚本调用 MiniMax 生成声音并产生费用${replacing ? `，其中 ${replacing} 条会创建新的声音版本` : ''}。旧版本会保留，是否继续？`)) return;
+            const rows = items.map((item) => document.querySelector(`.table-data-row[data-id="${item.id}"]`)).filter(Boolean);
+            const assignments = {};
+            rows.forEach((row) => {
+                const select = row.querySelector('.row-voice-selector');
+                if (select?.value) assignments[row.getAttribute('data-id')] = select.value;
+                row.setAttribute('data-voice-status', 'loading');
+                toggleRowAudioStatusUI(row, 'loading');
+            });
+            const itemIds = items.map((item) => item.id);
+            startContentAnalysisForChangedScripts(activeProject.project_id, rows);
+            isGeneratingAllVoicePreviews = true;
+            refreshAudioStageActions();
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        default_voice_asset_id: defaultVoice.id,
+                        voice_assignments: assignments,
+                        voice_settings: voicePreferences.voice_settings || {},
+                        resolution: selectedDigitalHumanResolution(),
+                        item_ids: itemIds,
+                        idempotency_key: `audio-selected-${activeProject.project_id}-${Date.now()}`,
+                        cost_confirmed: true
+                    })
+                });
+                itemIds.forEach((itemId) => variantDirtyItemIds.delete(itemId));
+                syncProjectInputs(project);
+                scheduleAudioStatusPoll();
+                showToast('选中声音任务已提交', `只处理已选择的 ${items.length} 条；其他脚本行保持不变。`, 'success');
+            } catch (error) {
+                showToast('选中声音生成失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            } finally {
+                isGeneratingAllVoicePreviews = false;
+                refreshAudioStageActions();
+            }
+        }
+
+        async function generateSelectedVideos() {
+            let items = selectedRowsOrWarn();
+            if (!items || !activeProject) return;
+            items = await waitForSelectedScriptSaves(items);
+            const rowsById = new Map(
+                Array.from(document.querySelectorAll('.table-data-row')).map((row) => [row.getAttribute('data-id'), row])
+            );
+            const unfinished = items.filter((item) => rowsById.get(item.id)?.getAttribute('data-video-status') !== 'ready');
+            if (!unfinished.length) {
+                showToast('选中视频均可复用', '这些任务的当前完整视频没有失效，不会重新调用 RunningHub。', 'success');
+                return;
+            }
+            const missingAudio = unfinished.filter((item) => !item.audio);
+            if (missingAudio.length) {
+                showToast('选中任务缺少声音', `有 ${missingAudio.length} 条尚未生成声音，请先点击“生成声音”。`, 'warning');
+                return;
+            }
+            const missingBase = unfinished.filter((item) => !item.baseVideo);
+            const blocked = missingBase.filter((item) => !(item.allowedActions?.start_composition || item.allowedActions?.retry_composition));
+            if (blocked.length) {
+                showToast('部分选中任务暂不可生成', `有 ${blocked.length} 条正在运行或缺少图片，请调整选择后再试。`, 'warning');
+                return;
+            }
+            if (!missingBase.length) {
+                await startGlobalPostprocess(unfinished.map((item) => item.id));
+                return;
+            }
+            if (!window.confirm(`将为选中的 ${missingBase.length} 条任务调用 RunningHub 生成画面并产生费用；另外 ${unfinished.length - missingBase.length} 条已有画面只继续字幕/BGM。是否继续？`)) return;
+            unfinished.forEach((item) => pendingSingleCompositionItemIds.add(item.id));
+            missingBase.forEach((item) => {
+                const row = rowsById.get(item.id);
+                if (row) {
+                    row.setAttribute('data-video-status', 'loading');
+                    toggleRowVideoStatusUI(row, 'loading');
+                }
+            });
+            isGeneratingComposition = true;
+            refreshAudioStageActions();
+            try {
+                let project = activeProject;
+                const fresh = missingBase.filter((item) => item.allowedActions?.start_composition);
+                const retries = missingBase.filter((item) => item.allowedActions?.retry_composition);
+                if (fresh.length) {
+                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/generate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            cost_confirmed: true,
+                            resolution: selectedDigitalHumanResolution(),
+                            item_ids: fresh.map((item) => item.id),
+                            idempotency_key: `composition-selected-${activeProject.project_id}-${Date.now()}`
+                        })
+                    });
+                }
+                for (const item of retries) {
+                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${item.id}/composition/retry`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            cost_confirmed: true,
+                            idempotency_key: `composition-selected-retry-${item.id}-${Date.now()}`
+                        })
+                    });
+                }
+                syncProjectInputs(project);
+                scheduleCompositionStatusPoll();
+                showToast('选中视频任务已启动', `只处理已选择的 ${unfinished.length} 条，画面完成后会自动继续字幕和 BGM。`, 'success');
+            } catch (error) {
+                unfinished.forEach((item) => pendingSingleCompositionItemIds.delete(item.id));
+                isGeneratingComposition = false;
+                showToast('选中视频生成失败', error.message, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+            }
+        }
+
         async function generateAllVoicePreviews() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             if (rows.length === 0 || !activeProject) return;
@@ -2656,7 +3212,19 @@
                 return;
             }
             const actionText = pendingRows.length ? '生成缺失的声音' : '重新生成新的声音版本';
-            const analysisCount = contentAnalysisTargetsForRows(targetRows).length;
+            const analysisCount = contentAnalysisTargetsForRows(rows).length;
+            if (pendingRows.length === 0 && analysisCount > 0) {
+                if (!window.confirm(`将补齐 ${analysisCount} 条尚未完成的统一分析；不会重新生成声音。已有可复用结果会优先在本地处理，确实缺少视觉计划时才会调用大模型。是否继续？`)) return;
+                isGeneratingAllVoicePreviews = true;
+                setVoicePreviewButtonState(false, true);
+                try {
+                    await startContentAnalysisForChangedScripts(activeProject.project_id, rows);
+                } finally {
+                    isGeneratingAllVoicePreviews = false;
+                    refreshAudioStageActions();
+                }
+                return;
+            }
             if (!window.confirm(`将为 ${targetRows.length} 条脚本调用 MiniMax ${actionText}并产生费用，同时分析 ${analysisCount} 条新增或已修改脚本；已有分析结果会继续复用。旧版本会保留，是否继续？`)) return;
 
             isGeneratingAllVoicePreviews = true;
@@ -2676,7 +3244,7 @@
                 const select = row.querySelector('.row-voice-selector');
                 if (select?.value) assignments[row.getAttribute('data-id')] = select.value;
             });
-            startContentAnalysisForChangedScripts(activeProject.project_id, targetRows);
+            startContentAnalysisForChangedScripts(activeProject.project_id, rows);
             try {
                 const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2684,6 +3252,7 @@
                         default_voice_asset_id: defaultVoice.id,
                         voice_assignments: assignments,
                         voice_settings: voicePreferences.voice_settings || {},
+                        resolution: selectedDigitalHumanResolution(),
                         idempotency_key: `audio-${activeProject.project_id}-${Date.now()}`,
                         cost_confirmed: true
                     })
@@ -2757,6 +3326,51 @@
         // Play/Pause individual cloned voice row
         let currentlyPlayingRowAudioBtn = null;
         let currentRowAudio = null;
+        function resetRowAudioPlayback(btnEl, waveformSpan) {
+            btnEl.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
+            if (currentlyPlayingRowAudioBtn === btnEl) currentlyPlayingRowAudioBtn = null;
+            currentRowAudio = null;
+            waveformSpan.forEach(span => {
+                span.className = "w-[2px] bg-slate-800 h-1";
+                span.style.animation = "none";
+            });
+        }
+
+        async function describeAudioPlaybackError(audio, audioUrl) {
+            const mediaErrors = {
+                1: '播放被浏览器中止',
+                2: '浏览器读取音频时发生网络错误',
+                3: '浏览器无法解码音频',
+                4: '浏览器不支持该音频格式或地址不可用'
+            };
+            const mediaMessage = mediaErrors[audio.error?.code] || '浏览器未返回具体媒体错误';
+            try {
+                const response = await fetch(audioUrl, {
+                    headers: { Range: 'bytes=0-0' },
+                    cache: 'no-store',
+                    credentials: 'same-origin'
+                });
+                if (response.ok || response.status === 206) {
+                    return {
+                        canRetry: true,
+                        message: `${mediaMessage}；服务器文件可以读取，可能是一次性的网络或解码异常。`
+                    };
+                }
+                const body = await response.text();
+                let detail = body;
+                try { detail = JSON.parse(body)?.detail || body; } catch (_) {}
+                return {
+                    canRetry: false,
+                    message: `${mediaMessage}；服务器返回 ${response.status}${detail ? `：${detail}` : ''}`
+                };
+            } catch (error) {
+                return {
+                    canRetry: false,
+                    message: `${mediaMessage}；诊断请求也失败：${error.message}`
+                };
+            }
+        }
+
         function togglePlayRowAudio(btnEl) {
             const row = btnEl.closest('tr');
             const waveformSpan = row.querySelectorAll('.row-audio-waveform span');
@@ -2780,7 +3394,8 @@
             }
 
             const itemId = row.getAttribute('data-id');
-            const audio = new Audio(`/api/new/projects/${activeProject.project_id}/items/${itemId}/audio?t=${Date.now()}`);
+            const audioUrl = `/api/new/projects/${activeProject.project_id}/items/${itemId}/audio?t=${Date.now()}`;
+            const audio = new Audio(audioUrl);
             btnEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[9px]"></i>';
             currentlyPlayingRowAudioBtn = btnEl;
             currentRowAudio = audio;
@@ -2791,7 +3406,10 @@
                 span.style.animationDelay = `${i * 0.15}s`;
             });
 
-            audio.onplaying = () => { btnEl.innerHTML = '<i class="fa-solid fa-pause text-[9px] text-brand-secondary"></i>'; };
+            audio.onplaying = () => {
+                delete btnEl.dataset.audioRetryAttempt;
+                btnEl.innerHTML = '<i class="fa-solid fa-pause text-[9px] text-brand-secondary"></i>';
+            };
             audio.onended = () => {
                 if (currentlyPlayingRowAudioBtn === btnEl) {
                     currentlyPlayingRowAudioBtn.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
@@ -2803,13 +3421,24 @@
                 }
                 currentRowAudio = null;
             };
-            audio.onerror = () => {
-                btnEl.innerHTML = '<i class="fa-solid fa-play text-[9px]"></i>';
-                currentlyPlayingRowAudioBtn = null;
-                currentRowAudio = null;
-                showToast('播放失败', '当前音频文件无法读取。', 'warning');
+            audio.onerror = async () => {
+                resetRowAudioPlayback(btnEl, waveformSpan);
+                const diagnosis = await describeAudioPlaybackError(audio, audioUrl);
+                console.error('Audio playback failed', { projectId: activeProject?.project_id, itemId, mediaError: audio.error, audioUrl });
+                if (diagnosis.canRetry && btnEl.dataset.audioRetryAttempt !== '1') {
+                    btnEl.dataset.audioRetryAttempt = '1';
+                    showToast('音频读取波动', '服务器文件正常，正在自动重试一次。', 'info');
+                    togglePlayRowAudio(btnEl);
+                    return;
+                }
+                delete btnEl.dataset.audioRetryAttempt;
+                showToast('播放失败', diagnosis.message, 'warning');
             };
-            audio.play();
+            void audio.play().catch((error) => {
+                if (audio.error) return;
+                resetRowAudioPlayback(btnEl, waveformSpan);
+                showToast('播放失败', `浏览器拒绝播放：${error.message}`, 'warning');
+            });
         }
 
         // Export individual audio click
@@ -3817,7 +4446,37 @@
             updatePreviewCaptionLayout();
         }
 
+        function resolveSemanticWindowGeometry(corner, visualWidth, visualHeight, left, top, width, height) {
+            let renderedWidth = visualWidth;
+            let renderedHeight = visualHeight;
+            const bottomCenter = corner === 'bottom_center';
+            if (corner.startsWith('bottom') && !bottomCenter && renderedHeight > height * 0.30) {
+                renderedHeight = height * 0.30;
+                renderedWidth = renderedHeight * visualWidth / visualHeight;
+            }
+            const marginX = width * 0.04;
+            const marginY = height * 0.04;
+            const x = corner.includes('left') ? left + marginX
+                : corner.includes('right') ? left + width - marginX - renderedWidth
+                : left + (width - renderedWidth) / 2;
+            let y;
+            if (bottomCenter) {
+                const maximumVisibleHeight = height * 0.37;
+                y = renderedHeight > maximumVisibleHeight
+                    ? top + height - maximumVisibleHeight
+                    : top + height - height * 0.004 - renderedHeight;
+            } else if (corner.startsWith('bottom')) {
+                y = top + height - marginY - renderedHeight;
+            } else if (corner.startsWith('top')) {
+                y = top + marginY;
+            } else {
+                y = top + (height - renderedHeight) / 2;
+            }
+            return { width: renderedWidth, height: renderedHeight, left: x, top: y };
+        }
+
         function updatePreviewSemanticOverlay() {
+            updatePreviewSemanticVideo();
             const image = document.getElementById('video-preview-semantic-overlay');
             if (!isBrowserCompositionPreview()) {
                 image.classList.add('hidden');
@@ -3828,6 +4487,7 @@
             const currentUs = document.getElementById('video-preview-local').currentTime * 1_000_000;
             const overlay = (script?.visualAnalysis?.recipe?.overlays || []).find((item) => {
                 if (item.enabled === false || item.requires_review === true) return false;
+                if ((item.media_type || 'image') === 'video') return false;
                 const startUs = Number(item.start_us || 0);
                 return currentUs >= startUs && currentUs < startUs + Number(item.duration_us || 0);
             });
@@ -3836,7 +4496,8 @@
                 image.removeAttribute('src');
                 return;
             }
-            if (image.getAttribute('src') !== overlay.preview_url) image.src = overlay.preview_url;
+            const effectiveOverlay = normalizeAutomaticSemanticOverlay(overlay);
+            if (image.getAttribute('src') !== effectiveOverlay.preview_url) image.src = effectiveOverlay.preview_url;
             const video = document.getElementById('video-preview-local');
             const frame = document.getElementById('video-preview-frame');
             if (!video.videoWidth || !video.videoHeight) return;
@@ -3845,18 +4506,128 @@
             const height = video.videoHeight * scaleToFrame;
             const left = (frame.clientWidth - width) / 2;
             const top = (frame.clientHeight - height) / 2;
-            const visualWidth = Math.max(32, width * Number(overlay.scale || 0.28));
-            const marginX = width * 0.04;
-            const marginY = height * 0.04;
+            const visualWidth = Math.max(32, width * Number(effectiveOverlay.scale || 0.28));
+            const aspectRatio = image.naturalWidth && image.naturalHeight
+                ? image.naturalHeight / image.naturalWidth
+                : 1;
+            const visualHeight = visualWidth * aspectRatio;
+            const geometry = resolveSemanticWindowGeometry(
+                effectiveOverlay.corner || 'center', visualWidth, visualHeight, left, top, width, height
+            );
+            image.style.width = `${geometry.width}px`;
+            image.style.height = 'auto';
+            image.style.opacity = String(Number(effectiveOverlay.opacity ?? 1));
+            image.style.left = `${geometry.left}px`;
+            image.style.top = `${geometry.top}px`;
+            image.classList.remove('hidden');
+        }
+
+        document.getElementById('video-preview-semantic-overlay').addEventListener('load', updatePreviewSemanticOverlay);
+
+        function updatePreviewSemanticVideo() {
+            const overlayVideo = document.getElementById('video-preview-semantic-video');
+            const baseVideo = document.getElementById('video-preview-local');
+            if (!isBrowserCompositionPreview()) {
+                overlayVideo.pause();
+                overlayVideo.classList.add('hidden');
+                return;
+            }
+            const script = activePreviewScript();
+            const currentUs = baseVideo.currentTime * 1_000_000;
+            const overlay = (script?.visualAnalysis?.recipe?.overlays || []).find((item) => {
+                if (item.enabled === false || item.requires_review === true || item.media_type !== 'video') return false;
+                const startUs = Number(item.start_us || 0);
+                return currentUs >= startUs && currentUs < startUs + Number(item.duration_us || 0);
+            });
+            if (!overlay) {
+                overlayVideo.pause();
+                overlayVideo.classList.add('hidden');
+                return;
+            }
+            const effectiveOverlay = normalizeAutomaticSemanticOverlay(overlay);
+            const asset = (semanticVisualCatalog?.assets || []).find((item) => item.asset_id === effectiveOverlay.asset_id);
+            if (!asset) {
+                overlayVideo.classList.add('hidden');
+                return;
+            }
+            const contentUrl = `/api/new/semantic-visuals/${encodeURIComponent(asset.asset_id)}/content`;
+            if (overlayVideo.getAttribute('src') !== contentUrl) {
+                overlayVideo.src = contentUrl;
+                overlayVideo.load();
+            }
+            const sourceStart = Number(effectiveOverlay.source_start_us || asset.defaults?.source_start_us || 0) / 1_000_000;
+            const sourceDuration = Math.max(0, Number(asset.resource?.duration_us || 0) / 1_000_000 - sourceStart);
+            let sourceTime = sourceStart + (currentUs - Number(effectiveOverlay.start_us || 0)) / 1_000_000;
+            if (effectiveOverlay.loop === true && sourceDuration > 0) sourceTime = sourceStart + ((sourceTime - sourceStart) % sourceDuration);
+            if (Number.isFinite(overlayVideo.duration)) sourceTime = Math.min(sourceTime, Math.max(0, overlayVideo.duration - 0.03));
+            if (Math.abs(overlayVideo.currentTime - sourceTime) > 0.12) {
+                try { overlayVideo.currentTime = Math.max(0, sourceTime); } catch (_) {}
+            }
+            const frame = document.getElementById('video-preview-frame');
+            if (!baseVideo.videoWidth || !baseVideo.videoHeight) return;
+            const scaleToFrame = Math.min(frame.clientWidth / baseVideo.videoWidth, frame.clientHeight / baseVideo.videoHeight);
+            const width = baseVideo.videoWidth * scaleToFrame;
+            const height = baseVideo.videoHeight * scaleToFrame;
+            const left = (frame.clientWidth - width) / 2;
+            const top = (frame.clientHeight - height) / 2;
+            const scale = Number(effectiveOverlay.scale || asset.default_scale || 1);
+            const corner = effectiveOverlay.corner || asset.default_corner || 'center';
+            const fullscreen = corner === 'center' && scale >= 0.95;
+            if (fullscreen) {
+                overlayVideo.style.left = `${left}px`;
+                overlayVideo.style.top = `${top}px`;
+                overlayVideo.style.width = `${width}px`;
+                overlayVideo.style.height = `${height}px`;
+                overlayVideo.style.objectFit = effectiveOverlay.fit || asset.defaults?.fit || 'cover';
+                overlayVideo.style.zIndex = '17';
+            } else {
+                const aspectRatio = overlayVideo.videoWidth && overlayVideo.videoHeight
+                    ? overlayVideo.videoHeight / overlayVideo.videoWidth
+                    : 1;
+                const visualWidth = width * scale;
+                const visualHeight = visualWidth * aspectRatio;
+                const geometry = resolveSemanticWindowGeometry(
+                    corner, visualWidth, visualHeight, left, top, width, height
+                );
+                overlayVideo.style.width = `${geometry.width}px`;
+                overlayVideo.style.height = `${geometry.height}px`;
+                overlayVideo.style.left = `${geometry.left}px`;
+                overlayVideo.style.top = `${geometry.top}px`;
+                overlayVideo.style.objectFit = 'contain';
+                overlayVideo.style.zIndex = '10';
+            }
+            overlayVideo.style.opacity = String(Number(effectiveOverlay.opacity ?? 1));
+            overlayVideo.muted = effectiveOverlay.mute !== false;
+            overlayVideo.classList.remove('hidden');
+            if (!baseVideo.paused) void overlayVideo.play().catch(() => {});
+            else overlayVideo.pause();
+        }
+
+        document.getElementById('video-preview-semantic-video').addEventListener('loadedmetadata', updatePreviewSemanticOverlay);
+
+        function updatePreviewFixedNameplate() {
+            const image = document.getElementById('video-preview-fixed-nameplate');
+            if (!isBrowserCompositionPreview()) {
+                image.classList.add('hidden');
+                return;
+            }
+            const video = document.getElementById('video-preview-local');
+            const frame = document.getElementById('video-preview-frame');
+            if (!video.videoWidth || !video.videoHeight) return;
+            const scaleToFrame = Math.min(frame.clientWidth / video.videoWidth, frame.clientHeight / video.videoHeight);
+            const width = video.videoWidth * scaleToFrame;
+            const height = video.videoHeight * scaleToFrame;
+            const left = (frame.clientWidth - width) / 2;
+            const top = (frame.clientHeight - height) / 2;
+            const visualWidth = width * 0.46;
+            const aspectRatio = image.naturalWidth && image.naturalHeight
+                ? image.naturalHeight / image.naturalWidth
+                : 0.282;
+            const visualHeight = visualWidth * aspectRatio;
             image.style.width = `${visualWidth}px`;
-            image.style.height = `${visualWidth}px`;
-            image.style.opacity = String(Number(overlay.opacity ?? 1));
-            image.style.left = overlay.corner?.includes('left') ? `${left + marginX}px`
-                : overlay.corner?.includes('right') ? `${left + width - marginX - visualWidth}px`
-                : `${left + (width - visualWidth) / 2}px`;
-            image.style.top = overlay.corner?.startsWith('bottom') ? `${top + height - marginY - visualWidth}px`
-                : overlay.corner?.startsWith('top') ? `${top + marginY}px`
-                : `${top + (height - visualWidth) / 2}px`;
+            image.style.height = 'auto';
+            image.style.left = `${left + width * 0.06}px`;
+            image.style.top = `${top + height * 0.5 - visualHeight / 2}px`;
             image.classList.remove('hidden');
         }
 
@@ -3903,8 +4674,10 @@
                 caption.textContent = '';
                 caption.classList.add('hidden');
                 stopPreviewBgm();
+                updatePreviewFixedNameplate();
                 return;
             }
+            try { await ensureSemanticVisualCatalog(); } catch (_) {}
             const script = activePreviewScript();
             const config = rowPostprocessConfigs[script?.id] || {};
             const font = fontPresets.find((item) => item.identity === config.fontIdentity);
@@ -3935,6 +4708,7 @@
             }
             updatePreviewCaption();
             updatePreviewSemanticOverlay();
+            updatePreviewFixedNameplate();
             if (!document.getElementById('video-preview-local').paused) void playPreviewBgm();
         }
 
@@ -3944,16 +4718,19 @@
                 updatePreviewVideoTimeline();
                 updatePreviewCaption();
                 updatePreviewSemanticOverlay();
+                updatePreviewFixedNameplate();
                 if (eventName === 'loadedmetadata') syncPreviewBgm(true);
                 else if (eventName === 'timeupdate') syncPreviewBgm(false);
             });
         });
         previewVideoElement.addEventListener('play', () => {
             syncPreviewPlayButtonState();
+            updatePreviewSemanticOverlay();
             void playPreviewBgm();
         });
         previewVideoElement.addEventListener('pause', () => {
             syncPreviewPlayButtonState();
+            updatePreviewSemanticOverlay();
             stopPreviewBgm();
         });
         previewVideoElement.addEventListener('seeking', () => syncPreviewBgm(true));
@@ -3961,6 +4738,7 @@
             syncPreviewBgm(true);
             updatePreviewCaption();
             updatePreviewSemanticOverlay();
+            updatePreviewFixedNameplate();
         });
         previewVideoElement.addEventListener('ended', () => {
             stopPreviewBgm();
@@ -3968,6 +4746,7 @@
             updatePreviewVideoTimeline();
             updatePreviewCaption();
             updatePreviewSemanticOverlay();
+            updatePreviewFixedNameplate();
         });
         document.getElementById('video-preview-progress-track').addEventListener('click', (event) => {
             if (!Number.isFinite(previewVideoElement.duration) || previewVideoElement.duration <= 0) return;
@@ -3978,6 +4757,7 @@
         window.addEventListener('resize', () => {
             updatePreviewCaptionLayout();
             updatePreviewSemanticOverlay();
+            updatePreviewFixedNameplate();
         });
 
         function openVideoModal(rowId = '001', imageSrc = '') {
@@ -4022,6 +4802,10 @@
             syncPreviewPlayButtonState();
             document.getElementById('video-preview-caption').classList.add('hidden');
             document.getElementById('video-preview-semantic-overlay').classList.add('hidden');
+            const semanticVideo = document.getElementById('video-preview-semantic-video');
+            semanticVideo.pause();
+            semanticVideo.classList.add('hidden');
+            document.getElementById('video-preview-fixed-nameplate').classList.add('hidden');
             modal.querySelector('.transform').classList.remove('scale-100');
             modal.querySelector('.transform').classList.add('scale-95');
             modal.classList.add('opacity-0', 'pointer-events-none');
@@ -4239,6 +5023,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         cost_confirmed: true,
+                        resolution: selectedDigitalHumanResolution(),
                         idempotency_key: `composition-${activeProject.project_id}-${Date.now()}`
                     })
                 });
@@ -4432,6 +5217,7 @@
             isGeneratingComposition = active;
             refreshAudioStageActions();
             if (!active || !activeProject) {
+                compositionStatusPollFailureCount = 0;
                 if (!active && activeProject && pendingSingleCompositionItemIds.size) {
                     setTimeout(() => { void continueSingleVideoAfterComposition(); }, 0);
                 }
@@ -4444,6 +5230,7 @@
                 try {
                     const wasActive = active;
                     const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/status`);
+                    compositionStatusPollFailureCount = 0;
                     const responseItems = project.items || [];
                     const stillActiveInResponse = responseItems.some((item) =>
                         ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.status)
@@ -4461,8 +5248,19 @@
                         }
                     }
                 } catch (error) {
-                    showToast('画面状态更新失败', error.message, 'warning');
-                    compositionStatusPollTimer = setTimeout(scheduleCompositionStatusPoll, 5000);
+                    compositionStatusPollFailureCount += 1;
+                    if (compositionStatusPollFailureCount === 1) {
+                        showToast(
+                            '画面状态暂时无法更新',
+                            `${error.message}。系统会在后台自动重试，不会重复提交 RunningHub 任务。`,
+                            'warning'
+                        );
+                    }
+                    const retryDelay = Math.min(
+                        30000,
+                        5000 * (2 ** Math.min(compositionStatusPollFailureCount - 1, 3))
+                    );
+                    compositionStatusPollTimer = setTimeout(scheduleCompositionStatusPoll, retryDelay);
                 }
             }, 3000);
         }

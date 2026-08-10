@@ -12,7 +12,12 @@ from typing import Any, Iterator
 import uuid
 
 from .logging_config import log_event
-from .semantic_visuals import DEFAULT_LIBRARY_ID, MEDIA_POLICIES, RECIPE_SCHEMA
+from .semantic_visuals import (
+    DEFAULT_LIBRARY_ID,
+    MEDIA_POLICIES,
+    RECIPE_SCHEMA,
+    VISUAL_CORNERS,
+)
 
 
 PROJECT_SCHEMA_VERSION = 10
@@ -174,6 +179,7 @@ def _default_visual_analysis(
         "candidate_set_sha256": None,
         "candidate_request": None,
         "mapped_candidates": [],
+        "visual_plan": [],
         "decisions": [],
         "recipe": {
             "schema": RECIPE_SCHEMA,
@@ -263,6 +269,25 @@ def _visual_analysis_snapshot(
                 and item.get("manual") is True
                 and item.get("locked") is True
             ]
+            if (
+                snapshot.get("analysis_status") == "SUCCESS"
+                and isinstance(snapshot.get("visual_plan"), list)
+                and isinstance(snapshot.get("candidate_request"), dict)
+            ):
+                return {
+                    **snapshot,
+                    "mapping_status": "NOT_REQUESTED",
+                    "mapped_candidates": [],
+                    "recipe": {
+                        **dict(snapshot.get("recipe") or {}),
+                        "overlays": retained,
+                    },
+                    "error": None,
+                    "bound_audio_asset_id": current_audio_asset_id,
+                    "raw_cues_sha256": current_cues_hash,
+                    "invalidated_reason": "AUDIO_OR_RAW_CUES_CHANGED",
+                    "invalidated_at": _now(),
+                }
             return _default_visual_analysis(
                 script,
                 invalidated_reason="AUDIO_OR_RAW_CUES_CHANGED",
@@ -1691,6 +1716,163 @@ class ProjectStore:
             )
         return self.get_project(owner_user_id, project_id)
 
+    def append_item(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        row_key: str,
+        script_text: str,
+    ) -> dict[str, Any]:
+        """Append one draft row without rewriting or invalidating existing rows."""
+
+        return self.append_items(
+            owner_user_id,
+            project_id,
+            items=[{"row_key": row_key, "script_text": script_text}],
+        )
+
+    def append_items(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        items: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Atomically append draft rows without rewriting existing project items."""
+
+        if not isinstance(items, list) or not items:
+            raise ValueError("追加脚本不能为空")
+
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            existing_count = int(
+                connection.execute(
+                    "SELECT COUNT(*) FROM project_items WHERE project_id=?",
+                    (project_id,),
+                ).fetchone()[0]
+            )
+            if existing_count + len(items) > MAX_PROJECT_ITEMS:
+                raise ValueError(f"单个项目最多包含 {MAX_PROJECT_ITEMS} 条脚本")
+
+            existing_row_keys = {
+                str(row["row_key"])
+                for row in connection.execute(
+                    "SELECT row_key FROM project_items WHERE project_id=?",
+                    (project_id,),
+                ).fetchall()
+            }
+            normalized: list[dict[str, Any]] = []
+            incoming_row_keys: set[str] = set()
+            for offset, raw in enumerate(items, start=1):
+                if not isinstance(raw, dict):
+                    raise ValueError(f"第 {offset} 条追加脚本格式无效")
+                position = existing_count + offset
+                clean_row_key = _clean_row_key(raw.get("row_key"), position)
+                if clean_row_key in existing_row_keys or clean_row_key in incoming_row_keys:
+                    raise ValueError(f"脚本行编号重复: {clean_row_key}")
+                incoming_row_keys.add(clean_row_key)
+                normalized.append(
+                    {
+                        "item_id": uuid.uuid4().hex,
+                        "row_key": clean_row_key,
+                        "position": position,
+                        "script_text": _clean_script(raw.get("script_text")),
+                    }
+                )
+
+            now = _now()
+            images = connection.execute(
+                "SELECT * FROM project_input_images WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            mapping = _object(project["settings_json"], {}).get("image_mapping", {})
+            strategy = str(mapping.get("strategy") or "loop")
+            reuse_count = max(1, int(mapping.get("reuse_count") or 1))
+            for item in normalized:
+                connection.execute(
+                    """
+                    INSERT INTO project_items(
+                        item_id, project_id, row_key, position, script_text,
+                        status, subtitles_json, content_analysis_json, settings_json,
+                        created_at, updated_at
+                    ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, '{}', ?, ?)
+                    """,
+                    (
+                        item["item_id"],
+                        project_id,
+                        item["row_key"],
+                        item["position"],
+                        item["script_text"],
+                        _json(_default_subtitles()),
+                        _json(_default_content_analysis(item["script_text"])),
+                        now,
+                        now,
+                    ),
+                )
+                if images:
+                    image_index = (item["position"] - 1) % len(images)
+                    if strategy == "count":
+                        image_index = (
+                            (item["position"] - 1) // reuse_count
+                        ) % len(images)
+                    stored_item = connection.execute(
+                        "SELECT * FROM project_items WHERE item_id=?",
+                        (item["item_id"],),
+                    ).fetchone()
+                    self._assign_input_image(
+                        connection,
+                        stored_item,
+                        images[image_index],
+                        mapping_source="append",
+                        now=now,
+                    )
+
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def find_input_image_duplicate(
+        self,
+        *,
+        owner_user_id: str,
+        project_id: str,
+        filename: str,
+        sha256: str,
+    ) -> dict[str, Any] | None:
+        """Return an existing project image with the same name or content hash."""
+
+        clean_filename = str(filename or "").strip()[:255]
+        clean_sha256 = str(sha256 or "").strip().lower()
+        with self._connect() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            row = connection.execute(
+                """
+                SELECT * FROM project_input_images
+                WHERE project_id=?
+                  AND (filename = ? COLLATE NOCASE OR lower(sha256)=?)
+                ORDER BY CASE WHEN filename = ? COLLATE NOCASE THEN 0 ELSE 1 END,
+                         position
+                LIMIT 1
+                """,
+                (project_id, clean_filename, clean_sha256, clean_filename),
+            ).fetchone()
+            if row is None:
+                return None
+            payload = self._input_image_payload(row)
+            same_name = str(row["filename"]).casefold() == clean_filename.casefold()
+            same_content = str(row["sha256"]).lower() == clean_sha256
+            payload["deduplicated"] = True
+            payload["duplicate_reason"] = (
+                "filename_and_content"
+                if same_name and same_content
+                else "filename" if same_name else "content"
+            )
+            return payload
+
     def register_input_image(
         self,
         *,
@@ -1778,19 +1960,65 @@ class ProjectStore:
                 if _object(asset["external_ref_json"], {}).get("input_image_id")
                 == image_id
             ]
-            current_asset_ids = {
-                str(item["current_image_asset_id"])
-                for item in connection.execute(
-                    """
-                    SELECT current_image_asset_id
-                    FROM project_items
-                    WHERE project_id=? AND current_image_asset_id IS NOT NULL
-                    """,
-                    (project_id,),
-                ).fetchall()
-            }
-            if any(asset_id in current_asset_ids for asset_id in matching_asset_ids):
-                raise ValueError("图片当前正在被脚本使用，请先重新分配图片")
+            items = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            matching_asset_id_set = set(matching_asset_ids)
+            affected_items = [
+                item
+                for item in items
+                if str(item["current_image_asset_id"] or "") in matching_asset_id_set
+            ]
+            if any(str(item["status"]) in ACTIVE_ITEM_STATUSES for item in affected_items):
+                raise ValueError("图片正被生成中的脚本使用，请等待该行完成后再删除")
+
+            remaining_images = connection.execute(
+                """
+                SELECT * FROM project_input_images
+                WHERE project_id=? AND image_id<>?
+                ORDER BY position
+                """,
+                (project_id, image_id),
+            ).fetchall()
+            now = _now()
+            mapping = _object(project["settings_json"], {}).get("image_mapping", {})
+            strategy = str(mapping.get("strategy") or "loop")
+            reuse_count = max(1, int(mapping.get("reuse_count") or 1))
+            for item in affected_items:
+                if remaining_images:
+                    item_position = max(1, int(item["position"]))
+                    image_index = (item_position - 1) % len(remaining_images)
+                    if strategy == "count":
+                        image_index = ((item_position - 1) // reuse_count) % len(
+                            remaining_images
+                        )
+                    self._assign_input_image(
+                        connection,
+                        item,
+                        remaining_images[image_index],
+                        mapping_source="delete_fallback",
+                        now=now,
+                    )
+                else:
+                    subtitles = _object(item["subtitles_json"], _default_subtitles())
+                    subtitles["bound_video_asset_id"] = None
+                    if subtitles.get("raw_cues"):
+                        subtitles["status"] = "READY"
+                    next_status = (
+                        "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                    )
+                    connection.execute(
+                        """
+                        UPDATE project_items
+                        SET current_image_asset_id=NULL,
+                            current_base_video_asset_id=NULL,
+                            current_video_asset_id=NULL,
+                            subtitles_json=?, status=?, updated_at=?
+                        WHERE item_id=?
+                        """,
+                        (_json(subtitles), next_status, now, item["item_id"]),
+                    )
             for asset_id in matching_asset_ids:
                 connection.execute(
                     "DELETE FROM project_assets WHERE asset_id=?", (asset_id,)
@@ -1810,11 +2038,11 @@ class ProjectStore:
                     "UPDATE project_input_images SET position=? WHERE image_id=?",
                     (position, remaining_row["image_id"]),
                 )
-            now = _now()
             connection.execute(
                 "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
                 (now, project["project_id"]),
             )
+            self._refresh_project_status(connection, project_id, now=now)
             return self._input_image_payload(row)
 
     def apply_image_strategy(
@@ -1949,6 +2177,92 @@ class ProjectStore:
             connection.execute(
                 "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
                 (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_digital_human_resolution(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        resolution: str,
+    ) -> dict[str, Any]:
+        """Persist one project-wide resolution and detach stale current videos."""
+
+        clean_resolution = str(resolution or "").strip()
+        try:
+            if int(clean_resolution) <= 0:
+                raise ValueError
+        except (TypeError, ValueError) as exc:
+            raise ValueError("数字人最长边分辨率必须是正整数") from exc
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            active_item = connection.execute(
+                "SELECT row_key FROM project_items WHERE project_id=? "
+                f"AND status IN ({','.join('?' for _ in ACTIVE_ITEM_STATUSES)}) LIMIT 1",
+                (project_id, *sorted(ACTIVE_ITEM_STATUSES)),
+            ).fetchone()
+            if active_item is not None:
+                raise ValueError(
+                    f"任务 {active_item['row_key']} 正在生成，请完成后再修改分辨率"
+                )
+            project_settings = _object(project["settings_json"], {})
+            digital_human = project_settings.get("digital_human")
+            if not isinstance(digital_human, dict):
+                digital_human = {}
+            current_resolution = str(digital_human.get("resolution") or "1024")
+            if current_resolution == clean_resolution:
+                return self._project_payload(connection, project_id)
+            project_settings["digital_human"] = {
+                **digital_human,
+                "resolution": clean_resolution,
+            }
+            rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=?",
+                (project_id,),
+            ).fetchall()
+            now = _now()
+            for item in rows:
+                if item["current_base_video_asset_id"] is None:
+                    continue
+                subtitles = _object(item["subtitles_json"], _default_subtitles())
+                subtitles["render_cues"] = []
+                subtitles["bound_video_asset_id"] = None
+                subtitles["overflow_risk"] = False
+                subtitles["review_reason"] = None
+                subtitles["status"] = (
+                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+                )
+                item_settings = _object(item["settings_json"], {})
+                item_settings["composition_invalidated_reason"] = (
+                    "DIGITAL_HUMAN_RESOLUTION_CHANGED"
+                )
+                next_status = (
+                    "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                )
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET current_base_video_asset_id=NULL, current_video_asset_id=NULL,
+                        subtitles_json=?, settings_json=?, status=?, updated_at=?
+                    WHERE item_id=?
+                    """,
+                    (
+                        _json(subtitles),
+                        _json(item_settings),
+                        next_status,
+                        now,
+                        item["item_id"],
+                    ),
+                )
+            connection.execute(
+                """
+                UPDATE projects
+                SET settings_json=?, revision=revision+1, updated_at=?
+                WHERE project_id=?
+                """,
+                (_json(project_settings), now, project_id),
             )
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
@@ -2754,6 +3068,7 @@ class ProjectStore:
                     ),
                     "candidate_request": candidate_request,
                     "decisions": [],
+                    "visual_plan": [],
                     "error": None,
                     "request_count": int(snapshot.get("request_count") or 0) + 1,
                     "requested_at": _now(),
@@ -2818,6 +3133,11 @@ class ProjectStore:
                     "decisions": (
                         list(result.get("decisions") or [])
                         if isinstance(result.get("decisions"), list)
+                        else []
+                    ),
+                    "visual_plan": (
+                        list(result.get("visual_plan") or [])
+                        if isinstance(result.get("visual_plan"), list)
                         else []
                     ),
                     "mapped_candidates": (
@@ -2922,7 +3242,6 @@ class ProjectStore:
             raise ValueError("语义视觉媒体策略无效")
         normalized: list[dict[str, Any]] = []
         seen: set[str] = set()
-        valid_corners = {"top_left", "top_right"}
         for index, raw in enumerate(overlays, start=1):
             if not isinstance(raw, dict):
                 raise ValueError(f"第 {index} 个语义贴图不是对象")
@@ -2939,7 +3258,7 @@ class ProjectStore:
             resource_path = str(raw.get("resource_path") or "").strip()
             if not overlay_id or overlay_id in seen or not asset_id or not concept_id:
                 raise ValueError("语义贴图 ID、素材或概念无效")
-            if corner not in valid_corners:
+            if corner not in VISUAL_CORNERS:
                 raise ValueError("语义贴图位置无效")
             if type(start_us) is not int or start_us < 0:
                 raise ValueError("语义贴图开始时间无效")

@@ -1006,7 +1006,8 @@ def add_audio_track_segment(draft: Any, script: Any, args: argparse.Namespace) -
         raise RuntimeError(
             f"音频截取开始时间超出素材时长: source_start={source_start}, material_duration={material.duration}"
         )
-    if target_duration > available_duration:
+    loop_to_target = bool(getattr(args, "audio_loop_to_target", False))
+    if target_duration > available_duration and not loop_to_target:
         log(
             "BGM 目标时长超过素材可用时长，已截断到素材末尾: "
             f"target_duration={target_duration} -> {available_duration}",
@@ -1017,17 +1018,35 @@ def add_audio_track_segment(draft: Any, script: Any, args: argparse.Namespace) -
 
     track_name = f"probe_audio_{uuid.uuid4().hex[:8]}"
     append_track_compat(draft, script, draft.TrackType.audio, track_name)
-    audio_segment = draft.AudioSegment(
-        material,
-        draft.Timerange(target_start, target_duration),
-        source_timerange=source_timerange,
-        volume=float(getattr(args, "audio_volume", 1.0)),
-    )
-    script.add_segment(audio_segment, track_name)
+    loop_duration = available_duration
+    if source_timerange is not None:
+        loop_duration = min(loop_duration, int(source_timerange.duration))
+    if loop_duration <= 0:
+        raise RuntimeError("音频循环片段时长必须大于 0")
+
+    segment_count = 0
+    elapsed = 0
+    while elapsed < target_duration:
+        segment_duration = min(loop_duration, target_duration - elapsed)
+        segment_source_timerange = source_timerange
+        if loop_to_target or segment_duration != loop_duration:
+            segment_source_timerange = draft.Timerange(source_start, segment_duration)
+        audio_segment = draft.AudioSegment(
+            material,
+            draft.Timerange(target_start + elapsed, segment_duration),
+            source_timerange=segment_source_timerange,
+            volume=float(getattr(args, "audio_volume", 1.0)),
+        )
+        script.add_segment(audio_segment, track_name)
+        segment_count += 1
+        elapsed += segment_duration
+        if not loop_to_target:
+            break
     log(
         "已新增音乐轨道和音频片段: "
         f"track_name={track_name!r}, path={media_path}, "
-        f"target_start={target_start}, target_duration={target_duration}"
+        f"target_start={target_start}, target_duration={target_duration}, "
+        f"loop_to_target={loop_to_target}, segment_count={segment_count}"
     )
     return True
 
@@ -1337,6 +1356,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--audio-source-duration-us", type=int, default=0, help="新音频素材截取持续时间，微秒；0 表示默认")
     parser.add_argument("--audio-target-start-us", type=int, default=-1, help="目标音频片段新的开始时间，微秒；-1 表示不改；新增音乐时 -1 表示 0")
     parser.add_argument("--audio-target-duration-us", type=int, default=0, help="目标音频片段新的持续时间，微秒；0 表示不改或使用素材时长")
+    parser.add_argument("--audio-loop-to-target", action="store_true", help="新增音乐短于目标时长时循环，并裁切最后一次循环到目标结尾")
     parser.add_argument("--dump-effects", action="store_true", help="打印特效轨道和 materials.video_effects 的详细关联")
     parser.add_argument("--dump-nested-drafts", action="store_true", help="打印 materials.drafts[*].draft 里的内部轨道和可替换视频/图片素材")
     parser.add_argument("--replace-nested-video-segment-path", default="", help="替换嵌套模板里指定内部视频轨道/片段引用的视频或图片素材")

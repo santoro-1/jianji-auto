@@ -31,8 +31,14 @@ from .semantic_subtitles import (
     map_subtitle_units_to_raw_cues,
     semantic_break_groups,
 )
-from .semantic_visuals import frozen_visual_overlays
+from .semantic_visuals import (
+    SemanticVisualCatalogError,
+    fixed_nameplate_overlay,
+    frozen_visual_overlays,
+    load_semantic_visual_catalog,
+)
 from .subtitles import CaptionCue, caption_cues_from_payload
+from .unified_visual_plan import remap_saved_visual_plan
 
 
 CAPTION_MAX_WIDTH_RATIO = 0.8
@@ -513,7 +519,17 @@ def _split_one_line(
             chunk = normalized[start:end].strip()
             if not chunk:
                 continue
-            if end < length and end in protected_breaks:
+            # The tokenizer only sees punctuation-free display text.  It can
+            # therefore mistake two words separated by an original comma or
+            # enumeration comma for one protected phrase (for example
+            # ``嘴馋、减不动`` -> ``嘴馋减不动``).  An original punctuation or
+            # model-preferred boundary is stronger evidence and must remain a
+            # legal line break.
+            if (
+                end < length
+                and end in protected_breaks
+                and end not in preferred_breaks
+            ):
                 continue
             core_length = len(chunk)
             fill_ratio = width / maximum_width_em
@@ -523,7 +539,7 @@ def _split_one_line(
             if end < length:
                 score += 0.25
                 if end in preferred_breaks:
-                    score -= 0.05
+                    score -= 2.5
                 score += discouraged_breaks.get(end, 0.0)
                 if end in connector_starts:
                     score -= 0.55
@@ -944,6 +960,12 @@ class ProjectPostprocessCoordinator:
                 / "semantic_visual_library"
             )
         ).resolve()
+        try:
+            self.semantic_visual_catalog = load_semantic_visual_catalog(
+                self.semantic_visual_library_root
+            )
+        except SemanticVisualCatalogError:
+            self.semantic_visual_catalog = None
 
     def start(
         self,
@@ -1166,9 +1188,36 @@ class ProjectPostprocessCoordinator:
                 ),
                 music_selection=dict(selected.get("music_selection") or {}),
             )
-            self.store.set_item_subtitles(
+            updated_project = self.store.set_item_subtitles(
                 owner_user_id, project_id, item["item_id"], subtitles
             )
+            current_audio = item.get("outputs", {}).get("audio") or {}
+            visual_alignment_is_current = bool(
+                isinstance(current_audio, dict)
+                and alignment_matches(
+                    subtitles.get("asr_alignment"),
+                    script=str(item.get("script_text") or ""),
+                    audio_asset_id=str(current_audio.get("asset_id") or ""),
+                    audio_version=current_audio.get("version"),
+                )
+            )
+            if self.semantic_visual_catalog is not None and visual_alignment_is_current:
+                updated_item = next(
+                    (
+                        candidate
+                        for candidate in updated_project.get("items", [])
+                        if candidate.get("item_id") == item["item_id"]
+                    ),
+                    None,
+                )
+                if isinstance(updated_item, dict):
+                    remap_saved_visual_plan(
+                        self.store,
+                        owner_user_id=owner_user_id,
+                        project_id=project_id,
+                        item=updated_item,
+                        catalog=self.semantic_visual_catalog,
+                    )
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -1313,6 +1362,9 @@ class ProjectPostprocessCoordinator:
         job["visual_overlays"] = frozen_visual_overlays(
             item, library_root=self.semantic_visual_library_root
         )
+        job["fixed_overlays"] = [
+            fixed_nameplate_overlay(self.semantic_visual_library_root)
+        ]
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,

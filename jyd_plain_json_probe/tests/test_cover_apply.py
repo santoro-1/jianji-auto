@@ -168,6 +168,43 @@ class CoverApplyTest(unittest.TestCase):
             )
         )
 
+    def test_fixed_nameplate_starts_after_cover_frames(self) -> None:
+        data = {
+            "duration": 1_000_000,
+            "tracks": [
+                {
+                    "name": "main-video",
+                    "type": "video",
+                    "segments": [
+                        {"target_timerange": {"start": 0, "duration": 1_000_000}}
+                    ],
+                },
+                {
+                    "name": "固定人名牌",
+                    "type": "sticker",
+                    "segments": [
+                        {"target_timerange": {"start": 0, "duration": 1_000_000}}
+                    ],
+                },
+                {
+                    "name": f"{COVER_TRACK_PREFIX}frame",
+                    "type": "video",
+                    "segments": [
+                        {"target_timerange": {"start": 0, "duration": 100_000}}
+                    ],
+                },
+            ],
+        }
+
+        apply_cover_timeline_offset(
+            data, CoverConfig(frame_time_us=0, fps=30, frame_count=3)
+        )
+
+        nameplate = next(
+            track for track in data["tracks"] if track.get("name") == "固定人名牌"
+        )["segments"][0]["target_timerange"]
+        self.assertEqual(nameplate, {"start": 100_000, "duration": 1_000_000})
+
     def test_builds_three_frame_cover_from_job_config(self) -> None:
         cover = _build_cover(
             {

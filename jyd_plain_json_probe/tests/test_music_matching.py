@@ -16,6 +16,9 @@ from jyd_probe.music_matching import (  # noqa: E402
     MUSIC_MATCHER_VERSION,
     MUSIC_MATCHER_WEIGHTS_V1,
     MUSIC_TAXONOMY_VERSION,
+    MAX_RECENT_USE_PENALTY,
+    RECENCY_CANDIDATE_SCORE_GAP,
+    RECENT_USE_PENALTY,
     MusicProfileError,
     MusicProfileMatcher,
     NoEligibleMusicError,
@@ -136,22 +139,28 @@ class MusicProfileMatcherTest(unittest.TestCase):
             avoid_traits=[],
         )
         result = self.matcher.recommend(intent, video_duration_us=30_000_000)
-        self.assertEqual(result["bgm_identity"], "music_id:7633188159245289523")
-        self.assertEqual(result["name"], "是妈妈是女儿 (Live)")
+        self.assertEqual(result["bgm_identity"], "music_id:7585886063152842794")
+        self.assertEqual(result["name"], "愿妈妈平安健康（剪辑版）")
 
-    def test_duration_and_review_status_are_hard_filters(self) -> None:
-        result = self.matcher.recommend(health_intent(), video_duration_us=40_000_000)
+    def test_short_music_remains_eligible_because_export_can_loop(self) -> None:
+        result = self.matcher.recommend(health_intent(), video_duration_us=451_000_000)
         selected_asset = self.snapshot["assets_by_identity"][result["bgm_identity"]]
-        self.assertGreaterEqual(selected_asset["duration_us"], 40_000_000)
+        self.assertLess(selected_asset["duration_us"], 451_000_000)
         self.assertEqual(result["filtered_counts"]["auto_eligible"], 4)
-        self.assertGreater(result["filtered_counts"]["duration_covers_video"], 0)
+        self.assertNotIn("duration_covers_video", result["filtered_counts"])
 
-    def test_no_track_long_enough_returns_explicit_no_eligible_error(self) -> None:
-        with self.assertRaises(NoEligibleMusicError):
-            self.matcher.recommend(
-                health_intent(avoid_traits=[]),
-                video_duration_us=451_000_000,
-            )
+    def test_tightened_daylily_profile_is_not_general_health_knowledge(self) -> None:
+        profile = next(
+            item
+            for item in self.snapshot["profiles"]
+            if item["identity"] == "music_id:6931987094940174343"
+        )
+        self.assertEqual(
+            profile["scenes"],
+            ["interview_conversation", "emotional_story", "family_relationship"],
+        )
+        self.assertEqual(profile["content_formats"], ["personal_story", "interview"])
+        self.assertEqual(profile["topics"], ["family", "emotional_wellbeing"])
 
     def test_forbidden_traits_remove_strong_vocals_before_scoring(self) -> None:
         result = self.matcher.recommend(
@@ -188,9 +197,24 @@ class MusicProfileMatcherTest(unittest.TestCase):
             recent_identity_counts={first["bgm_identity"]: 1},
         )
         if penalized["bgm_identity"] == first["bgm_identity"]:
-            self.assertEqual(penalized["recency_penalty"], 3.0)
+                self.assertEqual(penalized["recency_penalty"], RECENT_USE_PENALTY)
         else:
             self.assertNotEqual(penalized["bgm_identity"], first["bgm_identity"])
+
+    def test_recency_only_rotates_inside_semantic_near_top_pool(self) -> None:
+        result = self.matcher.recommend(
+            health_intent(),
+            video_duration_us=30_000_000,
+            recent_identity_counts={
+                profile["identity"]: 100 for profile in self.snapshot["profiles"]
+            },
+        )
+        self.assertLessEqual(result["recency_penalty"], MAX_RECENT_USE_PENALTY)
+        self.assertGreaterEqual(
+            result["score_before_recency"],
+            result["semantic_top_score"] - RECENCY_CANDIDATE_SCORE_GAP,
+        )
+        self.assertLessEqual(result["rotation_candidate_count"], result["eligible_count"])
 
     def test_intent_enums_ranges_and_unknown_fields_are_strict(self) -> None:
         invalid_values = [
@@ -216,7 +240,7 @@ class MusicProfileMatcherTest(unittest.TestCase):
                 "speech_vocal": 10,
             },
         )
-        self.assertIn("duration_covers_video", MUSIC_MATCHER_HARD_FILTERS_V1)
+        self.assertNotIn("duration_covers_video", MUSIC_MATCHER_HARD_FILTERS_V1)
 
     def test_manifest_rejects_weight_drift_before_matching(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

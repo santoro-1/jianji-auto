@@ -1,0 +1,72 @@
+{
+  "schema": "jyd_probe.fullscreen_sticker.v1",
+  "exported_at": "2026-07-14T14:33:12",
+  "identity": "resource_id:7452256781822070043",
+  "name": "边框",
+  "usage": "fullscreen_overlay",
+  "material": {
+    "category_id": "100000",
+    "category_name": "default",
+    "combo_info": {},
+    "icon_url": "https://p3-heycan-jy-sign.byteimg.com/tos-cn-i-3jr8j4ixpe/33daa16acdd2405ab22520d1ead30b92~tplv-3jr8j4ixpe-resize:200:200.png?x-expires=1815546129&x-signature=7LBgrGD3tzztoYLzXffH8I3hovc%3D",
+    "id": "39EC8A37-10CB-46d3-A1A9-7D7FD52A9183",
+    "name": "边框",
+    "path": "",
+    "preview_cover_url": "https://p3-heycan-jy-sign.byteimg.com/tos-cn-i-3jr8j4ixpe/33daa16acdd2405ab22520d1ead30b92~tplv-3jr8j4ixpe-resize:200:200.png?x-expires=1815546129&x-signature=7LBgrGD3tzztoYLzXffH8I3hovc%3D",
+    "radius": {},
+    "resource_id": "7452256781822070043",
+    "shadow_point": {
+      "x": 0.0,
+      "y": 0.0
+    },
+    "shape_param": {},
+    "source_platform": 1,
+    "sticker_id": "7452256781822070043",
+    "type": "sticker"
+  },
+  "segment_template": {
+    "clip": {
+      "flip": {},
+      "scale": {
+        "x": 4.260754316668526,
+        "y": 4.260754316668526
+      },
+      "transform": {
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    "enable_adjust": false,
+    "enable_adjust_mask": false,
+    "enable_hsl": false,
+    "enable_lut": false,
+    "id": "CFFD5068-6AD0-4afe-B11C-FF1CB5E7D287",
+    "material_id": "39EC8A37-10CB-46d3-A1A9-7D7FD52A9183",
+    "render_index": 14008,
+    "render_timerange": {},
+    "responsive_layout": {},
+    "source": "segmentsourcenormal",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 9083333
+    },
+    "track_render_index": 1
+  },
+  "resource": {
+    "original_path": "",
+    "library_path": "resources/sticker",
+    "status": "copied"
+  },
+  "preview_file": "resources/sticker/singleImage.png",
+  "source": {
+    "label": "",
+    "sticker_track_index": 0,
+    "raw_track_index": 1,
+    "segment_index": 4,
+    "material_id": "39EC8A37-10CB-46d3-A1A9-7D7FD52A9183",
+    "target_timerange": {
+      "duration": 3000000,
+      "start": 9083333
+    }
+  }
+}

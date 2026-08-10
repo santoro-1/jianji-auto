@@ -83,6 +83,27 @@ class ProjectAudioApiTest(unittest.TestCase):
         self.assertEqual([link["external_id"] for link in batches], ["new-batch"])
         self.assertEqual(list(items), ["new-item"])
 
+    def test_terminal_audio_items_are_not_polled_again(self) -> None:
+        links = [
+            {
+                "system": "runninghub",
+                "relation": "digital_human_audio_batch",
+                "external_id": "failed-batch",
+            },
+            {
+                "system": "runninghub",
+                "relation": "digital_human_audio_item",
+                "external_id": "failed-item",
+                "item_id": "local-failed",
+                "metadata": {"batch_id": "failed-batch"},
+            },
+        ]
+
+        batches, items = _current_audio_links(links, active_item_ids=set())
+
+        self.assertEqual(batches, [])
+        self.assertEqual(items, {})
+
     def test_pending_audio_operation_resumes_after_application_restart(self) -> None:
         user = {"user_id": "restart-user", "username": "tester", "enabled": True}
         voices = [
@@ -183,12 +204,14 @@ class ProjectAudioApiTest(unittest.TestCase):
                     "default_voice_asset_id": "official-voice-1",
                     "voice_assignments": {},
                     "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
+                    "resolution": "2048",
                     "idempotency_key": "restart-audio-request-1",
                     "cost_confirmed": True,
                 },
             )
             self.assertEqual(started.status_code, 200, started.text)
             self.assertEqual(started.json()["items"][0]["status"], "AUDIO_QUEUED")
+            self.assertEqual(create_calls[0]["resolution"], "2048")
 
         remote["items"] = [
             {

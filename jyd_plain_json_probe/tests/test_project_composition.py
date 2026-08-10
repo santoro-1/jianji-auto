@@ -189,7 +189,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
         ) as start_remote, patch(
             "jyd_probe.auth_center.AuthCenterClient.get_workbench_task",
             return_value=remote_ready,
-        ), patch(
+        ) as get_remote, patch(
             "jyd_probe.auth_center.AuthCenterClient.download_workbench_video",
             new=write_segment,
         ), patch(
@@ -231,6 +231,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     json={
                         "cost_confirmed": True,
                         "idempotency_key": "composition-1",
+                        "resolution": "2048",
                         "runninghub_execution_account_ids": [22, 11],
                     },
                 )
@@ -261,6 +262,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     "composition-correlation-1",
                 )
                 self.assertEqual(
+                    start_remote.call_args.kwargs["resolution"],
+                    "2048",
+                )
+                self.assertEqual(
                     start_remote.call_args.kwargs[
                         "runninghub_execution_account_ids"
                     ],
@@ -275,6 +280,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     operation["payload"]["runninghub_execution_account_ids"],
                     [11, 22],
                 )
+                self.assertEqual(operation["payload"]["resolution"], "2048")
 
                 synced = client.get(
                     f"/api/new/projects/{project['project_id']}/composition/status"
@@ -285,6 +291,11 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     len(synced_item["asset_history"]["original_video_segment"]), 1
                 )
                 self.assertEqual(len(synced_item["asset_history"]["base_video"]), 1)
+                self.assertEqual(
+                    get_remote.call_count,
+                    1,
+                    "已完成的画面操作不应在后续状态轮询中再次请求云端",
+                )
 
                 reused = client.post(
                     f"/api/new/projects/{project['project_id']}/composition/generate",

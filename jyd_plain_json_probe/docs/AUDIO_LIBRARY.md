@@ -102,6 +102,7 @@ GET  /api/audio-library/file?identity=...
 `music_id:*` 与音频 manifest 对应，不依赖 Excel、显示名称或分类游标。原表已确认的
 42 首允许自动选择，4 首未确认曲目保留但不进入自动候选。
 
-本地 `MusicProfileMatcher` 先检查文件、审核、使用权限、真实时长和禁用特征，再按固定
-100 分权重直接返回最优一首，不返回 Top3。完整字段、算法、降权和异常规则见
+本地 `MusicProfileMatcher` 先检查文件、审核、使用权限和禁用特征，再按固定 100 分权重
+确定语义近似候选，并只在近似候选内做轻量重复降权，直接返回最优一首，不返回 Top3。
+较短音乐由浏览器和剪映导出循环补足。完整字段、算法、降权和异常规则见
 [`MUSIC_MATCHING_V1.md`](MUSIC_MATCHING_V1.md)。

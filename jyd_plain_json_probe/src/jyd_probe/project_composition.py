@@ -83,6 +83,7 @@ class ProjectCompositionCoordinator:
         token: str,
         *,
         idempotency_key: str,
+        resolution: str = "1024",
         runninghub_execution_account_ids: list[int] | None = None,
         item_ids: list[str] | None = None,
     ) -> dict[str, Any]:
@@ -90,6 +91,12 @@ class ProjectCompositionCoordinator:
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("画面生成请求缺少幂等键")
+        clean_resolution = str(resolution or "1024").strip()
+        try:
+            if int(clean_resolution) <= 0:
+                raise ValueError
+        except (TypeError, ValueError) as exc:
+            raise ValueError("数字人最长边分辨率必须是正整数") from exc
 
         if item_ids is not None:
             requested_ids = [str(value or "").strip() for value in item_ids]
@@ -131,13 +138,16 @@ class ProjectCompositionCoordinator:
             if (
                 existing.get("operation_type") == "COMPOSITION_GENERATE"
                 and existing.get("idempotency_key") == clean_key
-                and existing.get("payload", {}).get(
-                    "runninghub_execution_account_ids"
+                and (
+                    existing.get("payload", {}).get(
+                        "runninghub_execution_account_ids"
+                    ) != selected_account_ids
+                    or str(existing.get("payload", {}).get("resolution") or "1024")
+                    != clean_resolution
                 )
-                != selected_account_ids
             ):
                 raise ValueError(
-                    "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
+                    "该画面生成操作的执行账号或分辨率快照已锁定，不能修改"
                 )
         links_by_item = _current_audio_item_links(project["links"])
 
@@ -173,6 +183,7 @@ class ProjectCompositionCoordinator:
                     "scope": "base_video_only",
                     "input_image_asset_id": str(image.get("asset_id") or ""),
                     "input_image_sha256": image_sha256,
+                    "resolution": clean_resolution,
                     "runninghub_execution_account_ids": selected_account_ids,
                 },
                 correlation_id=correlation_id or None,
@@ -185,6 +196,8 @@ class ProjectCompositionCoordinator:
                 )
             if operation.get("payload", {}).get("input_image_sha256") != image_sha256:
                 raise ValueError("同一画面生成幂等键不能用于不同的项目图片")
+            if str(operation.get("payload", {}).get("resolution") or "1024") != clean_resolution:
+                raise ValueError("同一画面生成幂等键不能用于不同的分辨率")
             try:
                 staged_image = self.client.upload_workbench_batch_asset(
                     token,
@@ -199,6 +212,7 @@ class ProjectCompositionCoordinator:
                     idempotency_key=f"{clean_key}:{item['item_id']}",
                     image_asset_id=str(staged_image.get("asset_id") or ""),
                     image_sha256=image_sha256,
+                    resolution=clean_resolution,
                     correlation_id=operation["correlation_id"],
                     runninghub_execution_account_ids=selected_account_ids,
                 )
@@ -250,7 +264,10 @@ class ProjectCompositionCoordinator:
             operation = operations.get(item_id)
             if link is None or operation is None:
                 continue
-            if operation.get("status") == "FAILED" and item.get("status") == "COMPOSITION_FAILED":
+            # Terminal 4A operations are immutable history. Re-querying every
+            # completed row on each browser poll multiplies cloud requests and
+            # lets one stale row abort the status refresh for the active row.
+            if operation.get("status") not in {"PENDING", "RUNNING"}:
                 continue
             remote_item_id = str(link.get("external_id") or "")
             if not remote_item_id:

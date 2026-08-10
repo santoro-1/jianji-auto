@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from .caption_alignment import CaptionAlignmentError, script_tokens
 from .semantic_subtitles import SemanticSubtitleMappingError
 
 
@@ -22,13 +23,63 @@ RECIPE_SCHEMA_V2 = "jyd.semantic-visual-recipe.v2"
 RECIPE_SCHEMAS = frozenset({RECIPE_SCHEMA_V1, RECIPE_SCHEMA_V2})
 RECIPE_SCHEMA = RECIPE_SCHEMA_V2
 DEFAULT_LIBRARY_ID = "jyd.semantic-visual-library.default"
+FIXED_NAMEPLATE_BUNDLE = Path("fixed") / "nameplate_zhangluo"
+FIXED_NAMEPLATE_PREVIEW_URL = "/api/new/fixed-visuals/nameplate/preview"
 MEDIA_POLICIES = frozenset(
     {"image_only", "video_only", "prefer_image", "prefer_video", "mixed"}
 )
+VISUAL_CORNERS = frozenset(
+    {
+        "top_left",
+        "top_right",
+        "bottom_left",
+        "bottom_right",
+        "bottom_center",
+        "center",
+    }
+)
+VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
+VISUAL_HOLD_AFTER_MATCH_US = 400_000
+VISUAL_MAX_AUTO_DURATION_US = 4_000_000
+VISUAL_KEYWORD_LEAD_US = 300_000
+VISUAL_OPENING_PROTECTION_US = 1_200_000
+VISUAL_ENRICHMENT_MIN_GAP_US = 20_000_000
+VISUAL_ENRICHMENT_MAX_PER_MINUTE = 2
+VISUAL_ENRICHMENT_CHAR_INTERVAL = 100
+VISUAL_ENRICHMENT_MAX_ANCHORS = 6
+VISUAL_ENRICHMENT_TAGS = frozenset({"空镜", "相关素材", "b-roll", "broll", "enrichment"})
+VISUAL_IMAGE_DEFAULT_CORNER = "bottom_center"
+VISUAL_IMAGE_DEFAULT_SCALE = 0.78
+VISUAL_ACTION_VIDEO_DEFAULT_CORNER = "bottom_center"
+VISUAL_ACTION_VIDEO_DEFAULT_SCALE = 0.615
+VISUAL_BROLL_DEFAULT_CORNER = "center"
+VISUAL_BROLL_DEFAULT_SCALE = 1.0
+VISUAL_ALIAS_EXCLUDED_COMPOUNDS = {
+    "鸡蛋": ("鸡蛋糕",),
+    "蔬菜": ("蔬菜沙拉", "蔬菜色拉"),
+    "青菜": ("青菜沙拉", "青菜色拉"),
+}
 
 
 class SemanticVisualCatalogError(ValueError):
     pass
+
+
+def fixed_nameplate_overlay(library_root: str | Path) -> dict[str, Any]:
+    """Return the portable, non-editable nameplate recipe used by every project video."""
+
+    bundle = Path(library_root).expanduser().resolve() / FIXED_NAMEPLATE_BUNDLE
+    return {
+        "enabled": True,
+        "bundle_path": str(bundle),
+        "preview_url": FIXED_NAMEPLATE_PREVIEW_URL,
+        "start_us": 0,
+        "duration_us": 0,
+        "corner": "middle_left",
+        "scale": 0.46,
+        "opacity": 1.0,
+        "track_name": "固定人名牌",
+    }
 
 
 @dataclass(frozen=True)
@@ -178,7 +229,7 @@ def _load_semantic_visual_catalog_v1(root: str | Path) -> SemanticVisualCatalog:
             or not name
             or asset_id in asset_ids
             or concept_id not in concept_ids
-            or corner not in {"top_left", "top_right"}
+            or corner not in VISUAL_CORNERS
             or not 0.05 <= scale <= 2.0
             or not 0.0 <= opacity <= 1.0
         ):
@@ -358,7 +409,7 @@ def _normalized_visual_defaults(
         "duration_us": duration_us,
     }
     if (
-        corner not in {"top_left", "top_right"}
+        corner not in VISUAL_CORNERS
         or not 0.05 <= scale <= 2.0
         or not 0.0 <= opacity <= 1.0
         or duration_us <= 0
@@ -391,6 +442,31 @@ def _normalized_visual_defaults(
     return normalized
 
 
+def _apply_product_visual_layout(
+    defaults: Mapping[str, Any], *, media_type: str, tags: Iterable[str]
+) -> dict[str, Any]:
+    """Keep automatic talking-head visuals on the accepted product layout.
+
+    Catalog manifests retain asset provenance and duration defaults, but placement is
+    a product-level rule.  Centralizing it here also refreshes untouched recipes from
+    older catalogs without overwriting manual or locked project edits.
+    """
+
+    normalized = dict(defaults)
+    if media_type == "image":
+        normalized.update(
+            corner=VISUAL_IMAGE_DEFAULT_CORNER,
+            scale=VISUAL_IMAGE_DEFAULT_SCALE,
+        )
+        return normalized
+    enrichment = any(str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS for tag in tags)
+    normalized.update(
+        corner=(VISUAL_BROLL_DEFAULT_CORNER if enrichment else VISUAL_ACTION_VIDEO_DEFAULT_CORNER),
+        scale=(VISUAL_BROLL_DEFAULT_SCALE if enrichment else VISUAL_ACTION_VIDEO_DEFAULT_SCALE),
+    )
+    return normalized
+
+
 def _normalize_v2_image(
     raw: Mapping[str, Any],
     *,
@@ -414,7 +490,11 @@ def _normalize_v2_image(
     sticker_path = bundle_path / "sticker.json"
     if not bundle_path.is_dir() or not preview_path.is_file() or not sticker_path.is_file():
         raise SemanticVisualCatalogError("invalid image asset files")
-    normalized_defaults = _normalized_visual_defaults(defaults, video=False)
+    normalized_defaults = _apply_product_visual_layout(
+        _normalized_visual_defaults(defaults, video=False),
+        media_type="image",
+        tags=common["tags"],
+    )
     asset_id = common["asset_id"]
     normalized = {
         **common,
@@ -475,7 +555,11 @@ def _normalize_v2_video(
         or not isinstance(has_audio, bool)
     ):
         raise SemanticVisualCatalogError("invalid video asset metadata")
-    normalized_defaults = _normalized_visual_defaults(defaults, video=True)
+    normalized_defaults = _apply_product_visual_layout(
+        _normalized_visual_defaults(defaults, video=True),
+        media_type="video",
+        tags=common["tags"],
+    )
     if (
         not normalized_defaults["loop"]
         and normalized_defaults["source_start_us"] + normalized_defaults["duration_us"]
@@ -605,6 +689,38 @@ def load_semantic_visual_catalog(root: str | Path) -> SemanticVisualCatalog:
     return _load_semantic_visual_catalog_v2(catalog_root, payload)
 
 
+def _alias_is_excluded_compound(
+    script: str, *, start: int, end: int, alias: str
+) -> bool:
+    for compound in VISUAL_ALIAS_EXCLUDED_COMPOUNDS.get(alias, ()):
+        first = max(0, start - len(compound) + len(alias))
+        for compound_start in range(first, start + 1):
+            compound_end = compound_start + len(compound)
+            if (
+                compound_start <= start
+                and end <= compound_end
+                and script[compound_start:compound_end] == compound
+            ):
+                return True
+    return False
+
+
+def visual_candidate_context(
+    script: str, *, start: int, end: int, maximum_length: int = 60
+) -> str:
+    left = start
+    while left > 0 and script[left - 1] not in VISUAL_PHRASE_BOUNDARIES:
+        left -= 1
+    right = end
+    while right < len(script) and script[right] not in VISUAL_PHRASE_BOUNDARIES:
+        right += 1
+    context = script[left:right].strip()
+    if len(context) <= maximum_length:
+        return context
+    padding = max(0, (maximum_length - (end - start)) // 2)
+    return script[max(left, start - padding) : min(right, end + padding)].strip()
+
+
 def recall_semantic_visual_candidates(
     original_script: str,
     catalog: SemanticVisualCatalog,
@@ -627,7 +743,11 @@ def recall_semantic_visual_candidates(
             start = original_script.find(alias, cursor)
             if start < 0:
                 break
-            matches.append((start, start + len(alias), alias, allowed))
+            end = start + len(alias)
+            if not _alias_is_excluded_compound(
+                original_script, start=start, end=end, alias=alias
+            ):
+                matches.append((start, end, alias, allowed))
             cursor = start + max(1, len(alias))
     matches.sort(key=lambda item: (item[0], -(item[1] - item[0]), item[2]))
 
@@ -657,6 +777,75 @@ def recall_semantic_visual_candidates(
                 "allowed_concepts": allowed_sorted,
             }
         )
+
+    enrichment_concept_ids = {
+        concept_id
+        for asset in catalog.assets
+        if any(str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS for tag in asset.get("tags", []))
+        for concept_id in asset.get("concept_ids", [])
+    }
+    concept_by_id = {str(item["concept_id"]): item for item in catalog.concepts}
+    enrichment_allowed = [
+        {
+            "concept_id": concept_id,
+            "description": str(concept_by_id[concept_id]["description"]),
+        }
+        for concept_id in sorted(enrichment_concept_ids)
+        if concept_id in concept_by_id
+    ][:8]
+    occupied_starts = {int(item["char_start"]) for item in candidates}
+    if enrichment_allowed and len(original_script) >= VISUAL_ENRICHMENT_CHAR_INTERVAL:
+        for target in range(
+            VISUAL_ENRICHMENT_CHAR_INTERVAL,
+            len(original_script),
+            VISUAL_ENRICHMENT_CHAR_INTERVAL,
+        ):
+            if sum(
+                str(item.get("candidate_id") or "").startswith("ve_")
+                for item in candidates
+            ) >= VISUAL_ENRICHMENT_MAX_ANCHORS:
+                break
+            start = target
+            while start < len(original_script) and original_script[start - 1] not in VISUAL_PHRASE_BOUNDARIES:
+                start += 1
+            while start < len(original_script) and (
+                original_script[start].isspace() or original_script[start] in VISUAL_PHRASE_BOUNDARIES
+            ):
+                start += 1
+            if start >= len(original_script) or start in occupied_starts:
+                continue
+            end = start
+            while (
+                end < len(original_script)
+                and end - start < 40
+                and original_script[end] not in VISUAL_PHRASE_BOUNDARIES
+            ):
+                end += 1
+            if end <= start:
+                continue
+            text = original_script[start:end]
+            identity = json.dumps(
+                [
+                    script_sha256,
+                    "enrichment",
+                    start,
+                    end,
+                    [item["concept_id"] for item in enrichment_allowed],
+                ],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            candidates.append(
+                {
+                    "candidate_id": "ve_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+                    "text": text,
+                    "char_start": start,
+                    "char_end": end,
+                    "allowed_concepts": enrichment_allowed,
+                }
+            )
+            occupied_starts.add(start)
+    candidates.sort(key=lambda item: (int(item["char_start"]), int(item["char_end"])))
     return {
         "schema_version": "jyd.visual-analysis.request.v1",
         "original_script": original_script,
@@ -688,14 +877,51 @@ def _character_time_ranges(
     return [(int(item["start_us"]), int(item["end_us"])) for item in timed]
 
 
+def _asr_candidate_time_range(
+    original_script: str,
+    raw_cues: Iterable[object],
+    asr_alignment: Mapping[str, Any] | None,
+    *,
+    start: int,
+    end: int,
+) -> tuple[int, int] | None:
+    if not isinstance(asr_alignment, Mapping) or asr_alignment.get("status") != "SUCCESS":
+        return None
+    raw_ranges = asr_alignment.get("ranges")
+    if not isinstance(raw_ranges, list):
+        return None
+    try:
+        _cues, tokens = script_tokens(original_script, raw_cues)
+        aligned = {
+            int(item["token_index"]): item
+            for item in raw_ranges
+            if isinstance(item, Mapping) and "token_index" in item
+        }
+        overlapping = [
+            token for token in tokens if token.start < end and token.end > start
+        ]
+        if not overlapping or any(token.index not in aligned for token in overlapping):
+            return None
+        first = aligned[overlapping[0].index]
+        last = aligned[overlapping[-1].index]
+        start_us = int(first["start_us"])
+        end_us = int(last["end_us"])
+        if end_us <= start_us:
+            return None
+        return start_us, end_us
+    except (CaptionAlignmentError, KeyError, TypeError, ValueError):
+        return None
+
+
 def map_visual_candidates_to_raw_cues(
     original_script: str,
     candidates: Iterable[Mapping[str, Any]],
     raw_cues: Iterable[object],
     *,
     video_duration_us: int | None = None,
+    asr_alignment: Mapping[str, Any] | None = None,
     cover_offset_us: int = 0,
-    lead_us: int = 120_000,
+    lead_us: int = 0,
     default_duration_us: int = 1_800_000,
 ) -> list[dict[str, Any]]:
     ranges = _character_time_ranges(original_script, raw_cues)
@@ -707,15 +933,51 @@ def map_visual_candidates_to_raw_cues(
             raise SemanticSubtitleMappingError(
                 "VISUAL_CANDIDATE_RANGE_INVALID", "语义图片候选字符范围无效"
             )
-        start_us = max(0, ranges[start][0] - max(0, lead_us)) + max(0, cover_offset_us)
-        duration_us = default_duration_us
+        usage = str(
+            candidate.get("usage")
+            or ("enrichment" if str(candidate.get("candidate_id") or "").startswith("ve_") else "explicit")
+        )
+        precise_range = _asr_candidate_time_range(
+            original_script,
+            raw_cues,
+            asr_alignment,
+            start=start,
+            end=end,
+        )
+        anchor_start_us = precise_range[0] if precise_range else ranges[start][0]
+        anchor_end_us = precise_range[1] if precise_range else ranges[end - 1][1]
+        automatic_lead_us = VISUAL_KEYWORD_LEAD_US if usage == "explicit" else 0
+        start_us = (
+            max(0, anchor_start_us - automatic_lead_us - max(0, lead_us))
+            + max(0, cover_offset_us)
+        )
+        matched_end_us = anchor_end_us + max(0, cover_offset_us)
+        duration_us = min(
+            VISUAL_MAX_AUTO_DURATION_US,
+            max(default_duration_us, matched_end_us - start_us + VISUAL_HOLD_AFTER_MATCH_US),
+        )
         if video_duration_us is not None:
             duration_us = min(duration_us, max(0, int(video_duration_us) - start_us))
         if duration_us <= 0:
             raise SemanticSubtitleMappingError(
                 "VISUAL_TIME_OUT_OF_RANGE", "语义图片映射时间超出视频范围"
             )
-        mapped.append({**dict(candidate), "start_us": start_us, "duration_us": duration_us})
+        mapped.append(
+            {
+                **dict(candidate),
+                "start_us": start_us,
+                "duration_us": duration_us,
+                "matched_end_us": matched_end_us,
+                "video_duration_us": video_duration_us,
+                "phrase_char_start": start,
+                "phrase_text": original_script[start:end],
+                "timing_source": (
+                    "funasr_word_timestamps"
+                    if precise_range is not None
+                    else "minimax_raw_cue_keyword_start"
+                ),
+            }
+        )
     return mapped
 
 
@@ -723,12 +985,27 @@ def _assets_for_media_policy(
     catalog: SemanticVisualCatalog,
     concept_id: str,
     media_policy: str,
+    *,
+    usage: str = "explicit",
 ) -> list[dict[str, Any]]:
     if media_policy not in MEDIA_POLICIES:
         raise ValueError("未知的语义视觉媒体策略")
     available = [
         item for item in catalog.assets if concept_id in item["concept_ids"]
     ]
+    enrichment_assets = [
+        item
+        for item in available
+        if any(
+            str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS
+            for tag in item.get("tags", [])
+        )
+    ]
+    if usage == "enrichment":
+        available = enrichment_assets
+    else:
+        explicit_assets = [item for item in available if item not in enrichment_assets]
+        available = explicit_assets or available
     images = [item for item in available if item["media_type"] == "image"]
     videos = [item for item in available if item["media_type"] == "video"]
     if media_policy == "image_only":
@@ -739,7 +1016,60 @@ def _assets_for_media_policy(
         return images or videos
     if media_policy == "prefer_video":
         return videos or images
-    return available
+    # Motion concepts benefit from actual movement when both media types are
+    # available. Static objects remain image-first. Either branch falls back
+    # locally without adding fields to the model response.
+    return videos + images if concept_id.startswith("activity.") else images + videos
+
+
+def visual_overlay_conflicts(
+    candidate: Mapping[str, Any], selected: Iterable[Mapping[str, Any]]
+) -> bool:
+    """Apply the shared automatic visual-occupancy and density rules."""
+
+    start_us = int(candidate.get("start_us") or 0)
+    duration_us = int(candidate.get("duration_us") or 0)
+    concept_id = str(candidate.get("concept_id") or "")
+    asset_id = str(candidate.get("asset_id") or "")
+    active = [item for item in selected if item.get("enabled") is not False]
+    if any(
+        start_us < int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
+        and int(item.get("start_us") or 0) < start_us + duration_us
+        for item in active
+    ):
+        return True
+    if any(abs(start_us - int(item.get("start_us") or 0)) < 6_000_000 for item in active):
+        return True
+    if sum(abs(start_us - int(item.get("start_us") or 0)) < 60_000_000 for item in active) >= 5:
+        return True
+    if concept_id and any(
+        str(item.get("concept_id") or "") == concept_id
+        and abs(start_us - int(item.get("start_us") or 0)) < 20_000_000
+        for item in active
+    ):
+        return True
+    return bool(
+        asset_id
+        and any(
+            str(item.get("asset_id") or "") == asset_id
+            and abs(start_us - int(item.get("start_us") or 0)) < 20_000_000
+            for item in active
+        )
+    )
+
+
+def validate_visual_occupancy(overlays: Iterable[Mapping[str, Any]]) -> None:
+    """Reject a frozen recipe that would render two semantic visuals at once."""
+
+    enabled = sorted(
+        (item for item in overlays if item.get("enabled") is not False),
+        key=lambda item: int(item.get("start_us") or 0),
+    )
+    for previous, current in zip(enabled, enabled[1:]):
+        if int(current.get("start_us") or 0) < int(previous.get("start_us") or 0) + int(
+            previous.get("duration_us") or 0
+        ):
+            raise ValueError("同一时间只能显示一个语义视觉素材")
 
 
 def build_visual_recipe(
@@ -756,6 +1086,7 @@ def build_visual_recipe(
     for decision in sorted(
         decisions,
         key=lambda item: (
+            1 if str(item.get("usage") or "explicit") == "enrichment" else 0,
             -float(item.get("importance", 0.0) or 0.0),
             -float(item.get("confidence", 0.0) or 0.0),
             mapped.get(str(item.get("candidate_id")), {}).get("start_us", 0),
@@ -768,7 +1099,18 @@ def build_visual_recipe(
         if decision.get("decision") != "SHOW" or confidence < 0.85:
             continue
         concept_id = str(decision.get("concept_id") or "")
-        assets = _assets_for_media_policy(catalog, concept_id, media_policy)
+        usage = str(
+            decision.get("usage")
+            or candidate.get("usage")
+            or (
+                "enrichment"
+                if str(candidate.get("candidate_id") or "").startswith("ve_")
+                else "explicit"
+            )
+        )
+        assets = _assets_for_media_policy(
+            catalog, concept_id, media_policy, usage=usage
+        )
         if not assets:
             continue
         occurrence = sum(
@@ -784,28 +1126,18 @@ def build_visual_recipe(
         asset = assets[occurrence % len(assets)]
         start_us = int(candidate["start_us"])
         duration_us = int(candidate["duration_us"])
-        if any(
-            start_us < item["start_us"] + item["duration_us"]
-            and item["start_us"] < start_us + duration_us
-            for item in selected
-        ):
-            continue
-        if any(abs(start_us - item["start_us"]) < 6_000_000 for item in selected):
-            continue
-        if sum(abs(start_us - item["start_us"]) < 60_000_000 for item in selected) >= 5:
-            continue
-        if any(
-            item["concept_id"] == concept_id
-            and abs(start_us - item["start_us"]) < 20_000_000
-            for item in selected
-        ):
-            continue
-        if any(
-            item["asset_id"] == asset["asset_id"]
-            and abs(start_us - item["start_us"]) < 20_000_000
-            for item in selected
-        ):
-            continue
+        if start_us < VISUAL_OPENING_PROTECTION_US:
+            matched_end_us = int(
+                candidate.get("matched_end_us", start_us + duration_us)
+            )
+            if matched_end_us <= VISUAL_OPENING_PROTECTION_US:
+                continue
+            start_us = VISUAL_OPENING_PROTECTION_US
+            mapped_video_duration_us = candidate.get("video_duration_us")
+            if isinstance(mapped_video_duration_us, int) and mapped_video_duration_us > 0:
+                duration_us = min(duration_us, mapped_video_duration_us - start_us)
+            if duration_us <= 0:
+                continue
         defaults = asset["defaults"]
         resource = asset["resource"]
         media_type = asset["media_type"]
@@ -832,8 +1164,11 @@ def build_visual_recipe(
             "duration_us": duration_us,
             "confidence": confidence,
             "importance": float(decision.get("importance", 0.0) or 0.0),
+            "usage": usage,
             "reason_code": decision.get("reason_code"),
-            "timing_source": "minimax_raw_cue_interpolation",
+            "timing_source": str(
+                candidate.get("timing_source") or "minimax_raw_cue_phrase_start"
+            ),
         }
         if media_type == "video":
             overlay.update(
@@ -844,6 +1179,25 @@ def build_visual_recipe(
                     "fit": defaults["fit"],
                 }
             )
+        if usage == "enrichment":
+            previous_end_us = max(
+                (
+                    int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
+                    for item in selected
+                    if int(item.get("start_us") or 0) < start_us
+                ),
+                default=0,
+            )
+            if start_us - previous_end_us < VISUAL_ENRICHMENT_MIN_GAP_US:
+                continue
+            if sum(
+                str(item.get("usage") or "") == "enrichment"
+                and abs(start_us - int(item.get("start_us") or 0)) < 60_000_000
+                for item in selected
+            ) >= VISUAL_ENRICHMENT_MAX_PER_MINUTE:
+                continue
+        if visual_overlay_conflicts(overlay, selected):
+            continue
         selected.append(overlay)
     selected.sort(key=lambda item: (item["start_us"], item["overlay_id"]))
     return {
@@ -866,6 +1220,12 @@ def frozen_visual_overlays(
         return []
     schema = str(recipe["schema"])
     resolved_root = Path(library_root).expanduser().resolve() if library_root else None
+    current_catalog = None
+    if resolved_root is not None:
+        try:
+            current_catalog = load_semantic_visual_catalog(resolved_root)
+        except SemanticVisualCatalogError:
+            current_catalog = None
     result: list[dict[str, Any]] = []
     for raw in recipe.get("overlays", []):
         if (
@@ -875,6 +1235,34 @@ def frozen_visual_overlays(
         ):
             continue
         overlay = dict(raw)
+        # Product defaults may evolve while a project is still under review.
+        # Refresh only untouched automatic selections; manual/locked recipes remain frozen.
+        if (
+            current_catalog is not None
+            and overlay.get("selection_mode") == "auto"
+            and overlay.get("manual") is not True
+            and overlay.get("locked") is not True
+        ):
+            current_asset = current_catalog.asset(str(overlay.get("asset_id") or ""))
+            if current_asset is not None:
+                defaults = current_asset["defaults"]
+                resource = current_asset["resource"]
+                overlay.update(
+                    {
+                        "asset_name": current_asset["name"],
+                        "preview_url": current_asset["preview_url"],
+                        "media_type": current_asset["media_type"],
+                        "renderer": current_asset["renderer"],
+                        "resource_path": (
+                            resource["bundle"]
+                            if current_asset["media_type"] == "image"
+                            else resource["video"]
+                        ),
+                        "corner": defaults["corner"],
+                        "scale": defaults["scale"],
+                        "opacity": defaults["opacity"],
+                    }
+                )
         if schema == RECIPE_SCHEMA_V2 and resolved_root is not None:
             try:
                 _relative, resource_path = _safe_relative_child(
@@ -896,4 +1284,5 @@ def frozen_visual_overlays(
             else:
                 continue
         result.append(overlay)
+    validate_visual_occupancy(result)
     return result

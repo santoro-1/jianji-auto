@@ -2,7 +2,7 @@
   "schema": "jyd.music_profiles.v1",
   "taxonomy_version": "music-taxonomy.v1",
   "matcher_version": "music-matcher.v1",
-  "profile_version": "2026-08-06.1",
+  "profile_version": "2026-08-09.1",
   "source": {
     "workbook": "AI剪辑音乐标签库_46首.xlsx",
     "workbook_sha256": "52770fb7a6e993a173b17d87a71ea68b8a7a8c787b0e90ef0b3fc16c739a278f",
@@ -22,7 +22,6 @@
     "enabled_and_available",
     "auto_eligible",
     "rights_allowed",
-    "duration_covers_video",
     "forbidden_traits_absent"
   ],
   "profiles": [
@@ -1375,20 +1374,16 @@
       "enabled": true,
       "scenes": [
         "interview_conversation",
-        "health_education",
-        "general_knowledge",
-        "habit_lifestyle",
+        "emotional_story",
         "family_relationship"
       ],
       "content_formats": [
-        "knowledge_explanation",
-        "practical_advice",
         "personal_story",
         "interview"
       ],
       "topics": [
-        "general_health",
-        "family"
+        "family",
+        "emotional_wellbeing"
       ],
       "moods": [
         "warm",
@@ -1411,8 +1406,8 @@
         "亲情抒情"
       ],
       "legacy_scene_scores": {
-        "chicken_soup_persona": 25,
-        "knowledge": 78,
+        "chicken_soup_persona": 75,
+        "knowledge": 25,
         "interview": 95,
         "weight_checkin": 25
       },
@@ -2032,20 +2027,16 @@
       "enabled": true,
       "scenes": [
         "interview_conversation",
-        "health_education",
-        "general_knowledge",
-        "habit_lifestyle",
+        "emotional_story",
         "family_relationship"
       ],
       "content_formats": [
-        "knowledge_explanation",
-        "practical_advice",
         "personal_story",
         "interview"
       ],
       "topics": [
-        "general_health",
-        "family"
+        "family",
+        "emotional_wellbeing"
       ],
       "moods": [
         "warm",
@@ -2068,8 +2059,8 @@
         "轻柔亲情"
       ],
       "legacy_scene_scores": {
-        "chicken_soup_persona": 25,
-        "knowledge": 78,
+        "chicken_soup_persona": 75,
+        "knowledge": 25,
         "interview": 95,
         "weight_checkin": 25
       },

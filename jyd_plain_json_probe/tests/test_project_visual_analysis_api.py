@@ -38,24 +38,47 @@ def test_catalog_analysis_review_and_revision_api() -> None:
     def verify(_client, token):
         return user if token == "center-token" else None
 
-    def analyze(_client, _token, payload, *, force_refresh=False):
+    def analyze(
+        _client,
+        _token,
+        original_script,
+        *,
+        force_refresh=False,
+        visual_context=None,
+    ):
+        anchor = visual_context["anchors"][0]
         return {
-            "schema_version": "jyd.visual-analysis.v1",
-            "analysis_status": "SUCCESS",
-            "script_sha256": payload["script_sha256"],
-            "catalog_version": payload["catalog_version"],
-            "decisions": [
+            "schema_version": "jyd.content-analysis.v1",
+            "prompt_version": "jyd.content-analysis.prompt.v7",
+            "script_sha256": __import__("hashlib").sha256(
+                original_script.encode("utf-8")
+            ).hexdigest(),
+            "script_length": len(original_script),
+            "model": "doubao-test",
+            "overall_status": "SUCCESS",
+            "music_analysis_status": "SUCCESS",
+            "subtitle_analysis_status": "SUCCESS",
+            "visual_analysis_status": "SUCCESS",
+            "music_intent": {"primary_scene": "health_education"},
+            "subtitle_units": [
                 {
-                    "candidate_id": candidate["candidate_id"],
-                    "decision": "SHOW",
-                    "concept_id": candidate["allowed_concepts"][0]["concept_id"],
-                    "usage": "literal",
-                    "importance": 0.9,
-                    "confidence": 0.96,
-                    "reason_code": "LITERAL_CONCRETE_OBJECT",
+                    "start": 0,
+                    "end": len(original_script),
+                    "text": original_script,
+                    "kind": "phrase",
+                    "bind": "none",
+                    "break_after": "allow",
                 }
-                for candidate in payload["candidates"]
             ],
+            "visual_catalog_version": visual_context["catalog_version"],
+            "visual_plan": [
+                {
+                    "anchor_id": anchor["anchor_id"],
+                    "concept_id": anchor["allowed_concepts"][0],
+                    "priority": 2,
+                }
+            ],
+            "errors": {"music": None, "subtitle": None, "visual": None},
             "provider_attempts": 1,
             "cache_hit": False,
             "cacheable": True,
@@ -70,7 +93,7 @@ def test_catalog_analysis_review_and_revision_api() -> None:
             ),
             patch("jyd_probe.auth_center.AuthCenterClient.verify", new=verify),
             patch(
-                "jyd_probe.auth_center.AuthCenterClient.analyze_workbench_visuals",
+                "jyd_probe.auth_center.AuthCenterClient.analyze_workbench_content",
                 new=analyze,
             ),
             TestClient(create_app(settings)) as client,
@@ -97,14 +120,15 @@ def test_catalog_analysis_review_and_revision_api() -> None:
                 json={},
             )
             assert analyzed.status_code == 200, analyzed.text
-            analysis = analyzed.json()["items"][0]["visual_analysis"]
+            analyzed_project = analyzed.json()
+            analysis = analyzed_project["items"][0]["visual_analysis"]
             assert analysis["analysis_status"] == "SUCCESS"
             assert analysis["mapping_status"] == "FAILED"
 
             saved = client.put(
                 f"/api/new/projects/{project['project_id']}/items/{item_id}/visual-overlays",
                 json={
-                    "revision": project["revision"],
+                    "revision": analyzed_project["revision"],
                     "overlays": [
                         {
                             "overlay_id": "vo-manual-api",

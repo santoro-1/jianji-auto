@@ -364,6 +364,7 @@ data/template_library/<template_id>/
 | `JYD_EXECUTION_MODE` | `embedded` 或 `agent` | `embedded` |
 | `JYD_ALLOW_LOCAL_FILE_ACCESS` | 是否允许网页引用本机路径 | 源码单机启动为 `true` |
 | `JYD_AUTH_SERVER_URL` | 统一账户中心地址 | 由部署配置决定 |
+| `JYD_AUTH_TIMEOUT_SECONDS` | 数字人网站普通 API 请求超时 | `15` |
 | `JYD_SHARED_PROCESSOR_URL` | 公用工作台地址 | 空 |
 | `JYD_AGENT_TOKEN` | Agent 接入令牌 | 空 |
 | `JYD_MAX_ACTIVE_JOBS` | 单批最大任务数 | `500` |
@@ -389,9 +390,11 @@ data/template_library/<template_id>/
 - `/api/render`、`/api/render/batch`：单任务和批量任务。
 - `/api/jobs/*`、`/api/batches/*`：状态、结果、重试、取消和下载。
 - `/api/agents/*`：处理机注册、心跳、领取和回传。
-- `/api/new/projects*`：新版统一项目、脚本行、素材版本、状态和可执行操作。
+- `/api/new/projects*`：新版统一项目、脚本行、素材版本、状态和可执行操作；`POST /{id}/items`
+  采用追加语义，已有行进入生成后仍可新增独立草稿行，不得退化为整项目 `PUT inputs`。
 - `/api/new/script-imports/preview`：严格解析两列 `.xlsx`/`.csv` 脚本。
-- `/api/new/projects/{id}/images*`、`image-mapping`：项目图片池、逐行图片版本和后端分配策略。
+- `/api/new/projects/{id}/images*`、`image-mapping`：项目图片池、逐行图片版本和后端分配策略；
+  上传按项目内同名或相同 SHA-256 幂等，删除已分配图片时对非运行行自动改用剩余图片。
 - `/api/new/voices*`、`/api/new/voice-creations*`：当前数字人账号的官方/自定义音色、试听和声音制作。
 - `/api/new/voices/{id}/activate`、`DELETE /api/new/voices/{id}`：显式激活或移除自定义音色卡。
 - `/api/new/projects/{id}/voice`：原子地把已保存音色设为项目默认值并应用到全部脚本行。
@@ -480,14 +483,27 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 脚本只把相应快照置为 `NOT_REQUESTED`，不发起分析。用户点击“生成声音预览和脚本分析”时，前端在
 提交声音任务的同时，对本批声音目标中 `NOT_REQUESTED` 的行调用
 `POST /api/new/projects/{project_id}/content-analysis`；协调器为每个需要分析的
+
 `ProjectItem` 单独调用数字人后端 `/api/workbench/content-analysis`，不会把多条脚本
 拼成一个模型输入。脚本哈希未变化时，声音重生成不会重做文本分析；普通调用跳过已有
 `PENDING`/`SUCCESS`/`PARTIAL`/`FAILED` 尝试，单行显式重试使用 `force_refresh=true`。
-服务端响应在工作台再次核对脚本哈希、长度、分支状态和
-字幕文字完整覆盖后才落盘。刷新重试时，新失败不得覆盖同一脚本此前已经成功的分支。
-项目批量调用最多并发 10 行，失败按行保存并继续。模块 5 不进行字符到时间轴映射或字体
+协调器在同一次请求中加入本地生成的 `visual_context`，只包含 catalog 版本、概念描述和
+原文字符锚点，不含素材路径或时间。服务端响应在工作台再次核对脚本哈希、长度、三个分支
+状态、字幕完整覆盖以及视觉 anchor/concept 后才落盘。刷新重试时，新失败不得覆盖同一脚本
+此前已经成功的内容分支。项目批量调用最多并发 10 行，失败按行保存并继续。模块 5 不进行字符到时间轴映射或字体
 排版；音乐分支成功后会调用 `ProjectMusicSelector.resolve_for_analysis` 产生不依赖音频时长的
 初步 Top1，并通过 `save_item_auto_music_selection` 保存，但不会覆盖显式 manual 设置。
+
+新版工作台把既有多项目能力暴露为批次选择器。`GET /api/new/projects?limit=100` 只用于
+列出当前账号自己的项目，切换时再读取目标项目；“新建批次”只清空浏览器当前视图，原项目
+及素材仍保留。`POST /api/new/projects/{project_id}/items/batch` 在一个事务内校验容量、已有
+任务 ID 和批内重复项，再统一追加 `DRAFT` 行并沿用当前图片映射策略；任何一行失败时全部
+回滚。追加表格不执行模型、MiniMax、RunningHub 或剪映操作。
+
+表格的选择状态只保存在当前浏览器内存，并使用不可见的 `item_id` 调用现有子集接口；界面
+可按显示序号、原 `row_key` 或数字范围快速建立选择。选中统一分析使用 `force_refresh=true`；
+选中声音通过 audio `item_ids`；选中画面通过 composition `item_ids`，已有 `base_video` 的行
+直接进入选中 4B 参数列表。图片、音频或执行条件不足的选中行会在提交付费请求前整体提示。
 
 `semantic_subtitles.py` 负责智能内容分析模块 6。工作台再次拒绝带大模型时间字段、未连续
 覆盖原文或语义属性非法的 `subtitle_units`；MiniMax cue 文本允许省略原文空格/换行，但
@@ -612,7 +628,10 @@ python -m pytest -q .\tests\test_visual_variant.py
 .\scripts\build\build_processor.ps1 -UpdateOnly -CompressionLevel Fastest
 ```
 
-`UpdateOnly` 会排除整个 `data` 目录，适合更新程序且保留目标机账户、任务、素材和配置；它不能用来分发新增素材。
+`UpdateOnly` 只携带受控的官方 `data/libraries/semantic_visual_library` 和
+`data/libraries/audio_library/manifest/music_profiles.v1.json`，可同步语义贴图代码、官方
+贴图素材和音乐语义标签；它不会携带音乐文件、音频素材清单，也不会携带或删除目标机账户、
+任务、配置、个人素材库、其他公共素材库及 ASR 运行时。
 
 完整 Processor 构建会复制 `data/libraries` 中受支持的公共素材和 `data/template_library`。运行实例后来采集的 `data/personal_libraries` 默认属于实例数据，交付前如需预装，必须显式复制并验证 manifest 和 bundle 都存在。
 
@@ -738,20 +757,46 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   底配靛蓝标线和圆点表示输入/操作列，`table-header-output` 使用深青色底配青绿标线和
   圆点表示三个预览输出列；标题栏显示对应图例，只改变表头，不改变正文单元格状态配色。
 
-## 16. 语义前景图片（2026-08-07）
+## 16. 语义视觉图片与视频（2026-08-10）
 
-- `semantic_visuals.py` 负责受控目录校验、内容哈希版本、最长别名召回、稳定字符候选、
-  MiniMax `raw_cues` 时间映射、素材选择和密度规则；本地路径从不发送到云端。
-- `project_visual_analysis.py` 逐行并发（上限 10）调用数字人网站，只接受严格的
-  `jyd.visual-analysis.v1`。脚本、目录、音频或 raw cues 变化会让自动配方失效；人工锁定项
-  保留为待复核，迟到结果需继续匹配脚本、目录和候选集合。
-- 每行 `visual_analysis` 保存语义决策、映射状态和最终 `recipe`。用户保存后条目标记
+- `semantic_visuals.py` 负责受控目录校验、内容哈希版本、最长别名召回、复合词排除、稳定字符
+  候选、FunASR 优先/MiniMax 回退时间映射、素材选择和密度规则；本地路径从不发送到云端。
+- `project_content_analysis.py` 通过既有 `/api/workbench/content-analysis` 一次取得音乐、字幕
+  和 selected-only `visual_plan`；`unified_visual_plan.py` 只把合法 anchor 映射回本地候选。
+  项目 Web 主流程不再调用 `/api/workbench/visual-analysis`，旧客户端方法和独立协调器仅用于
+  兼容测试及迁移期读取。
+- 每行 `visual_analysis` 保存原始三字段计划、兼容决策、映射状态和最终 `recipe`。用户保存后条目标记
   `selection_mode=manual`；重新分析只能保留并尊重锁定人工项。
+- MiniMax raw cues 尚未产生时允许先保存语义计划并将 mapping 标为失败；时间轴到达或变化后，
+  `project_audio.py` 只重新执行本地字符时间映射和冻结配方，不再次调用 Ark。
 - 浏览器播放预览和 `project_postprocess.py` / `project_variants.py` 的 4B 冻结任务读取同一
-  配方。剪映写入独立“语义前景图片”贴纸轨道，单张失败按 optional 跳过。
-- 新版表格把“语义配图”保持在 BGM、字幕的配置区域，并将“单条生成”移到最右侧；审核
+  `mixed` 配方。`image_apply.py` 写入真实 photo 轨道，`video_overlay_apply.py` 写入原生 video
+  material/segment，支持源片截取、静音、循环、cover/contain；单项失败按 optional 跳过。
+- 自动贴图优先使用当前音频绑定的 FunASR 字词时间，在关键词实际发音前 300ms 出现；未完成
+  ASR 时使用 MiniMax raw cue 字符插值回退，不再无条件提前到整个逗号短句开头。持续时间至少
+  覆盖到关键词结束后 400ms，默认 1.8 秒、最长 4 秒。后处理得到精确 ASR 后会只在本地重绑
+  未锁定自动配方，不再次调用 Ark。未人工锁定的自动项在预览和渲染时
+  刷新素材库当前默认资源、位置、缩放和透明度，人工/锁定项保持冻结值。
+- `semantic_visual_library/fixed/nameplate_zhangluo` 是每条视频自动携带的固定人名牌，不新增
+  表格列。渲染任务通过 `fixed_overlays` 在语义图之后写入“固定人名牌”轨道并覆盖完整时长；
+  字幕仍为最高层。`layer_order` 统一保证
+  `下方图片/小窗视频 < 固定人名牌 < 全屏 B-roll < 字幕`；全屏 B-roll 自然覆盖人名牌，不生成
+  隐藏和恢复状态。浏览器使用同一层级和鉴权视频内容接口。
+- 新版表格把“语义视觉”保持在 BGM、字幕的配置区域，并将“单条生成”移到最右侧；审核
   弹窗的“移除本行”只修改当前行配方，不删除素材库文件。全局图库新增、停用和物理删除
   保护规则见 `docs/SEMANTIC_VISUAL_LIBRARY.md`。
+- 只有 catalog 明确标记为空镜/相关素材的 asset 才产生 enrichment 锚点；锚点输入显式携带
+  `usage=enrichment` 和所在短语上下文，模型必须返回 priority 2 才允许自动使用，priority 0/1
+  只供审核。明确素材先调度，
+  MiniMax 实际时间轴连续空窗至少 20 秒后才允许补充，每 60 秒最多 2 条。明确触发优先选择
+  非 enrichment 资产，空窗补充只选择带标签资产，两者仍在一次模型调用内完成。
+- 默认库现有 38 张图片和 2 条运动视频：胯下击掌用于明确动作小窗；42.766341 秒腹部核心源片
+  保留整段，通过 `source_start_us=12000000` 截取 5 秒全屏 B-roll。来源固定为
+  `D:\迅雷下载\贴图素材-巧如\贴图1\视频素材\腹部核心燃脂操`，未导入 `爆款动作.mp4`。
+- 人工验收后的口播小窗统一使用 `bottom_center`：食物图默认宽度 78%，动作视频默认宽度
+  61.5%，水平中心为画面中轴。高素材最多显示下方约 37% 并允许底边裁出；全屏 B-roll 规则不变。
+- 本机需要自动操作剪映界面时，固定使用桌面“剪映专业版6.01破”对应的 6.0.1 独立程序，
+  不使用普通“剪映专业版”入口指向的 8.9 版本；用户正在操作电脑时不得抢占界面。
 
 ## 17. 语音标点停顿配方（方案已确认，尚未实施）
 

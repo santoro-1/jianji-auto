@@ -155,6 +155,21 @@ try {
         }
         $ProcessorConfig | ConvertTo-Json | Set-Content -LiteralPath $ProcessorConfigPath -Encoding UTF8
     }
+    if ($UpdateOnly) {
+        $SemanticVisualSource = Join-Path $ProjectRoot "data\libraries\semantic_visual_library"
+        if (-not (Test-Path -LiteralPath $SemanticVisualSource -PathType Container)) {
+            throw "Official semantic visual library was not found: $SemanticVisualSource"
+        }
+        $MusicProfileSource = Join-Path $ProjectRoot "data\libraries\audio_library\manifest\music_profiles.v1.json"
+        if (-not (Test-Path -LiteralPath $MusicProfileSource -PathType Leaf)) {
+            throw "Official music profile manifest was not found: $MusicProfileSource"
+        }
+        New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
+        Copy-Item -LiteralPath $SemanticVisualSource -Destination $LibrariesDir -Recurse -Force
+        $MusicProfileDestination = Join-Path $LibrariesDir "audio_library\manifest"
+        New-Item -ItemType Directory -Path $MusicProfileDestination -Force | Out-Null
+        Copy-Item -LiteralPath $MusicProfileSource -Destination $MusicProfileDestination -Force
+    }
 
     $ToolsDir = Join-Path $DistDir "tools"
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
@@ -177,9 +192,6 @@ try {
         SourceDirectory = $DistDir
         DestinationPath = $ZipPath
         CompressionLevel = $CompressionLevel
-    }
-    if ($UpdateOnly) {
-        $ArchiveArguments.ExcludeTopLevelNames = @("data")
     }
     Write-ReleaseArchive @ArchiveArguments
     Write-Host "Processor build: $DistDir"

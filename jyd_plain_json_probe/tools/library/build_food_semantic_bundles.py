@@ -45,6 +45,32 @@ class FoodAssetSpec:
 
 FOOD_ASSETS = (
     FoodAssetSpec(
+        concept_id="food.vegetable",
+        label="蔬菜",
+        description="作为食物、食材或明确餐食示例出现的蔬菜或青菜",
+        aliases=("绿叶蔬菜", "蔬菜", "青菜"),
+        asset_id="vegetable.market_photo.02",
+        name="真实蔬菜摊",
+        source="贴图1/食物/蔬菜4.jpg",
+        bundle="vegetable_market_photo_02",
+        fit="cover_top_fade",
+        default_corner="bottom_left",
+        default_scale=0.60,
+    ),
+    FoodAssetSpec(
+        concept_id="food.whole_grain",
+        label="粗粮杂粮",
+        description="明确提到粗粮、杂粮、杂粮饭或用全谷杂粮替换部分精米白面",
+        aliases=("杂粮粥", "杂粮饭", "全谷物", "粗粮", "杂粮"),
+        asset_id="whole_grain.multigrain_rice.01",
+        name="真实杂粮饭",
+        source="贴图1/食物/杂粮饭.png",
+        bundle="whole_grain_multigrain_rice_01",
+        fit="cover_top_fade",
+        default_corner="bottom_left",
+        default_scale=0.60,
+    ),
+    FoodAssetSpec(
         concept_id="nutrition.protein",
         label="蛋白质食物",
         description="明确讨论蛋白质、优质蛋白或高蛋白食物集合",
@@ -61,8 +87,8 @@ FOOD_ASSETS = (
     FoodAssetSpec(
         concept_id="nutrition.carbohydrate",
         label="优质碳水",
-        description="明确讨论碳水化合物、优质碳水或主食集合",
-        aliases=("碳水化合物", "优质碳水", "主食", "碳水"),
+        description="明确讨论碳水化合物或优质碳水；不因泛指主食而触发",
+        aliases=("碳水化合物", "优质碳水", "碳水"),
         asset_id="carbohydrate.quality_guide.01",
         name="优质碳水指南",
         source="贴图1/食物/优质碳水.jpg",
@@ -184,10 +210,10 @@ FOOD_ASSETS = (
         asset_id="cucumber.salad.01",
         name="凉拌黄瓜",
         source="贴图1/食物/黄瓜3.jpg",
-        bundle="cucumber_salad_01",
-        fit="cover",
-        default_corner="top_right",
-        default_scale=0.25,
+        bundle="cucumber_salad_lower_fade_02",
+        fit="cover_top_fade",
+        default_corner="bottom_left",
+        default_scale=0.60,
     ),
     FoodAssetSpec(
         concept_id="food.fruit",
@@ -228,7 +254,7 @@ def _read_image(path: Path) -> np.ndarray:
 
 
 def normalize_image(image: np.ndarray, fit: str, size: int = CANVAS_SIZE) -> np.ndarray:
-    if fit not in {"cover", "contain"}:
+    if fit not in {"cover", "contain", "cover_top_fade"}:
         raise ValueError(f"未知图片适配方式：{fit}")
     if image.ndim != 3 or image.shape[2] != 4:
         raise ValueError("normalize_image 需要 BGRA 图片")
@@ -236,7 +262,8 @@ def normalize_image(image: np.ndarray, fit: str, size: int = CANVAS_SIZE) -> np.
     if width <= 0 or height <= 0:
         raise ValueError("图片尺寸无效")
 
-    scale = max(size / width, size / height) if fit == "cover" else min(
+    cover = fit in {"cover", "cover_top_fade"}
+    scale = max(size / width, size / height) if cover else min(
         size / width, size / height
     )
     resized_width = max(1, round(width * scale))
@@ -248,12 +275,20 @@ def normalize_image(image: np.ndarray, fit: str, size: int = CANVAS_SIZE) -> np.
         interpolation=interpolation,
     )
 
-    if fit == "cover":
+    if cover:
         x = max(0, (resized_width - size) // 2)
         y = max(0, (resized_height - size) // 2)
         result = resized[y : y + size, x : x + size]
         if result.shape[:2] != (size, size):
             raise ValueError("cover 裁剪结果尺寸异常")
+        if fit == "cover_top_fade":
+            result = result.copy()
+            fade_height = max(1, round(size * 0.32))
+            ramp = np.linspace(0.0, 1.0, fade_height, dtype=np.float32)
+            source_alpha = result[:fade_height, :, 3].astype(np.float32)
+            result[:fade_height, :, 3] = (
+                source_alpha * ramp[:, np.newaxis]
+            ).astype(np.uint8)
         return result
 
     canvas = np.full((size, size, 4), 255, dtype=np.uint8)

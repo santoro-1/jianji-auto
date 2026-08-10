@@ -96,7 +96,9 @@ def test_analysis_builds_recipe_from_cloud_context_and_local_time(tmp_path: Path
     assert len(visual["decisions"]) == 2
     assert len(visual["recipe"]["overlays"]) == 1
     assert visual["recipe"]["overlays"][0]["concept_id"] == "food.egg"
-    assert visual["recipe"]["overlays"][0]["duration_us"] == 1_800_000
+    overlay = visual["recipe"]["overlays"][0]
+    assert 1_800_000 <= overlay["duration_us"] <= 4_000_000
+    assert overlay["timing_source"] == "minimax_raw_cue_keyword_start"
     assert len(client.calls) == 1
 
 
@@ -181,7 +183,9 @@ def test_raw_cues_change_invalidates_only_automatic_visual_recipe(tmp_path: Path
     )
     visual = changed["items"][0]["visual_analysis"]
 
-    assert visual["analysis_status"] == "NOT_REQUESTED"
+    assert visual["analysis_status"] == "SUCCESS"
+    assert visual["mapping_status"] == "NOT_REQUESTED"
     assert visual["invalidated_reason"] == "AUDIO_OR_RAW_CUES_CHANGED"
+    assert visual["visual_plan"] == []
     assert visual["recipe"]["overlays"] == []
     assert changed["items"][0]["subtitles"]["raw_cues"] == subtitles["raw_cues"]

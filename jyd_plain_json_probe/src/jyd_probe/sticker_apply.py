@@ -30,6 +30,40 @@ def _max_render_index(data: dict[str, Any]) -> int:
     return maximum
 
 
+def _render_index_below_text(data: dict[str, Any]) -> int:
+    """Choose a layer above visual tracks but below the first text layer."""
+
+    non_text_maximum = 0
+    text_indices: list[int] = []
+    tracks = data.get("tracks", [])
+    for track in tracks if isinstance(tracks, list) else []:
+        if not isinstance(track, dict):
+            continue
+        is_text = str(track.get("type") or "") == "text"
+        segments = track.get("segments", [])
+        for segment in segments if isinstance(segments, list) else []:
+            if not isinstance(segment, dict):
+                continue
+            try:
+                render_index = int(segment.get("render_index", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if is_text:
+                text_indices.append(render_index)
+            else:
+                non_text_maximum = max(non_text_maximum, render_index)
+    if not text_indices:
+        return non_text_maximum + 1
+    first_text_index = min(text_indices)
+    if non_text_maximum < first_text_index:
+        return non_text_maximum + 1
+    # Legacy drafts normally reserve a wide range before text (for example
+    # visual effects around 11000 and captions around 14000).  If a custom
+    # draft does not, keep the semantic image below text without renumbering
+    # user-authored tracks.
+    return max(0, first_text_index - 1)
+
+
 def add_fullscreen_sticker_to_data(
     data: dict[str, Any],
     sticker_json_path: str | Path,
@@ -43,6 +77,7 @@ def add_fullscreen_sticker_to_data(
     opacity: float = 1.0,
     track_name: str = "",
     inside_canvas: bool = False,
+    render_below_text: bool = False,
 ) -> int:
     metadata_path = Path(sticker_json_path).expanduser().resolve()
     if not metadata_path.is_file():
@@ -88,7 +123,11 @@ def add_fullscreen_sticker_to_data(
         raise ValueError("贴纸透明度必须在 0 到 1 之间")
     segment_copy["id"] = _new_id()
     segment_copy["material_id"] = material_copy["id"]
-    segment_copy["render_index"] = _max_render_index(data) + 1
+    segment_copy["render_index"] = (
+        _render_index_below_text(data)
+        if render_below_text
+        else _max_render_index(data) + 1
+    )
     segment_copy["global_alpha"] = float(opacity)
     segment_copy["target_timerange"] = {
         "start": start_us,
@@ -127,8 +166,7 @@ def add_fullscreen_sticker_to_data(
             )
     elif scale != 1.0 or rotation != 0.0:
         _update_clip_transform(segment_copy, scale=scale, rotation=rotation)
-    tracks.append(
-        {
+    new_track = {
             "id": _new_id(),
             "is_default_name": True,
             "name": str(track_name or "").strip()
@@ -140,7 +178,18 @@ def add_fullscreen_sticker_to_data(
             "segments": [segment_copy],
             "type": "sticker",
         }
-    )
+    if render_below_text:
+        text_track_index = next(
+            (
+                index
+                for index, track in enumerate(tracks)
+                if isinstance(track, dict) and track.get("type") == "text"
+            ),
+            len(tracks),
+        )
+        tracks.insert(text_track_index, new_track)
+    else:
+        tracks.append(new_track)
     return 1
 
 

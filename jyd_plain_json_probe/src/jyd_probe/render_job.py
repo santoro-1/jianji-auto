@@ -11,6 +11,7 @@ from .content_replace import (
     AudioSegmentReplacement,
     ContentReplaceJob,
     EffectAddition,
+    ImageAddition,
     NamedAudioReplacement,
     NestedTextStylePresetReplacement,
     NestedVideoReplacement,
@@ -21,6 +22,7 @@ from .content_replace import (
     TextStylePresetReplacement,
     TextTemplateAddition,
     VideoSegmentReplacement,
+    VideoOverlayAddition,
     run_content_replace_job,
 )
 from .cli import load_plain_draft_json
@@ -142,7 +144,9 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         timeline_duration_us=source_timeline_duration_us,
     )
     sticker_additions = _build_sticker_additions(config)
-    sticker_additions.extend(_build_visual_overlay_additions(config))
+    image_additions = _build_visual_overlay_additions(config)
+    image_additions.extend(_build_fixed_overlay_additions(config))
+    video_overlay_additions = _build_visual_video_additions(config)
     visual_variant = _build_visual_variant(config)
     cover = _build_cover(config, source_data)
 
@@ -165,6 +169,8 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         audio_additions=audio_additions,
         effect_additions=effect_additions,
         sticker_additions=sticker_additions,
+        image_additions=image_additions,
+        video_overlay_additions=video_overlay_additions,
         visual_variant=visual_variant,
         cover=cover,
         original_video_volume=_optional_volume(config),
@@ -769,10 +775,13 @@ def _build_audio_replacements(
         source_duration_us = int(_value(item, "source_duration_us", default=0))
         target_start_us = int(_value(item, "target_start_us", "start_us", default=0))
         target_duration_us = int(_value(item, "target_duration_us", "duration_us", default=0))
+        fit_to_video = _as_bool(
+            _value(item, "fit_to_video", "fit_to_timeline", default=False)
+        )
         if (
             mode in ("add", "bgm")
             and target_duration_us <= 0
-            and _as_bool(_value(item, "fit_to_video", "fit_to_timeline", default=False))
+            and fit_to_video
         ):
             target_duration_us = max(0, timeline_duration_us - max(0, target_start_us))
         source_start_us, source_duration_us = _normalise_audio_source_timerange(
@@ -792,6 +801,14 @@ def _build_audio_replacements(
                     target_start_us=target_start_us,
                     target_duration_us=target_duration_us,
                     volume=volume,
+                    loop_to_target=_as_bool(
+                        _value(
+                            item,
+                            "loop_to_target",
+                            "loop_to_video",
+                            default=(mode == "bgm" and fit_to_video),
+                        )
+                    ),
                 )
             )
         elif mode == "replace-segment":
@@ -894,18 +911,24 @@ def _build_sticker_additions(config: Mapping[str, Any]) -> list[StickerAddition]
 
 def _build_visual_overlay_additions(
     config: Mapping[str, Any],
-) -> list[StickerAddition]:
-    additions: list[StickerAddition] = []
+) -> list[ImageAddition]:
+    additions: list[ImageAddition] = []
     for item in _list_config(
         _value(config, "visual_overlays", default=None), "visual_overlays"
     ):
         if not _as_bool(_value(item, "enabled", default=True)):
             continue
+        if str(_value(item, "media_type", default="image")) == "video":
+            continue
         bundle_text = str(_value(item, "bundle_path", default="")).strip()
         if not bundle_text:
             continue
         bundle_path = Path(bundle_text).expanduser().resolve()
-        sticker_json_path = bundle_path / "sticker.json" if bundle_path.is_dir() else bundle_path
+        image_path = (
+            bundle_path / "resources" / "sticker" / "singleImage.png"
+            if bundle_path.is_dir()
+            else bundle_path
+        )
         opacity = float(_value(item, "opacity", default=1.0))
         scale = float(_value(item, "scale", default=1.0))
         if not 0.0 <= opacity <= 1.0:
@@ -914,17 +937,98 @@ def _build_visual_overlay_additions(
             raise ValueError("语义贴图缩放必须大于 0 且不超过 2")
         corner = str(_value(item, "corner", default=""))
         additions.append(
-            StickerAddition(
-                sticker_json_path=sticker_json_path,
+            ImageAddition(
+                image_path=image_path,
                 start_us=int(_value(item, "start_us", default=0)),
                 duration_us=int(_value(item, "duration_us", default=1_800_000)),
                 corner="" if corner == "center" else corner,
-                visible_ratio=0.5,
                 scale=scale,
                 opacity=opacity,
                 track_name="语义前景图片",
                 optional=True,
-                inside_canvas=True,
+                render_below_text=True,
+                layer_order=10,
+            )
+        )
+    return additions
+
+
+def _build_visual_video_additions(
+    config: Mapping[str, Any],
+) -> list[VideoOverlayAddition]:
+    additions: list[VideoOverlayAddition] = []
+    for item in _list_config(
+        _value(config, "visual_overlays", default=None), "visual_overlays"
+    ):
+        if not _as_bool(_value(item, "enabled", default=True)):
+            continue
+        if str(_value(item, "media_type", default="image")) != "video":
+            continue
+        video_text = str(_value(item, "video_path", default="")).strip()
+        if not video_text:
+            continue
+        corner = str(_value(item, "corner", default="center"))
+        scale = float(_value(item, "scale", default=1.0))
+        fullscreen = corner == "center" and scale >= 0.95
+        additions.append(
+            VideoOverlayAddition(
+                video_path=Path(video_text).expanduser().resolve(),
+                start_us=int(_value(item, "start_us", default=0)),
+                duration_us=int(_value(item, "duration_us", default=1_800_000)),
+                source_start_us=int(_value(item, "source_start_us", default=0)),
+                mute=_as_bool(_value(item, "mute", default=True)),
+                loop=_as_bool(_value(item, "loop", default=False)),
+                fit=str(_value(item, "fit", default="cover")),
+                corner=corner,
+                scale=scale,
+                opacity=float(_value(item, "opacity", default=1.0)),
+                track_name="全屏 B-roll" if fullscreen else "语义前景视频",
+                optional=True,
+                render_below_text=True,
+                layer_order=30 if fullscreen else 10,
+            )
+        )
+    return additions
+
+
+def _build_fixed_overlay_additions(
+    config: Mapping[str, Any],
+) -> list[ImageAddition]:
+    """Build automatic branding layers after semantic images and below captions."""
+
+    additions: list[ImageAddition] = []
+    for item in _list_config(
+        _value(config, "fixed_overlays", default=None), "fixed_overlays"
+    ):
+        if not _as_bool(_value(item, "enabled", default=True)):
+            continue
+        bundle_text = str(_value(item, "bundle_path", default="")).strip()
+        if not bundle_text:
+            continue
+        bundle_path = Path(bundle_text).expanduser().resolve()
+        image_path = (
+            bundle_path / "resources" / "sticker" / "singleImage.png"
+            if bundle_path.is_dir()
+            else bundle_path
+        )
+        opacity = float(_value(item, "opacity", default=1.0))
+        scale = float(_value(item, "scale", default=0.5))
+        if not 0.0 <= opacity <= 1.0:
+            raise ValueError("固定前景透明度必须在 0.0 到 1.0 之间")
+        if scale <= 0.0 or scale > 2.0:
+            raise ValueError("固定前景缩放必须大于 0 且不超过 2")
+        additions.append(
+            ImageAddition(
+                image_path=image_path,
+                start_us=int(_value(item, "start_us", default=0)),
+                duration_us=int(_value(item, "duration_us", default=0)),
+                corner=str(_value(item, "corner", default="middle_left")),
+                scale=scale,
+                opacity=opacity,
+                track_name=str(_value(item, "track_name", default="固定人名牌")),
+                optional=True,
+                render_below_text=True,
+                layer_order=20,
             )
         )
     return additions

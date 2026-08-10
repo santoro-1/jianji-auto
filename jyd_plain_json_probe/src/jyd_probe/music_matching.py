@@ -24,11 +24,11 @@ MUSIC_MATCHER_HARD_FILTERS_V1 = (
     "enabled_and_available",
     "auto_eligible",
     "rights_allowed",
-    "duration_covers_video",
     "forbidden_traits_absent",
 )
-RECENT_USE_PENALTY = 3.0
-MAX_RECENT_USE_PENALTY = 12.0
+RECENT_USE_PENALTY = 0.75
+MAX_RECENT_USE_PENALTY = 2.25
+RECENCY_CANDIDATE_SCORE_GAP = 4.0
 
 SCENES = {
     "health_education", "nutrition_food", "weight_management",
@@ -427,10 +427,6 @@ class MusicProfileMatcher:
             if not profile["rights_allowed"]:
                 filter_counts["rights_allowed"] += 1
                 continue
-            duration_us = int(asset.get("duration_us") or 0)
-            if duration_us < video_duration_us:
-                filter_counts["duration_covers_video"] += 1
-                continue
             if avoid_traits.intersection(profile["traits"]):
                 filter_counts["forbidden_traits_absent"] += 1
                 continue
@@ -442,25 +438,43 @@ class MusicProfileMatcher:
                 raise MusicProfileError("recent_identity_counts 必须使用非负整数")
             breakdown = _score(intent, profile)
             before_recency = round(sum(breakdown.values()), 4)
-            recency_penalty = min(float(recent_count) * RECENT_USE_PENALTY, MAX_RECENT_USE_PENALTY)
-            final_score = round(max(0.0, before_recency - recency_penalty), 4)
             scored.append(
                 _ScoredProfile(
                     profile=profile,
                     asset=asset,
-                    score=final_score,
+                    score=before_recency,
                     score_before_recency=before_recency,
-                    recency_penalty=recency_penalty,
+                    recency_penalty=0.0,
                     breakdown=breakdown,
                 )
             )
 
         if not scored:
             raise NoEligibleMusicError(
-                "没有音乐同时满足可用、已审核、版权、时长和禁用特征条件"
+                "没有音乐同时满足可用、已审核、版权和禁用特征条件"
+            )
+        semantic_top_score = max(item.score_before_recency for item in scored)
+        rotation_candidates: list[_ScoredProfile] = []
+        for item in scored:
+            if semantic_top_score - item.score_before_recency > RECENCY_CANDIDATE_SCORE_GAP:
+                continue
+            recent_count = recent_counts.get(item.profile["identity"], 0)
+            recency_penalty = min(
+                float(recent_count) * RECENT_USE_PENALTY,
+                MAX_RECENT_USE_PENALTY,
+            )
+            rotation_candidates.append(
+                _ScoredProfile(
+                    profile=item.profile,
+                    asset=item.asset,
+                    score=round(max(0.0, item.score_before_recency - recency_penalty), 4),
+                    score_before_recency=item.score_before_recency,
+                    recency_penalty=recency_penalty,
+                    breakdown=item.breakdown,
+                )
             )
         selected = sorted(
-            scored,
+            rotation_candidates,
             key=lambda item: (
                 -item.score,
                 -CONFIDENCE_ORDER[item.profile["source_confidence"]],
@@ -481,5 +495,8 @@ class MusicProfileMatcher:
             "profile_version": snapshot["profile_version"],
             "profile_hash": snapshot["profile_hash"],
             "eligible_count": len(scored),
+            "rotation_candidate_count": len(rotation_candidates),
+            "semantic_top_score": semantic_top_score,
+            "rotation_score_gap": RECENCY_CANDIDATE_SCORE_GAP,
             "filtered_counts": filter_counts,
         }

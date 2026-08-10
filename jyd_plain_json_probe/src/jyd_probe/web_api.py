@@ -44,7 +44,6 @@ from .logging_config import log_event
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
-from .project_visual_analysis import ProjectVisualAnalysisCoordinator
 from .project_composition import ProjectCompositionCoordinator
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
@@ -54,7 +53,7 @@ from .project_results import ProjectResultLibrary
 from .project_variants import ProjectVariantCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
-from .semantic_visuals import load_semantic_visual_catalog
+from .semantic_visuals import FIXED_NAMEPLATE_BUNDLE, load_semantic_visual_catalog
 from .subtitles import (
     build_caption_cues,
     caption_cues_from_payload,
@@ -2006,6 +2005,22 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except (TypeError, ValueError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.put("/api/new/projects/{project_id}/digital-human-settings")
+    def update_new_project_digital_human_settings(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.set_digital_human_resolution(
+                user["user_id"],
+                project_id,
+                resolution=str(payload.get("resolution") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.patch("/api/new/projects/{project_id}/items/{item_id}")
     def update_new_project_item(
         project_id: str,
@@ -2147,6 +2162,43 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.post("/api/new/projects/{project_id}/items", status_code=201)
+    def append_new_project_item(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.append_item(
+                user["user_id"],
+                project_id,
+                row_key=str(payload.get("row_key") or ""),
+                script_text=str(payload.get("script_text") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/items/batch", status_code=201)
+    def append_new_project_items(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.append_items(
+                user["user_id"],
+                project_id,
+                items=(
+                    payload.get("items")
+                    if isinstance(payload.get("items"), list)
+                    else []
+                ),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.delete("/api/new/projects/{project_id}")
     def delete_new_project(project_id: str, request: Request) -> dict[str, Any]:
         user = current_project_user(request)
@@ -2178,6 +2230,18 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         safe_name = _safe_filename(original_filename or f"image{detected_suffix}")
+        digest = hashlib.sha256(content).hexdigest()
+        try:
+            duplicate = project_store.find_input_image_duplicate(
+                owner_user_id=user["user_id"],
+                project_id=project_id,
+                filename=safe_name,
+                sha256=digest,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        if duplicate is not None:
+            return duplicate
         stem = Path(safe_name).stem[:120] or "image"
         stored_filename = f"{uuid.uuid4().hex}_{stem}{detected_suffix}"
         directory = settings.storage_root / "new_projects" / project_id / "input_images"
@@ -2191,7 +2255,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 filename=safe_name,
                 content_type=content_type,
                 size_bytes=len(content),
-                sha256=hashlib.sha256(content).hexdigest(),
+                sha256=digest,
                 managed_path=str(path),
             )
         except KeyError as exc:
@@ -2284,6 +2348,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             client,
             storage_root=settings.storage_root,
             max_audio_bytes=settings.max_audio_upload_bytes,
+            visual_catalog=semantic_visual_catalog,
         )
 
     def project_content_analysis_coordinator(
@@ -2302,16 +2367,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             music_selector=ProjectMusicSelector(
                 MusicProfileMatcher(settings.audio_library_root), available_bgm
             ),
-        )
-
-    def project_visual_analysis_coordinator(
-        client: AuthCenterClient,
-    ) -> ProjectVisualAnalysisCoordinator:
-        return ProjectVisualAnalysisCoordinator(
-            project_store,
-            client,
-            semantic_visual_catalog,
-            max_concurrency=10,
+            visual_catalog=semantic_visual_catalog,
         )
 
     @app.get("/api/new/semantic-visuals/catalog")
@@ -2329,6 +2385,30 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         preview_type = mimetypes.guess_type(preview_path.name)[0] or "application/octet-stream"
         return FileResponse(preview_path, media_type=preview_type)
 
+    @app.get("/api/new/semantic-visuals/{asset_id}/content")
+    def new_semantic_visual_content(asset_id: str, request: Request) -> FileResponse:
+        current_project_user(request)
+        asset = semantic_visual_catalog.asset(asset_id)
+        if asset is None or asset.get("media_type") != "video":
+            raise HTTPException(status_code=404, detail="语义视频素材不存在")
+        video_path = Path(asset["resource_path"])
+        video_type = mimetypes.guess_type(video_path.name)[0] or "video/mp4"
+        return FileResponse(video_path, media_type=video_type)
+
+    @app.get("/api/new/fixed-visuals/nameplate/preview")
+    def new_fixed_nameplate_preview(request: Request) -> FileResponse:
+        current_project_user(request)
+        preview_path = (
+            semantic_visual_catalog.root
+            / FIXED_NAMEPLATE_BUNDLE
+            / "resources"
+            / "sticker"
+            / "singleImage.png"
+        ).resolve()
+        if not preview_path.is_file():
+            raise HTTPException(status_code=404, detail="固定人名牌素材不存在")
+        return FileResponse(preview_path, media_type="image/png")
+
     @app.post("/api/new/projects/{project_id}/visual-analysis")
     def analyze_new_project_visuals(
         project_id: str,
@@ -2345,7 +2425,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if type(payload.get("force_refresh", False)) is not bool:
             raise HTTPException(status_code=422, detail="force_refresh 必须是布尔值")
         try:
-            return project_visual_analysis_coordinator(client).analyze(
+            return project_content_analysis_coordinator(client).analyze(
                 user["user_id"],
                 project_id,
                 token,
@@ -2372,7 +2452,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         user = current_project_user(request)
         client, token = digital_human_access(request)
         try:
-            return project_visual_analysis_coordinator(client).analyze(
+            return project_content_analysis_coordinator(client).analyze(
                 user["user_id"],
                 project_id,
                 token,
@@ -2973,6 +3053,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     if isinstance(payload.get("voice_settings"), dict)
                     else {}
                 ),
+                resolution=str(payload.get("resolution") or "1024"),
                 idempotency_key=str(payload.get("idempotency_key") or ""),
                 item_ids=list(item_ids) if item_ids is not None else None,
             )
@@ -3118,6 +3199,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 project_id,
                 token,
                 idempotency_key=str(payload.get("idempotency_key") or ""),
+                resolution=str(payload.get("resolution") or "1024"),
                 runninghub_execution_account_ids=(
                     list(selected_account_ids) if selection_provided else None
                 ),

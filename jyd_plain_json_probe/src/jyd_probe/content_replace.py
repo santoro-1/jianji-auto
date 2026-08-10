@@ -39,6 +39,8 @@ from .cli import (
 )
 from .text_asset_apply import apply_text_effect_to_track, add_text_template_to_data
 from .sticker_apply import add_fullscreen_sticker_to_data
+from .image_apply import add_image_overlay_to_data
+from .video_overlay_apply import add_video_overlay_to_data
 from .draft_compat import normalize_draft_for_legacy_editor
 from .visual_variant import VisualVariant, apply_visual_variant_to_data
 from .cover_apply import (
@@ -348,6 +350,7 @@ class AudioAddition:
     source_duration_us: 从音频截取多长；0 表示默认使用目标时长或音频时长。
     target_start_us: 新音乐在时间线的开始时间，默认 0。
     target_duration_us: 新音乐在时间线持续多久；0 表示使用素材时长。
+    loop_to_target: 音乐短于目标时长时是否循环，并裁切最后一次循环到目标结尾。
     """
 
     media_path: PathLike
@@ -356,6 +359,7 @@ class AudioAddition:
     target_start_us: int = 0
     target_duration_us: int = 0
     volume: float = 1.0
+    loop_to_target: bool = False
 
 
 @dataclass(frozen=True)
@@ -391,6 +395,44 @@ class StickerAddition:
     track_name: str = ""
     optional: bool = False
     inside_canvas: bool = False
+    render_below_text: bool = False
+
+
+@dataclass(frozen=True)
+class ImageAddition:
+    """Add a PNG/JPG as a real photo material on an independent video track."""
+
+    image_path: PathLike
+    start_us: int = 0
+    duration_us: int = 0
+    corner: str = "center"
+    scale: float = 1.0
+    rotation: float = 0.0
+    opacity: float = 1.0
+    track_name: str = "图片贴图"
+    optional: bool = False
+    render_below_text: bool = True
+    layer_order: int = 0
+
+
+@dataclass(frozen=True)
+class VideoOverlayAddition:
+    """Add a semantic video on an independent native video track."""
+
+    video_path: PathLike
+    start_us: int
+    duration_us: int
+    source_start_us: int = 0
+    mute: bool = True
+    loop: bool = False
+    fit: str = "cover"
+    corner: str = "center"
+    scale: float = 1.0
+    opacity: float = 1.0
+    track_name: str = "语义前景视频"
+    optional: bool = False
+    render_below_text: bool = True
+    layer_order: int = 0
 
 
 @dataclass(frozen=True)
@@ -433,6 +475,8 @@ class ContentReplaceJob:
     audio_additions: list[AudioAddition] = field(default_factory=list)
     effect_additions: list[EffectAddition] = field(default_factory=list)
     sticker_additions: list[StickerAddition] = field(default_factory=list)
+    image_additions: list[ImageAddition] = field(default_factory=list)
+    video_overlay_additions: list[VideoOverlayAddition] = field(default_factory=list)
     visual_variant: VisualVariant | None = None
     cover: CoverConfig | None = None
     original_video_volume: float | None = None
@@ -474,6 +518,8 @@ def _has_any_change(job: ContentReplaceJob) -> bool:
         or job.audio_additions
         or job.effect_additions
         or job.sticker_additions
+        or job.image_additions
+        or job.video_overlay_additions
         or job.visual_variant
         or job.cover
         or job.original_video_volume is not None
@@ -573,6 +619,7 @@ def _apply_top_level_changes(
                     audio_target_start_us=item.target_start_us,
                     audio_target_duration_us=item.target_duration_us,
                     audio_volume=item.volume,
+                    audio_loop_to_target=item.loop_to_target,
                 ),
             )
         )
@@ -612,6 +659,8 @@ def _apply_top_level_changes(
         or job.nested_text_style_preset_replacements
         or job.effect_additions
         or job.sticker_additions
+        or job.image_additions
+        or job.video_overlay_additions
         or job.visual_variant
         or job.cover
         or job.original_video_volume is not None
@@ -1658,11 +1707,54 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
                 opacity=item.opacity,
                 track_name=item.track_name,
                 inside_canvas=item.inside_canvas,
+                render_below_text=item.render_below_text,
             )
         except Exception as exc:
             if not item.optional:
                 raise
-            log(f"可选语义贴图已跳过，不影响基础成片: {exc}")
+            log(f"可选前景贴图已跳过，不影响基础成片: {exc}")
+
+    visual_additions = sorted(
+        [*job.image_additions, *job.video_overlay_additions],
+        key=lambda item: item.layer_order,
+    )
+    for item in visual_additions:
+        try:
+            if isinstance(item, ImageAddition):
+                changed += add_image_overlay_to_data(
+                    draft,
+                    data,
+                    item.image_path,
+                    start_us=item.start_us,
+                    duration_us=item.duration_us,
+                    corner=item.corner,
+                    scale=item.scale,
+                    rotation=item.rotation,
+                    opacity=item.opacity,
+                    track_name=item.track_name,
+                    render_below_text=item.render_below_text,
+                )
+            else:
+                changed += add_video_overlay_to_data(
+                    draft,
+                    data,
+                    item.video_path,
+                    start_us=item.start_us,
+                    duration_us=item.duration_us,
+                    source_start_us=item.source_start_us,
+                    mute=item.mute,
+                    loop=item.loop,
+                    fit=item.fit,
+                    corner=item.corner,
+                    scale=item.scale,
+                    opacity=item.opacity,
+                    track_name=item.track_name,
+                    render_below_text=item.render_below_text,
+                )
+        except Exception as exc:
+            if not item.optional:
+                raise
+            log(f"可选语义视觉已跳过，不影响基础成片: {exc}")
 
     if job.cover is not None:
         changed += apply_cover_timeline_offset(data, job.cover)

@@ -14,6 +14,23 @@ def _segment_index(asset: dict[str, Any]) -> int:
         return 0
 
 
+def _segments_bound_to_base_video(
+    base: dict[str, Any], segments: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Discard historical RunningHub segments not used by the current base video."""
+
+    source_task_ids = base.get("external_ref", {}).get("source_task_ids")
+    if not isinstance(source_task_ids, list) or not source_task_ids:
+        return segments
+    bound_task_ids = {str(value) for value in source_task_ids if str(value)}
+    return [
+        asset
+        for asset in segments
+        if str(asset.get("external_ref", {}).get("remote_task_id") or "")
+        in bound_task_ids
+    ]
+
+
 def _base_video_source(item: dict[str, Any]) -> dict[str, Any]:
     outputs = item.get("outputs", {})
     base = outputs.get("base_video")
@@ -63,12 +80,15 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError):
         expected = 0
     segments = sorted(
-        (
+        _segments_bound_to_base_video(
+            base,
+            [
             asset
             for asset in outputs.get("original_video_segments", [])
             if isinstance(asset, dict)
             and asset.get("status") == "READY"
             and asset.get("managed_path")
+            ],
         ),
         key=_segment_index,
     )

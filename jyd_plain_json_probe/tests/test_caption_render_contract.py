@@ -128,6 +128,56 @@ class CaptionRenderContractTest(unittest.TestCase):
         self.assertEqual(speech["media_path"], str(Path("D:/voice.mp3").resolve()))
         self.assertEqual(speech["volume"], 1.0)
 
+    def test_multi_segment_source_ignores_historical_runninghub_segments(self) -> None:
+        item = {
+            "row_key": "6",
+            "outputs": {
+                "base_video": {
+                    "managed_path": "D:/base-current.mp4",
+                    "metadata": {"segment_count": 2},
+                    "external_ref": {"source_task_ids": ["current-1", "current-2"]},
+                },
+                "original_video_segments": [
+                    {
+                        "status": "READY",
+                        "managed_path": "D:/historical-1.mp4",
+                        "external_ref": {"video_index": 1, "remote_task_id": "old-1"},
+                        "metadata": {"start_seconds": 0, "end_seconds": 1},
+                    },
+                    {
+                        "status": "READY",
+                        "managed_path": "D:/historical-2.mp4",
+                        "external_ref": {"video_index": 2, "remote_task_id": "old-2"},
+                        "metadata": {"start_seconds": 1, "end_seconds": 2},
+                    },
+                    {
+                        "status": "READY",
+                        "managed_path": "D:/current-2.mp4",
+                        "external_ref": {"video_index": 2, "remote_task_id": "current-2"},
+                        "metadata": {"start_seconds": 1.25, "end_seconds": 3},
+                    },
+                    {
+                        "status": "READY",
+                        "managed_path": "D:/current-1.mp4",
+                        "external_ref": {"video_index": 1, "remote_task_id": "current-1"},
+                        "metadata": {"start_seconds": 0, "end_seconds": 1.25},
+                    },
+                ],
+            },
+        }
+
+        source = build_project_video_source(item)
+
+        self.assertEqual(source["type"], "video_sequence")
+        self.assertEqual(
+            [entry["media_path"] for entry in source["items"]],
+            [str(Path("D:/current-1.mp4").resolve()), str(Path("D:/current-2.mp4").resolve())],
+        )
+        self.assertEqual(
+            [entry["target_duration_us"] for entry in source["items"]],
+            [1_250_000, 1_750_000],
+        )
+
     def test_real_draft_keeps_sequence_as_two_main_track_segments(self) -> None:
         import cv2
         import numpy as np

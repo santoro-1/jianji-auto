@@ -4,12 +4,14 @@ from collections import defaultdict
 import hashlib
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 import uuid
 
 from .auth_center import AuthCenterClient
 from .project_store import ProjectStore
 from .logging_config import log_event
+from .semantic_visuals import SemanticVisualCatalog
+from .unified_visual_plan import remap_saved_visual_plan
 
 
 REMOTE_AUDIO_ACTIVE = {
@@ -26,8 +28,10 @@ logger = logging.getLogger("jyd_probe.workbench")
 
 def _current_audio_links(
     links: list[dict[str, Any]],
+    *,
+    active_item_ids: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    """Select only the newest remote audio item link for each project item."""
+    """Select newest remote links, optionally limited to locally active items."""
 
     newest_by_item: dict[str, dict[str, Any]] = {}
     for link in links:
@@ -35,6 +39,10 @@ def _current_audio_links(
             link.get("system") == "runninghub"
             and link.get("relation") == "digital_human_audio_item"
             and link.get("item_id")
+            and (
+                active_item_ids is None
+                or str(link["item_id"]) in active_item_ids
+            )
         ):
             newest_by_item[str(link["item_id"])] = link
     current_items = {
@@ -79,6 +87,16 @@ def _speech_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _digital_human_resolution(value: Any) -> str:
+    resolution = str(value or "1024").strip()
+    try:
+        if int(resolution) <= 0:
+            raise ValueError
+    except (TypeError, ValueError) as exc:
+        raise ValueError("数字人最长边分辨率必须是正整数") from exc
+    return resolution
+
+
 class ProjectAudioCoordinator:
     """Orchestrate real MiniMax audio while keeping project state local."""
 
@@ -89,11 +107,13 @@ class ProjectAudioCoordinator:
         *,
         storage_root: Path,
         max_audio_bytes: int,
+        visual_catalog: SemanticVisualCatalog | None = None,
     ) -> None:
         self.store = store
         self.client = client
         self.storage_root = Path(storage_root).resolve()
         self.max_audio_bytes = int(max_audio_bytes)
+        self.visual_catalog = visual_catalog
 
     def start(
         self,
@@ -104,6 +124,7 @@ class ProjectAudioCoordinator:
         default_voice_asset_id: str,
         voice_assignments: dict[str, str] | None,
         settings: dict[str, Any] | None,
+        resolution: str = "1024",
         idempotency_key: str,
         item_ids: list[str] | None = None,
     ) -> dict[str, Any]:
@@ -155,6 +176,7 @@ class ProjectAudioCoordinator:
             raise ValueError("默认声音不属于当前数字人账号")
         assignments = voice_assignments if isinstance(voice_assignments, dict) else {}
         speech = _speech_settings(settings)
+        digital_human_resolution = _digital_human_resolution(resolution)
         self.store.set_voice_preferences(
             owner_user_id,
             default_voice_asset_id=default_voice,
@@ -228,6 +250,7 @@ class ProjectAudioCoordinator:
                 payload={
                     "voice_asset_id": voice_id,
                     "speech_settings": speech,
+                    "resolution": digital_human_resolution,
                     "script_sha256": script_hash,
                     "script_length": len(str(item["script_text"])),
                 },
@@ -258,6 +281,7 @@ class ProjectAudioCoordinator:
                         # task id and does not couple TTS to video generation.
                         "request_key": f"workbench-audio-{request_digest}",
                         "correlation_id": correlation_id,
+                        "resolution": digital_human_resolution,
                         "rows": rows,
                         "speech_options": {
                             **speech,
@@ -362,7 +386,14 @@ class ProjectAudioCoordinator:
         self, owner_user_id: str, project_id: str, token: str
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
-        batch_links, item_links = _current_audio_links(project["links"])
+        active_item_ids = {
+            str(item["item_id"])
+            for item in project["items"]
+            if item.get("status") in {"AUDIO_QUEUED", "AUDIO_RUNNING"}
+        }
+        batch_links, item_links = _current_audio_links(
+            project["links"], active_item_ids=active_item_ids
+        )
         local_by_item = {item["item_id"]: item for item in project["items"]}
         for batch_link in batch_links:
             remote = self.client.get_workbench_audio_batch(
@@ -451,7 +482,7 @@ class ProjectAudioCoordinator:
                         captions = remote_item.get("captions")
                         if isinstance(captions, dict):
                             cues = captions.get("cues")
-                            self.store.set_item_subtitles(
+                            updated = self.store.set_item_subtitles(
                                 owner_user_id,
                                 project_id,
                                 local_item_id,
@@ -466,6 +497,23 @@ class ProjectAudioCoordinator:
                                     "overflow_risk": False,
                                 },
                             )
+                            if self.visual_catalog is not None:
+                                updated_item = next(
+                                    (
+                                        value
+                                        for value in updated.get("items", [])
+                                        if value.get("item_id") == local_item_id
+                                    ),
+                                    None,
+                                )
+                                if isinstance(updated_item, Mapping):
+                                    remap_saved_visual_plan(
+                                        self.store,
+                                        owner_user_id=owner_user_id,
+                                        project_id=project_id,
+                                        item=updated_item,
+                                        catalog=self.visual_catalog,
+                                    )
                         project = self.store.get_project(owner_user_id, project_id)
                         local_by_item = {item["item_id"]: item for item in project["items"]}
                     self.store.transition_audio_operation(

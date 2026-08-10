@@ -75,6 +75,16 @@ def test_normalize_image_supports_cover_and_contain() -> None:
     assert tuple(contain[0, 0]) == (255, 255, 255, 255)
 
 
+def test_normalize_image_supports_lower_half_top_fade() -> None:
+    image = np.full((100, 200, 4), (10, 20, 30, 255), dtype=np.uint8)
+
+    blended = normalize_image(image, "cover_top_fade")
+
+    assert blended.shape == (CANVAS_SIZE, CANVAS_SIZE, 4)
+    assert blended[0, CANVAS_SIZE // 2, 3] == 0
+    assert blended[CANVAS_SIZE // 2, CANVAS_SIZE // 2, 3] == 255
+
+
 def test_builder_generates_staging_bundle_and_catalog_patch(tmp_path: Path) -> None:
     source_root = tmp_path / "素材"
     source_path = source_root / "中文目录" / "测试图片.jpg"

@@ -16,7 +16,7 @@ from .project_postprocess import (
     CAPTION_STROKE_COLOR,
     CAPTION_STROKE_WIDTH,
 )
-from .semantic_visuals import frozen_visual_overlays
+from .semantic_visuals import fixed_nameplate_overlay, frozen_visual_overlays
 
 
 VARIANT_OPERATION_TYPES = {
@@ -884,6 +884,9 @@ class ProjectVariantCoordinator:
         job["visual_overlays"] = frozen_visual_overlays(
             item, library_root=self.semantic_visual_library_root
         )
+        job["fixed_overlays"] = [
+            fixed_nameplate_overlay(self.semantic_visual_library_root)
+        ]
         return {
             "job": job,
             "font_identity": font_identity or None,

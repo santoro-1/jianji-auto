@@ -176,7 +176,8 @@ def apply_cover_timeline_offset(data: dict[str, Any], config: CoverConfig) -> in
     for track in tracks if isinstance(tracks, list) else []:
         if not isinstance(track, dict):
             continue
-        if str(track.get("name", "")).startswith(COVER_TRACK_PREFIX):
+        track_name = str(track.get("name", ""))
+        if track_name.startswith(COVER_TRACK_PREFIX):
             continue
         segments = track.get("segments", [])
         for segment in segments if isinstance(segments, list) else []:

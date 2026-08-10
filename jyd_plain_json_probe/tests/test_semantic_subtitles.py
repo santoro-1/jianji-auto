@@ -266,6 +266,31 @@ def test_soft_comma_does_not_force_an_orphan_short_caption() -> None:
     )
 
 
+def test_enumeration_commas_remain_legal_breaks_after_punctuation_is_hidden() -> None:
+    script = "当你掉秤慢、嘴馋、减不动的时候啊，你就安排吃这十种蔬菜"
+    units = _units(
+        [
+            ("当你掉秤慢、", "phrase", "none", "prefer"),
+            ("嘴馋、", "phrase", "none", "prefer"),
+            ("减不动的时候啊，", "phrase", "none", "prefer"),
+            ("你就安排吃这十种蔬菜", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 6_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert all(not text.endswith("减") for text in texts)
+    assert "嘴馋减" not in "|".join(texts)
+    assert any(text.endswith("嘴馋") for text in texts)
+    assert any(text.startswith("减不动") for text in texts)
+
+
 def test_real_draft_keeps_comma_clauses_and_number_units_intact() -> None:
     script = (
         "我是蹦床世界冠军张雒，退役之后做了十年的健康体重管理，"

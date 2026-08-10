@@ -29,8 +29,8 @@ cd "D:\工作内容\轻盈健\公寓\jyd_plain_json_probe"
 
 该参数只改变生成包内的 `data\processor_config.json`，不会把生产地址写入源码默认配置。
 完整 Processor 包会复制 `data\libraries`，因此包含当前公共音乐、字体及其他素材库；
-`-UpdateOnly` 排除整个 `data`，不能用于本次带素材的首次交付，也不能和
-`-DigitalHumanServerUrl` 同时使用。
+`-UpdateOnly` 只额外携带受控的官方 `data\libraries\semantic_visual_library`，不会携带
+ASR、用户任务、账户、配置或个人素材库，也不能和 `-DigitalHumanServerUrl` 同时使用。
 
 脚本默认保留 PyInstaller 分析缓存，并使用 `Fastest` ZIP 压缩。输出为：
 
@@ -68,7 +68,8 @@ release\JianyingRenderServer-windows-x64.zip
 release\JianyingRenderServer-update-windows-x64.zip
 ```
 
-先关闭处理服务器，把更新包解压到原来的 `JianyingRenderServer` 目录并覆盖同名程序文件。更新包不包含 `data`，因此不会覆盖素材库、模板、任务和登录数据。
+先关闭处理服务器，把更新包解压到原来的 `JianyingRenderServer` 目录并覆盖同名文件。更新包
+会合并更新官方语义贴图目录，但不会删除或覆盖模板、任务、登录数据、配置和其他素材库。
 
 如果服务器和采集器代码都修改了：
 

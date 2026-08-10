@@ -38,6 +38,7 @@ POST /api/new/script-imports/preview?filename=脚本.xlsx
 
 ```text
 PUT    /api/new/projects/{project_id}/inputs
+POST   /api/new/projects/{project_id}/items
 PATCH  /api/new/projects/{project_id}/items/{item_id}
 DELETE /api/new/projects/{project_id}/items/{item_id}
 DELETE /api/new/projects/{project_id}
@@ -45,10 +46,17 @@ DELETE /api/new/projects/{project_id}
 
 `PUT inputs` 在一个数据库事务内完成 ID、脚本内容和顺序的整体替换，失败时保留更新前
 数据。只有全部脚本行仍为 `DRAFT` 才能整体替换输入；清除项目也只允许尚未进入生成流程的
-草稿。单行删除允许草稿、失败或已完成任务，但禁止删除正在执行内容分析、声音、画面、后期
+草稿。`POST items` 只追加一条新的 `DRAFT` 行，不改写已有行，因此已有声音或视频版本时仍可
+用“添加分段”继续增加测试脚本；若项目已有图片池，新行按当前映射策略取得图片。单行删除允许
+草稿、失败或已完成任务，但禁止删除正在执行内容分析、声音、画面、后期
 或变体异步操作的行。任务可以删到 0 行，之后仍可通过“添加分段”重新创建；删除会级联移除
 该行本地素材版本、操作和外部关联，并清理该行不再被引用的本地生成文件，项目公共图片池
 不受影响。
+
+`POST /api/new/projects/{project_id}/items/batch` 接收 `{ "items": [{ "row_key": "...",
+"script_text": "..." }] }`，用于“追加表格”。项目容量、已有任务 ID、批内重复 ID 和全部
+脚本文字在同一事务中校验，成功后一次追加并按当前图片策略分配；任何一项无效时整批回滚。
+该接口不会替换旧行，也不会启动内容分析或任何付费生成。
 
 智能内容分析模块 5 增加：
 
@@ -77,6 +85,11 @@ POST /api/new/projects/{project_id}/items/{item_id}/content-analysis/retry
 不重新调用 MiniMax/RunningHub/剪映，也不清空 `raw_cues` 或已有音视频。前端在请求发出时立即把
 目标行显示为“AI 分析中”；音乐分支成功后，工作台会用本地标签库预选唯一 Top1 并保存到
 `settings.postprocess`，因此同一次响应即可在背景音乐下拉框显示具体曲目。
+
+工作台对每行先从本地 catalog 召回字符候选，再把不含路径、素材 ID 和时间的
+`visual_context` 随同一条 `/api/workbench/content-analysis` 请求发送。响应中的
+`visual_plan` 每项只有 `anchor_id`、`concept_id`、`priority`；工作台复核引用范围后保存到
+该行 `visual_analysis`，具体素材选择和 MiniMax raw cues 时间绑定仍完全在本地执行。
 
 智能内容分析模块 6 不增加独立外部 API；它在既有
 `POST /api/new/projects/{project_id}/postprocess/generate` 生成浏览器 4B 预览时执行。每个
@@ -143,12 +156,14 @@ PUT    /api/new/projects/{project_id}/items/{item_id}/image
 ```
 
 图片上传使用原始请求体，单张最大 20 MB，只接受内容与扩展名一致的 JPG、PNG、WEBP。
+同一项目内文件名相同（忽略英文大小写）或 SHA-256 内容相同的上传直接返回已有 `image_id`，
+并标记 `deduplicated: true`；不会重复写文件、增加图片池记录或推进项目修订。
 `image-mapping` 由后端按图片上传顺序计算：`count` 表示每张图片连续复用 `reuse_count`
 行，脚本超出后从第一张继续；`loop` 表示每行依次取下一张并循环。最终映射保存为每条
 脚本的 `input_image` 素材版本，页面刷新只读取后端结果。单行替换创建新版本并切换当前
-图片，不覆盖旧版本。考虑到图片由本地工作台管理，只要图片当前没有被任何脚本使用，
-就可以从图片池删除；删除时同时清理对应的旧输入图片版本和本地文件。当前正在使用的
-图片必须先重新分配后才能删除。
+图片，不覆盖旧版本。删除图片时，未在生成的使用行会按当前策略自动换到剩余图片；删除最后
+一张时清空这些行的当前图片并使后续画面结果失效。对应旧输入图片版本和本地文件一并清理。
+若图片仍被正在执行声音、画面、后期或变体任务的行使用，返回 `409`，待该行完成后再删除。
 
 ## 音色与声音生成（模块 3）
 
@@ -170,6 +185,7 @@ GET  /api/new/voice-creations/{task_id}/preview
 
 PUT  /api/new/projects/{project_id}/voice
 PUT  /api/new/projects/{project_id}/items/{item_id}/voice
+PUT  /api/new/projects/{project_id}/digital-human-settings
 POST /api/new/projects/{project_id}/audio/generate
 GET  /api/new/projects/{project_id}/audio/status
 POST /api/new/projects/{project_id}/items/{item_id}/audio/retry
@@ -238,6 +254,12 @@ GET  /api/new/projects/{project_id}/composition/status
 POST /api/new/projects/{project_id}/items/{item_id}/composition/retry
 GET  /api/new/projects/{project_id}/items/{item_id}/base-video
 ```
+
+`digital-human-settings` 当前保存项目级 `resolution`，含义为数字人画面的最长边像素。
+新版页面允许直接输入任意正整数，默认值为 `1024`。修改时会保留历史视频文件，但解除旧分辨率
+基础视频的当前绑定；已生成的 MiniMax 声音继续复用。`audio/generate` 与
+`composition/generate` 都会携带同一项目值，后者负责在真正创建 RunningHub 画面前冻结
+最终分辨率。正在生成的项目不能修改该设置。
 
 启动请求必须包含 `cost_confirmed: true` 和 `idempotency_key`。工作台根据模块 3 保存的
 `digital_human_audio_item` 关联调用数字人后端；前端不取得数字人令牌，也不直接访问
@@ -575,6 +597,7 @@ $env:JYD_ADMIN_COOKIE_SECURE="false"
 $env:JYD_SITE_USERNAME="operator"
 $env:JYD_SITE_PASSWORD="自定义操作员密码"
 $env:JYD_SITE_SESSION_SECRET="请设置长期固定的操作员会话密钥"
+$env:JYD_AUTH_TIMEOUT_SECONDS="15"
 $env:JYD_EXECUTION_MODE="embedded" # 多处理机中央服务改为 agent
 $env:JYD_DATABASE_PATH="D:\JydServer\control.db"
 $env:JYD_AGENT_TOKEN="请设置长期固定的处理机接入令牌"
@@ -920,19 +943,24 @@ Invoke-RestMethod `
 
 返回里的 `plain_json=false` 表示这个草稿可能是高版本加密草稿；导入模板库时会自动调用解密流程。
 
-## 新版工作台语义配图 API（2026-08-07）
+## 新版工作台语义视觉 API（2026-08-10）
 
 - `GET /api/new/semantic-visuals/catalog`：返回公开概念、素材元数据和当前内容哈希版本，不返回
   本地路径。
 - `GET /api/new/semantic-visuals/{asset_id}/preview`：只返回目录内已登记素材的预览图片。
-- `POST /api/new/projects/{project_id}/visual-analysis`：请求体可含 `item_ids` 和
-  `force_refresh`；逐行召回候选并调用云端，最多并发 10。
-- `POST /api/new/projects/{project_id}/visual-analysis/retry`：只重试视觉分支，不调用
-  MiniMax、RunningHub 或剪映。
+- `GET /api/new/semantic-visuals/{asset_id}/content`：鉴权返回已登记视频素材本体，供浏览器静音
+  预览；图片或未知素材返回 404，不暴露本地路径。
+- `GET /api/new/fixed-visuals/nameplate/preview`：鉴权返回工作台内置的张雒人名牌预览；该素材
+  不进入语义 catalog、模型请求或逐行审核列。
+- `POST /api/new/projects/{project_id}/visual-analysis`：仅作为迁移期兼容别名保留；生产前端不再
+  调用该地址，别名内部仍复用统一 content-analysis 协调器，不会调用独立视觉模型接口。
+- `POST /api/new/projects/{project_id}/items/{item_id}/visual-analysis/retry`：迁移期兼容别名，
+  对当前行强制刷新统一内容分析；生产前端改用同一行的 `content-analysis/retry` 地址。
 - `PUT /api/new/projects/{project_id}/items/{item_id}/visual-overlays`：请求体为
-  `revision`、可选 `catalog_version` 和 `overlays`。保存时验证项目修订、素材/概念、左上或
-  右上安全区、时间、缩放、透明度及不重叠，并冻结为人工配方。
+  `revision`、可选 `catalog_version` 和 `overlays`。保存时验证项目修订、素材/概念、画内
+  安全区、时间、缩放、透明度、视频截取参数及统一不重叠约束，并冻结为人工配方。
 
-工作台向数字人网站发送的内部请求为 `jyd.visual-analysis.request.v1`，仅含脚本、SHA-256、
-目录版本和字符候选；响应为 `jyd.visual-analysis.v1`。任何一端都不信任模型返回的时间或
-本地路径。
+工作台主流程向数字人网站发送 `/api/workbench/content-analysis`，本地候选被压缩为
+`visual_context`；响应复用 `jyd.content-analysis.v1` 外包装并增加 `visual_plan`。旧的
+`jyd.visual-analysis.request.v1` / `jyd.visual-analysis.v1` 只作为迁移期兼容接口保留。
+任何一端都不信任模型返回的时间、本地路径或具体素材身份。

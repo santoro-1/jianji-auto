@@ -177,7 +177,7 @@ jyd_plain_json_probe/data/template_library/demo_template/
 
 ```json
 {
-  "type": "add",
+  "type": "bgm",
   "scope": "top",
   "track_name": "auto_title",
   "text": "新的标题",
@@ -238,7 +238,10 @@ jyd_plain_json_probe/data/template_library/demo_template/
 }
 ```
 
-`fit_to_video=true` 且 `target_duration_us=0` 时，BGM 自动覆盖视频剩余时长；如果音乐本身更短，则截到音乐末尾。`volume` 支持 `0.0` 到 `2.0`，网页默认 `0.3`。
+`type=bgm`、`fit_to_video=true` 且 `target_duration_us=0` 时，BGM 自动覆盖视频剩余时长；
+如果音乐本身更短，会在同一音乐轨道连续循环，并把最后一次循环裁切到视频结尾。
+普通 `type=add` 默认仍只播放一次；确实需要循环时可显式传 `loop_to_video=true`。
+`volume` 支持 `0.0` 到 `2.0`，网页默认 `0.3`。
 
 通过 Web API 提交时，`media_path` 还可以替换成以下任意一种引用：
 
@@ -337,26 +340,60 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 
 ## visual_overlays
 
-新版工作台 4B 冻结任务可包含：
+新版工作台 4B 冻结任务可同时包含图片和视频。以下路径不是模型返回值，而是工作台在提交
+渲染前，依据已冻结 recipe 的素材库相对路径解析得到的本机受控路径：
 
 ```json
 {
   "visual_overlays": [
     {
-      "asset_id": "egg.boiled.01",
-      "bundle_path": "受控语义贴纸包路径",
+      "asset_id": "food.egg.boiled.image.01",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "bundle_path": "受控语义图片 bundle 路径",
       "enabled": true,
       "start_us": 500000,
       "duration_us": 1800000,
       "corner": "top_right",
       "scale": 0.28,
       "opacity": 1.0
+    },
+    {
+      "asset_id": "activity.aerobic.core_broll.video.01",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "video_path": "受控语义视频路径",
+      "enabled": true,
+      "start_us": 15000000,
+      "duration_us": 5000000,
+      "source_start_us": 12000000,
+      "corner": "center",
+      "scale": 1.0,
+      "opacity": 1.0,
+      "mute": true,
+      "loop": false,
+      "fit": "cover"
     }
   ]
 }
 ```
 
-字段来自项目已冻结的 `jyd.semantic-visual-recipe.v1`，不是渲染时重新分析。每项写入独立
-“语义前景图片”贴纸轨道，使用画内安全区，随后与其他轨道一起应用封面时间偏移。语义贴图
-为 optional：素材缺失或单项写入失败会跳过该项，不改变语音、字幕、BGM、主视频、总时长
-或已有输出。
+字段来自项目已冻结的 `jyd.semantic-visual-recipe.v2`，不是渲染时重新分析；v1 历史图片配方
+仍可兼容读取。图片 bundle 继续作为可搬迁、可校验的素材容器，渲染时读取
+`resources/sticker/singleImage.png`，写成 `type=photo` 的真实图片素材和独立视频轨道，而不是
+剪映贴纸轨道。视频写成原生 video material/segment，支持目标时间、源片截取、静音、循环、
+`cover/contain`、位置、缩放和透明度。图片和视频使用同一占用表，随后一起应用封面时间偏移。
+两者均为 optional：素材缺失或单项写入失败会跳过该项，不改变语音、字幕、BGM、主视频、
+总时长或已有输出。
+
+口播下方素材默认用 `corner=bottom_center`。当前人工标定值为食物图 `scale=0.78`、动作视频
+`scale=0.615`，水平中心固定在画面中轴；高素材最多显示下方约 37%，允许底边适度裁出。
+`corner=center + scale>=0.95` 仍只表示全屏 B-roll。
+
+项目 4B 和变体任务还会自动带入 `fixed_overlays`。当前固定项为“张雒人名牌”：
+正文时间 `start_us=0`、`duration_us=0`（解析为完整正文草稿时长）、左胸安全区、宽度约为
+画面 46%；
+应用封面偏移后从正文第 1 帧开始，因此封面 3 帧不显示。统一层级从下到上为
+`下方图片/小窗视频 < 固定人名牌 < 全屏 B-roll < 字幕`；全屏 B-roll 通过层级自然覆盖人名牌，
+结束后无需显隐事件即可恢复。人名牌也使用 bundle 内 PNG 写成真实图片视频轨道，同样为
+optional，且不作为表格维度或大模型输入。

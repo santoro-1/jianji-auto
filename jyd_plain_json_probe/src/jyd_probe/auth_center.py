@@ -139,14 +139,18 @@ class AuthCenterClient:
         original_script: str,
         *,
         force_refresh: bool = False,
+        visual_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "access_token": token,
+            "original_script": original_script,
+            "force_refresh": force_refresh,
+        }
+        if visual_context is not None:
+            payload["visual_context"] = visual_context
         return self._post(
             "/api/workbench/content-analysis",
-            {
-                "access_token": token,
-                "original_script": original_script,
-                "force_refresh": force_refresh,
-            },
+            payload,
             timeout_seconds=360.0,
         )
 
@@ -176,6 +180,7 @@ class AuthCenterClient:
         idempotency_key: str,
         image_asset_id: str,
         image_sha256: str,
+        resolution: str = "1024",
         correlation_id: str = "",
         runninghub_execution_account_ids: list[int] | None = None,
     ) -> dict[str, Any]:
@@ -185,6 +190,7 @@ class AuthCenterClient:
             "idempotency_key": idempotency_key,
             "image_asset_id": image_asset_id,
             "image_sha256": image_sha256,
+            "resolution": str(resolution or "1024"),
             "correlation_id": correlation_id,
         }
         if runninghub_execution_account_ids is not None:

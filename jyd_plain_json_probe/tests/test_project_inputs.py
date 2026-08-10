@@ -79,6 +79,37 @@ class ProjectInputsApiTest(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200, response.text)
 
+    def test_project_digital_human_resolution_is_persisted(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "分辨率测试",
+                    "items": [{"row_key": "1", "script_text": "测试脚本"}],
+                },
+            )
+            self.assertEqual(project.status_code, 201, project.text)
+            project_id = project.json()["project_id"]
+
+            updated = client.put(
+                f"/api/new/projects/{project_id}/digital-human-settings",
+                json={"resolution": "1536"},
+            )
+            self.assertEqual(updated.status_code, 200, updated.text)
+            self.assertEqual(
+                updated.json()["settings"]["digital_human"]["resolution"],
+                "1536",
+            )
+
+            invalid = client.put(
+                f"/api/new/projects/{project_id}/digital-human-settings",
+                json={"resolution": "0"},
+            )
+            self.assertEqual(invalid.status_code, 409, invalid.text)
+            self.assertIn("正整数", invalid.json()["detail"])
+
     def test_two_column_csv_and_downloadable_xlsx_template_are_accepted(self) -> None:
         login_patch, verify_patch = self._client_context()
         with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
@@ -169,7 +200,7 @@ class ProjectInputsApiTest(unittest.TestCase):
             for name in ("a.png", "b.png", "c.png"):
                 response = client.post(
                     f"/api/new/projects/{project_id}/images?filename={name}",
-                    content=PNG_1X1,
+                    content=PNG_1X1 + name.encode("ascii"),
                 )
                 self.assertEqual(response.status_code, 201, response.text)
                 images.append(response.json())
@@ -228,7 +259,19 @@ class ProjectInputsApiTest(unittest.TestCase):
             in_use = client.delete(
                 f"/api/new/projects/{project_id}/images/{images[1]['image_id']}"
             )
-            self.assertEqual(in_use.status_code, 409)
+            self.assertEqual(in_use.status_code, 200, in_use.text)
+            after_in_use_delete = client.get(
+                f"/api/new/projects/{project_id}"
+            ).json()
+            self.assertNotIn(
+                images[1]["image_id"],
+                [image["image_id"] for image in after_in_use_delete["input_images"]],
+            )
+            for item in after_in_use_delete["items"]:
+                self.assertNotEqual(
+                    item["inputs"]["image"]["external_ref"]["input_image_id"],
+                    images[1]["image_id"],
+                )
 
             remapped = client.put(
                 f"/api/new/projects/{project_id}/image-mapping",
@@ -242,20 +285,8 @@ class ProjectInputsApiTest(unittest.TestCase):
                     for item in remapped.json()["items"]
                 )
             )
-            historical_path = Path(images[1]["managed_path"])
-            historical_only = client.delete(
-                f"/api/new/projects/{project_id}/images/{images[1]['image_id']}"
-            )
-            self.assertEqual(historical_only.status_code, 200, historical_only.text)
-            self.assertFalse(historical_path.exists())
-            after_historical_delete = client.get(
-                f"/api/new/projects/{project_id}"
-            ).json()
-            self.assertNotIn(
-                images[1]["image_id"],
-                [image["image_id"] for image in after_historical_delete["input_images"]],
-            )
-            for item in after_historical_delete["items"]:
+            self.assertFalse(Path(images[1]["managed_path"]).exists())
+            for item in remapped.json()["items"]:
                 self.assertFalse(
                     any(
                         asset["external_ref"].get("input_image_id")
@@ -295,7 +326,7 @@ class ProjectInputsApiTest(unittest.TestCase):
 
             initial = client.post(
                 f"/api/new/projects/{project_id}/images?filename=initial.png",
-                content=PNG_1X1,
+                content=PNG_1X1 + b"initial",
             ).json()
             mapped = client.put(
                 f"/api/new/projects/{project_id}/image-mapping",
@@ -313,7 +344,7 @@ class ProjectInputsApiTest(unittest.TestCase):
 
             replacement = client.post(
                 f"/api/new/projects/{project_id}/images?filename=replacement.png",
-                content=PNG_1X1,
+                content=PNG_1X1 + b"replacement",
             )
             self.assertEqual(replacement.status_code, 201, replacement.text)
             replacement_id = replacement.json()["image_id"]
@@ -338,9 +369,15 @@ class ProjectInputsApiTest(unittest.TestCase):
             )
             self.assertEqual(active_replace.status_code, 422, active_replace.text)
 
+            active_delete = client.delete(
+                f"/api/new/projects/{project_id}/images/{initial['image_id']}"
+            )
+            self.assertEqual(active_delete.status_code, 409, active_delete.text)
+            self.assertIn("生成中", active_delete.json()["detail"])
+
             unused = client.post(
                 f"/api/new/projects/{project_id}/images?filename=unused-active.png",
-                content=PNG_1X1,
+                content=PNG_1X1 + b"unused-active",
             )
             self.assertEqual(unused.status_code, 201, unused.text)
             removed = client.delete(
@@ -348,6 +385,121 @@ class ProjectInputsApiTest(unittest.TestCase):
             )
             self.assertEqual(removed.status_code, 200, removed.text)
             self.assertNotEqual(initial["image_id"], replacement_id)
+
+    def test_append_item_remains_available_after_existing_voice_generation_starts(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "追加分段",
+                    "items": [{"row_key": "1", "script_text": "已开始生成的脚本"}],
+                },
+            ).json()
+            first_item = project["items"][0]
+            client.app.state.project_store.create_operation(
+                owner_user_id="user-1",
+                project_id=project["project_id"],
+                item_id=first_item["item_id"],
+                operation_type="AUDIO_GENERATE",
+                idempotency_key="append-after-audio-start",
+            )
+
+            appended = client.post(
+                f"/api/new/projects/{project['project_id']}/items",
+                json={"row_key": "2", "script_text": "新增测试脚本"},
+            )
+
+            self.assertEqual(appended.status_code, 201, appended.text)
+            self.assertEqual(len(appended.json()["items"]), 2)
+            self.assertEqual(appended.json()["items"][0]["status"], "AUDIO_QUEUED")
+            self.assertEqual(appended.json()["items"][1]["status"], "DRAFT")
+            self.assertEqual(appended.json()["items"][1]["script_text"], "新增测试脚本")
+
+    def test_batch_append_is_atomic_and_preserves_existing_rows(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "批量追加",
+                    "items": [{"row_key": "1", "script_text": "原测试脚本"}],
+                },
+            ).json()
+            project_id = project["project_id"]
+
+            appended = client.post(
+                f"/api/new/projects/{project_id}/items/batch",
+                json={
+                    "items": [
+                        {"row_key": "2", "script_text": "第二条脚本"},
+                        {"row_key": "3", "script_text": "第三条脚本"},
+                    ]
+                },
+            )
+            self.assertEqual(appended.status_code, 201, appended.text)
+            self.assertEqual(
+                [item["row_key"] for item in appended.json()["items"]],
+                ["1", "2", "3"],
+            )
+            self.assertEqual(
+                appended.json()["items"][0]["script_text"], "原测试脚本"
+            )
+
+            rejected = client.post(
+                f"/api/new/projects/{project_id}/items/batch",
+                json={
+                    "items": [
+                        {"row_key": "4", "script_text": "本条也不应写入"},
+                        {"row_key": "2", "script_text": "冲突任务ID"},
+                    ]
+                },
+            )
+            self.assertEqual(rejected.status_code, 422, rejected.text)
+            current = client.get(f"/api/new/projects/{project_id}").json()
+            self.assertEqual(
+                [item["row_key"] for item in current["items"]],
+                ["1", "2", "3"],
+            )
+
+    def test_image_upload_deduplicates_same_name_or_same_content(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "图片去重",
+                    "items": [{"row_key": "1", "script_text": "测试"}],
+                },
+            ).json()
+            project_id = project["project_id"]
+            first = client.post(
+                f"/api/new/projects/{project_id}/images?filename=同名.png",
+                content=PNG_1X1 + b"first",
+            )
+            same_name = client.post(
+                f"/api/new/projects/{project_id}/images?filename=同名.png",
+                content=PNG_1X1 + b"changed",
+            )
+            same_content = client.post(
+                f"/api/new/projects/{project_id}/images?filename=另一个名字.png",
+                content=PNG_1X1 + b"first",
+            )
+
+            self.assertEqual(first.status_code, 201, first.text)
+            self.assertEqual(same_name.status_code, 201, same_name.text)
+            self.assertEqual(same_content.status_code, 201, same_content.text)
+            self.assertTrue(same_name.json()["deduplicated"])
+            self.assertEqual(same_name.json()["duplicate_reason"], "filename")
+            self.assertTrue(same_content.json()["deduplicated"])
+            self.assertEqual(same_content.json()["duplicate_reason"], "content")
+            self.assertEqual(first.json()["image_id"], same_name.json()["image_id"])
+            self.assertEqual(first.json()["image_id"], same_content.json()["image_id"])
+            refreshed = client.get(f"/api/new/projects/{project_id}").json()
+            self.assertEqual(len(refreshed["input_images"]), 1)
 
     def test_script_reimport_is_atomic_and_project_can_be_cleared(self) -> None:
         login_patch, verify_patch = self._client_context()

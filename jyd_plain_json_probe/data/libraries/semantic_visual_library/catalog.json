@@ -39,6 +39,12 @@
       "aliases": ["绿叶蔬菜", "蔬菜", "青菜"]
     },
     {
+      "concept_id": "food.whole_grain",
+      "label": "粗粮杂粮",
+      "description": "明确提到粗粮、杂粮、杂粮饭或用全谷杂粮替换部分精米白面",
+      "aliases": ["杂粮粥", "杂粮饭", "全谷物", "粗粮", "杂粮"]
+    },
+    {
       "concept_id": "nutrition.protein",
       "label": "蛋白质食物",
       "description": "明确讨论蛋白质、优质蛋白或高蛋白食物集合",
@@ -47,8 +53,8 @@
     {
       "concept_id": "nutrition.carbohydrate",
       "label": "优质碳水",
-      "description": "明确讨论碳水化合物、优质碳水或主食集合",
-      "aliases": ["碳水化合物", "优质碳水", "主食", "碳水"]
+      "description": "明确讨论碳水化合物或优质碳水；不因泛指主食而触发",
+      "aliases": ["碳水化合物", "优质碳水", "碳水"]
     },
     {
       "concept_id": "food.nuts",
@@ -109,6 +115,114 @@
       "label": "水果",
       "description": "明确泛指水果、新鲜水果或水果拼盘",
       "aliases": ["水果拼盘", "新鲜水果", "水果"]
+    },
+    {
+      "concept_id": "drink.water",
+      "label": "饮水",
+      "description": "明确提到喝水、饮水、补水或白开水",
+      "aliases": ["白开水", "温开水", "温水", "喝水", "饮水", "补水"]
+    },
+    {
+      "concept_id": "food.yogurt",
+      "label": "酸奶",
+      "description": "作为饮品、加餐或明确餐食组成出现的酸奶",
+      "aliases": ["无糖酸奶", "低脂酸奶", "原味酸奶", "酸奶"]
+    },
+    {
+      "concept_id": "food.whole_wheat_bread",
+      "label": "全麦面包",
+      "description": "明确提到全麦面包或全麦吐司",
+      "aliases": ["全麦面包", "全麦吐司"]
+    },
+    {
+      "concept_id": "food.rice",
+      "label": "米饭",
+      "description": "作为主食或明确餐食组成出现的米饭",
+      "aliases": ["白米饭", "大米饭", "一碗米饭", "米饭"]
+    },
+    {
+      "concept_id": "food.noodles",
+      "label": "面条",
+      "description": "作为主食或明确餐食组成出现的面条或面食",
+      "aliases": ["一碗面", "吃面条", "面条", "面食"]
+    },
+    {
+      "concept_id": "food.potato",
+      "label": "土豆",
+      "description": "作为食物、食材或薯类主食出现的土豆",
+      "aliases": ["蒸土豆", "马铃薯", "土豆"]
+    },
+    {
+      "concept_id": "food.tomato",
+      "label": "西红柿",
+      "description": "作为食物、食材或明确餐食示例出现的西红柿或番茄",
+      "aliases": ["西红柿", "番茄"]
+    },
+    {
+      "concept_id": "food.broccoli",
+      "label": "西兰花",
+      "description": "作为食物、食材或明确餐食示例出现的西兰花",
+      "aliases": ["西蓝花", "西兰花", "绿花椰菜"]
+    },
+    {
+      "concept_id": "food.mushroom",
+      "label": "菌菇",
+      "description": "作为食物、食材或明确餐食示例出现的菌菇或蘑菇",
+      "aliases": ["菌菇类", "菌菇", "蘑菇", "香菇"]
+    },
+    {
+      "concept_id": "food.chicken_leg",
+      "label": "鸡腿",
+      "description": "作为食物、食材或明确餐食示例出现的鸡腿或去皮鸡腿",
+      "aliases": ["去皮鸡腿", "鸡腿肉", "鸡腿"]
+    },
+    {
+      "concept_id": "food.salmon",
+      "label": "三文鱼",
+      "description": "作为食物、食材或明确餐食示例出现的三文鱼",
+      "aliases": ["煎三文鱼", "三文鱼", "鲑鱼"]
+    },
+    {
+      "concept_id": "food.cake",
+      "label": "蛋糕甜点",
+      "description": "明确提到蛋糕、甜点或甜品，不因泛指碳水触发",
+      "aliases": ["奶油蛋糕", "生日蛋糕", "蛋糕", "甜点", "甜品"]
+    },
+    {
+      "concept_id": "drink.sugary_drink",
+      "label": "含糖饮料",
+      "description": "明确提到可乐、汽水、碳酸饮料或含糖饮料",
+      "aliases": ["含糖饮料", "碳酸饮料", "可乐", "汽水"]
+    },
+    {
+      "concept_id": "activity.walking",
+      "label": "快走步行",
+      "description": "明确提到快走、健走、散步、走路或步行锻炼",
+      "aliases": ["快走", "健走", "散步", "走路", "步行"]
+    },
+    {
+      "concept_id": "activity.running",
+      "label": "跑步",
+      "description": "明确提到跑步、慢跑、晨跑或夜跑锻炼",
+      "aliases": ["跑步", "慢跑", "晨跑", "夜跑"]
+    },
+    {
+      "concept_id": "activity.treadmill",
+      "label": "跑步机",
+      "description": "明确提到在跑步机或跑台上运动",
+      "aliases": ["跑步机", "跑台"]
+    },
+    {
+      "concept_id": "activity.strength_training",
+      "label": "力量训练",
+      "description": "明确提到力量训练、抗阻训练或哑铃训练",
+      "aliases": ["力量训练", "抗阻训练", "举哑铃", "哑铃训练"]
+    },
+    {
+      "concept_id": "activity.aerobic",
+      "label": "有氧运动",
+      "description": "明确提到有氧运动、有氧训练、有氧操、燃脂操或腹部核心燃脂动作",
+      "aliases": ["有氧运动", "有氧训练", "有氧操", "燃脂操", "核心燃脂", "腹部燃脂", "腹部核心", "胯下击掌"]
     }
   ],
   "assets": [
@@ -197,18 +311,32 @@
       "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
     },
     {
-      "asset_id": "vegetable.greens.01",
+      "asset_id": "vegetable.market_photo.02",
       "concept_ids": ["food.vegetable"],
-      "name": "绿叶蔬菜",
-      "description": "一组绿叶蔬菜",
+      "name": "真实蔬菜摊",
+      "description": "真实拍摄的多种新鲜蔬菜",
       "media_type": "image",
       "renderer": "jyd_sticker_bundle",
-      "tags": ["蔬菜", "绿叶菜", "食材", "照片"],
+      "tags": ["蔬菜", "新鲜食材", "真实照片", "下半区渐变"],
       "resource": {
-        "bundle": "bundles/vegetable",
-        "preview": "bundles/vegetable/resources/sticker/singleImage.png"
+        "bundle": "bundles/vegetable_market_photo_02",
+        "preview": "bundles/vegetable_market_photo_02/resources/sticker/singleImage.png"
       },
-      "defaults": {"corner": "top_right", "scale": 0.28, "opacity": 1.0, "duration_us": 1800000}
+      "defaults": {"corner": "bottom_left", "scale": 0.60, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "whole_grain.multigrain_rice.01",
+      "concept_ids": ["food.whole_grain"],
+      "name": "真实杂粮饭",
+      "description": "真实拍摄的杂粮饭，用于粗粮和杂粮替换语境",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["粗粮", "杂粮", "杂粮饭", "真实照片", "下半区渐变"],
+      "resource": {
+        "bundle": "bundles/whole_grain_multigrain_rice_01",
+        "preview": "bundles/whole_grain_multigrain_rice_01/resources/sticker/singleImage.png"
+      },
+      "defaults": {"corner": "bottom_left", "scale": 0.60, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "protein.food_guide.01",
@@ -359,10 +487,10 @@
       "renderer": "jyd_sticker_bundle",
       "tags": ["黄瓜", "蔬菜", "菜品", "照片"],
       "resource": {
-        "bundle": "bundles/cucumber_salad_01",
-        "preview": "bundles/cucumber_salad_01/resources/sticker/singleImage.png"
+        "bundle": "bundles/cucumber_salad_lower_fade_02",
+        "preview": "bundles/cucumber_salad_lower_fade_02/resources/sticker/singleImage.png"
       },
-      "defaults": {"corner": "top_right", "scale": 0.25, "opacity": 1.0, "duration_us": 1800000}
+      "defaults": {"corner": "bottom_center", "scale": 0.78, "opacity": 1.0, "duration_us": 1800000}
     },
     {
       "asset_id": "fruit.platter.01",
@@ -377,6 +505,260 @@
         "preview": "bundles/fruit_platter_01/resources/sticker/singleImage.png"
       },
       "defaults": {"corner": "top_left", "scale": 0.25, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "water.warm_glass.01",
+      "concept_ids": ["drink.water"],
+      "name": "一杯温水",
+      "description": "向杯中倒入温水的真实照片",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["饮水", "温水", "饮品", "真实照片"],
+      "resource": {"bundle": "bundles/water_warm_glass_01", "preview": "bundles/water_warm_glass_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "yogurt.glass.01",
+      "concept_ids": ["food.yogurt"],
+      "name": "杯装酸奶",
+      "description": "倒入玻璃杯中的浓稠酸奶",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["酸奶", "饮品", "加餐", "真实照片"],
+      "resource": {"bundle": "bundles/yogurt_glass_01", "preview": "bundles/yogurt_glass_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "whole_wheat_bread.sliced.01",
+      "concept_ids": ["food.whole_wheat_bread"],
+      "name": "全麦面包片",
+      "description": "切片全麦面包",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["全麦面包", "全麦吐司", "主食", "真实照片"],
+      "resource": {"bundle": "bundles/whole_wheat_bread_sliced_01", "preview": "bundles/whole_wheat_bread_sliced_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "rice.bowl.01",
+      "concept_ids": ["food.rice"],
+      "name": "一碗米饭",
+      "description": "盛在碗中的熟米饭",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["米饭", "白米饭", "主食", "真实照片"],
+      "resource": {"bundle": "bundles/rice_bowl_01", "preview": "bundles/rice_bowl_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "noodles.bowl.01",
+      "concept_ids": ["food.noodles"],
+      "name": "一碗面条",
+      "description": "碗装熟面条",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["面条", "面食", "主食", "真实照片"],
+      "resource": {"bundle": "bundles/noodles_bowl_01", "preview": "bundles/noodles_bowl_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "potato.steamed.01",
+      "concept_ids": ["food.potato"],
+      "name": "蒸土豆",
+      "description": "蒸熟开裂的整颗土豆",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["土豆", "马铃薯", "薯类主食", "真实照片"],
+      "resource": {"bundle": "bundles/potato_steamed_01", "preview": "bundles/potato_steamed_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "tomato.fresh.01",
+      "concept_ids": ["food.tomato"],
+      "name": "新鲜西红柿",
+      "description": "碗中的新鲜西红柿",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["西红柿", "番茄", "蔬菜", "真实照片"],
+      "resource": {"bundle": "bundles/tomato_fresh_01", "preview": "bundles/tomato_fresh_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "broccoli.garlic.01",
+      "concept_ids": ["food.broccoli"],
+      "name": "蒜蓉西兰花",
+      "description": "一盘蒜蓉西兰花",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["西兰花", "蔬菜", "菜品", "真实照片"],
+      "resource": {"bundle": "bundles/broccoli_garlic_01", "preview": "bundles/broccoli_garlic_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "mushroom.cooked.01",
+      "concept_ids": ["food.mushroom"],
+      "name": "熟菌菇",
+      "description": "一碗调味熟菌菇",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["菌菇", "蘑菇", "蔬菜", "真实照片"],
+      "resource": {"bundle": "bundles/mushroom_cooked_01", "preview": "bundles/mushroom_cooked_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "chicken_leg.skinless.01",
+      "concept_ids": ["food.chicken_leg"],
+      "name": "去皮鸡腿",
+      "description": "一盘熟去皮鸡腿",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["鸡腿", "去皮鸡腿", "蛋白质", "真实照片"],
+      "resource": {"bundle": "bundles/chicken_leg_skinless_01", "preview": "bundles/chicken_leg_skinless_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "salmon.pan_fried.01",
+      "concept_ids": ["food.salmon"],
+      "name": "煎三文鱼餐盘",
+      "description": "煎三文鱼配鸡蛋、菌菇和蔬菜",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["三文鱼", "鱼类", "蛋白质", "真实照片"],
+      "resource": {"bundle": "bundles/salmon_pan_fried_01", "preview": "bundles/salmon_pan_fried_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "cake.fruit.01",
+      "concept_ids": ["food.cake"],
+      "name": "水果蛋糕",
+      "description": "水果装饰蛋糕",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["蛋糕", "甜点", "甜品", "真实照片"],
+      "resource": {"bundle": "bundles/cake_fruit_01", "preview": "bundles/cake_fruit_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "sugary_drink.cola.01",
+      "concept_ids": ["drink.sugary_drink"],
+      "name": "冰可乐",
+      "description": "装有冰块的碳酸可乐饮料",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["可乐", "含糖饮料", "碳酸饮料", "真实照片"],
+      "resource": {"bundle": "bundles/sugary_drink_cola_01", "preview": "bundles/sugary_drink_cola_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.27, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "activity.walking.01",
+      "concept_ids": ["activity.walking"],
+      "name": "户外快走",
+      "description": "女性在林间道路快走的动作画面",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["快走", "步行", "运动", "视频截帧"],
+      "resource": {"bundle": "bundles/activity_walking_01", "preview": "bundles/activity_walking_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.34, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "activity.running.01",
+      "concept_ids": ["activity.running"],
+      "name": "户外跑步",
+      "description": "女性在户外道路跑步的动作画面",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["跑步", "慢跑", "运动", "视频截帧"],
+      "resource": {"bundle": "bundles/activity_running_01", "preview": "bundles/activity_running_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.34, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "activity.treadmill.01",
+      "concept_ids": ["activity.treadmill"],
+      "name": "跑步机运动",
+      "description": "女性使用家用跑步机的动作画面",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["跑步机", "跑台", "运动", "视频截帧"],
+      "resource": {"bundle": "bundles/activity_treadmill_01", "preview": "bundles/activity_treadmill_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.34, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "activity.strength_training.01",
+      "concept_ids": ["activity.strength_training"],
+      "name": "哑铃力量训练",
+      "description": "女性手持哑铃进行力量训练的动作画面",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["力量训练", "抗阻训练", "哑铃", "视频截帧"],
+      "resource": {"bundle": "bundles/activity_strength_training_01", "preview": "bundles/activity_strength_training_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_right", "scale": 0.34, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "activity.aerobic.01",
+      "concept_ids": ["activity.aerobic"],
+      "name": "室内有氧运动",
+      "description": "女性在室内进行有氧操的动作画面",
+      "media_type": "image",
+      "renderer": "jyd_sticker_bundle",
+      "tags": ["有氧运动", "有氧操", "燃脂操", "视频截帧"],
+      "resource": {"bundle": "bundles/activity_aerobic_01", "preview": "bundles/activity_aerobic_01/resources/sticker/singleImage.png"},
+      "defaults": {"corner": "top_left", "scale": 0.34, "opacity": 1.0, "duration_us": 1800000}
+    },
+    {
+      "asset_id": "activity.aerobic.crotch_clap.video.01",
+      "concept_ids": ["activity.aerobic"],
+      "name": "胯下击掌燃脂动作",
+      "description": "人物连续完成胯下击掌动作的运动视频",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": ["有氧运动", "燃脂操", "胯下击掌", "动作", "运动视频"],
+      "resource": {
+        "video": "videos/activity_aerobic_crotch_clap_01/video.mp4",
+        "preview": "videos/activity_aerobic_crotch_clap_01/poster.png",
+        "metadata": "videos/activity_aerobic_crotch_clap_01/metadata.json",
+        "duration_us": 6600000,
+        "width": 528,
+        "height": 534,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "bottom_center",
+        "scale": 0.615,
+        "opacity": 1.0,
+        "duration_us": 4000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": false,
+        "fit": "contain"
+      }
+    },
+    {
+      "asset_id": "activity.aerobic.core_broll.video.01",
+      "concept_ids": ["activity.aerobic"],
+      "name": "腹部核心燃脂动作 B-roll",
+      "description": "从长源视频中截取的双腿弯曲核心训练动作片段",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": ["腹部核心", "燃脂操", "双腿弯曲", "动作", "运动视频", "相关素材", "b-roll", "enrichment"],
+      "resource": {
+        "video": "videos/activity_aerobic_core_broll_01/video.mp4",
+        "preview": "videos/activity_aerobic_core_broll_01/poster.png",
+        "metadata": "videos/activity_aerobic_core_broll_01/metadata.json",
+        "duration_us": 42766341,
+        "width": 560,
+        "height": 804,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 12000000,
+        "mute": true,
+        "loop": false,
+        "fit": "cover"
+      }
     }
   ]
 }

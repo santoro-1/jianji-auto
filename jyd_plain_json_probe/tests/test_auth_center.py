@@ -88,6 +88,33 @@ class AuthCenterTest(unittest.TestCase):
         self.assertEqual(request_mock.call_args.kwargs["timeout"], 360.0)
         self.assertEqual(result, payload)
 
+    def test_content_analysis_forwards_compact_visual_context_in_same_request(self) -> None:
+        visual_context = {
+            "catalog_version": "catalog-v1",
+            "concepts": [{"concept_id": "food.egg", "description": "鸡蛋"}],
+            "anchors": [
+                {
+                    "anchor_id": "B2",
+                    "char_start": 2,
+                    "char_end": 4,
+                    "text": "鸡蛋",
+                    "allowed_concepts": ["food.egg"],
+                }
+            ],
+        }
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response({"overall_status": "SUCCESS"}),
+        ) as request_mock:
+            AuthCenterClient("http://127.0.0.1:8000").analyze_workbench_content(
+                "center-token",
+                "吃鸡蛋",
+                visual_context=visual_context,
+            )
+
+        submitted = json.loads(request_mock.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(submitted["visual_context"], visual_context)
+
     def test_runninghub_pool_summary_and_composition_forward_only_internal_ids(self) -> None:
         summary = {
             "schema": "runninghub.workbench-execution-accounts.v1",
