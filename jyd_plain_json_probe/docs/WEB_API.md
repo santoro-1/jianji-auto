@@ -265,8 +265,13 @@ GET  /api/new/projects/{project_id}/items/{item_id}/base-video
 `digital_human_audio_item` 关联调用数字人后端；前端不取得数字人令牌，也不直接访问
 数字人服务。启动时工作台才读取并上传该行当前图片，由数字人后端把图片绑定到已审核
 音频后创建 RunningHub 子任务。脚本行状态按真实任务依次使用 `COMPOSITION_QUEUED`、
-`DIGITAL_HUMAN_RUNNING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
+`DIGITAL_HUMAN_RUNNING`、`VIDEO_ENHANCING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
 `COMPOSITION_FAILED`。
+
+`VIDEO_ENHANCING` 表示云端已有数字人源片段，正在逐段执行固定 48G 的 SeedVR2。该状态
+属于活动状态，工作台必须继续轮询，不能提前下载、进入 4B 或显示为失败。云端任务清单中
+每个视频可返回 `quality_variant: "seedvr2_upscaled"`、`enhancement_status` 和
+`source_download_url`；主 `download_url` 始终指向清晰片段。
 
 内部云端请求同时提交当前输入图片 SHA-256。相同摘要是幂等重试；摘要变化表示用户明确
 换图，云端保留已批准的 MiniMax 音频和原始时间戳，仅清除旧图片的画面子任务与合并结果后
@@ -277,7 +282,10 @@ GET  /api/new/projects/{project_id}/items/{item_id}/base-video
 RunningHub；若只修改字幕/BGM，则单条控制直接把该行交给 4B。4B 的 `items` 本来就是
 显式子集，其他行未完成不会阻止已具备基础视频的当前行生成完整浏览器预览。
 
-所有成功 RunningHub 分段下载为 `original_video_segment` 历史素材。标准化/拼接结果保存
+所有成功 SeedVR2 清晰分段下载为 `original_video_segment` 历史素材；这里的名称表示项目
+时间轴中的原始有序分段，不表示未经清晰化。素材 metadata 保存 `quality_variant`、
+`enhanced_by=runninghub_seedvr2` 和云端源片段可用标记。工作台默认不额外下载数字人源片段，
+避免本地磁盘翻倍。标准化/拼接结果保存
 为当前 `base_video`，不会设置 `composition_video`，因此 `generate_variants` 仍为
 `false`。重试只处理数字人后端判定为失败的 RunningHub/下载任务或拼接阶段；成功的
 付费子任务不重做。

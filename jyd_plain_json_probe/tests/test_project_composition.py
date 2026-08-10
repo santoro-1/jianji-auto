@@ -15,6 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.project_store import ProjectStore  # noqa: E402
+from jyd_probe.project_composition import REMOTE_COMPOSITION_ACTIVE  # noqa: E402
+from jyd_probe.project_store import ACTIVE_ITEM_STATUSES, PROJECT_ITEM_STATUSES  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
@@ -137,6 +139,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                         "script_text": "第一条。",
                         "start_seconds": 0.0,
                         "end_seconds": 3.0,
+                        "quality_variant": "seedvr2_upscaled",
+                        "source_download_url": (
+                            "/api/workbench/tasks/remote-item-1/videos/1/source"
+                        ),
                     }
                 ],
             },
@@ -242,6 +248,18 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(current["status"], "BASE_VIDEO_READY")
                 self.assertIsNotNone(current["outputs"]["base_video"])
                 self.assertEqual(len(current["outputs"]["original_video_segments"]), 1)
+                segment_asset = current["outputs"]["original_video_segments"][0]
+                self.assertEqual(
+                    segment_asset["metadata"]["quality_variant"],
+                    "seedvr2_upscaled",
+                )
+                self.assertEqual(
+                    segment_asset["metadata"]["enhanced_by"],
+                    "runninghub_seedvr2",
+                )
+                self.assertTrue(
+                    segment_asset["metadata"]["source_is_available_on_cloud"]
+                )
                 self.assertIsNone(current["outputs"]["composition_video"])
                 self.assertEqual(current["outputs"]["variants"], [])
                 self.assertFalse(payload["allowed_actions"]["generate_variants"])
@@ -332,6 +350,11 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(
                     len(invalidated_item["asset_history"]["base_video"]), 1
                 )
+
+    def test_video_enhancing_is_a_supported_active_remote_status(self) -> None:
+        self.assertIn("VIDEO_ENHANCING", REMOTE_COMPOSITION_ACTIVE)
+        self.assertIn("VIDEO_ENHANCING", PROJECT_ITEM_STATUSES)
+        self.assertIn("VIDEO_ENHANCING", ACTIVE_ITEM_STATUSES)
 
 
 if __name__ == "__main__":

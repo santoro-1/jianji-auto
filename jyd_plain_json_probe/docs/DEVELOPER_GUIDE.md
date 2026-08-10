@@ -2,6 +2,10 @@
 
 本文面向需要继续开发、调试和发布“影变批剪工作台”的维护者。用户安装和日常操作请阅读根目录 `START_HERE.md`；具体素材格式、接口字段和部署方式请按本文末尾的专题文档索引继续阅读。
 
+> 2026-08-10：数字人云端的每个分段现已在数字人成功后进入固定 48G 的 SeedVR2。
+> 本地工作台不调用放大流，只把 `VIDEO_ENHANCING` 视为活动状态，并在就绪后下载
+> `quality_variant=seedvr2_upscaled` 的清晰片段。数字人源片段仍保存在云端。
+
 ## 1. 项目定位与边界
 
 本项目通过读写剪映草稿 JSON 和 Windows UI 自动化完成批量视频生产，主要能力包括：
@@ -98,7 +102,8 @@ release/                      最终交付 ZIP
 `project_input_images` 项目图片池。模块 3 升级到版本 3，增加按数字人账号保存的默认
 音色和语音参数；逐行音色、音频素材版本、MiniMax 时间戳、数字人批次关联和异步操作
 继续复用现有项目表。模块 4A 升级到版本 4，增加当前基础视频指针；基础视频与最终
-`composition_video` 分离，RunningHub 原始分段继续按不可覆盖版本保存。模块 4B 升级到
+`composition_video` 分离，云端有序分段继续按不可覆盖版本保存；自 2026-08-10 起默认
+为 SeedVR2 清晰结果。模块 4B 升级到
 版本 5，增加浏览器预览配方、按需导出和字幕渲染状态绑定；旧版
 `POSTPROCESS_RUNNING` 剪映任务仍可同步完成。升级只执行
 `CREATE TABLE IF NOT EXISTS` 和缺失列
@@ -375,6 +380,16 @@ data/template_library/<template_id>/
 | `JYD_ASSET_TRASH_RETENTION_DAYS` | 素材回收站保留时间 | `7` |
 
 发布包优先使用 `data/processor_config.json` 和 Windows 启动器保存的配置。开发环境不要把真实令牌、管理员密码或生产地址提交到源码。
+
+### 7.1 数字人清晰片段契约
+
+- `ProjectCompositionCoordinator.REMOTE_COMPOSITION_ACTIVE`、`PROJECT_ITEM_STATUSES`、
+  `ACTIVE_ITEM_STATUSES`、前端进度和轮询集合必须同时包含 `VIDEO_ENHANCING`。
+- 云端主视频下载已经是 SeedVR2 清晰片段。本地仍登记为 `original_video_segment`，因为它
+  表示进入项目的原始有序分段；必须通过 metadata 区分 `seedvr2_upscaled`。
+- `source_download_url` 只表示云端保留了数字人源片段，本地 4A 不自动下载该文件。
+- 4B、字幕、BGM、变体与成果库继续消费工作台已落盘的清晰分段或 `base_video`，不得再次
+  调用 SeedVR2。
 
 ## 8. API 与状态存储
 

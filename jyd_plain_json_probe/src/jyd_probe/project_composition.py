@@ -12,6 +12,7 @@ from .project_store import ProjectStore
 REMOTE_COMPOSITION_ACTIVE = {
     "COMPOSITION_QUEUED",
     "DIGITAL_HUMAN_RUNNING",
+    "VIDEO_ENHANCING",
     "VIDEO_MERGING",
 }
 
@@ -487,6 +488,15 @@ class ProjectCompositionCoordinator:
                     "start_seconds": video.get("start_seconds"),
                     "end_seconds": video.get("end_seconds"),
                     "script_text": video.get("script_text"),
+                    "quality_variant": video.get("quality_variant"),
+                    "enhanced_by": (
+                        "runninghub_seedvr2"
+                        if video.get("quality_variant") == "seedvr2_upscaled"
+                        else None
+                    ),
+                    "source_is_available_on_cloud": bool(
+                        video.get("source_download_url")
+                    ),
                 },
             )
             existing_task_ids.add(task_id)

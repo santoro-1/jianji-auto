@@ -206,6 +206,7 @@ class ProjectAudioCoordinator:
                     "AUDIO_RUNNING",
                     "COMPOSITION_QUEUED",
                     "DIGITAL_HUMAN_RUNNING",
+                    "VIDEO_ENHANCING",
                     "VIDEO_MERGING",
                     "POSTPROCESS_RUNNING",
                     "VARIANT_QUEUED",

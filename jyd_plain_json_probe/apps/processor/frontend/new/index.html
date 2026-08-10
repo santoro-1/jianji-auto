@@ -1276,7 +1276,7 @@
         function projectHasActiveItems(project) {
             return (project?.items || []).some((item) => [
                 'AUDIO_QUEUED', 'AUDIO_RUNNING',
-                'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING',
+                'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING',
                 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'
             ].includes(item.status));
         }
@@ -1975,7 +1975,7 @@
                     && script.subtitles?.status === 'PREVIEW_READY'
                     && ['COMPOSITION_READY', 'VARIANT_QUEUED', 'VARIANT_RUNNING', 'VARIANT_READY', 'VARIANT_FAILED'].includes(script.compositionStatus)
                 );
-                const videoStatus = ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING'].includes(script.compositionStatus)
+                const videoStatus = ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING'].includes(script.compositionStatus)
                     ? 'loading'
                     : (script.compositionVideo || browserPreviewReady
                         ? 'ready'
@@ -2040,7 +2040,7 @@
                 };
                 const visualLabel = visualStatusLabels[visualStatus] || visualStatusLabels.FAILED;
                 const canAnalyzeVisuals = Boolean(script.allowedActions?.analyze_visuals) && visualStatus !== 'PENDING';
-                const itemActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus);
+                const itemActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus);
                 const audioCanReuse = Boolean(script.audio);
                 const audioWasGenerated = Boolean(script.assetHistory?.audio?.length);
                 const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
@@ -3071,7 +3071,7 @@
             let items = selectedRowsOrWarn();
             if (!items || !activeProject) return;
             items = await waitForSelectedScriptSaves(items);
-            const activeStatuses = new Set(['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING']);
+            const activeStatuses = new Set(['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING']);
             const blocked = items.filter((item) => activeStatuses.has(item.compositionStatus));
             if (blocked.length) {
                 showToast('部分选中任务正在运行', `请取消选择正在运行的 ${blocked.length} 条后再生成声音。`, 'warning');
@@ -5165,9 +5165,9 @@
             const bar = document.getElementById('composition-progress-bar');
             const text = document.getElementById('composition-progress-text');
             const items = uploadedScripts.filter((item) =>
-                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING', 'BASE_VIDEO_READY', 'COMPOSITION_FAILED'].includes(item.compositionStatus)
+                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'BASE_VIDEO_READY', 'COMPOSITION_FAILED'].includes(item.compositionStatus)
             );
-            const active = items.some((item) => ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus));
+            const active = items.some((item) => ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus));
             if (!items.length) {
                 container.classList.add('hidden');
                 return;
@@ -5212,7 +5212,7 @@
             clearTimeout(compositionStatusPollTimer);
             updateCompositionProgress();
             const active = uploadedScripts.some((item) =>
-                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
+                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus)
             );
             isGeneratingComposition = active;
             refreshAudioStageActions();
@@ -5233,13 +5233,13 @@
                     compositionStatusPollFailureCount = 0;
                     const responseItems = project.items || [];
                     const stillActiveInResponse = responseItems.some((item) =>
-                        ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.status)
+                        ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.status)
                     );
                     const failedInResponse = responseItems.filter((item) => item.status === 'COMPOSITION_FAILED').length;
                     if (!stillActiveInResponse && failedInResponse) setFinalGenerationPhase(null);
                     syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const stillActive = uploadedScripts.some((item) =>
-                        ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
+                        ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus)
                     );
                     if (wasActive && !stillActive) {
                         const failed = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED').length;
@@ -5268,7 +5268,7 @@
         async function continueFinalGenerationAfterComposition() {
             if (finalGenerationPhase !== 'composition' || isStartingPostprocess || !activeProject) return;
             const stillActive = uploadedScripts.some((item) =>
-                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_MERGING'].includes(item.compositionStatus)
+                ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus)
             );
             if (stillActive) return;
             const failed = uploadedScripts.some((item) => item.compositionStatus === 'COMPOSITION_FAILED');

@@ -19,6 +19,8 @@
 ## 按任务补读
 
 - 修改 Web 接口、登录、数字人任务收件箱或下载：读 `docs/WEB_API.md`。
+- 修改 `VIDEO_ENHANCING`、SeedVR2 清晰片段、数字人源片段或其质量元数据：同时读
+  `D:\工作内容\轻盈健\数字人\runninghub_mvp\SeedVR2视频清晰化流程开发文档.md`。
 - 修改渲染参数、字幕 cue、SRT、BGM、视频源或保存目录：读 `docs/RENDER_JOB_SCHEMA.md`。
 - 修改项目结构或跨模块代码：读 `docs/PROJECT_LAYOUT.md` 和 `docs/PROJECT_STATUS.md`。
 - 修改本地安装和处理机使用：读 `START_HERE.md`、`docs/PROCESSOR_DEPLOYMENT.md`。
