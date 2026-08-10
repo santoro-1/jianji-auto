@@ -479,7 +479,7 @@
                 <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
                 <img id="video-preview-semantic-overlay" class="hidden absolute z-10 pointer-events-none object-contain drop-shadow-2xl" src="" alt="语义前景图片">
                 <video id="video-preview-semantic-video" class="hidden absolute z-10 pointer-events-none object-contain" muted playsinline preload="metadata"></video>
-                <img id="video-preview-fixed-nameplate" class="hidden absolute z-[15] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview" alt="张雒人名牌">
+                <img id="video-preview-fixed-nameplate" class="hidden absolute z-[9] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview" alt="张雒人名牌">
                 <div id="video-preview-title-label" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 <div id="video-preview-title-headline" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
@@ -4420,7 +4420,7 @@
             const style = activePreviewScript()?.subtitles?.style || {};
             const safeWidth = displayedWidth * Number(style.max_width_ratio || 0.8);
             const fontSize = Number(style.font_size || 14);
-            const transformY = Number(style.transform_y ?? (-856 / 1920));
+            const transformY = Number(style.transform_y ?? (-780 / 1920));
             const strokeColor = '#000000';
             const strokeWidth = Math.max(1, displayedWidth * 0.06 / 15);
             caption.style.left = '50%';
@@ -4669,7 +4669,7 @@
             const top = (frame.clientHeight - height) / 2;
             const nameplateScale = 0.7331057670319187;
             const transformX = -0.26689423296808135;
-            const transformY = -0.22258064516128995;
+            const transformY = -0.18;
             const visualWidth = width * nameplateScale;
             const aspectRatio = image.naturalWidth && image.naturalHeight
                 ? image.naturalHeight / image.naturalWidth

@@ -43,7 +43,7 @@ from .unified_visual_plan import remap_saved_visual_plan
 
 CAPTION_MAX_WIDTH_RATIO = 0.8
 CAPTION_MAX_LINES = 1
-CAPTION_TRANSFORM_Y = -856 / 1920
+CAPTION_TRANSFORM_Y = -780 / 1920
 CAPTION_BOTTOM_OFFSET_RATIO = 0.5 + CAPTION_TRANSFORM_Y / 2
 CAPTION_REFERENCE_FONT_SIZE = 14.0
 CAPTION_REFERENCE_MAX_EM = 13.0 * 11.0 / CAPTION_REFERENCE_FONT_SIZE
@@ -55,9 +55,10 @@ TOP_TITLE_LABEL_FONT_SIZE = 11.0
 TOP_TITLE_HEADLINE_FONT_SIZE = 13.0
 TOP_TITLE_LABEL_COLOR = "#FFD600"
 TOP_TITLE_HEADLINE_COLOR = "#FFFFFF"
-TOP_TITLE_MAX_LABEL_CHARS = 12
-TOP_TITLE_MAX_HEADLINE_CHARS = 20
-COVER_TITLE_MAX_LINE_CHARS = 5
+TOP_TITLE_MAX_LABEL_CHARS = 5
+TOP_TITLE_MAX_HEADLINE_CHARS = 14
+COVER_TITLE_MAX_LINE_1_CHARS = 5
+COVER_TITLE_MAX_LINE_2_CHARS = 14
 COVER_FONT_IDENTITY = "resource_id:6807742980271641102"
 COVER_LINE_1_TRANSFORM_Y = -160 / 1920
 COVER_LINE_2_TRANSFORM_Y = -655 / 1920
@@ -124,8 +125,8 @@ def normalize_top_title(value: Any) -> dict[str, str]:
         raw = next((value.get(key) for key in keys if value.get(key) is not None), "")
         return re.sub(r"\s+", " ", str(raw or "")).strip()
 
-    label = clean("label", "topic")
-    headline = clean("headline", "title")
+    label = clean("label", "topic", "line_1")
+    headline = clean("headline", "title", "line_2")
     if len(label) > TOP_TITLE_MAX_LABEL_CHARS:
         raise ValueError(f"顶部黄色小标题最多 {TOP_TITLE_MAX_LABEL_CHARS} 个字符")
     if len(headline) > TOP_TITLE_MAX_HEADLINE_CHARS:
@@ -152,10 +153,16 @@ def normalize_cover_title(value: Any) -> dict[str, str]:
     line_2 = clean("line_2", "hook", "headline", "title")
     if bool(line_1) != bool(line_2):
         raise ValueError("封面标题必须同时提供两行")
-    for index, text in enumerate((line_1, line_2), start=1):
-        if len(text) > COVER_TITLE_MAX_LINE_CHARS:
+    for index, (text, limit) in enumerate(
+        (
+            (line_1, COVER_TITLE_MAX_LINE_1_CHARS),
+            (line_2, COVER_TITLE_MAX_LINE_2_CHARS),
+        ),
+        start=1,
+    ):
+        if len(text) > limit:
             raise ValueError(
-                f"封面第 {index} 行最多 {COVER_TITLE_MAX_LINE_CHARS} 个字符"
+                f"封面第 {index} 行最多 {limit} 个字符"
             )
     return {"line_1": line_1, "line_2": line_2}
 
@@ -168,7 +175,9 @@ def build_project_cover(
     """Build the fixed project cover recipe from saved titles and the input image."""
 
     postprocess = dict(item.get("settings", {}).get("postprocess") or {})
-    title = normalize_cover_title(postprocess.get("cover_title"))
+    title = normalize_cover_title(
+        postprocess.get("title") or postprocess.get("cover_title")
+    )
     if not title["line_1"]:
         return None
     image = item.get("inputs", {}).get("image")

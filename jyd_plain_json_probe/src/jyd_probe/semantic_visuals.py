@@ -27,7 +27,7 @@ FIXED_NAMEPLATE_BUNDLE = Path("fixed") / "nameplate_zhangluo"
 FIXED_NAMEPLATE_PREVIEW_URL = "/api/new/fixed-visuals/nameplate/preview"
 FIXED_NAMEPLATE_SCALE = 0.7331057670319187
 FIXED_NAMEPLATE_TRANSFORM_X = -0.26689423296808135
-FIXED_NAMEPLATE_TRANSFORM_Y = -0.22258064516128995
+FIXED_NAMEPLATE_TRANSFORM_Y = -0.18
 MEDIA_POLICIES = frozenset(
     {"image_only", "video_only", "prefer_image", "prefer_video", "mixed"}
 )

@@ -15,17 +15,17 @@ from jyd_probe.render_job import _build_text_replacements
 def test_top_title_is_optional_and_normalizes_whitespace() -> None:
     assert normalize_top_title(None) == {"label": "", "headline": ""}
     assert normalize_top_title(
-        {"label": "  \u51cf\u80a5  \u5927\u5b9e\u8bdd ", "headline": "\u575a\u6301\n\u624d\u80fd\u8fbe\u6210\u76ee\u6807"}
+        {"label": "  \u51cf\u8102  \u771f\u76f8 ", "headline": "\u575a\u6301\n\u624d\u662f\u5173\u952e"}
     ) == {
-        "label": "\u51cf\u80a5 \u5927\u5b9e\u8bdd",
-        "headline": "\u575a\u6301 \u624d\u80fd\u8fbe\u6210\u76ee\u6807",
+        "label": "\u51cf\u8102 \u771f\u76f8",
+        "headline": "\u575a\u6301 \u624d\u662f\u5173\u952e",
     }
     assert CAPTION_REFERENCE_MAX_EM == pytest.approx(10.214285714285714)
 
 
 def test_top_title_builds_two_full_duration_styled_text_additions() -> None:
     texts = build_top_title_texts(
-        {"label": "\u51cf\u80a5\u5927\u5b9e\u8bdd", "headline": "\u53ea\u6709\u575a\u6301\u624d\u80fd\u8fbe\u6210\u76ee\u6807"},
+        {"line_1": "\u51cf\u8102\u771f\u76f8", "line_2": "\u575a\u6301\u624d\u662f\u5173\u952e"},
         font={"resource_id": "font-id", "path": "D:/font.ttf", "name": "Fixed"},
     )
     assert [item["transform_y"] for item in texts] == [1535 / 1920, 1350 / 1920]
@@ -44,7 +44,7 @@ def test_top_title_builds_two_full_duration_styled_text_additions() -> None:
 
 def test_top_title_rejects_multiline_overflow() -> None:
     with pytest.raises(ValueError, match="\u9ec4\u8272\u5c0f\u6807\u9898"):
-        normalize_top_title({"label": "1234567890123", "headline": ""})
+        normalize_top_title({"label": "123456", "headline": ""})
 
 
 def test_cover_title_requires_two_compact_lines() -> None:
@@ -59,6 +59,8 @@ def test_cover_title_requires_two_compact_lines() -> None:
         normalize_cover_title({"line_1": "健康 真相", "line_2": "别再踩坑"})
     with pytest.raises(ValueError, match="最多 5 个字符"):
         normalize_cover_title({"line_1": "一二三四五六", "line_2": "别再踩坑"})
+    with pytest.raises(ValueError, match="最多 14 个字符"):
+        normalize_cover_title({"line_1": "健康真相", "line_2": "一二三四五六七八九十一二三四五"})
 
 
 def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> None:

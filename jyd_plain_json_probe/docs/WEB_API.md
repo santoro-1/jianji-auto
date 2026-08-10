@@ -79,7 +79,7 @@ POST /api/new/projects/{project_id}/items/{item_id}/content-analysis/retry
 一条脚本一次数字人后端请求，单批最多并发 10 行。普通请求对脚本哈希未变化且已有
 `PENDING`、`SUCCESS`、`PARTIAL` 或 `FAILED` 尝试的行保持幂等跳过。单行 retry 固定强制
 刷新，用于用户显式重试失败分支。项目响应的每个 item 新增
-`content_analysis`，项目顶层新增 `content_analysis_summary`。音乐和字幕分别保存
+`content_analysis`，项目顶层新增 `content_analysis_summary`。音乐、字幕和标题分别保存
 `NOT_REQUESTED | SUCCESS | FAILED`，请求执行期间顶层 `overall_status=PENDING`，最终为
 `SUCCESS | PARTIAL | FAILED`。脚本修改只失效该行分析快照；分析失败返回合法项目状态，
 不重新调用 MiniMax/RunningHub/剪映，也不清空 `raw_cues` 或已有音视频。前端在请求发出时立即把
@@ -342,7 +342,7 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 ```
 
 字幕使用 MiniMax `raw_cues` 派生 `render_cues`：固定居中且禁止换行、字号 `14`、最大宽度 `0.8`、
-`transform_y=-856/1920`（1080×1920 剪映参考位置 Y=-856）。过长文本按真实字体 glyph advance 测量后，
+`transform_y=-780/1920`（1080×1920 参考画面中心约 Y=1350）。过长文本按真实字体 glyph advance 测量后，
 在原始 cue 时间范围内拆成连续字幕；原始 cues 不修改。缺字、字体损坏或无法满足安全
 宽度/最短显示时长时返回 `409`，并把该行字幕标记为 `REVIEW_REQUIRED`，不会静默提交
 溢出字幕。BGM 可不选；选择时使用音乐库 identity、音量 0.3，并适配视频时长。
@@ -360,14 +360,17 @@ RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不�
 这样字幕、BGM 和视频使用完全相同的绝对时间轴，不会因供应商分段的容器实际时长偏短而
 使末尾字幕越界。`base_video` 已包含 4A 生成的 250000 微秒保时长叠化。
 
-`postprocess-settings` 可在非运行状态随时保存字体、BGM 选择模式、文字颜色、可选顶部固定标题和
-项目封面标题：
+统一内容分析的 `title` 分支返回唯一 `{"line_1":"减脂真相","line_2":"坚持才是关键"}`：第一行
+最多 5 个字符，第二行最多 14 个字符，均不得含空白或重复。工作台将其保存为
+`postprocess.title`，并确定性映射到顶部固定标题和项目封面标题，两处不再生成两套文案。
+`postprocess-settings` 仍可在非运行状态保存字体、BGM 选择模式、文字颜色及兼容的标题字段：
 `top_title={"label":"黄色小标题","headline":"白色主标题"}`。两个文本都为空时不生成标题轨道；
 黄色小标题固定在 Y=1535，白色主标题固定在 Y=1350（均以 1080×1920 为参考）。如果该行已有最终
 成片，修改后只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
 随后重新生成浏览器预览配方即可，不会自动再次导出。
-`cover_title={"line_1":"健康真相","line_2":"别再踩坑"}` 必须两行同时存在、每行最多 5 字且不含
-空白。非空时普通导出和变体都使用当前输入图片生成固定 3 帧封面；视觉参数不由接口传入。
+`cover_title={"line_1":"健康真相","line_2":"别再踩坑"}` 必须两行同时存在；第一行最多 5 字、
+第二行最多 14 字且不含空白。非空时普通导出和变体都使用当前输入图片生成固定 3 帧封面；
+视觉参数不由接口传入。
 同理，脚本或音色修改会保留旧音频/视频但回到 `DRAFT`，图片修改会保留当前音频但回到
 `AUDIO_READY`。再次调用 `/audio/generate` 时，若没有待生成/失败行，则为全部已完成行
 创建新的声音版本，而不是返回“当前项目没有待生成声音”。

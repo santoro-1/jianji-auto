@@ -130,9 +130,11 @@ def _default_content_analysis(
         "overall_status": "NOT_REQUESTED",
         "music_analysis_status": "NOT_REQUESTED",
         "subtitle_analysis_status": "NOT_REQUESTED",
+        "title_analysis_status": "NOT_REQUESTED",
         "music_intent": None,
         "subtitle_units": None,
-        "errors": {"music": None, "subtitle": None, "request": None},
+        "title": None,
+        "errors": {"music": None, "subtitle": None, "title": None, "request": None},
         "schema_version": None,
         "prompt_version": None,
         "model": None,
@@ -300,13 +302,15 @@ def _visual_analysis_snapshot(
     return snapshot
 
 
-def _analysis_overall_status(music_status: str, subtitle_status: str) -> str:
+def _analysis_overall_status(
+    music_status: str, subtitle_status: str, title_status: str
+) -> str:
     success_count = sum(
-        status == "SUCCESS" for status in (music_status, subtitle_status)
+        status == "SUCCESS" for status in (music_status, subtitle_status, title_status)
     )
-    if success_count == 2:
+    if success_count == 3:
         return "SUCCESS"
-    if success_count == 1:
+    if success_count:
         return "PARTIAL"
     return "FAILED"
 
@@ -2927,21 +2931,37 @@ class ProjectStore:
                 subtitle_units = None
                 subtitle_error = errors.get("subtitle")
 
+            title_status = str(result.get("title_analysis_status") or "FAILED")
+            if title_status == "SUCCESS":
+                title = result.get("title")
+                title_error = None
+            elif baseline.get("title_analysis_status") == "SUCCESS":
+                title_status = "SUCCESS"
+                title = baseline.get("title")
+                title_error = None
+            else:
+                title_status = "FAILED"
+                title = None
+                title_error = errors.get("title")
+
             analyzed_at = _now()
             snapshot = {
                 **current,
                 "script_sha256": expected_script_sha256,
                 "script_length": len(script),
                 "overall_status": _analysis_overall_status(
-                    music_status, subtitle_status
+                    music_status, subtitle_status, title_status
                 ),
                 "music_analysis_status": music_status,
                 "subtitle_analysis_status": subtitle_status,
+                "title_analysis_status": title_status,
                 "music_intent": music_intent,
                 "subtitle_units": subtitle_units,
+                "title": title,
                 "errors": {
                     "music": music_error,
                     "subtitle": subtitle_error,
+                    "title": title_error,
                     "request": None,
                 },
                 "schema_version": result.get("schema_version")
@@ -2958,6 +2978,24 @@ class ProjectStore:
                 "invalidated_reason": None,
                 "invalidated_at": None,
             }
+            if title_status == "SUCCESS" and isinstance(title, dict):
+                line_1 = str(title.get("line_1") or "").strip()
+                line_2 = str(title.get("line_2") or "").strip()
+                settings = _object(item["settings_json"], {})
+                postprocess = dict(settings.get("postprocess") or {})
+                canonical_title = {"line_1": line_1, "line_2": line_2}
+                postprocess.update(
+                    {
+                        "title": canonical_title,
+                        "cover_title": canonical_title,
+                        "top_title": {"label": line_1, "headline": line_2},
+                    }
+                )
+                settings["postprocess"] = postprocess
+                connection.execute(
+                    "UPDATE project_items SET settings_json=? WHERE item_id=?",
+                    (_json(settings), item_id),
+                )
             connection.execute(
                 "UPDATE project_items SET content_analysis_json=?, updated_at=? WHERE item_id=?",
                 (_json(snapshot), analyzed_at, item_id),
@@ -2981,9 +3019,11 @@ class ProjectStore:
         failed = {
             "music_analysis_status": "FAILED",
             "subtitle_analysis_status": "FAILED",
+            "title_analysis_status": "FAILED",
             "music_intent": None,
             "subtitle_units": None,
-            "errors": {"music": error, "subtitle": error},
+            "title": None,
+            "errors": {"music": error, "subtitle": error, "title": error},
             "provider_attempts": 0,
             "cache_hit": False,
             "cacheable": False,

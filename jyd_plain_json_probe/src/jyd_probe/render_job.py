@@ -1001,7 +1001,7 @@ def _build_visual_video_additions(
 def _build_fixed_overlay_additions(
     config: Mapping[str, Any],
 ) -> list[ImageAddition]:
-    """Build automatic branding layers after semantic images and below captions."""
+    """Build branding first, directly above the base video and below every overlay."""
 
     additions: list[ImageAddition] = []
     for item in _list_config(
@@ -1035,7 +1035,7 @@ def _build_fixed_overlay_additions(
                 track_name=str(_value(item, "track_name", default="固定人名牌")),
                 optional=True,
                 render_below_text=True,
-                layer_order=20,
+                layer_order=0,
                 transform_x=_optional_float(item, "transform_x"),
                 transform_y=_optional_float(item, "transform_y"),
             )

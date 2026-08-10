@@ -175,7 +175,7 @@ def test_semantic_bundle_is_inserted_above_video_and_below_caption() -> None:
     assert 11_000 < render_index < 14_000
 
 
-def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> None:
+def test_fixed_nameplate_is_full_length_directly_above_video_and_below_semantic() -> None:
     library = (
         Path(__file__).resolve().parents[1]
         / "data"
@@ -216,14 +216,16 @@ def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> No
                     "corner": "center",
                     "scale": 0.7331057670319187,
                     "transform_x": -0.26689423296808135,
-                    "transform_y": -0.22258064516128995,
+                    "transform_y": -0.18,
                 }
             ]
         }
     )[0]
+    assert nameplate.layer_order == 0
+    assert semantic.layer_order == 10
 
     draft = import_pyjianyingdraft()
-    for addition in (semantic, nameplate):
+    for addition in (nameplate, semantic):
         add_image_overlay_to_data(
             draft,
             data,
@@ -247,7 +249,7 @@ def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> No
         for track in data["tracks"]
         if track["type"] == "text"
     )
-    assert semantic_index < nameplate_segment["track_render_index"] < caption_index
+    assert nameplate_segment["track_render_index"] < semantic_index < caption_index
     semantic_material = next(
         material
         for material in data["materials"]["videos"]
@@ -260,7 +262,7 @@ def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> No
         "duration": 8_000_000,
     }
     assert nameplate_segment["clip"]["transform"]["x"] == -0.26689423296808135
-    assert nameplate_segment["clip"]["transform"]["y"] == -0.22258064516128995
+    assert nameplate_segment["clip"]["transform"]["y"] == -0.18
     assert nameplate_segment["clip"]["scale"]["x"] == 0.7331057670319187
 
 
@@ -277,7 +279,7 @@ def test_fixed_nameplate_recipe_uses_left_chest_preset() -> None:
     assert overlay["corner"] == "center"
     assert overlay["scale"] == 0.7331057670319187
     assert overlay["transform_x"] == -0.26689423296808135
-    assert overlay["transform_y"] == -0.22258064516128995
+    assert overlay["transform_y"] == -0.18
 
 
 def test_bottom_portrait_image_height_is_capped_at_thirty_percent() -> None:

@@ -7,6 +7,7 @@ from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
 from .project_music import ProjectMusicSelector, automatic_music_identity_counts
+from .project_postprocess import normalize_cover_title
 from .project_store import ProjectStore
 from .semantic_subtitles import SemanticSubtitleMappingError
 from .semantic_visuals import SemanticVisualCatalog
@@ -62,7 +63,15 @@ def _validated_remote_result(
 
     music_status = str(payload.get("music_analysis_status") or "").upper()
     subtitle_status = str(payload.get("subtitle_analysis_status") or "").upper()
-    if music_status not in _BRANCH_STATUSES or subtitle_status not in _BRANCH_STATUSES:
+    # Rolling upgrades may briefly pair the new workbench with an older cloud
+    # response. Preserve music/subtitle results while treating the absent title
+    # branch as independently unavailable.
+    title_status = str(payload.get("title_analysis_status") or "FAILED").upper()
+    if (
+        music_status not in _BRANCH_STATUSES
+        or subtitle_status not in _BRANCH_STATUSES
+        or title_status not in _BRANCH_STATUSES
+    ):
         raise ValueError("数字人网站返回的内容分析分支状态无效")
 
     music_intent = payload.get("music_intent")
@@ -79,6 +88,11 @@ def _validated_remote_result(
             texts.append(str(unit["text"]))
         if "".join(texts) != original_script:
             raise ValueError("subtitle_units 未逐字符重建原始脚本")
+    title = payload.get("title")
+    if title_status == "SUCCESS":
+        title = normalize_cover_title(title)
+        if not title["line_1"] or not title["line_2"]:
+            raise ValueError("标题分析成功但缺少两行标题")
 
     return {
         "schema_version": str(payload.get("schema_version") or "")[:100],
@@ -86,11 +100,14 @@ def _validated_remote_result(
         "model": str(payload.get("model") or "")[:200],
         "music_analysis_status": music_status,
         "subtitle_analysis_status": subtitle_status,
+        "title_analysis_status": title_status,
         "music_intent": dict(music_intent) if isinstance(music_intent, Mapping) else None,
         "subtitle_units": subtitle_units if isinstance(subtitle_units, list) else None,
+        "title": dict(title) if isinstance(title, Mapping) else None,
         "errors": {
             "music": _branch_error(payload, "music"),
             "subtitle": _branch_error(payload, "subtitle"),
+            "title": _branch_error(payload, "title"),
         },
         "provider_request_id": (
             str(payload.get("provider_request_id"))[:200]

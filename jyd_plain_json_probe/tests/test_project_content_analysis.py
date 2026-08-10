@@ -27,6 +27,7 @@ def _remote_result(
     *,
     music_status: str = "SUCCESS",
     subtitle_status: str = "SUCCESS",
+    title_status: str = "SUCCESS",
 ) -> dict[str, object]:
     import hashlib
 
@@ -38,11 +39,16 @@ def _remote_result(
         "model": "doubao-seed-2-0-lite-260428",
         "overall_status": (
             "SUCCESS"
-            if music_status == subtitle_status == "SUCCESS"
-            else ("PARTIAL" if "SUCCESS" in {music_status, subtitle_status} else "FAILED")
+            if music_status == subtitle_status == title_status == "SUCCESS"
+            else (
+                "PARTIAL"
+                if "SUCCESS" in {music_status, subtitle_status, title_status}
+                else "FAILED"
+            )
         ),
         "music_analysis_status": music_status,
         "subtitle_analysis_status": subtitle_status,
+        "title_analysis_status": title_status,
         "music_intent": {"primary_scene": "health_education"}
         if music_status == "SUCCESS"
         else None,
@@ -58,6 +64,9 @@ def _remote_result(
         ]
         if subtitle_status == "SUCCESS"
         else None,
+        "title": {"line_1": "减脂真相", "line_2": "坚持才是关键"}
+        if title_status == "SUCCESS"
+        else None,
         "errors": {
             "music": None
             if music_status == "SUCCESS"
@@ -65,11 +74,14 @@ def _remote_result(
             "subtitle": None
             if subtitle_status == "SUCCESS"
             else {"code": "SUBTITLE_TEXT_MISMATCH", "summary": "字幕失败"},
+            "title": None
+            if title_status == "SUCCESS"
+            else {"code": "TITLE_SCHEMA_INVALID", "summary": "标题失败"},
         },
         "provider_request_id": f"req-{uuid.uuid4().hex}",
         "provider_attempts": 1,
         "cache_hit": False,
-        "cacheable": music_status == "SUCCESS" or subtitle_status == "SUCCESS",
+        "cacheable": "SUCCESS" in {music_status, subtitle_status, title_status},
     }
 
 
@@ -174,6 +186,15 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertTrue(all(item["content_analysis"]["overall_status"] == "SUCCESS" for item in result["items"]))
         self.assertEqual(result["content_analysis_summary"]["counts"]["SUCCESS"], 12)
         self.assertEqual(result["content_analysis_summary"]["concurrency_limit"], 10)
+        first = result["items"][0]
+        canonical_title = {"line_1": "减脂真相", "line_2": "坚持才是关键"}
+        self.assertEqual(first["content_analysis"]["title"], canonical_title)
+        self.assertEqual(first["settings"]["postprocess"]["title"], canonical_title)
+        self.assertEqual(first["settings"]["postprocess"]["cover_title"], canonical_title)
+        self.assertEqual(
+            first["settings"]["postprocess"]["top_title"],
+            {"label": "减脂真相", "headline": "坚持才是关键"},
+        )
 
     def test_branches_and_project_items_fail_independently(self) -> None:
         def analyze(_client, _token, original_script, *, force_refresh=False):
