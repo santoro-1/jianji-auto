@@ -648,6 +648,11 @@ class ProjectAudioApiTest(unittest.TestCase):
             )
             self.assertEqual(audio.status_code, 200)
             self.assertEqual(audio.content, b"ID3-real-audio")
+            appended = client.post(
+                f"/api/new/projects/{project_id}/items",
+                json={"row_key": "2", "script_text": "尚未生成声音"},
+            )
+            self.assertEqual(appended.status_code, 201, appended.text)
             audio_bundle = client.get(
                 f"/api/new/projects/{project_id}/audios/download"
             )
@@ -656,6 +661,10 @@ class ProjectAudioApiTest(unittest.TestCase):
             with zipfile.ZipFile(BytesIO(audio_bundle.content)) as archive:
                 self.assertEqual(archive.namelist(), ["1.mp3"])
                 self.assertEqual(archive.read("1.mp3"), b"ID3-real-audio")
+            removed = client.delete(
+                f"/api/new/projects/{project_id}/items/{appended.json()['items'][-1]['item_id']}"
+            )
+            self.assertEqual(removed.status_code, 200, removed.text)
 
             remote_status["value"] = {
                 "batch_id": "remote-batch-2",

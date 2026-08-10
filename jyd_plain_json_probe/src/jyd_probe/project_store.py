@@ -2206,7 +2206,7 @@ class ProjectStore:
         *,
         resolution: str,
     ) -> dict[str, Any]:
-        """Persist one project-wide resolution and detach stale current videos."""
+        """Persist the project default without hiding already completed videos."""
 
         clean_resolution = str(resolution or "").strip()
         try:
@@ -2236,44 +2236,7 @@ class ProjectStore:
                 **digital_human,
                 "resolution": clean_resolution,
             }
-            rows = connection.execute(
-                "SELECT * FROM project_items WHERE project_id=?",
-                (project_id,),
-            ).fetchall()
             now = _now()
-            for item in rows:
-                if item["current_base_video_asset_id"] is None:
-                    continue
-                subtitles = _object(item["subtitles_json"], _default_subtitles())
-                subtitles["render_cues"] = []
-                subtitles["bound_video_asset_id"] = None
-                subtitles["overflow_risk"] = False
-                subtitles["review_reason"] = None
-                subtitles["status"] = (
-                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
-                )
-                item_settings = _object(item["settings_json"], {})
-                item_settings["composition_invalidated_reason"] = (
-                    "DIGITAL_HUMAN_RESOLUTION_CHANGED"
-                )
-                next_status = (
-                    "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
-                )
-                connection.execute(
-                    """
-                    UPDATE project_items
-                    SET current_base_video_asset_id=NULL, current_video_asset_id=NULL,
-                        subtitles_json=?, settings_json=?, status=?, updated_at=?
-                    WHERE item_id=?
-                    """,
-                    (
-                        _json(subtitles),
-                        _json(item_settings),
-                        next_status,
-                        now,
-                        item["item_id"],
-                    ),
-                )
             connection.execute(
                 """
                 UPDATE projects

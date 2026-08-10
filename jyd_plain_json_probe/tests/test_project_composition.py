@@ -448,23 +448,32 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(downloaded.status_code, 200, downloaded.text)
                 self.assertEqual(downloaded.content, b"normalized-base")
 
-                invalidated = store.set_digital_human_resolution(
+                preserved = store.set_digital_human_resolution(
                     user["user_id"],
                     project["project_id"],
                     resolution="1920",
                 )
+                preserved_item = preserved["items"][0]
+                self.assertEqual(preserved_item["status"], "BASE_VIDEO_READY")
+                self.assertIsNotNone(preserved_item["outputs"]["base_video"])
+                self.assertIsNone(preserved_item["outputs"]["composition_video"])
+                self.assertNotIn(
+                    "composition_invalidated_reason", preserved_item["settings"]
+                )
+                self.assertEqual(
+                    len(preserved_item["asset_history"]["base_video"]), 2
+                )
+
+                # Existing installs can still contain the old marker. Keep that
+                # migration path compatible without creating new invalidations.
+                invalidated = store.invalidate_item_composition(
+                    user["user_id"],
+                    project["project_id"],
+                    item["item_id"],
+                    reason="DIGITAL_HUMAN_RESOLUTION_CHANGED",
+                )
                 invalidated_item = invalidated["items"][0]
-                self.assertEqual(invalidated_item["status"], "AUDIO_READY")
                 self.assertIsNone(invalidated_item["outputs"]["base_video"])
-                self.assertIsNone(invalidated_item["outputs"]["composition_video"])
-                self.assertEqual(
-                    invalidated_item["settings"]["composition_invalidated_reason"],
-                    "DIGITAL_HUMAN_RESOLUTION_CHANGED",
-                )
-                # SeedVR2 历史补跑会保留原始成片，并新增一个高清成片版本。
-                self.assertEqual(
-                    len(invalidated_item["asset_history"]["base_video"]), 2
-                )
 
                 active_remote = {
                     **remote_ready,

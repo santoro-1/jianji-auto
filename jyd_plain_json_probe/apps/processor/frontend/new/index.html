@@ -859,12 +859,12 @@
                                 生成完整成片
                             </button>
 
-                            <button id="btn-download-project-audios" disabled onclick="downloadProjectAudios()" title="全部声音生成完成后可一键打包下载" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                            <button id="btn-download-project-audios" disabled onclick="downloadProjectAudios()" title="打包下载当前已经完成的声音" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-file-zipper"></i>
                                 <span>一键下载声音</span>
                             </button>
 
-                            <button id="btn-download-project-videos" disabled onclick="downloadProjectVideos()" title="全部未变体成片导出后可一键打包下载" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                            <button id="btn-download-project-videos" disabled onclick="downloadProjectVideos()" title="导出并打包当前已经完成预览的未变体视频" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-file-zipper"></i>
                                 <span>一键下载视频</span>
                             </button>
@@ -3016,6 +3016,7 @@
         function refreshAudioStageActions() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
+            const readyAudioCount = rows.filter(row => row.getAttribute('data-voice-status') === 'ready').length;
             const btnCompose = document.getElementById('btn-start-composition');
             const btnDownloadAudios = document.getElementById('btn-download-project-audios');
             const stageHint = document.getElementById('composition-stage-hint');
@@ -3049,20 +3050,21 @@
             btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
-            btnDownloadAudios.disabled = !allReady;
-            btnDownloadAudios.className = allReady
+            btnDownloadAudios.disabled = readyAudioCount === 0;
+            btnDownloadAudios.className = readyAudioCount > 0
                 ? "w-full md:w-auto px-6 py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/35 hover:border-cyan-300/60 text-cyan-200 hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]"
                 : "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
-            btnDownloadAudios.title = allReady
-                ? `打包下载当前批次 ${uploadedScripts.length} 条声音`
-                : '需要先完成当前批次的全部声音';
+            btnDownloadAudios.title = readyAudioCount > 0
+                ? `打包下载 ${readyAudioCount} 条已完成声音，跳过 ${rows.length - readyAudioCount} 条未完成任务`
+                : '当前项目还没有已完成的声音';
         }
 
         function downloadProjectAudios() {
             if (!activeProject || !uploadedScripts.length) return;
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            if (!rows.length || rows.some(row => row.getAttribute('data-voice-status') !== 'ready')) {
-                showToast('暂时不能一键下载声音', '请先完成当前批次的全部声音。', 'warning');
+            const readyRows = rows.filter(row => row.getAttribute('data-voice-status') === 'ready');
+            if (!readyRows.length) {
+                showToast('暂时不能一键下载声音', '当前项目还没有已完成的声音。', 'warning');
                 return;
             }
             const link = document.createElement('a');
@@ -3071,7 +3073,7 @@
             document.body.appendChild(link);
             link.click();
             link.remove();
-            showToast('正在打包下载声音', `共 ${uploadedScripts.length} 条，文件名按任务ID保存。`, 'success');
+            showToast('正在打包下载声音', `下载 ${readyRows.length} 条已完成声音，跳过 ${rows.length - readyRows.length} 条未完成任务；文件名按任务ID保存。`, 'success');
         }
 
         function selectedRowsOrWarn() {
@@ -3736,13 +3738,14 @@
         function refreshVariantActionAvailability() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allVideosReady = rows.length > 0 && rows.every(row => row.getAttribute('data-video-status') === 'ready');
+            const readyVideoCount = rows.filter(row => row.getAttribute('data-video-status') === 'ready').length;
             const mainButton = document.getElementById('btn-generate-variants');
             const settingsButton = document.getElementById('btn-variant-settings');
             const downloadButton = document.getElementById('btn-download-project-videos');
             const backendAllowsVariants = Boolean(activeProject?.allowed_actions?.generate_variants);
             const canGenerate = backendAllowsVariants && allVideosReady && !isGeneratingVariants;
             const canConfigure = backendAllowsVariants && rows.length > 0 && !isGeneratingVariants;
-            const canDownload = allVideosReady && !isDownloadingProjectVideos;
+            const canDownload = readyVideoCount > 0 && !isDownloadingProjectVideos;
 
             rows.forEach(row => {
                 const input = row.querySelector('.row-variant-count');
@@ -3773,20 +3776,23 @@
                 ? "w-full md:w-auto px-6 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/35 hover:border-emerald-300/60 text-emerald-300 hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]"
                 : "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
             downloadButton.title = canDownload
-                ? `导出并打包下载 ${uploadedScripts.length} 条未变体成片`
-                : (isDownloadingProjectVideos ? '正在逐条导出并打包' : '需要先完成所有普通成片预览');
+                ? `导出并打包 ${readyVideoCount} 条已完成预览，跳过 ${rows.length - readyVideoCount} 条未完成任务`
+                : (isDownloadingProjectVideos ? '正在逐条导出并打包' : '当前项目还没有已完成的普通成片预览');
         }
 
         async function downloadProjectVideos() {
             if (!activeProject || !uploadedScripts.length || isDownloadingProjectVideos) return;
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            if (!rows.length || rows.some(row => row.getAttribute('data-video-status') !== 'ready')) {
-                showToast('暂时不能一键下载', '请先完成所有普通成片预览。', 'warning');
+            const readyRows = rows.filter(row => row.getAttribute('data-video-status') === 'ready');
+            if (!readyRows.length) {
+                showToast('暂时不能一键下载', '当前项目还没有已完成的普通成片预览。', 'warning');
                 return;
             }
             const projectId = activeProject.project_id;
-            const missing = uploadedScripts.filter(item => !item.compositionVideo);
-            if (missing.length && !window.confirm(`其中 ${missing.length} 条目前只有浏览器动态预览。一键下载将逐条启动剪映导出普通成片，再统一打包；不会生成或下载变体。是否继续？`)) return;
+            const readyItemIds = new Set(readyRows.map(row => row.getAttribute('data-id')));
+            const readyItems = uploadedScripts.filter(item => readyItemIds.has(item.id));
+            const missing = readyItems.filter(item => !item.compositionVideo);
+            if (missing.length && !window.confirm(`本次下载 ${readyItems.length} 条已完成预览，其中 ${missing.length} 条只有浏览器动态预览，将逐条启动剪映导出；另外跳过 ${rows.length - readyItems.length} 条未完成任务。不会生成或下载变体。是否继续？`)) return;
             isDownloadingProjectVideos = true;
             refreshVariantActionAvailability();
             try {
@@ -3825,7 +3831,7 @@
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
-                showToast('正在打包下载', `共 ${uploadedScripts.length} 条未变体成片；压缩包不包含变体视频。`, 'success');
+                showToast('正在打包下载', `共 ${readyItems.length} 条已完成未变体成片，跳过 ${rows.length - readyItems.length} 条未完成任务；压缩包不包含变体视频。`, 'success');
             } catch (error) {
                 showToast('一键下载失败', error.message, 'warning');
                 try {
@@ -4897,13 +4903,10 @@
 
         async function downloadPreviewVideo() {
             const finalVideoUrl = activeVideoPreviewRow?.getAttribute('data-final-video-url') || '';
-            const localVideoUrl = activeVideoPreviewRow?.getAttribute('data-local-video-url') || '';
-            const downloadUrl = finalVideoUrl || localVideoUrl;
-            if (downloadUrl) {
+            if (finalVideoUrl) {
                 const link = document.createElement('a');
-                link.href = downloadUrl;
+                link.href = finalVideoUrl;
                 link.download = activeVideoPreviewRow?.getAttribute('data-final-video-name')
-                    || activeVideoPreviewRow?.getAttribute('data-local-video-name')
                     || '';
                 document.body.appendChild(link);
                 link.click();

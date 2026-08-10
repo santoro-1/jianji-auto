@@ -3156,10 +3156,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         for item in items:
             audio = (item.get("outputs") or {}).get("audio")
             if not isinstance(audio, dict) or not audio.get("managed_path"):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"任务 {item.get('row_key')} 的声音尚未生成完成",
-                )
+                continue
             path = Path(str(audio["managed_path"])).resolve()
             if not is_managed_project_file(path) or not path.is_file():
                 raise HTTPException(
@@ -3174,6 +3171,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     ),
                 )
             )
+        if not selected:
+            raise HTTPException(status_code=409, detail="当前项目没有已完成的声音可下载")
         archive_root = settings.storage_root / "project_downloads"
         archive_root.mkdir(parents=True, exist_ok=True)
         archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
@@ -3852,10 +3851,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         for item in items:
             video = (item.get("outputs") or {}).get("composition_video")
             if not isinstance(video, dict) or not video.get("managed_path"):
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"任务 {item.get('row_key')} 的未变体成片尚未导出",
-                )
+                continue
             path = Path(str(video["managed_path"])).resolve()
             if not is_managed_project_file(path) or not path.is_file():
                 raise HTTPException(
@@ -3870,6 +3866,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     ),
                 )
             )
+        if not selected:
+            raise HTTPException(status_code=409, detail="当前项目没有已导出的未变体成片可下载")
         archive_root = settings.storage_root / "project_downloads"
         archive_root.mkdir(parents=True, exist_ok=True)
         archive_path = archive_root / f"{uuid.uuid4().hex}.zip"

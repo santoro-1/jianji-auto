@@ -103,9 +103,10 @@ class ProjectVideoApiTest(unittest.TestCase):
             items=[
                 {"row_key": "1", "script_text": "多片段"},
                 {"row_key": "2", "script_text": "单片段"},
+                {"row_key": "3", "script_text": "尚未生成"},
             ],
         )
-        for item in project["items"]:
+        for item in project["items"][:2]:
             self._seed_current_video(store, user, project, item)
 
         for sequence in (1, 2):
