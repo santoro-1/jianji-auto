@@ -178,6 +178,59 @@ class CaptionRenderContractTest(unittest.TestCase):
             [1_250_000, 1_750_000],
         )
 
+    def test_multi_segment_source_uses_latest_seedvr2_revision_per_index(self) -> None:
+        item = {
+            "row_key": "15",
+            "outputs": {
+                "base_video": {
+                    "managed_path": "D:/base-seedvr2.mp4",
+                    "metadata": {"segment_count": 2},
+                    "external_ref": {"source_task_ids": ["task-1", "task-2"]},
+                },
+                "original_video_segments": [
+                    {
+                        "asset_id": "enhanced-1",
+                        "version": 3,
+                        "status": "READY",
+                        "managed_path": "D:/enhanced-1.mp4",
+                        "external_ref": {"video_index": 1, "remote_task_id": "task-1"},
+                        "metadata": {"start_seconds": 0, "end_seconds": 1.25},
+                    },
+                    {
+                        "asset_id": "raw-1",
+                        "version": 1,
+                        "status": "READY",
+                        "managed_path": "D:/raw-1.mp4",
+                        "external_ref": {"video_index": 1, "remote_task_id": "task-1"},
+                        "metadata": {"start_seconds": 0, "end_seconds": 1.25},
+                    },
+                    {
+                        "asset_id": "enhanced-2",
+                        "version": 4,
+                        "status": "READY",
+                        "managed_path": "D:/enhanced-2.mp4",
+                        "external_ref": {"video_index": 2, "remote_task_id": "task-2"},
+                        "metadata": {"start_seconds": 1.25, "end_seconds": 3},
+                    },
+                    {
+                        "asset_id": "raw-2",
+                        "version": 2,
+                        "status": "READY",
+                        "managed_path": "D:/raw-2.mp4",
+                        "external_ref": {"video_index": 2, "remote_task_id": "task-2"},
+                        "metadata": {"start_seconds": 1.25, "end_seconds": 3},
+                    },
+                ],
+            },
+        }
+
+        source = build_project_video_source(item)
+
+        self.assertEqual(
+            [entry["media_path"] for entry in source["items"]],
+            [str(Path("D:/enhanced-1.mp4").resolve()), str(Path("D:/enhanced-2.mp4").resolve())],
+        )
+
     def test_real_draft_keeps_sequence_as_two_main_track_segments(self) -> None:
         import cv2
         import numpy as np

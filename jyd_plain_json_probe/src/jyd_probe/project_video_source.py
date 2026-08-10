@@ -14,6 +14,36 @@ def _segment_index(asset: dict[str, Any]) -> int:
         return 0
 
 
+def _segment_revision_key(asset: dict[str, Any]) -> tuple[int, str, str]:
+    try:
+        version = int(asset.get("version") or 0)
+    except (TypeError, ValueError):
+        version = 0
+    return (
+        version,
+        str(asset.get("created_at") or ""),
+        str(asset.get("asset_id") or ""),
+    )
+
+
+def _latest_segments_by_index(
+    segments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep the newest stored revision for each RunningHub segment index."""
+
+    latest: dict[int, dict[str, Any]] = {}
+    invalid: list[dict[str, Any]] = []
+    for asset in segments:
+        video_index = _segment_index(asset)
+        if video_index <= 0:
+            invalid.append(asset)
+            continue
+        current = latest.get(video_index)
+        if current is None or _segment_revision_key(asset) > _segment_revision_key(current):
+            latest[video_index] = asset
+    return [*invalid, *latest.values()]
+
+
 def _segments_bound_to_base_video(
     base: dict[str, Any], segments: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -80,15 +110,17 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError):
         expected = 0
     segments = sorted(
-        _segments_bound_to_base_video(
-            base,
-            [
-            asset
-            for asset in outputs.get("original_video_segments", [])
-            if isinstance(asset, dict)
-            and asset.get("status") == "READY"
-            and asset.get("managed_path")
-            ],
+        _latest_segments_by_index(
+            _segments_bound_to_base_video(
+                base,
+                [
+                    asset
+                    for asset in outputs.get("original_video_segments", [])
+                    if isinstance(asset, dict)
+                    and asset.get("status") == "READY"
+                    and asset.get("managed_path")
+                ],
+            )
         ),
         key=_segment_index,
     )
