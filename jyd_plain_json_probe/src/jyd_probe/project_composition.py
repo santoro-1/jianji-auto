@@ -153,6 +153,10 @@ class ProjectCompositionCoordinator:
         links_by_item = _current_audio_item_links(project["links"])
 
         for item in target_items:
+            backfill_seedvr2 = (
+                item.get("settings", {}).get("composition_invalidated_reason")
+                == "DIGITAL_HUMAN_RESOLUTION_CHANGED"
+            )
             link = links_by_item.get(str(item["item_id"]))
             if link is None:
                 raise ValueError(f"任务 {item['row_key']} 缺少数字人声音任务关联")
@@ -163,30 +167,52 @@ class ProjectCompositionCoordinator:
             remote_item_id = str(link.get("external_id") or "")
             if not batch_id or not remote_item_id:
                 raise ValueError(f"任务 {item['row_key']} 的数字人任务关联不完整")
-            image = item.get("inputs", {}).get("image")
-            if not isinstance(image, dict) or not image.get("managed_path"):
-                raise ValueError(f"任务 {item['row_key']} 尚未分配图片")
-            image_path = Path(str(image["managed_path"])).resolve()
-            if not image_path.is_file():
-                raise ValueError(f"任务 {item['row_key']} 的图片文件不存在")
-            image_sha256 = str(image.get("metadata", {}).get("sha256") or "").strip().lower()
-            if not image_sha256:
-                image_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+            image: dict[str, Any] = {}
+            image_path: Path | None = None
+            image_sha256 = ""
+            if not backfill_seedvr2:
+                raw_image = item.get("inputs", {}).get("image")
+                if (
+                    not isinstance(raw_image, dict)
+                    or not raw_image.get("managed_path")
+                ):
+                    raise ValueError(f"任务 {item['row_key']} 尚未分配图片")
+                image = raw_image
+                image_path = Path(str(image["managed_path"])).resolve()
+                if not image_path.is_file():
+                    raise ValueError(f"任务 {item['row_key']} 的图片文件不存在")
+                image_sha256 = str(
+                    image.get("metadata", {}).get("sha256") or ""
+                ).strip().lower()
+                if not image_sha256:
+                    image_sha256 = hashlib.sha256(
+                        image_path.read_bytes()
+                    ).hexdigest()
+            operation_payload = {
+                "batch_id": batch_id,
+                "remote_item_id": remote_item_id,
+                "scope": (
+                    "seedvr2_backfill_only"
+                    if backfill_seedvr2
+                    else "base_video_only"
+                ),
+                "resolution": clean_resolution,
+                "runninghub_execution_account_ids": selected_account_ids,
+            }
+            if not backfill_seedvr2:
+                operation_payload.update(
+                    {
+                        "input_image_asset_id": str(image.get("asset_id") or ""),
+                        "input_image_sha256": image_sha256,
+                    }
+                )
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
                 item_id=item["item_id"],
                 operation_type="COMPOSITION_GENERATE",
                 idempotency_key=clean_key,
-                payload={
-                    "batch_id": batch_id,
-                    "remote_item_id": remote_item_id,
-                    "scope": "base_video_only",
-                    "input_image_asset_id": str(image.get("asset_id") or ""),
-                    "input_image_sha256": image_sha256,
-                    "resolution": clean_resolution,
-                    "runninghub_execution_account_ids": selected_account_ids,
-                },
+                payload=operation_payload,
                 correlation_id=correlation_id or None,
             )
             if operation.get("payload", {}).get(
@@ -195,28 +221,41 @@ class ProjectCompositionCoordinator:
                 raise ValueError(
                     "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
                 )
-            if operation.get("payload", {}).get("input_image_sha256") != image_sha256:
+            if (
+                not backfill_seedvr2
+                and operation.get("payload", {}).get("input_image_sha256")
+                != image_sha256
+            ):
                 raise ValueError("同一画面生成幂等键不能用于不同的项目图片")
             if str(operation.get("payload", {}).get("resolution") or "1024") != clean_resolution:
                 raise ValueError("同一画面生成幂等键不能用于不同的分辨率")
             try:
-                staged_image = self.client.upload_workbench_batch_asset(
-                    token,
-                    image_path,
-                    kind="image",
-                    filename=str(image.get("filename") or image_path.name),
-                )
-                remote = self.client.start_workbench_composition(
-                    token,
-                    batch_id,
-                    remote_item_id,
-                    idempotency_key=f"{clean_key}:{item['item_id']}",
-                    image_asset_id=str(staged_image.get("asset_id") or ""),
-                    image_sha256=image_sha256,
-                    resolution=clean_resolution,
-                    correlation_id=operation["correlation_id"],
-                    runninghub_execution_account_ids=selected_account_ids,
-                )
+                staged_image: dict[str, Any] = {}
+                if backfill_seedvr2:
+                    remote = self.client.backfill_workbench_video_enhancement(
+                        token,
+                        remote_item_id,
+                        idempotency_key=f"{clean_key}:{item['item_id']}",
+                    )
+                else:
+                    assert image_path is not None
+                    staged_image = self.client.upload_workbench_batch_asset(
+                        token,
+                        image_path,
+                        kind="image",
+                        filename=str(image.get("filename") or image_path.name),
+                    )
+                    remote = self.client.start_workbench_composition(
+                        token,
+                        batch_id,
+                        remote_item_id,
+                        idempotency_key=f"{clean_key}:{item['item_id']}",
+                        image_asset_id=str(staged_image.get("asset_id") or ""),
+                        image_sha256=image_sha256,
+                        resolution=clean_resolution,
+                        correlation_id=operation["correlation_id"],
+                        runninghub_execution_account_ids=selected_account_ids,
+                    )
                 composition = remote.get("composition", {})
                 remote_status = str(composition.get("status") or "COMPOSITION_QUEUED")
                 self.store.transition_operation(
@@ -237,6 +276,7 @@ class ProjectCompositionCoordinator:
                         "operation_id": operation["operation_id"],
                         "image_asset_id": staged_image.get("asset_id"),
                         "input_image_sha256": image_sha256,
+                        "seedvr2_backfill_only": backfill_seedvr2,
                         "runninghub_execution_account_ids": selected_account_ids,
                     },
                 )
@@ -396,18 +436,37 @@ class ProjectCompositionCoordinator:
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("画面重试请求缺少幂等键")
+        seedvr2_backfill = (
+            item.get("settings", {}).get("composition_invalidated_reason")
+            == "DIGITAL_HUMAN_RESOLUTION_CHANGED"
+        )
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,
             item_id=item_id,
             operation_type="COMPOSITION_GENERATE",
             idempotency_key=clean_key,
-            payload={"retry": True, "remote_item_id": link["external_id"]},
+            payload={
+                "retry": True,
+                "remote_item_id": link["external_id"],
+                "scope": (
+                    "seedvr2_backfill_only"
+                    if seedvr2_backfill
+                    else "failed_remote_stage"
+                ),
+            },
         )
         if operation.get("status") == "PENDING":
-            self.client.retry_workbench_composition(
-                token, str(link["external_id"])
-            )
+            if seedvr2_backfill:
+                self.client.backfill_workbench_video_enhancement(
+                    token,
+                    str(link["external_id"]),
+                    idempotency_key=f"{clean_key}:{item_id}",
+                )
+            else:
+                self.client.retry_workbench_composition(
+                    token, str(link["external_id"])
+                )
             self.store.transition_operation(
                 owner_user_id,
                 project_id,
@@ -415,7 +474,11 @@ class ProjectCompositionCoordinator:
                 operation_type="COMPOSITION_GENERATE",
                 status="RUNNING",
                 item_status="COMPOSITION_QUEUED",
-                result={"remote_item_id": link["external_id"], "retry": True},
+                result={
+                    "remote_item_id": link["external_id"],
+                    "retry": True,
+                    "seedvr2_backfill_only": seedvr2_backfill,
+                },
             )
         return self.sync(owner_user_id, project_id, token)
 

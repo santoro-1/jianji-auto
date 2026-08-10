@@ -1314,6 +1314,8 @@ class ProjectStore:
         text_color: str,
         bgm_selection_mode: str = "manual",
         music_selection: dict[str, Any] | None = None,
+        top_title: dict[str, str] | None = None,
+        cover_title: dict[str, str] | None = None,
         force_invalidate: bool = False,
     ) -> dict[str, Any]:
         """Save editable subtitle/BGM settings and invalidate only final rendering."""
@@ -1330,18 +1332,35 @@ class ProjectStore:
             raise ValueError("BGM 选择模式只能是 auto 或 manual")
         if music_selection is not None and not isinstance(music_selection, dict):
             raise ValueError("音乐选择快照必须是对象")
+        if top_title is not None and not isinstance(top_title, dict):
+            raise ValueError("顶部固定标题必须是对象")
+        if cover_title is not None and not isinstance(cover_title, dict):
+            raise ValueError("封面标题必须是对象")
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
             item = self._owned_item(connection, project_id, item_id)
             if item["status"] in ACTIVE_ITEM_STATUSES:
                 raise ValueError("当前脚本行正在生成，请等待完成后再修改字幕或 BGM")
             settings = _object(item["settings_json"], {})
-            requested = {
-                "font_identity": clean_font,
-                "bgm_identity": clean_bgm,
-                "bgm_selection_mode": clean_bgm_mode,
-                "text_color": clean_color,
-            }
+            requested = dict(settings.get("postprocess") or {})
+            requested.update(
+                {
+                    "font_identity": clean_font,
+                    "bgm_identity": clean_bgm,
+                    "bgm_selection_mode": clean_bgm_mode,
+                    "text_color": clean_color,
+                }
+            )
+            if top_title is not None:
+                requested["top_title"] = {
+                    "label": str(top_title.get("label") or "").strip(),
+                    "headline": str(top_title.get("headline") or "").strip(),
+                }
+            if cover_title is not None:
+                requested["cover_title"] = {
+                    "line_1": str(cover_title.get("line_1") or "").strip(),
+                    "line_2": str(cover_title.get("line_2") or "").strip(),
+                }
             if music_selection is not None:
                 requested["music_selection"] = music_selection
             elif clean_bgm_mode == "manual":
@@ -1484,7 +1503,7 @@ class ProjectStore:
         settings: dict[str, Any] | None,
         items: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        """Persist module-6 counts and manual covers without invalidating media."""
+        """Persist module-6 counts without duplicating the project cover recipe."""
 
         if settings is not None and not isinstance(settings, dict):
             raise ValueError("变体设置必须是对象")
@@ -1507,11 +1526,8 @@ class ProjectStore:
                 count = int(raw.get("count") or 0)
                 if not 1 <= count <= MAX_PROJECT_ITEMS:
                     raise ValueError("每行变体数量必须在 1 到 500 之间")
-                cover = raw.get("cover")
-                if cover is not None and not isinstance(cover, dict):
-                    raise ValueError("手动封面设置必须是对象")
                 item_settings = _object(item["settings_json"], {})
-                item_settings["variants"] = {"count": count, "cover": cover}
+                item_settings["variants"] = {"count": count}
                 connection.execute(
                     "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
                     (_json(item_settings), _now(), item_id),
@@ -3596,14 +3612,16 @@ class ProjectStore:
                 (asset_id, _json(subtitles), now, item["item_id"]),
             )
         elif asset_type == "base_video":
+            settings = _object(item["settings_json"], {})
+            settings.pop("composition_invalidated_reason", None)
             connection.execute(
                 """
                 UPDATE project_items
                 SET current_base_video_asset_id=?, current_video_asset_id=NULL,
-                    status='BASE_VIDEO_READY', updated_at=?
+                    settings_json=?, status='BASE_VIDEO_READY', updated_at=?
                 WHERE item_id=?
                 """,
-                (asset_id, now, item["item_id"]),
+                (asset_id, _json(settings), now, item["item_id"]),
             )
         elif asset_type == "composition_video":
             subtitles = _object(item["subtitles_json"], _default_subtitles())

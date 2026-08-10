@@ -390,24 +390,6 @@
         </div>
     </div>
 
-    <!-- Manual cover editor for one variant row -->
-    <div id="variant-cover-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300 px-4" role="dialog" aria-modal="true" aria-labelledby="variant-cover-title">
-        <div class="glass-panel-heavy w-full max-w-xl p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
-            <div class="flex items-start justify-between gap-4 mb-4">
-                <div><h3 id="variant-cover-title" class="text-lg font-bold text-white">手动设置封面</h3><p class="text-[11px] text-gray-400 mt-1">使用图生数字人的第一帧，封面固定 3 帧；标题内容由你逐行填写。</p></div>
-                <button type="button" onclick="closeVariantCoverModal()" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <video id="variant-cover-video" class="block mx-auto w-full max-w-[280px] aspect-[9/16] object-contain rounded-xl bg-black mb-4" muted preload="metadata"></video>
-            <div class="grid sm:grid-cols-2 gap-3">
-                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">主标题</span><input id="variant-cover-line-1" maxlength="60" class="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-white"></label>
-                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">副标题</span><input id="variant-cover-line-2" maxlength="60" class="w-full bg-slate-900/70 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-white"></label>
-                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">主标题颜色</span><input id="variant-cover-color-1" type="color" value="#ffffff" class="w-full h-9 rounded-lg bg-slate-900 border border-slate-700"></label>
-                <label class="block"><span class="block text-[10px] text-gray-400 mb-1.5">副标题颜色</span><input id="variant-cover-color-2" type="color" value="#ffffff" class="w-full h-9 rounded-lg bg-slate-900 border border-slate-700"></label>
-            </div>
-            <div class="mt-5 flex justify-end gap-3"><button type="button" onclick="closeVariantCoverModal()" class="px-4 py-2 rounded-xl text-xs bg-slate-800 text-gray-300">取消</button><button type="button" onclick="saveRowVariantCover()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary text-white">保存封面</button></div>
-        </div>
-    </div>
-
     <!-- Variant Results Preview Modal -->
     <div id="variant-preview-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300 px-4" role="dialog" aria-modal="true" aria-labelledby="variant-preview-title">
         <div class="glass-panel-heavy w-full max-w-4xl max-h-[88vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
@@ -498,6 +480,8 @@
                 <img id="video-preview-semantic-overlay" class="hidden absolute z-10 pointer-events-none object-contain drop-shadow-2xl" src="" alt="语义前景图片">
                 <video id="video-preview-semantic-video" class="hidden absolute z-10 pointer-events-none object-contain" muted playsinline preload="metadata"></video>
                 <img id="video-preview-fixed-nameplate" class="hidden absolute z-[15] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview" alt="张雒人名牌">
+                <div id="video-preview-title-label" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
+                <div id="video-preview-title-headline" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 
                 <!-- Inner play controller simulation -->
@@ -782,7 +766,11 @@
                                 <p class="text-[10px] text-gray-400 mt-0.5">请校对脚本与配音素材。您可以双击编辑内容，对生成的克隆语音进行预览或重试。</p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-2">
+                        <div class="flex flex-wrap items-center justify-end gap-2">
+                            <label for="project-selector-toolbar" class="sr-only">当前批次</label>
+                            <select id="project-selector-toolbar" onchange="switchWorkspaceProject(this.value)" title="切换当前批次；不会删除其他批次" class="max-w-[280px] rounded-lg border border-brand-primary/30 bg-slate-950/90 px-2.5 py-1.5 text-[10px] font-semibold text-brand-accent focus:border-brand-accent focus:outline-none">
+                                <option value="">新批次（等待导入脚本）</option>
+                            </select>
                             <div class="table-flow-legend" aria-label="表头类型说明">
                                 <span class="table-flow-legend-item"><i class="table-flow-legend-dot input" aria-hidden="true"></i>输入 / 操作</span>
                                 <span class="table-flow-legend-item"><i class="table-flow-legend-dot output" aria-hidden="true"></i>生成结果</span>
@@ -871,9 +859,14 @@
                                 生成完整成片
                             </button>
 
+                            <button id="btn-download-project-audios" disabled onclick="downloadProjectAudios()" title="全部声音生成完成后可一键打包下载" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                                <i class="fa-solid fa-file-zipper"></i>
+                                <span>一键下载声音</span>
+                            </button>
+
                             <button id="btn-download-project-videos" disabled onclick="downloadProjectVideos()" title="全部未变体成片导出后可一键打包下载" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-file-zipper"></i>
-                                <span>一键下载未变体视频</span>
+                                <span>一键下载视频</span>
                             </button>
 
                             <div class="flex w-full md:w-auto" aria-label="生成变体控制">
@@ -957,10 +950,8 @@
             const grid = document.getElementById('workspace-grid');
             setInputSidebarCollapsed(!grid?.classList.contains('input-sidebar-collapsed'));
         }
-        let rowVariantCovers = {};
         const variantDirtyItemIds = new Set();
         const pendingSingleCompositionItemIds = new Set();
-        let editingVariantCoverRow = null;
         let isGeneratingAllVoicePreviews = false;
         let isGeneratingVariants = false;
         let audioStatusPollTimer = null;
@@ -1282,16 +1273,18 @@
         }
 
         function renderProjectSelector(selectedProjectId = activeProject?.project_id || '') {
-            const selector = document.getElementById('project-selector');
-            if (!selector) return;
             const options = ['<option value="">新批次（等待导入脚本）</option>'];
             availableProjects.forEach((project) => {
                 const count = Array.isArray(project.items) ? project.items.length : 0;
                 const label = `${project.project_no} · ${project.name} · ${count} 条`;
                 options.push(`<option value="${escapeHtml(project.project_id)}">${escapeHtml(label)}</option>`);
             });
-            selector.innerHTML = options.join('');
-            selector.value = selectedProjectId || '';
+            ['project-selector', 'project-selector-toolbar'].forEach((selectorId) => {
+                const selector = document.getElementById(selectorId);
+                if (!selector) return;
+                selector.innerHTML = options.join('');
+                selector.value = selectedProjectId || '';
+            });
         }
 
         function updateProjectQuery(projectId = '') {
@@ -1318,7 +1311,6 @@
             uploadedImages = [];
             selectedProjectItemIds.clear();
             globalVariantConfig = null;
-            rowVariantCovers = {};
             variantDirtyItemIds.clear();
             pendingSingleCompositionItemIds.clear();
             document.getElementById('excel-dropzone').classList.remove('hidden');
@@ -1406,8 +1398,6 @@
             uploadedScripts = Array.isArray(project?.items) ? project.items.map((item, itemIndex) => {
                 const variantOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
                 const variantGenerationOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id && operation.operation_type === 'VARIANT_GENERATE') || null;
-                if (variantOperation?.payload?.cover) rowVariantCovers[item.item_id] = variantOperation.payload.cover;
-                else if (item.settings?.variants?.cover) rowVariantCovers[item.item_id] = item.settings.variants.cover;
                 return ({
                 id: item.item_id,
                 rowKey: item.row_key,
@@ -1576,7 +1566,6 @@
                     });
                 }
                 globalVariantConfig = null;
-                rowVariantCovers = {};
                 variantDirtyItemIds.clear();
                 pendingSingleCompositionItemIds.clear();
                 syncProjectInputs(project);
@@ -1855,7 +1844,6 @@
             const frozenSourceIds = new Set((operation.payload.jobs || []).map(job => job.source_video_asset_id).filter(Boolean));
             return generatedCount === requestedCount
                 && stableJson(operation.payload.settings || {}) === stableJson(savedSettings)
-                && stableJson(operation.payload.cover || null) === stableJson(rowVariantCovers[script.id] || null)
                 && (!sourceAssetId || (frozenSourceIds.size === 1 && frozenSourceIds.has(sourceAssetId)));
         }
 
@@ -2019,11 +2007,20 @@
                 const canReplaceImage = Boolean(script.allowedActions?.replace_image);
                 const canDeleteItem = Boolean(script.allowedActions?.delete_item);
                 const analysisStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
+                const musicAnalysisStatus = script.contentAnalysis?.music_analysis_status || 'NOT_REQUESTED';
+                const subtitleAnalysisStatus = script.contentAnalysis?.subtitle_analysis_status || 'NOT_REQUESTED';
+                const partialAnalysisLabel = musicAnalysisStatus === 'SUCCESS' && subtitleAnalysisStatus === 'FAILED'
+                    ? '字幕断句已回退'
+                    : (musicAnalysisStatus === 'FAILED' && subtitleAnalysisStatus === 'SUCCESS' ? 'BGM 分析未完成' : '部分分析已回退');
+                const analysisErrorSummary = script.contentAnalysis?.errors?.subtitle?.summary
+                    || script.contentAnalysis?.errors?.music?.summary
+                    || script.contentAnalysis?.errors?.request?.summary
+                    || '';
                 const analysisLabels = {
                     NOT_REQUESTED: ['尚未分析', 'text-gray-500', 'fa-wand-magic-sparkles'],
                     PENDING: ['AI 分析中', 'text-brand-primary', 'fa-spinner fa-spin'],
                     SUCCESS: ['AI 分析完成', 'text-emerald-400', 'fa-circle-check'],
-                    PARTIAL: ['AI 部分可用', 'text-amber-400', 'fa-triangle-exclamation'],
+                    PARTIAL: [partialAnalysisLabel, 'text-amber-400', 'fa-triangle-exclamation'],
                     FAILED: ['AI 分析失败', 'text-rose-400', 'fa-circle-exclamation']
                 };
                 const analysisLabel = analysisLabels[analysisStatus] || analysisLabels.FAILED;
@@ -2069,7 +2066,7 @@
                     <td class="px-4 py-4 w-[280px] max-w-[280px] overflow-hidden font-medium text-gray-300 align-top">
                         <div class="min-w-0 max-w-full overflow-hidden focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
                             <div class="row-script-editor outline-none block min-h-[2.5rem] max-h-20 w-full max-w-full overflow-y-auto overflow-x-hidden pr-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</div>
-                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="一次分析当前行的音乐意图、字幕语义和视觉计划">
+                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="${escapeHtml(analysisErrorSummary || '一次分析当前行的音乐意图、字幕语义和视觉计划')}">
                                 <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${analysisStatus === 'SUCCESS' ? ' · 点击重新分析' : (['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击分析' : '')}
                             </button>
                         </div>
@@ -2188,7 +2185,7 @@
                             <input type="number" min="1" max="500" value="${Number(script.variantSettings?.count) || 20}" onchange="handleVariantCountChange(this); persistVariantSettings()" disabled title="完整成片生成后不会自动生成变体" class="row-variant-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-600 cursor-not-allowed focus:outline-none">
                             <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
                         </div>
-                        <button type="button" onclick="editRowVariantCover(this)" class="mt-2 text-[9px] ${rowVariantCovers[script.id] ? 'text-emerald-300' : 'text-amber-300'} hover:text-white"><i class="fa-solid fa-image mr-1"></i>${rowVariantCovers[script.id] ? '封面已设置' : '设置封面'}</button>
+                        <div class="mt-2 text-[9px] ${script.postprocessSettings?.cover_title?.line_1 && script.postprocessSettings?.cover_title?.line_2 ? 'text-emerald-300' : 'text-slate-500'}"><i class="fa-solid fa-image mr-1"></i>${script.postprocessSettings?.cover_title?.line_1 && script.postprocessSettings?.cover_title?.line_2 ? 'AI 封面已就绪' : '等待 AI 标题'}</div>
                     </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
                         <div class="row-variant-preview-container flex flex-col items-center justify-center min-h-[76px]">
@@ -2307,7 +2304,6 @@
                     { method: 'DELETE' }
                 );
                 delete rowPostprocessConfigs[rowId];
-                delete rowVariantCovers[rowId];
                 syncProjectInputs(project);
                 showToast('任务已删除', `任务ID ${script.rowKey} 已从当前项目移除。`, 'success');
             } catch (error) {
@@ -2909,14 +2905,8 @@
                 return;
             }
             const count = Number(row.querySelector('.row-variant-count')?.value);
-            const cover = rowVariantCovers[rowId];
             if (!Number.isInteger(count) || count < 1 || count > 500) {
                 showToast('变体数不正确', '本条变体数必须在 1 到 500 之间。', 'warning');
-                return;
-            }
-            if (!cover) {
-                showToast('请先设置本条封面', '封面保持手动模式，请先填写这条视频的封面。', 'warning');
-                editRowVariantCover(row.querySelector('button[onclick="editRowVariantCover(this)"]'));
                 return;
             }
             const prefix = script.variants.length ? '配置已改变，将生成一组新变体；旧变体继续保留。' : '';
@@ -2992,6 +2982,7 @@
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
             const btnCompose = document.getElementById('btn-start-composition');
+            const btnDownloadAudios = document.getElementById('btn-download-project-audios');
             const stageHint = document.getElementById('composition-stage-hint');
 
             const canGenerate = Boolean(activeProject?.allowed_actions?.generate_audio)
@@ -3023,6 +3014,29 @@
             btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
+            btnDownloadAudios.disabled = !allReady;
+            btnDownloadAudios.className = allReady
+                ? "w-full md:w-auto px-6 py-3 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/35 hover:border-cyan-300/60 text-cyan-200 hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]"
+                : "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
+            btnDownloadAudios.title = allReady
+                ? `打包下载当前批次 ${uploadedScripts.length} 条声音`
+                : '需要先完成当前批次的全部声音';
+        }
+
+        function downloadProjectAudios() {
+            if (!activeProject || !uploadedScripts.length) return;
+            const rows = Array.from(document.querySelectorAll('.table-data-row'));
+            if (!rows.length || rows.some(row => row.getAttribute('data-voice-status') !== 'ready')) {
+                showToast('暂时不能一键下载声音', '请先完成当前批次的全部声音。', 'warning');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = `/api/new/projects/${activeProject.project_id}/audios/download`;
+            link.download = '';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            showToast('正在打包下载声音', `共 ${uploadedScripts.length} 条，文件名按任务ID保存。`, 'success');
         }
 
         function selectedRowsOrWarn() {
@@ -3054,13 +3068,40 @@
                 showToast('选中任务暂不可分析', '任务可能正在运行，请完成后再试。', 'warning');
                 return;
             }
-            if (!window.confirm(`将强制重新统一分析选中的 ${targets.length} 条脚本，会调用大模型，但不会重新生成声音或视频。是否继续？`)) return;
-            const itemIds = targets.map((item) => item.id);
-            markContentAnalysisPending(itemIds);
+            const remapTargets = targets.filter((item) =>
+                item.visualAnalysis?.analysis_status === 'SUCCESS'
+                && item.visualAnalysis?.mapping_status !== 'SUCCESS'
+            );
+            const refreshTargets = targets.filter((item) => !remapTargets.includes(item));
+            const confirmation = refreshTargets.length
+                ? `将本地重映射 ${remapTargets.length} 条，并调用大模型重新分析 ${refreshTargets.length} 条；不会重新生成声音或视频。是否继续？`
+                : `将使用现有 AI 结果为 ${remapTargets.length} 条任务重新绑定声音时间戳，不调用大模型。是否继续？`;
+            if (!window.confirm(confirmation)) return;
+            markContentAnalysisPending(refreshTargets.map((item) => item.id));
             try {
-                const project = await analyzeProjectContent(activeProject.project_id, itemIds, true);
+                let project = activeProject;
+                if (remapTargets.length) {
+                    project = await analyzeProjectContent(
+                        activeProject.project_id,
+                        remapTargets.map((item) => item.id),
+                        false
+                    );
+                }
+                if (refreshTargets.length) {
+                    project = await analyzeProjectContent(
+                        activeProject.project_id,
+                        refreshTargets.map((item) => item.id),
+                        true
+                    );
+                }
                 syncProjectInputs(project);
-                showToast('选中任务分析完成', `已刷新 ${targets.length} 条脚本的音乐、字幕和视觉计划。`, 'success');
+                showToast(
+                    '选中任务处理完成',
+                    refreshTargets.length
+                        ? `已本地重映射 ${remapTargets.length} 条，并重新分析 ${refreshTargets.length} 条。`
+                        : `已本地重映射 ${remapTargets.length} 条，没有调用大模型。`,
+                    'success'
+                );
             } catch (error) {
                 showToast('选中任务分析失败', error.message, 'warning');
                 try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
@@ -3645,8 +3686,7 @@
                         settings: globalVariantConfig || { mode: 'recommended' },
                         items: rows.map(row => ({
                             item_id: row.getAttribute('data-id'),
-                            count: Number(row.querySelector('.row-variant-count').value) || 20,
-                            cover: rowVariantCovers[row.getAttribute('data-id')] || null
+                            count: Number(row.querySelector('.row-variant-count').value) || 20
                         }))
                     })
                 });
@@ -3693,7 +3733,7 @@
             downloadButton.disabled = !canDownload;
             downloadButton.innerHTML = isDownloadingProjectVideos
                 ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在导出并打包...</span>'
-                : '<i class="fa-solid fa-file-zipper"></i><span>一键下载未变体视频</span>';
+                : '<i class="fa-solid fa-file-zipper"></i><span>一键下载视频</span>';
             downloadButton.className = canDownload
                 ? "w-full md:w-auto px-6 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/35 hover:border-emerald-300/60 text-emerald-300 hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]"
                 : "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
@@ -3778,12 +3818,6 @@
                 showToast("本批数量过多", "剪映单批最多提交 500 个变体，请调低各行数量。", "warning");
                 return;
             }
-            const missingCover = rows.find(row => !rowVariantCovers[row.getAttribute('data-id')]);
-            if (missingCover) {
-                showToast("请先设置每行封面", "封面保持手动模式，请在变体数量下方逐行点击“设置封面”。", "warning");
-                editRowVariantCover(missingCover.querySelector('button[onclick="editRowVariantCover(this)"]'));
-                return;
-            }
             if (!window.confirm(`将一次提交 ${counts.reduce((sum, count) => sum + count, 0)} 个剪映变体任务。字幕字体和 BGM 保持不变，是否继续？`)) return;
 
             isGeneratingVariants = true;
@@ -3803,7 +3837,7 @@
                     body: JSON.stringify({
                         idempotency_key: `variants-${activeProject.project_id}-${Date.now()}`,
                         settings: globalVariantConfig,
-                        items: rows.map((row, index) => ({ item_id: row.getAttribute('data-id'), count: counts[index], cover: rowVariantCovers[row.getAttribute('data-id')] }))
+                        items: rows.map((row, index) => ({ item_id: row.getAttribute('data-id'), count: counts[index] }))
                     })
                 });
                 syncProjectInputs(project);
@@ -4010,73 +4044,6 @@
                 showToast('画面替换失败', error.message, 'warning');
             } finally {
                 event.target.value = '';
-            }
-        }
-
-        function editRowVariantCover(button) {
-            const row = button?.closest('tr');
-            if (!row) return;
-            editingVariantCoverRow = row;
-            const itemId = row.getAttribute('data-id');
-            const config = rowVariantCovers[itemId] || {};
-            document.getElementById('variant-cover-line-1').value = config.text_line_1 || '';
-            document.getElementById('variant-cover-line-2').value = config.text_line_2 || '';
-            document.getElementById('variant-cover-color-1').value = config.line_1_color || '#ffffff';
-            document.getElementById('variant-cover-color-2').value = config.line_2_color || '#ffffff';
-            const script = uploadedScripts.find(item => item.id === itemId);
-            const video = document.getElementById('variant-cover-video');
-            video.src = script?.compositionVideo
-                ? `/api/new/projects/${activeProject.project_id}/items/${itemId}/current-video`
-                : `/api/new/projects/${activeProject.project_id}/items/${itemId}/base-video`;
-            video.addEventListener('loadedmetadata', () => { video.currentTime = 0; }, { once: true });
-            const modal = document.getElementById('variant-cover-modal');
-            const box = modal.querySelector('.glass-panel-heavy');
-            modal.classList.remove('opacity-0', 'pointer-events-none');
-            box.classList.remove('scale-95');
-            box.classList.add('scale-100');
-        }
-
-        function closeVariantCoverModal() {
-            const modal = document.getElementById('variant-cover-modal');
-            const box = modal.querySelector('.glass-panel-heavy');
-            box.classList.remove('scale-100');
-            box.classList.add('scale-95');
-            modal.classList.add('opacity-0', 'pointer-events-none');
-            const video = document.getElementById('variant-cover-video');
-            video.pause();
-            editingVariantCoverRow = null;
-        }
-
-        async function saveRowVariantCover() {
-            if (!editingVariantCoverRow) return;
-            const itemId = editingVariantCoverRow.getAttribute('data-id');
-            const previousCover = stableJson(rowVariantCovers[itemId] || null);
-            rowVariantCovers[itemId] = {
-                enabled: true,
-                frame_time_seconds: 0,
-                frame_source: 'preview_material',
-                frame_count: 3,
-                text_line_1: document.getElementById('variant-cover-line-1').value.trim(),
-                text_line_2: document.getElementById('variant-cover-line-2').value.trim(),
-                line_1_color: document.getElementById('variant-cover-color-1').value,
-                line_2_color: document.getElementById('variant-cover-color-2').value,
-                line_1_y: -0.28,
-                line_2_y: -0.55,
-                line_1_size: 12,
-                line_2_size: 12,
-                text_scale: 1.4,
-                overlay_alpha: 0.5
-            };
-            if (previousCover !== stableJson(rowVariantCovers[itemId])) {
-                variantDirtyItemIds.add(itemId);
-            }
-            const button = editingVariantCoverRow.querySelector('button[onclick="editRowVariantCover(this)"]');
-            button.classList.remove('text-amber-300');
-            button.classList.add('text-emerald-300');
-            button.innerHTML = '<i class="fa-solid fa-image mr-1"></i>封面已设置';
-            closeVariantCoverModal();
-            if (await persistVariantSettings()) {
-                showToast('封面已保存', '该行所有变体都会使用这份手动封面，并固定放在最前 3 帧。', 'success');
             }
         }
 
@@ -4411,11 +4378,13 @@
             const verticalMargin = (frameHeight - displayedHeight) / 2;
             const style = activePreviewScript()?.subtitles?.style || {};
             const safeWidth = displayedWidth * Number(style.max_width_ratio || 0.8);
-            const fontSize = 11;
+            const fontSize = Number(style.font_size || 14);
+            const transformY = Number(style.transform_y ?? (-856 / 1920));
             const strokeColor = '#000000';
             const strokeWidth = Math.max(1, displayedWidth * 0.06 / 15);
             caption.style.left = '50%';
-            caption.style.bottom = `${verticalMargin + displayedHeight * Number(style.bottom_offset_ratio || 0.2)}px`;
+            caption.style.top = `${verticalMargin + displayedHeight * (0.5 - transformY / 2)}px`;
+            caption.style.bottom = 'auto';
             caption.style.width = `${safeWidth}px`;
             caption.style.maxWidth = `${safeWidth}px`;
             caption.style.fontSize = `${Math.max(11, displayedWidth * fontSize / 220)}px`;
@@ -4424,7 +4393,45 @@
             caption.style.webkitTextStroke = `${strokeWidth}px ${strokeColor}`;
             caption.style.paintOrder = 'stroke fill';
             caption.style.textShadow = `0 0 ${strokeWidth}px ${strokeColor}`;
-            caption.style.transform = 'translateX(-50%)';
+            caption.style.transform = 'translate(-50%, -50%)';
+        }
+
+        function updatePreviewTopTitles() {
+            const label = document.getElementById('video-preview-title-label');
+            const headline = document.getElementById('video-preview-title-headline');
+            const title = activePreviewScript()?.postprocessSettings?.top_title || {};
+            if (!isBrowserCompositionPreview() || (!title.label && !title.headline)) {
+                [label, headline].forEach((element) => {
+                    element.textContent = '';
+                    element.classList.add('hidden');
+                });
+                return;
+            }
+            const video = document.getElementById('video-preview-local');
+            const frame = document.getElementById('video-preview-frame');
+            if (!video.videoWidth || !video.videoHeight) return;
+            const scale = Math.min(frame.clientWidth / video.videoWidth, frame.clientHeight / video.videoHeight);
+            const displayedWidth = video.videoWidth * scale;
+            const displayedHeight = video.videoHeight * scale;
+            const verticalMargin = (frame.clientHeight - displayedHeight) / 2;
+            const rows = [
+                [label, title.label || '', 1535 / 1920, 11, '#FFD600'],
+                [headline, title.headline || '', 1350 / 1920, 13, '#FFFFFF']
+            ];
+            rows.forEach(([element, text, transformY, fontSize, color]) => {
+                element.textContent = text;
+                element.classList.toggle('hidden', !text);
+                element.style.left = '50%';
+                element.style.top = `${verticalMargin + displayedHeight * (0.5 - transformY / 2)}px`;
+                element.style.width = `${displayedWidth * 0.92}px`;
+                element.style.maxWidth = `${displayedWidth * 0.92}px`;
+                element.style.fontSize = `${Math.max(11, displayedWidth * fontSize / 220)}px`;
+                element.style.lineHeight = '1';
+                element.style.color = color;
+                element.style.webkitTextStroke = `${Math.max(1, displayedWidth * 0.04 / 15)}px #000000`;
+                element.style.paintOrder = 'stroke fill';
+                element.style.transform = 'translate(-50%, -50%)';
+            });
         }
 
         function updatePreviewCaption() {
@@ -4619,15 +4626,18 @@
             const height = video.videoHeight * scaleToFrame;
             const left = (frame.clientWidth - width) / 2;
             const top = (frame.clientHeight - height) / 2;
-            const visualWidth = width * 0.46;
+            const nameplateScale = 0.7331057670319187;
+            const transformX = -0.26689423296808135;
+            const transformY = -0.22258064516128995;
+            const visualWidth = width * nameplateScale;
             const aspectRatio = image.naturalWidth && image.naturalHeight
                 ? image.naturalHeight / image.naturalWidth
                 : 0.282;
             const visualHeight = visualWidth * aspectRatio;
             image.style.width = `${visualWidth}px`;
             image.style.height = 'auto';
-            image.style.left = `${left + width * 0.06}px`;
-            image.style.top = `${top + height * 0.5 - visualHeight / 2}px`;
+            image.style.left = `${left + width * (0.5 + transformX / 2) - visualWidth / 2}px`;
+            image.style.top = `${top + height * (0.5 - transformY / 2) - visualHeight / 2}px`;
             image.classList.remove('hidden');
         }
 
@@ -4673,6 +4683,7 @@
             if (!isBrowserCompositionPreview()) {
                 caption.textContent = '';
                 caption.classList.add('hidden');
+                updatePreviewTopTitles();
                 stopPreviewBgm();
                 updatePreviewFixedNameplate();
                 return;
@@ -4685,7 +4696,11 @@
             if (font) {
                 try {
                     const family = await loadFontPreview(font);
-                    if (script?.id === activePreviewScript()?.id) caption.style.fontFamily = `"${family}", sans-serif`;
+                    if (script?.id === activePreviewScript()?.id) {
+                        caption.style.fontFamily = `"${family}", sans-serif`;
+                        document.getElementById('video-preview-title-label').style.fontFamily = `"${family}", sans-serif`;
+                        document.getElementById('video-preview-title-headline').style.fontFamily = `"${family}", sans-serif`;
+                    }
                 } catch (_) {
                     caption.style.fontFamily = 'sans-serif';
                 }
@@ -4707,6 +4722,7 @@
                 previewBgmAudio.load();
             }
             updatePreviewCaption();
+            updatePreviewTopTitles();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
             if (!document.getElementById('video-preview-local').paused) void playPreviewBgm();
@@ -4717,6 +4733,7 @@
             previewVideoElement.addEventListener(eventName, () => {
                 updatePreviewVideoTimeline();
                 updatePreviewCaption();
+                updatePreviewTopTitles();
                 updatePreviewSemanticOverlay();
                 updatePreviewFixedNameplate();
                 if (eventName === 'loadedmetadata') syncPreviewBgm(true);
@@ -4801,6 +4818,8 @@
             stopPreviewBgm();
             syncPreviewPlayButtonState();
             document.getElementById('video-preview-caption').classList.add('hidden');
+            document.getElementById('video-preview-title-label').classList.add('hidden');
+            document.getElementById('video-preview-title-headline').classList.add('hidden');
             document.getElementById('video-preview-semantic-overlay').classList.add('hidden');
             const semanticVideo = document.getElementById('video-preview-semantic-video');
             semanticVideo.pause();

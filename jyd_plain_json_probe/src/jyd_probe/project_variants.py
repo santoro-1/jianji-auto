@@ -15,6 +15,9 @@ from .project_postprocess import (
     CAPTION_REFERENCE_FONT_SIZE,
     CAPTION_STROKE_COLOR,
     CAPTION_STROKE_WIDTH,
+    CAPTION_TRANSFORM_Y,
+    build_project_cover,
+    build_top_title_texts,
 )
 from .semantic_visuals import fixed_nameplate_overlay, frozen_visual_overlays
 
@@ -200,9 +203,9 @@ class ProjectVariantCoordinator:
             "defaults": deepcopy(DEFAULT_VARIANT_SETTINGS),
             "frozen_dimensions": ["subtitle_font", "background_music"],
             "cover": {
-                "mode": "manual_per_item",
+                "mode": "project_postprocess",
                 "frame_count": 3,
-                "default_frame_time_seconds": 0,
+                "source": "input_image",
             },
             "result_library": {
                 "root": str(self.result_library.root),
@@ -261,7 +264,6 @@ class ProjectVariantCoordinator:
             {
                 "item_id": item["item_id"],
                 "count": int(supplied[str(item["item_id"])].get("count") or 0),
-                "cover": supplied[str(item["item_id"])].get("cover"),
             }
             for item in project["items"]
             if str(item["item_id"]) in supplied
@@ -297,7 +299,7 @@ class ProjectVariantCoordinator:
         item = self._item(project, item_id)
         previous = self._latest_variant_payload(project, item_id)
         resolved_settings = _clean_settings(settings or previous.get("settings"))
-        resolved_cover = cover if cover is not None else previous.get("cover")
+        del cover
         return self._submit(
             owner_user_id,
             project_id,
@@ -306,7 +308,6 @@ class ProjectVariantCoordinator:
                 {
                     "item_id": item["item_id"],
                     "count": int(count),
-                    "cover": resolved_cover,
                 }
             ],
             settings=resolved_settings,
@@ -359,7 +360,6 @@ class ProjectVariantCoordinator:
             operation_type="VARIANT_RETRY",
             idempotency_key=str(idempotency_key or "").strip(),
             settings=payload.get("settings", {}),
-            cover=payload.get("cover"),
         )
 
     def _submit(
@@ -393,13 +393,12 @@ class ProjectVariantCoordinator:
                 f"单次提交的变体总数必须在 1 到 {MAX_VARIANTS_PER_SUBMISSION} 之间"
             )
 
-        prepared: list[tuple[str, list[dict[str, Any]], dict[str, Any] | None]] = []
+        prepared: list[tuple[str, list[dict[str, Any]]]] = []
         for request in requests:
             item = self._item(project, str(request["item_id"]))
             count = int(request["count"])
             if not 1 <= count <= MAX_VARIANTS_PER_SUBMISSION:
                 raise ValueError("每行变体数量必须在 1 到 500 之间")
-            cover = self._clean_cover(request.get("cover"), item)
             existing = [
                 tuple(
                     str(value)
@@ -409,9 +408,9 @@ class ProjectVariantCoordinator:
                 if len(asset.get("metadata", {}).get("signature", [])) == 5
             ]
             rows = self._build_jobs(
-                owner_user_id, project_id, item, count, settings, cover, existing
+                owner_user_id, project_id, item, count, settings, existing
             )
-            prepared.append((str(item["item_id"]), rows, cover))
+            prepared.append((str(item["item_id"]), rows))
 
         archive = self.result_library.prepare_batch(
             owner_user_id,
@@ -420,7 +419,7 @@ class ProjectVariantCoordinator:
         )
         output_directory = Path(str(archive["export_path"]))
         serial = 0
-        for item_id, rows, _cover in prepared:
+        for item_id, rows in prepared:
             item = self._item(project, item_id)
             for row in rows:
                 serial += 1
@@ -435,7 +434,7 @@ class ProjectVariantCoordinator:
         operations: dict[str, dict[str, Any]] = {}
         flat_jobs: list[dict[str, Any]] = []
         flat_variants: list[dict[str, Any]] = []
-        for item_id, rows, cover in prepared:
+        for item_id, rows in prepared:
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -444,7 +443,6 @@ class ProjectVariantCoordinator:
                 idempotency_key=idempotency_key,
                 payload={
                     "settings": settings,
-                    "cover": cover,
                     "jobs": rows,
                     "archive": archive,
                 },
@@ -480,7 +478,7 @@ class ProjectVariantCoordinator:
                 jianying_batch_id=batch_id,
             )
             cursor = 0
-            for item_id, rows, _cover in prepared:
+            for item_id, rows in prepared:
                 result_jobs = []
                 for index, row in enumerate(rows):
                     job_id = job_ids[cursor]
@@ -552,7 +550,6 @@ class ProjectVariantCoordinator:
         operation_type: str,
         idempotency_key: str,
         settings: dict[str, Any],
-        cover: dict[str, Any] | None,
     ) -> dict[str, Any]:
         if not idempotency_key:
             raise ValueError("变体重试请求缺少幂等键")
@@ -587,7 +584,6 @@ class ProjectVariantCoordinator:
             idempotency_key=idempotency_key,
             payload={
                 "settings": settings,
-                "cover": cover,
                 "jobs": rows,
                 "archive": archive,
             },
@@ -687,7 +683,6 @@ class ProjectVariantCoordinator:
         item: dict[str, Any],
         count: int,
         settings: dict[str, Any],
-        cover: dict[str, Any] | None,
         existing: list[tuple[str, ...]],
     ) -> list[dict[str, Any]]:
         effects = self.effects if settings.get("use_effects") else [None]
@@ -788,8 +783,6 @@ class ProjectVariantCoordinator:
                     "face_centered": bool(settings.get("face_centered", True)),
                     "face_sample_count": 3,
                 }
-            if cover:
-                job["cover"] = deepcopy(cover)
             dimensions = {
                 "crop_ratio": layout[0],
                 "background_color": layout[1],
@@ -862,7 +855,7 @@ class ProjectVariantCoordinator:
                 "stroke_color": CAPTION_STROKE_COLOR,
                 "stroke_width": CAPTION_STROKE_WIDTH,
                 "transform_x": 0.0,
-                "transform_y": float(style.get("transform_y") or -0.6),
+                "transform_y": float(style.get("transform_y") or CAPTION_TRANSFORM_Y),
                 "line_max_width": 0.8,
                 "max_lines": 1,
                 "single_line": True,
@@ -887,27 +880,18 @@ class ProjectVariantCoordinator:
         job["fixed_overlays"] = [
             fixed_nameplate_overlay(self.semantic_visual_library_root)
         ]
+        title_texts = build_top_title_texts(postprocess.get("top_title"), font=font)
+        if title_texts:
+            job["texts"] = title_texts
+        cover = build_project_cover(item, fonts=self.fonts)
+        if cover is not None:
+            job["cover"] = cover
         return {
             "job": job,
             "font_identity": font_identity or None,
             "bgm_identity": bgm_identity or None,
             "source_video_asset_id": source.get("asset_id"),
         }
-
-    @staticmethod
-    def _clean_cover(raw: Any, item: dict[str, Any]) -> dict[str, Any] | None:
-        if not isinstance(raw, dict):
-            raise ValueError(f"任务 {item['row_key']} 尚未手动设置封面")
-        if raw.get("enabled") is False:
-            return None
-        result = deepcopy(raw)
-        result.update(
-            {"enabled": True, "frame_count": 3, "frame_source": "preview_material"}
-        )
-        result["frame_time_seconds"] = float(result.get("frame_time_seconds", 0))
-        if result["frame_time_seconds"] < 0:
-            raise ValueError("封面取帧时间不能小于 0")
-        return result
 
     def sync(self, owner_user_id: str, project_id: str) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)

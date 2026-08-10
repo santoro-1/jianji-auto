@@ -213,8 +213,10 @@ def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> No
                     "bundle_path": str(nameplate_bundle),
                     "start_us": 0,
                     "duration_us": 0,
-                    "corner": "middle_left",
-                    "scale": 0.46,
+                    "corner": "center",
+                    "scale": 0.7331057670319187,
+                    "transform_x": -0.26689423296808135,
+                    "transform_y": -0.22258064516128995,
                 }
             ]
         }
@@ -232,6 +234,8 @@ def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> No
             scale=addition.scale,
             track_name=addition.track_name,
             render_below_text=addition.render_below_text,
+            transform_x=addition.transform_x,
+            transform_y=addition.transform_y,
         )
 
     tracks = {track["name"]: track for track in data["tracks"] if track.get("name")}
@@ -255,8 +259,9 @@ def test_fixed_nameplate_is_full_length_above_semantic_and_below_caption() -> No
         "start": 0,
         "duration": 8_000_000,
     }
-    assert round(nameplate_segment["clip"]["transform"]["x"], 2) == -0.42
-    assert nameplate_segment["clip"]["transform"]["y"] == 0.0
+    assert nameplate_segment["clip"]["transform"]["x"] == -0.26689423296808135
+    assert nameplate_segment["clip"]["transform"]["y"] == -0.22258064516128995
+    assert nameplate_segment["clip"]["scale"]["x"] == 0.7331057670319187
 
 
 def test_fixed_nameplate_recipe_uses_left_chest_preset() -> None:
@@ -269,8 +274,10 @@ def test_fixed_nameplate_recipe_uses_left_chest_preset() -> None:
 
     overlay = fixed_nameplate_overlay(library)
 
-    assert overlay["corner"] == "middle_left"
-    assert overlay["scale"] == 0.46
+    assert overlay["corner"] == "center"
+    assert overlay["scale"] == 0.7331057670319187
+    assert overlay["transform_x"] == -0.26689423296808135
+    assert overlay["transform_y"] == -0.22258064516128995
 
 
 def test_bottom_portrait_image_height_is_capped_at_thirty_percent() -> None:

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import base64
 import hashlib
+from io import BytesIO
 from pathlib import Path
 import shutil
 import sys
 import unittest
 import uuid
 from unittest.mock import patch
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -646,6 +648,14 @@ class ProjectAudioApiTest(unittest.TestCase):
             )
             self.assertEqual(audio.status_code, 200)
             self.assertEqual(audio.content, b"ID3-real-audio")
+            audio_bundle = client.get(
+                f"/api/new/projects/{project_id}/audios/download"
+            )
+            self.assertEqual(audio_bundle.status_code, 200, audio_bundle.text)
+            self.assertEqual(audio_bundle.headers["content-type"], "application/zip")
+            with zipfile.ZipFile(BytesIO(audio_bundle.content)) as archive:
+                self.assertEqual(archive.namelist(), ["1.mp3"])
+                self.assertEqual(archive.read("1.mp3"), b"ID3-real-audio")
 
             remote_status["value"] = {
                 "batch_id": "remote-batch-2",

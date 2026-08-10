@@ -179,6 +179,8 @@ def add_image_overlay_to_data(
     opacity: float = 1.0,
     track_name: str = "图片贴图",
     render_below_text: bool = True,
+    transform_x: float | None = None,
+    transform_y: float | None = None,
 ) -> int:
     """Add a PNG/JPG as a real Jianying photo material on a video track."""
 
@@ -204,6 +206,8 @@ def add_image_overlay_to_data(
     image_width = float(material_instance.width)
     image_height = float(material_instance.height)
     canvas_width, canvas_height = _canvas_dimensions(data)
+    override_x = transform_x
+    override_y = transform_y
     transform_x, transform_y, resolved_scale = _image_transform(
         corner=corner,
         width_ratio=float(scale),
@@ -212,6 +216,12 @@ def add_image_overlay_to_data(
         canvas_width=canvas_width,
         canvas_height=canvas_height,
     )
+    if override_x is not None:
+        transform_x = float(override_x)
+    if override_y is not None:
+        transform_y = float(override_y)
+    if not -2.0 <= transform_x <= 2.0 or not -2.0 <= transform_y <= 2.0:
+        raise ValueError("图片贴图自定义位置必须在 -2.0 到 2.0 之间")
     segment_instance = draft.VideoSegment(
         material_instance,
         draft.Timerange(start_us, resolved_duration),

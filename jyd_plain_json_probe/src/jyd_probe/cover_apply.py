@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 
 
 COVER_TRACK_PREFIX = "__jyd_cover__"
@@ -14,6 +14,7 @@ COVER_TRACK_PREFIX = "__jyd_cover__"
 class CoverConfig:
     frame_time_us: int
     frame_source: str = "preview_material"
+    image_path: str = ""
     fps: float = 30.0
     frame_count: int = 3
     text_line_1: str = "默认文本"
@@ -41,6 +42,18 @@ class CoverConfig:
     font_id: str = ""
     font_path: str = ""
     font_title: str = ""
+    letter_spacing: int = 0
+    line_spacing: int = 6
+    line_1_shadow_color: str = "#000000"
+    line_1_shadow_alpha: float = 0.9
+    line_1_shadow_smoothing: float = 0.15
+    line_1_shadow_distance: float = 5.0
+    line_1_shadow_angle: float = -45.0
+    line_2_shadow_color: str = "#1F1A05"
+    line_2_shadow_alpha: float = 0.5
+    line_2_shadow_smoothing: float = 0.15
+    line_2_shadow_distance: float = 5.0
+    line_2_shadow_angle: float = -45.0
 
     @property
     def duration_us(self) -> int:
@@ -62,7 +75,12 @@ def prepare_cover_assets(
     draft_dir = Path(output_draft_dir).resolve()
     asset_dir = draft_dir / "cover_assets"
     asset_dir.mkdir(parents=True, exist_ok=True)
-    if config.frame_source == "preview_material":
+    if config.frame_source == "input_image":
+        source_path = Path(config.image_path).expanduser().resolve()
+        if not source_path.is_file():
+            raise FileNotFoundError(f"Cover input image does not exist: {source_path}")
+        source_time_us = 0
+    elif config.frame_source == "preview_material":
         source_path, source_time_us = _find_preview_material_frame(
             data,
             config.frame_time_us,
@@ -79,6 +97,21 @@ def prepare_cover_assets(
 
     with Image.open(frame_path) as source_frame:
         frame = source_frame.convert("RGBA")
+    if config.frame_source == "input_image":
+        canvas = data.get("canvas_config", {})
+        try:
+            canvas_width = int(canvas.get("width", 1080) or 1080)
+            canvas_height = int(canvas.get("height", 1920) or 1920)
+        except (TypeError, ValueError):
+            canvas_width, canvas_height = 1080, 1920
+        if canvas_width <= 0 or canvas_height <= 0:
+            canvas_width, canvas_height = 1080, 1920
+        frame = ImageOps.fit(
+            frame,
+            (canvas_width, canvas_height),
+            method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.5),
+        )
     frame = _transform_frame(
         frame,
         scale=config.frame_scale,
@@ -154,6 +187,8 @@ def add_cover_tracks(
                     size=text_size,
                     bold=True,
                     align=1,
+                    letter_spacing=config.letter_spacing,
+                    line_spacing=config.line_spacing,
                     auto_wrapping=True,
                     max_line_width=0.86,
                 ),
@@ -280,8 +315,10 @@ def _validate_config(config: CoverConfig) -> None:
         raise ValueError("Cover FPS must be greater than 0 and no more than 240")
     if config.frame_count <= 0 or config.frame_count > 30:
         raise ValueError("Cover frame count must be between 1 and 30")
-    if config.frame_source not in {"preview_material", "timeline"}:
-        raise ValueError("Cover frame source must be preview_material or timeline")
+    if config.frame_source not in {"input_image", "preview_material", "timeline"}:
+        raise ValueError("Cover frame source must be input_image, preview_material or timeline")
+    if config.frame_source == "input_image" and not config.image_path.strip():
+        raise ValueError("Cover input image path is required")
     if not config.text_line_1.strip() or not config.text_line_2.strip():
         raise ValueError("Both cover text lines are required")
     if not 0.0 <= config.overlay_alpha <= 1.0:
@@ -300,6 +337,15 @@ def _validate_config(config: CoverConfig) -> None:
     for size in (config.line_1_size, config.line_2_size):
         if size <= 0 or size > 100:
             raise ValueError("Cover text sizes must be greater than 0 and no more than 100")
+    for alpha in (config.line_1_shadow_alpha, config.line_2_shadow_alpha):
+        if not 0.0 <= alpha <= 1.0:
+            raise ValueError("Cover shadow alpha must be between 0 and 1")
+    for smoothing in (
+        config.line_1_shadow_smoothing,
+        config.line_2_shadow_smoothing,
+    ):
+        if not 0.0 <= smoothing <= 1.0:
+            raise ValueError("Cover shadow smoothing must be between 0 and 1")
 
 
 def _transform_frame(

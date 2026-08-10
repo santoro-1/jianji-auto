@@ -514,7 +514,9 @@ def test_real_model_mistakes_are_reflowed_without_crossing_clauses_or_raw_cues()
     assert "一个|能" not in joined
     assert any("破罐子破摔" in text for text in texts)
     assert any("头晕眼花" in text for text in texts)
-    assert any("工作上的情绪" in text for text in texts)
+    # The 14pt layout is intentionally narrower than the former 11pt layout;
+    # the phrase may wrap before the word, but the word itself must stay intact.
+    assert any("情绪" in text for text in texts)
     assert any("少走十年弯路" in text for text in texts)
     previous_raw = raw_cues[-2]
     following_raw = raw_cues[-1]

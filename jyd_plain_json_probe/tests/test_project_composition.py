@@ -193,6 +193,12 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 "composition": {"status": "COMPOSITION_QUEUED"},
             },
         ) as start_remote, patch(
+            "jyd_probe.auth_center.AuthCenterClient.backfill_workbench_video_enhancement",
+            return_value={
+                "item_id": "remote-item-1",
+                "composition": {"status": "VIDEO_ENHANCING"},
+            },
+        ) as backfill_remote, patch(
             "jyd_probe.auth_center.AuthCenterClient.get_workbench_task",
             return_value=remote_ready,
         ) as get_remote, patch(
@@ -337,18 +343,123 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(downloaded.status_code, 200, downloaded.text)
                 self.assertEqual(downloaded.content, b"normalized-base")
 
-                invalidated = store.invalidate_item_composition(
+                invalidated = store.set_digital_human_resolution(
                     user["user_id"],
                     project["project_id"],
-                    item["item_id"],
-                    reason="REMOTE_IMAGE_VERSION_MISMATCH",
+                    resolution="1920",
                 )
                 invalidated_item = invalidated["items"][0]
                 self.assertEqual(invalidated_item["status"], "AUDIO_READY")
                 self.assertIsNone(invalidated_item["outputs"]["base_video"])
                 self.assertIsNone(invalidated_item["outputs"]["composition_video"])
                 self.assertEqual(
+                    invalidated_item["settings"]["composition_invalidated_reason"],
+                    "DIGITAL_HUMAN_RESOLUTION_CHANGED",
+                )
+                self.assertEqual(
                     len(invalidated_item["asset_history"]["base_video"]), 1
+                )
+
+                active_remote = {
+                    **remote_ready,
+                    "composition": {
+                        **remote_ready["composition"],
+                        "status": "VIDEO_ENHANCING",
+                        "base_video_ready": False,
+                    },
+                }
+                get_remote.return_value = active_remote
+                regenerated = client.post(
+                    f"/api/new/projects/{project['project_id']}/composition/generate",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "composition-resolution-1920",
+                        "resolution": "1920",
+                        "runninghub_execution_account_ids": [11, 22],
+                        "item_ids": [item["item_id"]],
+                    },
+                )
+                self.assertEqual(regenerated.status_code, 200, regenerated.text)
+                start_remote.assert_called_once()
+                upload_remote.assert_called_once()
+                backfill_remote.assert_called_once_with(
+                    "token",
+                    "remote-item-1",
+                    idempotency_key=(
+                        f"composition-resolution-1920:{item['item_id']}"
+                    ),
+                )
+                backfill_operation = next(
+                    value
+                    for value in regenerated.json()["operations"]
+                    if value["operation_type"] == "COMPOSITION_GENERATE"
+                    and value["idempotency_key"] == "composition-resolution-1920"
+                )
+                self.assertEqual(
+                    backfill_operation["payload"]["scope"],
+                    "seedvr2_backfill_only",
+                )
+                self.assertNotIn(
+                    "input_image_sha256", backfill_operation["payload"]
+                )
+
+                store.transition_operation(
+                    user["user_id"],
+                    project["project_id"],
+                    item["item_id"],
+                    operation_type="COMPOSITION_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    error_code="TEST_FAILURE",
+                    error_message="模拟失败",
+                )
+                retried = client.post(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/composition/retry",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "composition-resolution-1920-retry",
+                    },
+                )
+                self.assertEqual(retried.status_code, 200, retried.text)
+                start_remote.assert_called_once()
+                self.assertEqual(backfill_remote.call_count, 2)
+                backfill_remote.assert_called_with(
+                    "token",
+                    "remote-item-1",
+                    idempotency_key=(
+                        f"composition-resolution-1920-retry:{item['item_id']}"
+                    ),
+                )
+
+                resolution_ready = {
+                    **remote_ready,
+                    "updated_at": "2026-08-04T12:30:00+08:00",
+                    "source": {
+                        **remote_ready["source"],
+                        "videos": [
+                            {
+                                **remote_ready["source"]["videos"][0],
+                                "task_id": "runninghub-task-2",
+                            }
+                        ],
+                    },
+                    "composition": {
+                        **remote_ready["composition"],
+                        "status": "BASE_VIDEO_READY",
+                        "base_video_ready": True,
+                    },
+                }
+                get_remote.return_value = resolution_ready
+                completed_resolution = client.get(
+                    f"/api/new/projects/{project['project_id']}/composition/status"
+                )
+                self.assertEqual(
+                    completed_resolution.status_code, 200, completed_resolution.text
+                )
+                completed_item = completed_resolution.json()["items"][0]
+                self.assertIsNotNone(completed_item["outputs"]["base_video"])
+                self.assertNotIn(
+                    "composition_invalidated_reason", completed_item["settings"]
                 )
 
     def test_video_enhancing_is_a_supported_active_remote_status(self) -> None:

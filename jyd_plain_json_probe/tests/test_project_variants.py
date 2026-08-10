@@ -71,7 +71,13 @@ class ProjectVariantTest(unittest.TestCase):
                     "resource_id": "font-rid",
                     "name": "固定字体",
                     "path": str(font),
-                }
+                },
+                {
+                    "identity": "resource_id:6807742980271641102",
+                    "resource_id": "6807742980271641102",
+                    "name": "SourceHanSerifCN-Heavy",
+                    "path": str(font),
+                },
             ],
             bgm_assets=[{"identity": "bgm-1", "path": str(self.root / "bgm.mp3")}],
             effects=self.effects,
@@ -114,6 +120,20 @@ class ProjectVariantTest(unittest.TestCase):
             managed_path=str(script_source),
         )
         for item_index, item in enumerate(project["items"], start=1):
+            image = self.root / f"image-{item_index}.png"
+            image.write_bytes(f"image-{item_index}".encode("ascii"))
+            registered_image = self.store.register_input_image(
+                owner_user_id="user",
+                project_id=project["project_id"],
+                filename=image.name,
+                content_type="image/png",
+                size_bytes=image.stat().st_size,
+                sha256=f"image-{item_index}",
+                managed_path=str(image),
+            )
+            self.store.replace_item_image(
+                "user", project["project_id"], item["item_id"], registered_image["image_id"]
+            )
             audio = self.root / f"audio-{item_index}.mp3"
             audio.write_bytes(f"audio-{item_index}".encode("ascii"))
             self.store.add_asset(
@@ -159,6 +179,11 @@ class ProjectVariantTest(unittest.TestCase):
             self.store.configure_item_postprocess(
                 "user", project["project_id"], item["item_id"],
                 font_identity="font-1", bgm_identity="bgm-1", text_color="#FFFFFF",
+                top_title={
+                    "label": "\u51cf\u80a5\u5927\u5b9e\u8bdd",
+                    "headline": "\u53ea\u6709\u575a\u6301\u624d\u80fd\u8fbe\u6210\u76ee\u6807",
+                },
+                cover_title={"line_1": "健康真相", "line_2": "别再踩坑"},
             )
             self.store.set_item_subtitles(
                 "user", project["project_id"], item["item_id"],
@@ -221,7 +246,7 @@ class ProjectVariantTest(unittest.TestCase):
             selected, select_maximum_difference(candidates, 30, seed="stable")
         )
 
-    def test_module_6_freezes_recipe_adds_manual_cover_and_real_assets(self) -> None:
+    def test_module_6_inherits_project_cover_and_real_assets(self) -> None:
         project = self._project()
         item = project["items"][0]
         generated = self.coordinator.start(
@@ -233,12 +258,6 @@ class ProjectVariantTest(unittest.TestCase):
                 {
                     "item_id": item["item_id"],
                     "count": 30,
-                    "cover": {
-                        "enabled": True,
-                        "frame_time_seconds": 0,
-                        "text_line_1": "手动标题",
-                        "text_line_2": "手动副标题",
-                    },
                 }
             ],
         )
@@ -246,9 +265,7 @@ class ProjectVariantTest(unittest.TestCase):
         self.assertEqual(row["status"], "VARIANT_READY")
         self.assertEqual(generated["settings"]["variants"]["mode"], "recommended")
         self.assertEqual(row["settings"]["variants"]["count"], 30)
-        self.assertEqual(
-            row["settings"]["variants"]["cover"]["text_line_1"], "手动标题"
-        )
+        self.assertNotIn("cover", row["settings"]["variants"])
         self.assertIsNotNone(row["outputs"]["base_video"])
         self.assertEqual(len(row["outputs"]["variants"]), 30)
         self.assertEqual(
@@ -272,7 +289,7 @@ class ProjectVariantTest(unittest.TestCase):
                 [0.0, 0.0],
             )
             self.assertEqual(job["original_video_volume"], 0.0)
-            self.assertEqual(job["captions"]["size"], 11.0)
+            self.assertEqual(job["captions"]["size"], 14.0)
             self.assertEqual(job["captions"]["stroke_color"], "#000000")
             self.assertEqual(job["captions"]["font_title"], "固定字体")
             self.assertEqual(
@@ -280,8 +297,21 @@ class ProjectVariantTest(unittest.TestCase):
                 str((self.root / "audio-1.mp3").resolve()),
             )
             self.assertEqual(job["audios"][1]["library_identity"], "bgm-1")
+            self.assertEqual(
+                [text["text"] for text in job["texts"]],
+                ["\u51cf\u80a5\u5927\u5b9e\u8bdd", "\u53ea\u6709\u575a\u6301\u624d\u80fd\u8fbe\u6210\u76ee\u6807"],
+            )
             self.assertEqual(job["cover"]["frame_count"], 3)
-            self.assertEqual(job["cover"]["text_line_1"], "手动标题")
+            self.assertEqual(job["cover"]["frame_source"], "input_image")
+            self.assertEqual(job["cover"]["image_path"], str((self.root / "image-1.png").resolve()))
+            self.assertEqual(job["cover"]["text_line_1"], "健康真相")
+            self.assertEqual(job["cover"]["text_line_2"], "别再踩坑")
+            self.assertEqual(job["cover"]["font"]["font_id"], "6807742980271641102")
+            self.assertEqual(job["cover"]["line_1_size"], 35.0)
+            self.assertEqual(job["cover"]["line_2_size"], 27.0)
+            self.assertEqual(job["cover"]["line_1_y"], -160 / 1920)
+            self.assertEqual(job["cover"]["line_2_y"], -655 / 1920)
+            self.assertEqual(job["cover"]["overlay_y_ratio"], 0.609375)
             self.assertEqual(len(job["effects"]), 1)
             self.assertGreaterEqual(len(job["stickers"]), 1)
         operation = next(

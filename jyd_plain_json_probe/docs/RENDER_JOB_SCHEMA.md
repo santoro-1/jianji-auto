@@ -177,7 +177,7 @@ jyd_plain_json_probe/data/template_library/demo_template/
 
 ```json
 {
-  "type": "bgm",
+  "type": "add",
   "scope": "top",
   "track_name": "auto_title",
   "text": "新的标题",
@@ -185,11 +185,23 @@ jyd_plain_json_probe/data/template_library/demo_template/
   "duration_us": 5000000,
   "style_json_path": "D:/项目/text_style_library/style.json",
   "text_effect_json_path": "D:/项目/text_effect_library/bundles/双描边紫色渐变花字/text_effect.json",
-  "apply_clip": true
+  "apply_clip": true,
+  "transform_x": 0.0,
+  "transform_y": 0.703125,
+  "size": 13,
+  "line_max_width": 0.92,
+  "color": "#FFFFFF",
+  "stroke_color": "#000000",
+  "stroke_width": 0.04,
+  "font_id": "7244518590332801592",
+  "font_path": "D:/项目/font_library/DouyinSansBold.otf",
+  "font_title": "DouyinSansBold"
 }
 ```
 
-`text_effect_json_path` 是可选的花字素材，只应用于这条新增文字。`start_us=0` 表示从视频开头开始，`duration_us=0` 表示从开始时间持续到视频结尾。
+`text_effect_json_path` 是可选的花字素材，只应用于这条新增文字。新增文字可直接指定填充、描边、
+字体、单行宽度与坐标；这些字段在样式预设之后应用，因此固定标题可锁定最终参数。
+`start_us=0` 表示从视频开头开始，`duration_us=0` 表示从开始时间持续到视频结尾。
 
 替换已有文字：
 
@@ -330,8 +342,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
 Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；历史任务仍使用其冻结
 配方中的字体。
 
-新版 4B 与模块 6 的冻结字幕样式固定为：字号 `11`、默认白色填充 `#FFFFFF`、黑色描边
-`#000000`、描边宽度 `0.06`、单行、画面宽度 `0.8`、`transform_y=-0.6`。断句由服务端按
+新版 4B 与模块 6 的冻结字幕样式固定为：字号 `14`、默认白色填充 `#FFFFFF`、黑色描边
+`#000000`、描边宽度 `0.06`、单行、画面宽度 `0.8`、`transform_y=-856/1920`。断句由服务端按
 真实字体字宽对整个原 cue 做平衡切分，不允许新字幕以标点开头，也不会为了靠近标点生成
 只有一两个正文字符的孤句。显示字幕会隐藏逗号、句号、问号等断句标点，但保留 `24.4`
 和 `8:30` 这类数字内部符号；“那么、但是、所以、然后”等承接词优先放到下一条字幕开头，
@@ -391,9 +403,39 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 `corner=center + scale>=0.95` 仍只表示全屏 B-roll。
 
 项目 4B 和变体任务还会自动带入 `fixed_overlays`。当前固定项为“张雒人名牌”：
-正文时间 `start_us=0`、`duration_us=0`（解析为完整正文草稿时长）、左胸安全区、宽度约为
-画面 46%；
+正文时间 `start_us=0`、`duration_us=0`（解析为完整正文草稿时长），使用草稿
+`jyd_eab56dad6e7e` 的实测参数：`scale=0.7331057670319187`、
+`transform_x=-0.26689423296808135`、`transform_y=-0.22258064516128995`；
 应用封面偏移后从正文第 1 帧开始，因此封面 3 帧不显示。统一层级从下到上为
 `下方图片/小窗视频 < 固定人名牌 < 全屏 B-roll < 字幕`；全屏 B-roll 通过层级自然覆盖人名牌，
 结束后无需显隐事件即可恢复。人名牌也使用 bundle 内 PNG 写成真实图片视频轨道，同样为
 optional，且不作为表格维度或大模型输入。
+
+### 项目固定封面
+
+新版项目的 `cover` 由工作台根据 `postprocess.cover_title` 自动构建，普通导出和变体共用同一
+对象。变体 API 不直接接收封面视觉参数。核心字段示例：
+
+```json
+{
+  "cover": {
+    "enabled": true,
+    "frame_source": "input_image",
+    "image_path": "任务当前输入图片绝对路径",
+    "frame_count": 3,
+    "text_line_1": "健康真相",
+    "text_line_2": "别再踩坑",
+    "font": {"font_id": "6807742980271641102"},
+    "line_1_size": 35,
+    "line_2_size": 27,
+    "line_1_y": -0.08333333333333333,
+    "line_2_y": -0.3411458333333333,
+    "overlay_y_ratio": 0.609375,
+    "overlay_height_ratio": 0.36
+  }
+}
+```
+
+`frame_source=input_image` 时，渲染器按实际 `canvas_config` 进行居中 cover 裁切，不读取视频帧。
+黑框以 50% 黑色直接合成到封面 JPEG；两行文字仍是独立可编辑文本轨道，并写入固定颜色、
+行间距和阴影参数。封面应用后，正文所有轨道统一后移 3 帧。

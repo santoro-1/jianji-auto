@@ -48,7 +48,14 @@ from .project_composition import ProjectCompositionCoordinator
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
 from .project_music import ProjectMusicSelector
-from .project_postprocess import ProjectPostprocessCoordinator
+from .project_postprocess import (
+    CAPTION_BOTTOM_OFFSET_RATIO,
+    CAPTION_REFERENCE_FONT_SIZE,
+    CAPTION_TRANSFORM_Y,
+    ProjectPostprocessCoordinator,
+    normalize_cover_title,
+    normalize_top_title,
+)
 from .project_results import ProjectResultLibrary
 from .project_variants import ProjectVariantCoordinator
 from .render_job import run_render_job
@@ -3131,6 +3138,65 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             filename=str(audio.get("filename") or f"{item['row_key']}.mp3"),
         )
 
+    @app.get("/api/new/projects/{project_id}/audios/download")
+    def download_new_project_current_audios(
+        project_id: str, request: Request
+    ) -> FileResponse:
+        """Download every current generated audio in one temporary ZIP."""
+
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        items = list(project.get("items") or [])
+        if not items:
+            raise HTTPException(status_code=409, detail="当前项目没有可下载的声音")
+        selected: list[tuple[Path, str]] = []
+        for item in items:
+            audio = (item.get("outputs") or {}).get("audio")
+            if not isinstance(audio, dict) or not audio.get("managed_path"):
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"任务 {item.get('row_key')} 的声音尚未生成完成",
+                )
+            path = Path(str(audio["managed_path"])).resolve()
+            if not is_managed_project_file(path) or not path.is_file():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"任务 {item.get('row_key')} 的声音文件不存在",
+                )
+            selected.append(
+                (
+                    path,
+                    _safe_filename(
+                        str(audio.get("filename") or f"{item.get('row_key')}.mp3")
+                    ),
+                )
+            )
+        archive_root = settings.storage_root / "project_downloads"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
+        used: dict[str, int] = {}
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
+        ) as archive:
+            for path, filename in selected:
+                used[filename] = used.get(filename, 0) + 1
+                count = used[filename]
+                archive_name = filename
+                if count > 1:
+                    source = Path(filename)
+                    archive_name = f"{source.stem}-{count:02d}{source.suffix}"
+                archive.write(path, arcname=archive_name)
+        project_name = _safe_filename(str(project.get("name") or "数字人声音"))
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"{project_name}-声音.zip",
+            background=BackgroundTask(_unlink_if_exists, archive_path),
+        )
+
     @app.get("/api/new/runninghub-execution-accounts")
     def new_workbench_runninghub_execution_accounts(
         request: Request,
@@ -3305,8 +3371,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "caption": {
                 "max_width_ratio": 0.8,
                 "max_lines": 1,
-                "bottom_offset_ratio": 0.2,
-                "font_size": 11.0,
+                "bottom_offset_ratio": CAPTION_BOTTOM_OFFSET_RATIO,
+                "transform_y": CAPTION_TRANSFORM_Y,
+                "font_size": CAPTION_REFERENCE_FONT_SIZE,
                 "stroke_color": "#000000",
                 "stroke_width": 0.06,
             },
@@ -3386,6 +3453,19 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if re.fullmatch(r"#[0-9A-F]{6}", text_color) is None:
             raise HTTPException(status_code=422, detail="字幕颜色格式不正确")
         try:
+            top_title = (
+                normalize_top_title(payload.get("top_title"))
+                if "top_title" in payload
+                else None
+            )
+            cover_title = (
+                normalize_cover_title(payload.get("cover_title"))
+                if "cover_title" in payload
+                else None
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        try:
             return project_store.configure_item_postprocess(
                 user["user_id"],
                 project_id,
@@ -3394,6 +3474,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 bgm_identity=bgm_identity,
                 text_color=text_color,
                 bgm_selection_mode=bgm_selection_mode,
+                top_title=top_title,
+                cover_title=cover_title,
                 force_invalidate=payload.get("force_retry") is True,
             )
         except KeyError as exc:
@@ -3486,7 +3568,6 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 idempotency_key=str(payload.get("idempotency_key") or ""),
                 count=int(payload.get("count") or 0),
                 settings=payload.get("settings") if isinstance(payload.get("settings"), dict) else None,
-                cover=payload.get("cover") if isinstance(payload.get("cover"), dict) else None,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc

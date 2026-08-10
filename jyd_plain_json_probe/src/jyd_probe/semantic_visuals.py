@@ -25,6 +25,9 @@ RECIPE_SCHEMA = RECIPE_SCHEMA_V2
 DEFAULT_LIBRARY_ID = "jyd.semantic-visual-library.default"
 FIXED_NAMEPLATE_BUNDLE = Path("fixed") / "nameplate_zhangluo"
 FIXED_NAMEPLATE_PREVIEW_URL = "/api/new/fixed-visuals/nameplate/preview"
+FIXED_NAMEPLATE_SCALE = 0.7331057670319187
+FIXED_NAMEPLATE_TRANSFORM_X = -0.26689423296808135
+FIXED_NAMEPLATE_TRANSFORM_Y = -0.22258064516128995
 MEDIA_POLICIES = frozenset(
     {"image_only", "video_only", "prefer_image", "prefer_video", "mixed"}
 )
@@ -75,8 +78,10 @@ def fixed_nameplate_overlay(library_root: str | Path) -> dict[str, Any]:
         "preview_url": FIXED_NAMEPLATE_PREVIEW_URL,
         "start_us": 0,
         "duration_us": 0,
-        "corner": "middle_left",
-        "scale": 0.46,
+        "corner": "center",
+        "scale": FIXED_NAMEPLATE_SCALE,
+        "transform_x": FIXED_NAMEPLATE_TRANSFORM_X,
+        "transform_y": FIXED_NAMEPLATE_TRANSFORM_Y,
         "opacity": 1.0,
         "track_name": "固定人名牌",
     }

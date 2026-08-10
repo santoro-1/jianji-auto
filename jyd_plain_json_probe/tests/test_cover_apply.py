@@ -84,6 +84,26 @@ class CoverApplyTest(unittest.TestCase):
             self.assertAlmostEqual(rectangle[0], 110, delta=8)
             self.assertAlmostEqual(rectangle[1], 40, delta=8)
 
+    def test_input_image_is_center_cropped_to_canvas_before_cover_overlay(self) -> None:
+        source = self.temp / "portrait-source.png"
+        Image.new("RGB", (200, 100), (200, 120, 40)).save(source)
+        data = {"canvas_config": {"width": 108, "height": 192}}
+        config = CoverConfig(
+            frame_time_us=0,
+            frame_source="input_image",
+            image_path=str(source),
+            overlay_y_ratio=0.609375,
+            overlay_width_ratio=1.0,
+            overlay_height_ratio=0.36,
+        )
+
+        prepared = prepare_cover_assets(data, config, self.temp)
+
+        with Image.open(prepared.frame_path) as frame:
+            self.assertEqual(frame.size, (108, 192))
+            self.assertGreater(frame.getpixel((54, 30))[0], 180)
+            self.assertAlmostEqual(frame.getpixel((54, 120))[0], 100, delta=10)
+
     def test_shifts_original_tracks_but_not_cover_tracks(self) -> None:
         data = {
             "duration": 2_000_000,
@@ -225,6 +245,12 @@ class CoverApplyTest(unittest.TestCase):
         self.assertEqual(cover.duration_us, 50_000)
         self.assertEqual(cover.text_line_1, "第一行")
         self.assertEqual(cover.text_line_2, "第二行")
+        self.assertEqual(cover.line_1_size, 35.0)
+        self.assertEqual(cover.line_2_size, 27.0)
+        self.assertEqual(cover.line_1_y, -160 / 1920)
+        self.assertEqual(cover.line_2_y, -655 / 1920)
+        self.assertEqual(cover.line_1_color, "#FADF4A")
+        self.assertEqual(cover.line_2_color, "#F5F6F0")
 
     def test_builds_editable_cover_layout(self) -> None:
         cover = _build_cover(
@@ -342,6 +368,16 @@ class CoverApplyTest(unittest.TestCase):
         ordinary_content = json.loads(ordinary_material["content"])
         self.assertEqual(cover_content["styles"][0]["font"]["id"], "font-resource-id")
         self.assertNotIn("font", ordinary_content["styles"][0])
+        self.assertEqual(cover_material["alignment"], 1)
+        self.assertEqual(cover_material["letter_spacing"], 0.0)
+        self.assertEqual(cover_material["line_spacing"], 0.06)
+        self.assertTrue(cover_material["has_shadow"])
+        self.assertEqual(cover_material["shadow_alpha"], 0.9)
+        self.assertEqual(cover_material["shadow_smoothing"], 0.15)
+        self.assertEqual(cover_material["shadow_distance"], 5.0)
+        self.assertEqual(cover_material["shadow_angle"], -45.0)
+        self.assertAlmostEqual(cover_material["shadow_point"]["x"], 0.636396103, places=6)
+        self.assertAlmostEqual(cover_material["shadow_point"]["y"], -0.636396103, places=6)
 
     def test_keeps_generated_cover_material_on_real_absolute_path(self) -> None:
         data = {

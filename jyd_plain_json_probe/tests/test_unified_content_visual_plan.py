@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import threading
 from typing import Any
 
 from jyd_probe.project_content_analysis import ProjectContentAnalysisCoordinator
@@ -85,6 +86,31 @@ class UnifiedClient:
             "cache_hit": False,
             "cacheable": True,
         }
+
+
+class BlockingUnifiedClient(UnifiedClient):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = threading.Event()
+        self.release = threading.Event()
+
+    def analyze_workbench_content(
+        self,
+        token: str,
+        original_script: str,
+        *,
+        force_refresh: bool = False,
+        visual_context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release unified analysis")
+        return super().analyze_workbench_content(
+            token,
+            original_script,
+            force_refresh=force_refresh,
+            visual_context=visual_context,
+        )
 
 
 def _project(
@@ -177,6 +203,46 @@ def test_saved_plan_rebinds_after_raw_cues_without_another_cloud_call(
     rebound = rebound_project["items"][0]
     assert rebound["visual_analysis"]["mapping_status"] == "SUCCESS"
     assert len(rebound["visual_analysis"]["recipe"]["overlays"]) == 1
+    assert len(client.calls) == 1
+
+
+def test_raw_cues_arriving_during_cloud_analysis_are_mapped_without_retry(
+    tmp_path: Path,
+) -> None:
+    store, project, script = _project(tmp_path, with_raw_cues=False)
+    catalog = load_semantic_visual_catalog(CATALOG_ROOT)
+    client = BlockingUnifiedClient()
+    result: dict[str, Any] = {}
+
+    def analyze() -> None:
+        result.update(
+            ProjectContentAnalysisCoordinator(
+                store,
+                client,
+                visual_catalog=catalog,
+            ).analyze("user-1", project["project_id"], "token")
+        )
+
+    worker = threading.Thread(target=analyze)
+    worker.start()
+    assert client.started.wait(timeout=5)
+    current_item = store.get_project("user-1", project["project_id"])["items"][0]
+    store.set_item_subtitles(
+        "user-1",
+        project["project_id"],
+        current_item["item_id"],
+        {
+            **current_item["subtitles"],
+            "raw_cues": [{"start_us": 0, "end_us": 3_000_000, "text": script}],
+        },
+    )
+    client.release.set()
+    worker.join(timeout=10)
+
+    assert not worker.is_alive()
+    item = result["items"][0]
+    assert item["visual_analysis"]["mapping_status"] == "SUCCESS"
+    assert len(item["visual_analysis"]["recipe"]["overlays"]) == 1
     assert len(client.calls) == 1
 
 

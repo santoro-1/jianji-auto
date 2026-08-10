@@ -156,6 +156,33 @@ class AuthCenterTest(unittest.TestCase):
         self.assertNotIn("api_key", submitted)
         self.assertNotIn("base_url", submitted)
 
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response(
+                {
+                    "item_id": "item-1",
+                    "composition": {"status": "VIDEO_ENHANCING"},
+                }
+            ),
+        ) as request_mock:
+            AuthCenterClient(
+                "http://127.0.0.1:8000"
+            ).backfill_workbench_video_enhancement(
+                "center-token",
+                "item-1",
+                idempotency_key="backfill-1:item-1",
+            )
+        request = request_mock.call_args.args[0]
+        self.assertTrue(
+            request.full_url.endswith(
+                "/api/workbench/tasks/item-1/enhancement/backfill"
+            )
+        )
+        submitted = json.loads(request.data.decode("utf-8"))
+        self.assertEqual(submitted["access_token"], "center-token")
+        self.assertTrue(submitted["cost_confirmed"])
+        self.assertEqual(submitted["idempotency_key"], "backfill-1:item-1")
+
     def test_standalone_processor_uses_remote_center_for_login_and_every_request(self) -> None:
         root = PROJECT_ROOT / "runtime" / "test_tmp" / f"remote_auth_{uuid.uuid4().hex}"
         root.mkdir(parents=True)

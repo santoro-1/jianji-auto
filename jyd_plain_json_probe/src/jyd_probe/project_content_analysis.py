@@ -290,9 +290,27 @@ class ProjectContentAnalysisCoordinator:
                             )
                         else:
                             try:
+                                latest_project = self.store.get_project(
+                                    owner_user_id, project_id
+                                )
+                                latest_item = next(
+                                    (
+                                        item
+                                        for item in latest_project.get("items", [])
+                                        if item.get("item_id") == target.item_id
+                                    ),
+                                    None,
+                                )
+                                latest_visual = (
+                                    prepare_unified_visual_input(
+                                        latest_item, self.visual_catalog
+                                    )
+                                    if isinstance(latest_item, Mapping)
+                                    else target.visual
+                                )
                                 visual_result, recipe = build_local_visual_result(
                                     script=target.original_script,
-                                    visual_input=target.visual,
+                                    visual_input=latest_visual,
                                     plan=visual["visual_plan"],
                                     catalog=self.visual_catalog,
                                     provider_payload=remote,
@@ -338,6 +356,25 @@ class ProjectContentAnalysisCoordinator:
                                     mapping_status="FAILED",
                                     mapping_error=_safe_error(exc),
                                 )
+                                current_project = self.store.get_project(
+                                    owner_user_id, project_id
+                                )
+                                current_item = next(
+                                    (
+                                        item
+                                        for item in current_project.get("items", [])
+                                        if item.get("item_id") == target.item_id
+                                    ),
+                                    None,
+                                )
+                                if isinstance(current_item, Mapping):
+                                    remap_saved_visual_plan(
+                                        self.store,
+                                        owner_user_id=owner_user_id,
+                                        project_id=project_id,
+                                        item=current_item,
+                                        catalog=self.visual_catalog,
+                                    )
                 except Exception as exc:
                     if not content_completed:
                         self.store.fail_item_content_analysis(

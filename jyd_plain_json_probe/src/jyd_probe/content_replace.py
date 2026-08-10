@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 import argparse
 import json
+import math
 from typing import Any
 
 from .cli import (
@@ -181,6 +182,13 @@ class TextAddition:
     size: float = 8.0
     align: int = 1
     auto_wrapping: bool = False
+    line_max_width: float | None = None
+    color: str = ""
+    stroke_color: str = ""
+    stroke_width: float | None = None
+    font_id: str = ""
+    font_path: str = ""
+    font_title: str = ""
 
 
 @dataclass(frozen=True)
@@ -413,6 +421,8 @@ class ImageAddition:
     optional: bool = False
     render_below_text: bool = True
     layer_order: int = 0
+    transform_x: float | None = None
+    transform_y: float | None = None
 
 
 @dataclass(frozen=True)
@@ -572,6 +582,7 @@ def _apply_top_level_changes(
                     text_size=item.size,
                     text_align=item.align,
                     text_auto_wrapping=item.auto_wrapping,
+                    text_line_max_width=item.line_max_width,
                 ),
             )
         )
@@ -968,6 +979,33 @@ def _replace_cover_text_fonts_in_data(
             line_index = 1 if name.endswith("text_1") else 2
             color = config.line_1_color if line_index == 1 else config.line_2_color
             size = config.line_1_size if line_index == 1 else config.line_2_size
+            shadow_color = (
+                config.line_1_shadow_color
+                if line_index == 1
+                else config.line_2_shadow_color
+            )
+            shadow_alpha = (
+                config.line_1_shadow_alpha
+                if line_index == 1
+                else config.line_2_shadow_alpha
+            )
+            shadow_smoothing = (
+                config.line_1_shadow_smoothing
+                if line_index == 1
+                else config.line_2_shadow_smoothing
+            )
+            shadow_distance = (
+                config.line_1_shadow_distance
+                if line_index == 1
+                else config.line_2_shadow_distance
+            )
+            shadow_angle = (
+                config.line_1_shadow_angle
+                if line_index == 1
+                else config.line_2_shadow_angle
+            )
+            shadow_magnitude = float(shadow_distance) * 0.18
+            shadow_radians = math.radians(float(shadow_angle))
             for material in _text_materials_for_id(materials, material_id):
                 _apply_text_material_overrides(
                     material,
@@ -976,6 +1014,23 @@ def _replace_cover_text_fonts_in_data(
                     stroke_color="",
                     stroke_width=None,
                     line_max_width=0.86,
+                )
+                material.update(
+                    {
+                        "alignment": 1,
+                        "letter_spacing": float(config.letter_spacing) / 100.0,
+                        "line_spacing": float(config.line_spacing) / 100.0,
+                        "has_shadow": True,
+                        "shadow_color": shadow_color,
+                        "shadow_alpha": float(shadow_alpha),
+                        "shadow_smoothing": float(shadow_smoothing),
+                        "shadow_distance": float(shadow_distance),
+                        "shadow_angle": float(shadow_angle),
+                        "shadow_point": {
+                            "x": shadow_magnitude * math.cos(shadow_radians),
+                            "y": shadow_magnitude * math.sin(shadow_radians),
+                        },
+                    }
                 )
                 changed += 1
     if changed:
@@ -1330,20 +1385,40 @@ def _apply_text_style_preset_to_added_text(
     item: TextAddition,
     item_index: int,
 ) -> int:
-    if not item.style_json_path:
-        return 0
-
-    preset = _load_text_style_preset(Path(item.style_json_path).resolve())
     track_name = _text_addition_track_name(item, item_index)
     ref = _find_text_segment_ref_by_track_name(data, track_name)
     materials = _materials_dict(data)
-    changed = _apply_text_style_preset_for_material_id(materials, ref["material_id"], preset, item.text)
-    changed += _apply_segment_style_fields(ref["segment"], preset, item.apply_clip)
-    log(
-        "已给新增文字应用样式: "
-        f"track_name={track_name!r}, material_id={ref['material_id']!r}, "
-        f"style_json={Path(item.style_json_path).resolve()}"
-    )
+    changed = 0
+    if item.style_json_path:
+        preset = _load_text_style_preset(Path(item.style_json_path).resolve())
+        changed += _apply_text_style_preset_for_material_id(
+            materials, ref["material_id"], preset, item.text
+        )
+        changed += _apply_segment_style_fields(ref["segment"], preset, item.apply_clip)
+
+    text_materials = _text_materials_for_id(materials, ref["material_id"])
+    for material in text_materials:
+        _apply_text_material_overrides(
+            material,
+            size=item.size,
+            color=item.color,
+            stroke_color=item.stroke_color,
+            stroke_width=item.stroke_width,
+            line_max_width=item.line_max_width,
+        )
+        if item.font_id and item.font_path:
+            _apply_font_to_text_material(
+                material,
+                {"id": item.font_id, "path": item.font_path},
+                item.font_title,
+            )
+        changed += 1
+    if item.style_json_path or text_materials:
+        log(
+            "已给新增文字应用固定样式: "
+            f"track_name={track_name!r}, material_id={ref['material_id']!r}, "
+            f"style_json={Path(item.style_json_path).resolve() if item.style_json_path else 'default'}"
+        )
     return changed
 
 
@@ -1733,6 +1808,8 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
                     opacity=item.opacity,
                     track_name=item.track_name,
                     render_below_text=item.render_below_text,
+                    transform_x=item.transform_x,
+                    transform_y=item.transform_y,
                 )
             else:
                 changed += add_video_overlay_to_data(

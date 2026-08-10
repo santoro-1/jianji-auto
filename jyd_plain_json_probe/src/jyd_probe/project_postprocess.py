@@ -43,12 +43,31 @@ from .unified_visual_plan import remap_saved_visual_plan
 
 CAPTION_MAX_WIDTH_RATIO = 0.8
 CAPTION_MAX_LINES = 1
-CAPTION_BOTTOM_OFFSET_RATIO = 0.2
-CAPTION_TRANSFORM_Y = -0.6
-CAPTION_REFERENCE_FONT_SIZE = 11.0
-CAPTION_REFERENCE_MAX_EM = 13.0
+CAPTION_TRANSFORM_Y = -856 / 1920
+CAPTION_BOTTOM_OFFSET_RATIO = 0.5 + CAPTION_TRANSFORM_Y / 2
+CAPTION_REFERENCE_FONT_SIZE = 14.0
+CAPTION_REFERENCE_MAX_EM = 13.0 * 11.0 / CAPTION_REFERENCE_FONT_SIZE
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
+TOP_TITLE_LABEL_TRANSFORM_Y = 1535 / 1920
+TOP_TITLE_HEADLINE_TRANSFORM_Y = 1350 / 1920
+TOP_TITLE_LABEL_FONT_SIZE = 11.0
+TOP_TITLE_HEADLINE_FONT_SIZE = 13.0
+TOP_TITLE_LABEL_COLOR = "#FFD600"
+TOP_TITLE_HEADLINE_COLOR = "#FFFFFF"
+TOP_TITLE_MAX_LABEL_CHARS = 12
+TOP_TITLE_MAX_HEADLINE_CHARS = 20
+COVER_TITLE_MAX_LINE_CHARS = 5
+COVER_FONT_IDENTITY = "resource_id:6807742980271641102"
+COVER_LINE_1_TRANSFORM_Y = -160 / 1920
+COVER_LINE_2_TRANSFORM_Y = -655 / 1920
+COVER_OVERLAY_TRANSFORM_Y = -420 / 1920
+COVER_OVERLAY_CENTER_RATIO = 0.5 - COVER_OVERLAY_TRANSFORM_Y / 2
+COVER_OVERLAY_HEIGHT_RATIO = 0.36
+COVER_LINE_1_FONT_SIZE = 35.0
+COVER_LINE_2_FONT_SIZE = 27.0
+COVER_LINE_1_COLOR = "#FADF4A"
+COVER_LINE_2_COLOR = "#F5F6F0"
 CAPTION_MIN_SLICE_US = 80_000
 _BREAK_CHARS = set("，,、：:。.！？!?；;")
 _HIDDEN_CAPTION_PUNCTUATION = _BREAK_CHARS | set("…")
@@ -91,6 +110,181 @@ _PROTECTED_TERMS = (
     "二氧化碳",
     "葡萄糖",
 )
+
+
+def normalize_top_title(value: Any) -> dict[str, str]:
+    """Normalize the optional two-line fixed top title contract."""
+
+    if value is None:
+        return {"label": "", "headline": ""}
+    if not isinstance(value, dict):
+        raise ValueError("顶部固定标题必须是对象")
+
+    def clean(*keys: str) -> str:
+        raw = next((value.get(key) for key in keys if value.get(key) is not None), "")
+        return re.sub(r"\s+", " ", str(raw or "")).strip()
+
+    label = clean("label", "topic")
+    headline = clean("headline", "title")
+    if len(label) > TOP_TITLE_MAX_LABEL_CHARS:
+        raise ValueError(f"顶部黄色小标题最多 {TOP_TITLE_MAX_LABEL_CHARS} 个字符")
+    if len(headline) > TOP_TITLE_MAX_HEADLINE_CHARS:
+        raise ValueError(f"顶部白色主标题最多 {TOP_TITLE_MAX_HEADLINE_CHARS} 个字符")
+    return {"label": label, "headline": headline}
+
+
+def normalize_cover_title(value: Any) -> dict[str, str]:
+    """Normalize the model-owned two-line cover title contract."""
+
+    if value is None:
+        return {"line_1": "", "line_2": ""}
+    if not isinstance(value, dict):
+        raise ValueError("封面标题必须是对象")
+
+    def clean(*keys: str) -> str:
+        raw = next((value.get(key) for key in keys if value.get(key) is not None), "")
+        text = str(raw or "").strip()
+        if any(character.isspace() for character in text):
+            raise ValueError("封面标题每行不能包含空格或换行")
+        return text
+
+    line_1 = clean("line_1", "topic", "label")
+    line_2 = clean("line_2", "hook", "headline", "title")
+    if bool(line_1) != bool(line_2):
+        raise ValueError("封面标题必须同时提供两行")
+    for index, text in enumerate((line_1, line_2), start=1):
+        if len(text) > COVER_TITLE_MAX_LINE_CHARS:
+            raise ValueError(
+                f"封面第 {index} 行最多 {COVER_TITLE_MAX_LINE_CHARS} 个字符"
+            )
+    return {"line_1": line_1, "line_2": line_2}
+
+
+def build_project_cover(
+    item: dict[str, Any],
+    *,
+    fonts: dict[str, dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Build the fixed project cover recipe from saved titles and the input image."""
+
+    postprocess = dict(item.get("settings", {}).get("postprocess") or {})
+    title = normalize_cover_title(postprocess.get("cover_title"))
+    if not title["line_1"]:
+        return None
+    image = item.get("inputs", {}).get("image")
+    if not isinstance(image, dict) or not image.get("managed_path"):
+        raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 缺少封面原图")
+    image_path = Path(str(image["managed_path"])).expanduser().resolve()
+    if not image_path.is_file():
+        raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 的封面原图不存在")
+    font = fonts.get(COVER_FONT_IDENTITY)
+    if not isinstance(font, dict) or not font.get("path"):
+        raise ValueError("固定封面字体“思源粗宋”不可用")
+    overlay_top = COVER_OVERLAY_CENTER_RATIO - COVER_OVERLAY_HEIGHT_RATIO / 2
+    overlay_bottom = COVER_OVERLAY_CENTER_RATIO + COVER_OVERLAY_HEIGHT_RATIO / 2
+    return {
+        "enabled": True,
+        "frame_source": "input_image",
+        "image_path": str(image_path),
+        "frame_time_seconds": 0,
+        "frame_count": 3,
+        "text_line_1": title["line_1"],
+        "text_line_2": title["line_2"],
+        "font": {
+            "font_id": str(font.get("resource_id") or "6807742980271641102"),
+            "font_path": str(Path(str(font["path"])).expanduser().resolve()),
+            "font_title": str(font.get("name") or "SourceHanSerifCN-Heavy"),
+        },
+        "text_scale": 1.0,
+        "letter_spacing": 0,
+        "line_spacing": 6,
+        "line_1_x": 0.0,
+        "line_1_y": COVER_LINE_1_TRANSFORM_Y,
+        "line_2_x": 0.0,
+        "line_2_y": COVER_LINE_2_TRANSFORM_Y,
+        "line_1_size": COVER_LINE_1_FONT_SIZE,
+        "line_2_size": COVER_LINE_2_FONT_SIZE,
+        "line_1_color": COVER_LINE_1_COLOR,
+        "line_2_color": COVER_LINE_2_COLOR,
+        "line_1_shadow_color": "#000000",
+        "line_1_shadow_alpha": 0.9,
+        "line_1_shadow_smoothing": 0.15,
+        "line_1_shadow_distance": 5.0,
+        "line_1_shadow_angle": -45.0,
+        "line_2_shadow_color": "#1F1A05",
+        "line_2_shadow_alpha": 0.5,
+        "line_2_shadow_smoothing": 0.15,
+        "line_2_shadow_distance": 5.0,
+        "line_2_shadow_angle": -45.0,
+        "frame_scale": 1.0,
+        "frame_offset_x": 0.0,
+        "frame_offset_y": 0.0,
+        "overlay_alpha": 0.5,
+        "overlay_x_ratio": 0.5,
+        "overlay_y_ratio": COVER_OVERLAY_CENTER_RATIO,
+        "overlay_width_ratio": 1.0,
+        "overlay_height_ratio": COVER_OVERLAY_HEIGHT_RATIO,
+        "overlay_top_ratio": overlay_top,
+        "overlay_bottom_ratio": overlay_bottom,
+    }
+
+
+def build_top_title_texts(
+    top_title: Any,
+    *,
+    font: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Build stable full-duration render-job text layers for a configured title."""
+
+    title = normalize_top_title(top_title)
+    font_fields = {
+        "font_id": str((font or {}).get("resource_id") or ""),
+        "font_path": str((font or {}).get("path") or ""),
+        "font_title": str((font or {}).get("name") or ""),
+    }
+    rows = [
+        (
+            title["label"],
+            "顶部固定标题·黄色小标题",
+            TOP_TITLE_LABEL_TRANSFORM_Y,
+            TOP_TITLE_LABEL_FONT_SIZE,
+            TOP_TITLE_LABEL_COLOR,
+            950,
+        ),
+        (
+            title["headline"],
+            "顶部固定标题·白色主标题",
+            TOP_TITLE_HEADLINE_TRANSFORM_Y,
+            TOP_TITLE_HEADLINE_FONT_SIZE,
+            TOP_TITLE_HEADLINE_COLOR,
+            951,
+        ),
+    ]
+    return [
+        {
+            "type": "add",
+            "scope": "top",
+            "text": text,
+            "track_name": track_name,
+            "start_us": 0,
+            "duration_us": 0,
+            "relative_index": relative_index,
+            "transform_x": 0.0,
+            "transform_y": transform_y,
+            "size": size,
+            "align": 1,
+            "auto_wrapping": False,
+            "line_max_width": 0.92,
+            "color": color,
+            "stroke_color": "#000000",
+            "stroke_width": 0.04,
+            **font_fields,
+        }
+        for text, track_name, transform_y, size, color, relative_index in rows
+        if text
+    ]
+
+
 _PREFERRED_PHRASE_END_TERMS = (
     "世界冠军",
     "新中年女性",
@@ -1060,11 +1254,24 @@ class ProjectPostprocessCoordinator:
                 music_selection = manual_music_selection(item, bgm_identity)
             if bgm_identity and bgm_identity not in self.bgm_assets:
                 raise ValueError(f"任务 {item['row_key']} 选择的 BGM 不可用")
+            saved_postprocess = dict(item.get("settings", {}).get("postprocess") or {})
+            top_title = normalize_top_title(
+                config["top_title"]
+                if "top_title" in config
+                else saved_postprocess.get("top_title")
+            )
+            cover_title = normalize_cover_title(
+                config["cover_title"]
+                if "cover_title" in config
+                else saved_postprocess.get("cover_title")
+            )
             resolved_settings[str(item["item_id"])] = {
                 **config,
                 "bgm_identity": bgm_identity,
                 "bgm_selection_mode": bgm_mode,
                 "music_selection": music_selection,
+                "top_title": top_title,
+                "cover_title": cover_title,
             }
             color = str(config.get("text_color") or "#FFFFFF").strip().upper()
             if _HEX_COLOR.fullmatch(color) is None:
@@ -1187,6 +1394,8 @@ class ProjectPostprocessCoordinator:
                     selected.get("bgm_selection_mode") or "manual"
                 ),
                 music_selection=dict(selected.get("music_selection") or {}),
+                top_title=dict(selected.get("top_title") or {}),
+                cover_title=dict(selected.get("cover_title") or {}),
             )
             updated_project = self.store.set_item_subtitles(
                 owner_user_id, project_id, item["item_id"], subtitles
@@ -1365,6 +1574,12 @@ class ProjectPostprocessCoordinator:
         job["fixed_overlays"] = [
             fixed_nameplate_overlay(self.semantic_visual_library_root)
         ]
+        title_texts = build_top_title_texts(settings.get("top_title"), font=font)
+        if title_texts:
+            job["texts"] = title_texts
+        cover = build_project_cover(item, fonts=self.fonts)
+        if cover is not None:
+            job["cover"] = cover
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,

@@ -563,6 +563,13 @@ def _build_text_replacements(
                     size=float(_value(item, "size", default=8.0)),
                     align=int(_value(item, "align", default=1)),
                     auto_wrapping=_as_bool(_value(item, "auto_wrapping", default=False)),
+                    line_max_width=_optional_float(item, "line_max_width"),
+                    color=str(_value(item, "color", default="")),
+                    stroke_color=str(_value(item, "stroke_color", default="")),
+                    stroke_width=_optional_float(item, "stroke_width"),
+                    font_id=str(_value(item, "font_id", default="")),
+                    font_path=str(_value(item, "font_path", default="")),
+                    font_title=str(_value(item, "font_title", default="")),
                 )
             )
             continue
@@ -1029,6 +1036,8 @@ def _build_fixed_overlay_additions(
                 optional=True,
                 render_below_text=True,
                 layer_order=20,
+                transform_x=_optional_float(item, "transform_x"),
+                transform_y=_optional_float(item, "transform_y"),
             )
         )
     return additions
@@ -1088,25 +1097,26 @@ def _build_cover(
             default=_value(config, "existing_text_font", default=_value(config, "captions", default=None)),
         )
     )
-    overlay_top = float(_value(value, "overlay_top_ratio", default=0.50))
-    overlay_bottom = float(_value(value, "overlay_bottom_ratio", default=0.86))
+    overlay_top = float(_value(value, "overlay_top_ratio", default=0.429375))
+    overlay_bottom = float(_value(value, "overlay_bottom_ratio", default=0.789375))
     return CoverConfig(
         frame_time_us=int(round(frame_time_seconds * 1_000_000)),
         frame_source=str(_value(value, "frame_source", default="preview_material")),
+        image_path=str(_value(value, "image_path", default="")).strip(),
         fps=fps,
         frame_count=int(_value(value, "frame_count", default=3)),
         text_line_1=str(_value(value, "text_line_1", "text1", default="默认文本")),
         text_line_2=str(_value(value, "text_line_2", "text2", default="默认文本")),
-        text_size=float(_value(value, "text_size", default=12.0)),
-        text_scale=float(_value(value, "text_scale", default=1.4)),
+        text_size=float(_value(value, "text_size", default=35.0)),
+        text_scale=float(_value(value, "text_scale", default=1.0)),
         line_1_x=float(_value(value, "line_1_x", default=0.0)),
-        line_1_y=float(_value(value, "line_1_y", default=-0.28)),
+        line_1_y=float(_value(value, "line_1_y", default=-160.0 / 1920.0)),
         line_2_x=float(_value(value, "line_2_x", default=0.0)),
-        line_2_y=float(_value(value, "line_2_y", default=-0.55)),
-        line_1_size=float(_value(value, "line_1_size", default=_value(value, "text_size", default=12.0))),
-        line_2_size=float(_value(value, "line_2_size", default=_value(value, "text_size", default=12.0))),
-        line_1_color=str(_value(value, "line_1_color", default="#FFFFFF")),
-        line_2_color=str(_value(value, "line_2_color", default="#FFFFFF")),
+        line_2_y=float(_value(value, "line_2_y", default=-655.0 / 1920.0)),
+        line_1_size=float(_value(value, "line_1_size", default=_value(value, "text_size", default=35.0))),
+        line_2_size=float(_value(value, "line_2_size", default=27.0)),
+        line_1_color=str(_value(value, "line_1_color", default="#FADF4A")),
+        line_2_color=str(_value(value, "line_2_color", default="#F5F6F0")),
         frame_scale=float(_value(value, "frame_scale", default=1.0)),
         frame_offset_x=float(_value(value, "frame_offset_x", default=0.0)),
         frame_offset_y=float(_value(value, "frame_offset_y", default=0.0)),
@@ -1120,6 +1130,18 @@ def _build_cover(
         font_id=str(_value(font, "font_id", "resource_id", default="")).strip(),
         font_path=str(_value(font, "font_path", "path", default="")).strip(),
         font_title=str(_value(font, "font_title", "font_name", "name", default="")).strip(),
+        letter_spacing=int(_value(value, "letter_spacing", default=0)),
+        line_spacing=int(_value(value, "line_spacing", default=6)),
+        line_1_shadow_color=str(_value(value, "line_1_shadow_color", default="#000000")),
+        line_1_shadow_alpha=float(_value(value, "line_1_shadow_alpha", default=0.9)),
+        line_1_shadow_smoothing=float(_value(value, "line_1_shadow_smoothing", default=0.15)),
+        line_1_shadow_distance=float(_value(value, "line_1_shadow_distance", default=5.0)),
+        line_1_shadow_angle=float(_value(value, "line_1_shadow_angle", default=-45.0)),
+        line_2_shadow_color=str(_value(value, "line_2_shadow_color", default="#1F1A05")),
+        line_2_shadow_alpha=float(_value(value, "line_2_shadow_alpha", default=0.5)),
+        line_2_shadow_smoothing=float(_value(value, "line_2_shadow_smoothing", default=0.15)),
+        line_2_shadow_distance=float(_value(value, "line_2_shadow_distance", default=5.0)),
+        line_2_shadow_angle=float(_value(value, "line_2_shadow_angle", default=-45.0)),
     )
 
 

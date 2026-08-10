@@ -88,6 +88,20 @@ class ProjectPostprocessApiTest(unittest.TestCase):
             ],
         )
         item = project["items"][0]
+        image_path = self.settings.storage_root / "seed-person.png"
+        image_path.write_bytes(b"image")
+        registered_image = store.register_input_image(
+            owner_user_id=user["user_id"],
+            project_id=project["project_id"],
+            filename=image_path.name,
+            content_type="image/png",
+            size_bytes=image_path.stat().st_size,
+            sha256="seed-person",
+            managed_path=str(image_path),
+        )
+        store.replace_item_image(
+            user["user_id"], project["project_id"], item["item_id"], registered_image["image_id"]
+        )
         audio_path = self.settings.storage_root / "seed-audio.mp3"
         audio_path.write_bytes(b"audio")
         audio = store.add_asset(
@@ -190,8 +204,8 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(login.status_code, 200, login.text)
                 options = client.get("/api/new/postprocess/options")
                 self.assertEqual(options.status_code, 200, options.text)
-                self.assertEqual(options.json()["caption"]["bottom_offset_ratio"], 0.2)
-                self.assertEqual(options.json()["caption"]["font_size"], 11.0)
+                self.assertAlmostEqual(options.json()["caption"]["bottom_offset_ratio"], 0.27708333333333335)
+                self.assertEqual(options.json()["caption"]["font_size"], 14.0)
                 self.assertEqual(options.json()["caption"]["stroke_color"], "#000000")
                 self.assertEqual(
                     options.json()["default_font_identity"],
@@ -220,6 +234,14 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                                 "font_identity": font["identity"],
                                 "bgm_identity": bgm["identity"],
                                 "text_color": "#FFFFFF",
+                                "top_title": {
+                                    "label": "减肥大实话",
+                                    "headline": "只有坚持才能达成目标",
+                                },
+                                "cover_title": {
+                                    "line_1": "健康真相",
+                                    "line_2": "别再踩坑",
+                                },
                             }
                         ],
                     },
@@ -235,9 +257,17 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 )
                 self.assertEqual(row["subtitles"]["style"]["max_lines"], 1)
                 self.assertEqual(row["subtitles"]["style"]["max_width_ratio"], 0.8)
-                self.assertEqual(row["subtitles"]["style"]["bottom_offset_ratio"], 0.2)
-                self.assertEqual(row["subtitles"]["style"]["transform_y"], -0.6)
-                self.assertEqual(row["subtitles"]["style"]["font_size"], 11.0)
+                self.assertAlmostEqual(row["subtitles"]["style"]["bottom_offset_ratio"], 0.27708333333333335)
+                self.assertAlmostEqual(row["subtitles"]["style"]["transform_y"], -856 / 1920)
+                self.assertEqual(row["subtitles"]["style"]["font_size"], 14.0)
+                self.assertEqual(
+                    row["settings"]["postprocess"]["top_title"],
+                    {"label": "减肥大实话", "headline": "只有坚持才能达成目标"},
+                )
+                self.assertEqual(
+                    row["settings"]["postprocess"]["cover_title"],
+                    {"line_1": "健康真相", "line_2": "别再踩坑"},
+                )
                 self.assertEqual(row["subtitles"]["style"]["stroke_color"], "#000000")
                 self.assertEqual(row["subtitles"]["style"]["stroke_width"], 0.06)
                 self.assertEqual(row["subtitles"]["semantic_mapping"]["status"], "FALLBACK")
@@ -273,10 +303,14 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertIsNotNone(exported_row["outputs"]["composition_video"])
                 self.assertEqual(captured["submit_count"], 1)
                 job = captured["job"]
+                self.assertEqual(job["cover"]["frame_source"], "input_image")
+                self.assertEqual(job["cover"]["image_path"], str(image_path.resolve()))
+                self.assertEqual(job["cover"]["text_line_1"], "健康真相")
+                self.assertEqual(job["cover"]["text_line_2"], "别再踩坑")
                 self.assertTrue(job["captions"]["single_line"])
                 self.assertEqual(job["captions"]["max_lines"], 1)
-                self.assertEqual(job["captions"]["transform_y"], -0.6)
-                self.assertEqual(job["captions"]["size"], 11.0)
+                self.assertAlmostEqual(job["captions"]["transform_y"], -856 / 1920)
+                self.assertEqual(job["captions"]["size"], 14.0)
                 self.assertEqual(job["captions"]["stroke_color"], "#000000")
                 self.assertEqual(job["captions"]["stroke_width"], 0.06)
                 self.assertEqual(job["source"]["type"], "video_sequence")
@@ -292,6 +326,13 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["audios"][0]["media_path"], str(audio_path.resolve()))
                 self.assertEqual(job["audios"][0]["volume"], 1.0)
                 self.assertEqual(job["audios"][1]["volume"], 0.3)
+                self.assertEqual(
+                    [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],
+                    [
+                        ("减肥大实话", 1535 / 1920, 11.0, "#FFD600"),
+                        ("只有坚持才能达成目标", 1350 / 1920, 13.0, "#FFFFFF"),
+                    ],
+                )
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )
@@ -331,7 +372,11 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(regenerated.status_code, 200, regenerated.text)
                 self.assertEqual(
                     regenerated.json()["items"][0]["subtitles"]["style"]["font_size"],
-                    11.0,
+                    14.0,
+                )
+                self.assertEqual(
+                    regenerated.json()["items"][0]["settings"]["postprocess"]["top_title"],
+                    {"label": "减肥大实话", "headline": "只有坚持才能达成目标"},
                 )
 
                 changed = client.patch(

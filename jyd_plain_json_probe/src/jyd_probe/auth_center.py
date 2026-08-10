@@ -202,6 +202,22 @@ class AuthCenterClient:
             payload,
         )
 
+    def backfill_workbench_video_enhancement(
+        self,
+        token: str,
+        item_id: str,
+        *,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/tasks/{item_id}/enhancement/backfill",
+            {
+                "access_token": token,
+                "cost_confirmed": True,
+                "idempotency_key": str(idempotency_key or "").strip(),
+            },
+        )
+
     def list_workbench_execution_accounts(self, token: str) -> dict[str, Any]:
         return self._post(
             "/api/workbench/runninghub-execution-accounts",
