@@ -482,6 +482,87 @@ class ProjectCompositionCoordinator:
             )
         return self.sync(owner_user_id, project_id, token)
 
+    def backfill_seedvr2(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        token: str,
+        *,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        item = next(
+            (value for value in project["items"] if value["item_id"] == item_id),
+            None,
+        )
+        if item is None:
+            raise KeyError("项目脚本行不存在")
+        if not item.get("allowed_actions", {}).get("backfill_seedvr2"):
+            raise ValueError("当前画面已经高清化、正在处理，或没有可复用的数字人分段")
+        link = _current_audio_item_links(project["links"]).get(item_id)
+        if link is None or not str(link.get("external_id") or "").strip():
+            raise ValueError("当前脚本行没有可复用的云端数字人任务")
+        clean_key = str(idempotency_key or "").strip()
+        if not clean_key:
+            raise ValueError("SeedVR2 补跑请求缺少幂等键")
+        remote_item_id = str(link["external_id"])
+        operation = self.store.create_operation(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            operation_type="COMPOSITION_GENERATE",
+            idempotency_key=clean_key,
+            payload={
+                "remote_item_id": remote_item_id,
+                "scope": "seedvr2_backfill_only",
+                "reuse_paid_digital_human": True,
+            },
+        )
+        if operation.get("status") == "PENDING":
+            try:
+                remote = self.client.backfill_workbench_video_enhancement(
+                    token,
+                    remote_item_id,
+                    idempotency_key=f"{clean_key}:{item_id}",
+                )
+                composition = remote.get("composition", {})
+                remote_status = str(
+                    composition.get("status") or "VIDEO_ENHANCING"
+                )
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="RUNNING",
+                    item_status=(
+                        remote_status
+                        if remote_status in REMOTE_COMPOSITION_ACTIVE
+                        else "VIDEO_ENHANCING"
+                    ),
+                    result={
+                        "remote_item_id": remote_item_id,
+                        "remote_status": remote_status,
+                        "operation_id": operation["operation_id"],
+                        "seedvr2_backfill_only": True,
+                        "reuse_paid_digital_human": True,
+                    },
+                )
+            except Exception as exc:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                raise
+        return self.sync(owner_user_id, project_id, token)
+
     def _download_ready_segments(
         self,
         owner_user_id: str,
@@ -491,8 +572,15 @@ class ProjectCompositionCoordinator:
         remote: dict[str, Any],
         token: str,
     ) -> None:
-        existing_task_ids = {
-            str(asset.get("external_ref", {}).get("remote_task_id") or "")
+        existing_variants = {
+            (
+                str(asset.get("external_ref", {}).get("remote_task_id") or ""),
+                str(
+                    asset.get("external_ref", {}).get("quality_variant")
+                    or asset.get("metadata", {}).get("quality_variant")
+                    or ""
+                ),
+            )
             for asset in item.get("asset_history", {}).get(
                 "original_video_segment", []
             )
@@ -504,8 +592,13 @@ class ProjectCompositionCoordinator:
             if not isinstance(video, dict) or str(video.get("status") or "") != "SUCCESS":
                 continue
             task_id = str(video.get("task_id") or "")
+            quality_variant = str(video.get("quality_variant") or "")
             index = int(video.get("index") or 0)
-            if not task_id or index < 1 or task_id in existing_task_ids:
+            if (
+                not task_id
+                or index < 1
+                or (task_id, quality_variant) in existing_variants
+            ):
                 continue
             directory = (
                 self.storage_root
@@ -517,7 +610,9 @@ class ProjectCompositionCoordinator:
                 / remote_item_id
                 / "segments"
             )
-            task_suffix = hashlib.sha256(task_id.encode("utf-8")).hexdigest()[:12]
+            task_suffix = hashlib.sha256(
+                f"{task_id}:{quality_variant}".encode("utf-8")
+            ).hexdigest()[:12]
             target = directory / f"segment-{index:03d}-{task_suffix}.mp4"
             temporary = target.with_suffix(".mp4.tmp")
             try:
@@ -546,6 +641,7 @@ class ProjectCompositionCoordinator:
                     "remote_item_id": remote_item_id,
                     "remote_task_id": task_id,
                     "video_index": index,
+                    "quality_variant": quality_variant or None,
                 },
                 metadata={
                     "start_seconds": video.get("start_seconds"),
@@ -562,7 +658,7 @@ class ProjectCompositionCoordinator:
                     ),
                 },
             )
-            existing_task_ids.add(task_id)
+            existing_variants.add((task_id, quality_variant))
 
     def _download_base_video(
         self,
@@ -579,9 +675,25 @@ class ProjectCompositionCoordinator:
             for video in videos
             if isinstance(video, dict) and video.get("task_id")
         ] if isinstance(videos, list) else []
+        source_quality_variants = [
+            str(video.get("quality_variant") or "")
+            for video in videos
+            if isinstance(video, dict) and video.get("task_id")
+        ] if isinstance(videos, list) else []
+        quality_variant = str(
+            remote.get("composition", {}).get("quality_variant") or ""
+        )
+        if (
+            not quality_variant
+            and source_quality_variants
+            and len(set(source_quality_variants)) == 1
+        ):
+            quality_variant = source_quality_variants[0]
         signature = {
             "remote_item_id": remote_item_id,
             "source_task_ids": task_ids,
+            "source_quality_variants": source_quality_variants,
+            "quality_variant": quality_variant or None,
             "remote_updated_at": str(remote.get("updated_at") or ""),
             "image_sha256": str(
                 remote.get("composition", {}).get("image_sha256") or ""
@@ -637,6 +749,12 @@ class ProjectCompositionCoordinator:
                 ),
                 "input_image_sha256": signature["image_sha256"],
                 "module": "4A",
+                "quality_variant": quality_variant or None,
+                "enhanced_by": (
+                    "runninghub_seedvr2"
+                    if quality_variant == "seedvr2_upscaled"
+                    else None
+                ),
             },
             make_current=True,
         )

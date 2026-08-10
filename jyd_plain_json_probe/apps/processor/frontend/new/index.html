@@ -2042,6 +2042,7 @@
                 const audioWasGenerated = Boolean(script.assetHistory?.audio?.length);
                 const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
                 const videoWasGenerated = Boolean(script.assetHistory?.base_video?.length || script.assetHistory?.composition_video?.length);
+                const canBackfillSeedvr2 = Boolean(script.allowedActions?.backfill_seedvr2);
                 const videoActionText = videoCanReuse
                     ? '复用视频'
                     : (script.baseVideo
@@ -2177,6 +2178,7 @@
                                     ? `<a href="/api/new/projects/${activeProject.project_id}/items/${script.id}/current-video" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-download mr-1"></i>下载完整成片</a>`
                                     : '<span class="text-[9px] text-gray-500">无需启动剪映</span>'}
                                 ${browserPreviewReady ? '<button type="button" onclick="retryRowPostprocessPreview(this)" class="text-[9px] text-brand-accent hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重新生成预览</button>' : ''}
+                                ${canBackfillSeedvr2 ? '<button type="button" onclick="backfillRowSeedvr2(this)" class="text-[9px] text-cyan-300 hover:text-white transition-colors" title="复用已有数字人分段，仅补跑 SeedVR2 48G"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>补跑 SeedVR2 高清</button>' : ''}
                             </div>
                         </div>
                     </td>
@@ -2888,6 +2890,39 @@
                 pendingSingleCompositionItemIds.delete(rowId);
                 showToast('本条视频生成失败', error.message, 'warning');
                 syncProjectInputs(activeProject);
+            }
+        }
+
+        async function backfillRowSeedvr2(buttonEl) {
+            const row = buttonEl.closest('tr');
+            const rowId = row?.getAttribute('data-id') || '';
+            const script = uploadedScripts.find(item => item.id === rowId);
+            if (!script || !activeProject) return;
+            if (!script.allowedActions?.backfill_seedvr2) {
+                showToast('当前任务不能补跑高清', '任务可能已经完成 SeedVR2，正在处理，或没有可复用的数字人分段。', 'warning');
+                return;
+            }
+            if (!window.confirm(`任务 ${script.displayIndex} 将复用已经付费完成的数字人分段，只调用 SeedVR2 48G 高清工作流并产生相应费用；不会重新生成数字人。高清完成后会自动重新生成字幕/BGM 完整成片。是否继续？`)) return;
+            buttonEl.disabled = true;
+            row.setAttribute('data-video-status', 'loading');
+            toggleRowVideoStatusUI(row, 'loading');
+            pendingSingleCompositionItemIds.add(rowId);
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/composition/seedvr2-backfill`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cost_confirmed: true,
+                        idempotency_key: `seedvr2-backfill-${rowId}-${Date.now()}`
+                    })
+                });
+                syncProjectInputs(project);
+                scheduleCompositionStatusPoll();
+                showToast('SeedVR2 高清补跑已启动', `任务 ${script.displayIndex} 只处理高清阶段，已有数字人结果不会重做。`, 'success');
+            } catch (error) {
+                pendingSingleCompositionItemIds.delete(rowId);
+                showToast('SeedVR2 高清补跑失败', error.message, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
             }
         }
 

@@ -3328,6 +3328,39 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/composition/seedvr2-backfill"
+    )
+    def backfill_new_project_seedvr2(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(
+                status_code=409,
+                detail="请确认 SeedVR2 48G 高清补跑会产生 RunningHub 费用",
+            )
+        try:
+            return project_composition_coordinator(client).backfill_seedvr2(
+                user["user_id"],
+                project_id,
+                item_id,
+                token,
+                idempotency_key=str(
+                    payload.get("idempotency_key") or uuid.uuid4().hex
+                ),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或画面任务不存在") from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/api/new/projects/{project_id}/items/{item_id}/base-video")
     def download_new_project_base_video(
         project_id: str, item_id: str, request: Request

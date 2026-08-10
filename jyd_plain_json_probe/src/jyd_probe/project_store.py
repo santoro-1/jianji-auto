@@ -3867,6 +3867,25 @@ class ProjectStore:
         audio_ready = outputs["audio"] is not None
         base_video_ready = outputs["base_video"] is not None
         video_ready = outputs["composition_video"] is not None
+        base_quality_variant = str(
+            (outputs["base_video"] or {}).get("metadata", {}).get("quality_variant")
+            or ""
+        )
+        latest_segments_by_index: dict[str, dict[str, Any]] = {}
+        for segment in outputs["original_video_segments"]:
+            video_index = str(
+                segment.get("external_ref", {}).get("video_index") or ""
+            )
+            if video_index:
+                latest_segments_by_index[video_index] = segment
+        segments_are_seedvr2 = bool(latest_segments_by_index) and all(
+            str(segment.get("metadata", {}).get("quality_variant") or "")
+            == "seedvr2_upscaled"
+            for segment in latest_segments_by_index.values()
+        )
+        seedvr2_ready = (
+            base_quality_variant == "seedvr2_upscaled" or segments_are_seedvr2
+        )
         preview_ready = (
             base_video_ready
             and str(item.get("subtitles", {}).get("status") or "")
@@ -3892,6 +3911,10 @@ class ProjectStore:
             "download_audio": audio_ready,
             "start_composition": audio_ready and not base_video_ready and not active,
             "retry_composition": status == "COMPOSITION_FAILED" and not base_video_ready,
+            "backfill_seedvr2": base_video_ready
+            and bool(latest_segments_by_index)
+            and not seedvr2_ready
+            and not active,
             "start_postprocess": base_video_ready and not composition_ready and not active,
             "retry_postprocess": status == "COMPOSITION_FAILED" and base_video_ready,
             "download_current_video": video_ready,

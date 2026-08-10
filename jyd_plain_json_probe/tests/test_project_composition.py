@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import hashlib
+import json
 import shutil
+import sqlite3
 import sys
 import unittest
 import uuid
@@ -337,6 +339,109 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 )
                 start_remote.assert_called_once()
 
+                historical_composition_path = (
+                    self.settings.storage_root / "historical-composition.mp4"
+                )
+                historical_composition_path.write_bytes(b"historical-composition")
+                store.add_asset(
+                    owner_user_id=user["user_id"],
+                    project_id=project["project_id"],
+                    item_id=item["item_id"],
+                    asset_type="composition_video",
+                    source_type="jianying_postprocess",
+                    status="READY",
+                    filename="historical-composition.mp4",
+                    managed_path=str(historical_composition_path),
+                    make_current=True,
+                )
+                with sqlite3.connect(
+                    self.settings.storage_root / "control.db"
+                ) as connection:
+                    rows = connection.execute(
+                        """
+                        SELECT asset_id, asset_type, external_ref_json, metadata_json
+                        FROM project_assets
+                        WHERE item_id=? AND asset_type IN ('base_video', 'original_video_segment')
+                        """,
+                        (item["item_id"],),
+                    ).fetchall()
+                    for asset_id, _asset_type, external_ref_json, metadata_json in rows:
+                        external_ref = json.loads(external_ref_json or "{}")
+                        metadata = json.loads(metadata_json or "{}")
+                        external_ref.pop("quality_variant", None)
+                        external_ref.pop("source_quality_variants", None)
+                        metadata.pop("quality_variant", None)
+                        metadata.pop("enhanced_by", None)
+                        connection.execute(
+                            """
+                            UPDATE project_assets
+                            SET external_ref_json=?, metadata_json=?
+                            WHERE asset_id=?
+                            """,
+                            (
+                                json.dumps(external_ref, ensure_ascii=False),
+                                json.dumps(metadata, ensure_ascii=False),
+                                asset_id,
+                            ),
+                        )
+
+                historical = client.get(
+                    f"/api/new/projects/{project['project_id']}"
+                )
+                historical_item = historical.json()["items"][0]
+                self.assertTrue(
+                    historical_item["allowed_actions"]["backfill_seedvr2"]
+                )
+                self.assertIsNotNone(
+                    historical_item["outputs"]["composition_video"]
+                )
+                unconfirmed_backfill = client.post(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/composition/seedvr2-backfill",
+                    json={"idempotency_key": "historical-seedvr2-unconfirmed"},
+                )
+                self.assertEqual(unconfirmed_backfill.status_code, 409)
+                historical_backfill = client.post(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/composition/seedvr2-backfill",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "historical-seedvr2-backfill",
+                    },
+                )
+                self.assertEqual(
+                    historical_backfill.status_code, 200, historical_backfill.text
+                )
+                backfill_remote.assert_called_once_with(
+                    "token",
+                    "remote-item-1",
+                    idempotency_key=(
+                        f"historical-seedvr2-backfill:{item['item_id']}"
+                    ),
+                )
+                backfilled_item = historical_backfill.json()["items"][0]
+                self.assertEqual(backfilled_item["status"], "BASE_VIDEO_READY")
+                self.assertEqual(
+                    backfilled_item["outputs"]["base_video"]["metadata"][
+                        "quality_variant"
+                    ],
+                    "seedvr2_upscaled",
+                )
+                self.assertIsNone(
+                    backfilled_item["outputs"]["composition_video"]
+                )
+                self.assertFalse(
+                    backfilled_item["allowed_actions"]["backfill_seedvr2"]
+                )
+                enhanced_segments = [
+                    asset
+                    for asset in backfilled_item["outputs"][
+                        "original_video_segments"
+                    ]
+                    if asset["metadata"].get("quality_variant")
+                    == "seedvr2_upscaled"
+                ]
+                self.assertEqual(len(enhanced_segments), 1)
+                backfill_remote.reset_mock()
+
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/base-video"
                 )
@@ -356,8 +461,9 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     invalidated_item["settings"]["composition_invalidated_reason"],
                     "DIGITAL_HUMAN_RESOLUTION_CHANGED",
                 )
+                # SeedVR2 历史补跑会保留原始成片，并新增一个高清成片版本。
                 self.assertEqual(
-                    len(invalidated_item["asset_history"]["base_video"]), 1
+                    len(invalidated_item["asset_history"]["base_video"]), 2
                 )
 
                 active_remote = {
