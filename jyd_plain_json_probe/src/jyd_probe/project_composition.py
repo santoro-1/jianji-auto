@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor
 import hashlib
 import json
+import logging
 from pathlib import Path
+import threading
 from typing import Any
 
-from .auth_center import AuthCenterClient
+from .auth_center import AuthCenterClient, AuthCenterError
+from .logging_config import log_event
 from .project_store import ProjectStore
 
 
@@ -15,6 +19,7 @@ REMOTE_COMPOSITION_ACTIVE = {
     "VIDEO_ENHANCING",
     "VIDEO_MERGING",
 }
+logger = logging.getLogger("jyd_probe.workbench")
 
 
 def _current_audio_item_links(
@@ -54,6 +59,90 @@ def _normalized_execution_account_ids(
     ):
         raise ValueError("RunningHub 执行账号 ID 必须是非空且不重复的正整数列表")
     return sorted(value)
+
+
+class ProjectCompositionStartDispatcher:
+    """Bounded in-process executor backed by durable per-row operations.
+
+    Tokens are kept only in submitted call arguments and are never persisted or
+    logged.  On a process restart, ``STARTING`` claims are reset by the store;
+    the next authenticated status poll submits those PENDING rows again with
+    the same cloud idempotency keys.
+    """
+
+    def __init__(
+        self,
+        coordinator: "ProjectCompositionCoordinator",
+        *,
+        max_workers: int = 4,
+    ) -> None:
+        self.coordinator = coordinator
+        self._executor = ThreadPoolExecutor(
+            max_workers=max(1, int(max_workers)),
+            thread_name_prefix="jyd-composition-start",
+        )
+        self._lock = threading.Lock()
+        self._scheduled: set[str] = set()
+
+    def submit(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+    ) -> int:
+        project = self.coordinator.store.get_project(owner_user_id, project_id)
+        pending = [
+            operation
+            for operation in project.get("operations", [])
+            if operation.get("operation_type") == "COMPOSITION_GENERATE"
+            and operation.get("status") == "PENDING"
+        ]
+        submitted = 0
+        for operation in pending:
+            operation_id = str(operation.get("operation_id") or "")
+            if not operation_id:
+                continue
+            with self._lock:
+                if operation_id in self._scheduled:
+                    continue
+                self._scheduled.add(operation_id)
+            future = self._executor.submit(
+                self.coordinator.start_pending_operation,
+                owner_user_id,
+                project_id,
+                operation_id,
+                token,
+            )
+            future.add_done_callback(
+                lambda completed, saved_id=operation_id: self._completed(
+                    saved_id, completed
+                )
+            )
+            submitted += 1
+        if submitted:
+            log_event(
+                logger,
+                "workbench.composition_start_batch_scheduled",
+                "4A 逐行启动任务已进入后台协调队列",
+                component="workbench",
+                user_id=owner_user_id,
+                project_id=project_id,
+                item_count=submitted,
+            )
+        return submitted
+
+    def _completed(self, operation_id: str, future: Future[None]) -> None:
+        with self._lock:
+            self._scheduled.discard(operation_id)
+        try:
+            future.result()
+        except Exception:
+            logger.exception(
+                "4A 后台启动任务发生未处理异常 operation_id=%s", operation_id
+            )
+
+    def shutdown(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=True)
 
 
 class ProjectCompositionCoordinator:
@@ -229,69 +318,149 @@ class ProjectCompositionCoordinator:
                 raise ValueError("同一画面生成幂等键不能用于不同的项目图片")
             if str(operation.get("payload", {}).get("resolution") or "1024") != clean_resolution:
                 raise ValueError("同一画面生成幂等键不能用于不同的分辨率")
-            try:
-                staged_image: dict[str, Any] = {}
-                if backfill_seedvr2:
-                    remote = self.client.backfill_workbench_video_enhancement(
-                        token,
-                        remote_item_id,
-                        idempotency_key=f"{clean_key}:{item['item_id']}",
-                    )
-                else:
-                    assert image_path is not None
-                    staged_image = self.client.upload_workbench_batch_asset(
-                        token,
-                        image_path,
-                        kind="image",
-                        filename=str(image.get("filename") or image_path.name),
-                    )
-                    remote = self.client.start_workbench_composition(
-                        token,
-                        batch_id,
-                        remote_item_id,
-                        idempotency_key=f"{clean_key}:{item['item_id']}",
-                        image_asset_id=str(staged_image.get("asset_id") or ""),
-                        image_sha256=image_sha256,
-                        resolution=clean_resolution,
-                        correlation_id=operation["correlation_id"],
-                        runninghub_execution_account_ids=selected_account_ids,
-                    )
-                composition = remote.get("composition", {})
-                remote_status = str(composition.get("status") or "COMPOSITION_QUEUED")
-                self.store.transition_operation(
-                    owner_user_id,
-                    project_id,
-                    item["item_id"],
-                    operation_type="COMPOSITION_GENERATE",
-                    status="RUNNING",
-                    item_status=(
-                        remote_status
-                        if remote_status in REMOTE_COMPOSITION_ACTIVE
-                        else "COMPOSITION_QUEUED"
+        # Network uploads and paid cloud starts are deliberately not performed
+        # in this request.  The durable PENDING rows are drained by the bounded
+        # background dispatcher after the HTTP response has been produced.
+        return self.store.get_project(owner_user_id, project_id)
+
+    def start_pending_operation(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        operation_id: str,
+        token: str,
+    ) -> None:
+        operation = self.store.claim_pending_operation(
+            owner_user_id,
+            project_id,
+            operation_id,
+            operation_type="COMPOSITION_GENERATE",
+        )
+        if operation is None:
+            return
+        item_id = str(operation.get("item_id") or "")
+        payload = operation.get("payload", {})
+        try:
+            if not item_id or not isinstance(payload, dict):
+                raise ValueError("画面启动操作快照不完整")
+            project = self.store.get_project(owner_user_id, project_id)
+            item = next(
+                (value for value in project["items"] if value["item_id"] == item_id),
+                None,
+            )
+            if item is None:
+                raise ValueError("画面启动操作对应的脚本行不存在")
+            batch_id = str(payload.get("batch_id") or "")
+            remote_item_id = str(payload.get("remote_item_id") or "")
+            resolution = str(payload.get("resolution") or "1024")
+            selected_account_ids = _normalized_execution_account_ids(
+                payload.get("runninghub_execution_account_ids")
+            )
+            if not batch_id or not remote_item_id:
+                raise ValueError("画面启动操作缺少云端声音任务关联")
+            scope = str(payload.get("scope") or "base_video_only")
+            backfill_seedvr2 = scope == "seedvr2_backfill_only"
+            staged_image: dict[str, Any] = {}
+            image_sha256 = ""
+            if backfill_seedvr2:
+                remote = self.client.backfill_workbench_video_enhancement(
+                    token,
+                    remote_item_id,
+                    idempotency_key=f"{operation['idempotency_key']}:{item_id}",
+                )
+            else:
+                image_asset_id = str(payload.get("input_image_asset_id") or "")
+                image_sha256 = str(payload.get("input_image_sha256") or "").lower()
+                images = item.get("asset_history", {}).get("input_image", [])
+                image = next(
+                    (
+                        value
+                        for value in images
+                        if str(value.get("asset_id") or "") == image_asset_id
                     ),
-                    result={
-                        "batch_id": batch_id,
-                        "remote_item_id": remote_item_id,
-                        "remote_status": remote_status,
-                        "operation_id": operation["operation_id"],
-                        "image_asset_id": staged_image.get("asset_id"),
-                        "input_image_sha256": image_sha256,
-                        "seedvr2_backfill_only": backfill_seedvr2,
-                        "runninghub_execution_account_ids": selected_account_ids,
-                    },
+                    None,
                 )
-            except Exception as exc:
-                self.store.transition_operation(
-                    owner_user_id,
-                    project_id,
-                    item["item_id"],
-                    operation_type="COMPOSITION_GENERATE",
-                    status="FAILED",
-                    item_status="COMPOSITION_FAILED",
-                    error_code=type(exc).__name__,
-                    error_message=str(exc),
+                if image is None or not image_sha256:
+                    raise ValueError("画面启动操作绑定的图片版本不存在")
+                image_path = Path(str(image.get("managed_path") or "")).resolve()
+                if not image_path.is_file():
+                    raise ValueError("画面启动操作绑定的图片文件不存在")
+                if self.storage_root not in image_path.parents:
+                    raise ValueError("画面启动操作绑定了非托管图片")
+                actual_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+                if actual_sha256 != image_sha256:
+                    raise ValueError("画面启动操作绑定的图片内容已变化")
+                staged_image = self.client.upload_workbench_batch_asset(
+                    token,
+                    image_path,
+                    kind="image",
+                    filename=str(image.get("filename") or image_path.name),
                 )
-        return self.sync(owner_user_id, project_id, token)
+                remote = self.client.start_workbench_composition(
+                    token,
+                    batch_id,
+                    remote_item_id,
+                    idempotency_key=f"{operation['idempotency_key']}:{item_id}",
+                    image_asset_id=str(staged_image.get("asset_id") or ""),
+                    image_sha256=image_sha256,
+                    resolution=resolution,
+                    correlation_id=str(operation.get("correlation_id") or ""),
+                    runninghub_execution_account_ids=selected_account_ids,
+                )
+            composition = remote.get("composition", {})
+            remote_status = str(
+                composition.get("status") or "COMPOSITION_QUEUED"
+            )
+            self.store.transition_operation(
+                owner_user_id,
+                project_id,
+                item_id,
+                operation_id=operation_id,
+                operation_type="COMPOSITION_GENERATE",
+                status="RUNNING",
+                item_status=(
+                    remote_status
+                    if remote_status in REMOTE_COMPOSITION_ACTIVE
+                    else "COMPOSITION_QUEUED"
+                ),
+                result={
+                    "batch_id": batch_id,
+                    "remote_item_id": remote_item_id,
+                    "remote_status": remote_status,
+                    "operation_id": operation_id,
+                    "image_asset_id": staged_image.get("asset_id"),
+                    "input_image_sha256": image_sha256,
+                    "seedvr2_backfill_only": backfill_seedvr2,
+                    "runninghub_execution_account_ids": selected_account_ids,
+                },
+            )
+        except AuthCenterError as exc:
+            retryable = exc.status_code >= 500
+            self.store.transition_operation(
+                owner_user_id,
+                project_id,
+                item_id,
+                operation_id=operation_id,
+                operation_type="COMPOSITION_GENERATE",
+                status="PENDING" if retryable else "FAILED",
+                item_status=(
+                    "COMPOSITION_QUEUED" if retryable else "COMPOSITION_FAILED"
+                ),
+                error_code=type(exc).__name__,
+                error_message=str(exc),
+            )
+        except Exception as exc:
+            self.store.transition_operation(
+                owner_user_id,
+                project_id,
+                item_id,
+                operation_id=operation_id,
+                operation_type="COMPOSITION_GENERATE",
+                status="FAILED",
+                item_status="COMPOSITION_FAILED",
+                error_code=type(exc).__name__,
+                error_message=str(exc),
+            )
 
     def sync(
         self, owner_user_id: str, project_id: str, token: str
@@ -308,7 +477,7 @@ class ProjectCompositionCoordinator:
             # Terminal 4A operations are immutable history. Re-querying every
             # completed row on each browser poll multiplies cloud requests and
             # lets one stale row abort the status refresh for the active row.
-            if operation.get("status") not in {"PENDING", "RUNNING"}:
+            if operation.get("status") != "RUNNING":
                 continue
             remote_item_id = str(link.get("external_id") or "")
             if not remote_item_id:

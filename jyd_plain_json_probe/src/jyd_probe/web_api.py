@@ -44,7 +44,10 @@ from .logging_config import log_event
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
-from .project_composition import ProjectCompositionCoordinator
+from .project_composition import (
+    ProjectCompositionCoordinator,
+    ProjectCompositionStartDispatcher,
+)
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
 from .project_music import ProjectMusicSelector
@@ -1670,6 +1673,29 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     )
     render_queue = RenderJobQueue(settings)
     project_store = ProjectStore(render_queue.store.path)
+    recovered_composition_starts = (
+        project_store.recover_interrupted_composition_starts()
+    )
+    if recovered_composition_starts:
+        print(
+            f"[JYD] 已恢复 {recovered_composition_starts} 条中断的 4A 启动操作",
+            flush=True,
+        )
+    composition_coordinator = (
+        ProjectCompositionCoordinator(
+            project_store,
+            auth_center,
+            storage_root=settings.storage_root,
+            max_video_bytes=settings.max_video_upload_bytes,
+        )
+        if auth_center is not None
+        else None
+    )
+    composition_start_dispatcher = (
+        ProjectCompositionStartDispatcher(composition_coordinator, max_workers=4)
+        if composition_coordinator is not None
+        else None
+    )
     project_result_library = ProjectResultLibrary(
         project_store,
         settings.result_library_root or (settings.storage_root / "result_library"),
@@ -1689,6 +1715,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.agent_token = agent_token
     app.state.project_store = project_store
     app.state.project_result_library = project_result_library
+    app.state.composition_start_dispatcher = composition_start_dispatcher
 
     def is_managed_project_file(path: Path) -> bool:
         resolved = path.resolve()
@@ -1773,6 +1800,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     def stop_storage_lifecycle() -> None:
+        if composition_start_dispatcher is not None:
+            composition_start_dispatcher.shutdown()
         storage_lifecycle.stop()
 
     app.add_middleware(
@@ -2616,6 +2645,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def project_composition_coordinator(
         client: AuthCenterClient,
     ) -> ProjectCompositionCoordinator:
+        if composition_coordinator is not None and client is auth_center:
+            return composition_coordinator
         return ProjectCompositionCoordinator(
             project_store,
             client,
@@ -3259,7 +3290,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 detail="普通用户不能指定 RunningHub 执行账号资源池",
             )
         try:
-            return project_composition_coordinator(client).start(
+            coordinator = project_composition_coordinator(client)
+            project = coordinator.start(
                 user["user_id"],
                 project_id,
                 token,
@@ -3270,6 +3302,12 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 ),
                 item_ids=list(item_ids) if item_ids is not None else None,
             )
+            if composition_start_dispatcher is None:
+                raise ValueError("4A 后台协调器尚未启用")
+            composition_start_dispatcher.submit(
+                user["user_id"], project_id, token
+            )
+            return project
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
         except AuthCenterError as exc:
@@ -3284,7 +3322,12 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         user = current_project_user(request)
         client, token = digital_human_access(request)
         try:
-            return project_composition_coordinator(client).sync(
+            coordinator = project_composition_coordinator(client)
+            if composition_start_dispatcher is not None:
+                composition_start_dispatcher.submit(
+                    user["user_id"], project_id, token
+                )
+            return coordinator.sync(
                 user["user_id"], project_id, token
             )
         except KeyError as exc:

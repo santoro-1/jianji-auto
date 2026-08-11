@@ -49,12 +49,12 @@ CAPTION_REFERENCE_FONT_SIZE = 14.0
 CAPTION_REFERENCE_MAX_EM = 13.0 * 11.0 / CAPTION_REFERENCE_FONT_SIZE
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
-TOP_TITLE_LABEL_TRANSFORM_Y = 1535 / 1920
-TOP_TITLE_HEADLINE_TRANSFORM_Y = 1350 / 1920
-TOP_TITLE_LABEL_FONT_SIZE = 11.0
-TOP_TITLE_HEADLINE_FONT_SIZE = 13.0
-TOP_TITLE_LABEL_COLOR = "#FFD600"
-TOP_TITLE_HEADLINE_COLOR = "#FFFFFF"
+FIXED_VIDEO_TITLE_TEXT = "世界冠军带你资料"
+FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
+FIXED_VIDEO_TITLE_FONT_SIZE = 19.0
+FIXED_VIDEO_TITLE_COLOR = "#E53935"
+FIXED_VIDEO_TITLE_STROKE_COLOR = "#FFFFFF"
+FIXED_VIDEO_TITLE_STROKE_WIDTH = 0.06
 TOP_TITLE_MAX_LABEL_CHARS = 5
 TOP_TITLE_MAX_HEADLINE_CHARS = 14
 COVER_TITLE_MAX_LINE_1_CHARS = 5
@@ -251,9 +251,12 @@ def build_top_title_texts(
     *,
     font: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Build stable full-duration render-job text layers for a configured title."""
+    """Build the fixed video banner and bottom disclaimer text layers."""
 
-    title = normalize_top_title(top_title)
+    # The model-owned two-line title is still saved for the project cover, but
+    # the body video now uses one product-fixed memory hook.  Keep the argument
+    # for render-job/API compatibility with already saved projects.
+    _ = top_title
     font_fields = {
         "font_id": str((font or {}).get("resource_id") or ""),
         "font_path": str((font or {}).get("path") or ""),
@@ -261,20 +264,14 @@ def build_top_title_texts(
     }
     rows = [
         (
-            title["label"],
-            "顶部固定标题·黄色小标题",
-            TOP_TITLE_LABEL_TRANSFORM_Y,
-            TOP_TITLE_LABEL_FONT_SIZE,
-            TOP_TITLE_LABEL_COLOR,
+            FIXED_VIDEO_TITLE_TEXT,
+            "顶部固定标题·世界冠军",
+            FIXED_VIDEO_TITLE_TRANSFORM_Y,
+            FIXED_VIDEO_TITLE_FONT_SIZE,
+            FIXED_VIDEO_TITLE_COLOR,
+            FIXED_VIDEO_TITLE_STROKE_COLOR,
+            FIXED_VIDEO_TITLE_STROKE_WIDTH,
             950,
-        ),
-        (
-            title["headline"],
-            "顶部固定标题·白色主标题",
-            TOP_TITLE_HEADLINE_TRANSFORM_Y,
-            TOP_TITLE_HEADLINE_FONT_SIZE,
-            TOP_TITLE_HEADLINE_COLOR,
-            951,
         ),
         (
             BOTTOM_DISCLAIMER_TEXT,
@@ -282,6 +279,8 @@ def build_top_title_texts(
             BOTTOM_DISCLAIMER_TRANSFORM_Y,
             BOTTOM_DISCLAIMER_FONT_SIZE,
             BOTTOM_DISCLAIMER_COLOR,
+            "#000000",
+            0.04,
             952,
         ),
     ]
@@ -301,11 +300,20 @@ def build_top_title_texts(
             "auto_wrapping": False,
             "line_max_width": 0.92,
             "color": color,
-            "stroke_color": "#000000",
-            "stroke_width": 0.04,
+            "stroke_color": stroke_color,
+            "stroke_width": stroke_width,
             **font_fields,
         }
-        for text, track_name, transform_y, size, color, relative_index in rows
+        for (
+            text,
+            track_name,
+            transform_y,
+            size,
+            color,
+            stroke_color,
+            stroke_width,
+            relative_index,
+        ) in rows
         if text
     ]
 

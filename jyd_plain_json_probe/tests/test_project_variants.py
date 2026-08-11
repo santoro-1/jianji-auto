@@ -299,7 +299,10 @@ class ProjectVariantTest(unittest.TestCase):
             self.assertEqual(job["audios"][1]["library_identity"], "bgm-1")
             self.assertEqual(
                 [text["text"] for text in job["texts"]],
-                ["\u51cf\u80a5\u5927\u5b9e\u8bdd", "\u53ea\u6709\u575a\u6301\u624d\u80fd\u8fbe\u6210\u76ee\u6807"],
+                [
+                    "世界冠军带你资料",
+                    "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n如有不适请线下就医",
+                ],
             )
             self.assertEqual(job["cover"]["frame_count"], 3)
             self.assertEqual(job["cover"]["frame_source"], "input_image")

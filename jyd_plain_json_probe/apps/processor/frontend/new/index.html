@@ -435,6 +435,7 @@
                 <div class="min-w-0">
                     <h3 id="confirm-action-title" class="text-base font-bold text-white">请确认操作</h3>
                     <p id="confirm-action-message" class="mt-2 text-xs leading-6 text-gray-400"></p>
+                    <div id="confirm-action-extra" class="mt-4 hidden"></div>
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
@@ -968,6 +969,9 @@
         let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
         let pendingConfirmAction = null;
+        let pendingConfirmCancelAction = null;
+        let pendingConfirmValidator = null;
+        let authenticatedSession = null;
         // Keep a stable item id instead of a DOM row. Background polling may
         // refresh server state while the native file chooser is open.
         let activeImageItemId = null;
@@ -1120,11 +1124,16 @@
             }, 3500);
         }
 
-        function openConfirmModal({ title, message, confirmText = '确认', onConfirm }) {
+        function openConfirmModal({ title, message, confirmText = '确认', extraHtml = '', validate = null, onConfirm, onCancel = null }) {
             pendingConfirmAction = typeof onConfirm === 'function' ? onConfirm : null;
+            pendingConfirmCancelAction = typeof onCancel === 'function' ? onCancel : null;
+            pendingConfirmValidator = typeof validate === 'function' ? validate : null;
             document.getElementById('confirm-action-title').textContent = title;
             document.getElementById('confirm-action-message').textContent = message;
             document.getElementById('confirm-action-button').textContent = confirmText;
+            const extra = document.getElementById('confirm-action-extra');
+            extra.innerHTML = extraHtml;
+            extra.classList.toggle('hidden', !extraHtml);
             const modal = document.getElementById('confirm-action-modal');
             const modalBox = modal.querySelector('.glass-panel-heavy');
             modal.classList.remove('opacity-0', 'pointer-events-none');
@@ -1132,19 +1141,97 @@
             modalBox.classList.add('scale-100');
         }
 
-        function closeConfirmModal() {
+        function closeConfirmModal(cancelled = true) {
             const modal = document.getElementById('confirm-action-modal');
             const modalBox = modal.querySelector('.glass-panel-heavy');
             modalBox.classList.remove('scale-100');
             modalBox.classList.add('scale-95');
             modal.classList.add('opacity-0', 'pointer-events-none');
+            const cancelAction = pendingConfirmCancelAction;
             pendingConfirmAction = null;
+            pendingConfirmCancelAction = null;
+            pendingConfirmValidator = null;
+            if (cancelled && cancelAction) cancelAction();
         }
 
         function confirmPendingAction() {
+            if (pendingConfirmValidator && !pendingConfirmValidator()) return;
             const action = pendingConfirmAction;
-            closeConfirmModal();
+            closeConfirmModal(false);
             if (action) action();
+        }
+
+        const runningHubAvailabilityLabels = {
+            AVAILABLE: '可调度',
+            UNHEALTHY: '近期异常',
+            COOLDOWN: '冷却中',
+            DISABLED: '已停用',
+            INCOMPLETE: '配置不完整'
+        };
+
+        function runningHubSelectionRequestFields(accountIds) {
+            return Array.isArray(accountIds)
+                ? { runninghub_execution_account_ids: accountIds }
+                : {};
+        }
+
+        async function confirmRunningHubCost(message, { skipForNormalUser = false } = {}) {
+            const isAdmin = authenticatedSession?.user?.is_admin === true;
+            if (!isAdmin) {
+                if (skipForNormalUser) return undefined;
+                return window.confirm(message) ? undefined : null;
+            }
+            let summary;
+            try {
+                summary = await workspaceApi('/api/new/runninghub-execution-accounts');
+            } catch (error) {
+                showToast('无法读取 RunningHub 账号池', error.message, 'warning');
+                return null;
+            }
+            const accounts = Array.isArray(summary.accounts) ? summary.accounts : [];
+            const defaults = new Set(
+                Array.isArray(summary.default_selected_account_ids)
+                    ? summary.default_selected_account_ids
+                    : []
+            );
+            const accountHtml = accounts.map((account) => {
+                const accountId = Number(account.id);
+                const selectable = account.selectable === true;
+                const checked = selectable && defaults.has(accountId);
+                const availability = runningHubAvailabilityLabels[account.availability]
+                    || String(account.availability || '未知');
+                const capacity = `${Number(account.active_tasks || 0)}/${Number(account.max_concurrent_tasks || 0)} 运行中`;
+                return `<label class="flex items-start gap-3 rounded-xl border ${selectable ? 'border-slate-700 bg-slate-950/50' : 'border-slate-800 bg-slate-950/20 opacity-50'} px-3 py-2.5">
+                    <input type="checkbox" class="runninghub-account-checkbox mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary" data-account-id="${accountId}" ${checked ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
+                    <span class="min-w-0 flex-1">
+                        <span class="flex items-center justify-between gap-2"><strong class="truncate text-xs text-gray-100">${escapeHtml(account.label || `账号 ${accountId}`)}</strong><span class="shrink-0 text-[10px] ${account.availability === 'AVAILABLE' ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(availability)}</span></span>
+                        <span class="mt-1 block text-[10px] text-gray-500">${escapeHtml(capacity)} · 当前空闲 ${Number(account.available_slots || 0)}</span>
+                    </span>
+                </label>`;
+            }).join('');
+            return new Promise((resolve) => {
+                openConfirmModal({
+                    title: '确认 RunningHub 费用与执行账号',
+                    message,
+                    confirmText: '确认并启动',
+                    extraHtml: `<div class="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3">
+                        <div class="mb-2 flex items-center justify-between gap-2"><span class="text-[11px] font-semibold text-indigo-100">本次执行账号（每次重新默认全选）</span><span class="text-[10px] text-gray-500">取消勾选仅影响本次</span></div>
+                        <div class="max-h-52 space-y-2 overflow-y-auto narrow-scrollbar">${accountHtml || '<div class="py-4 text-center text-xs text-amber-300">当前没有可选择的执行账号</div>'}</div>
+                        <p id="runninghub-account-selection-error" class="mt-2 hidden text-[10px] text-red-400">请至少选择一个 RunningHub 执行账号。</p>
+                    </div>`,
+                    validate: () => {
+                        const selected = document.querySelectorAll('.runninghub-account-checkbox:checked:not(:disabled)');
+                        const valid = selected.length > 0;
+                        document.getElementById('runninghub-account-selection-error')?.classList.toggle('hidden', valid);
+                        return valid;
+                    },
+                    onConfirm: () => resolve(
+                        Array.from(document.querySelectorAll('.runninghub-account-checkbox:checked:not(:disabled)'))
+                            .map((input) => Number(input.dataset.accountId))
+                    ),
+                    onCancel: () => resolve(null)
+                });
+            });
         }
 
         // File Selection Triggers
@@ -2863,13 +2950,21 @@
                 showToast('暂时不能生成本条视频', '当前行正在处理，或缺少已经确认的声音/图片。', 'warning');
                 return;
             }
-            if (!window.confirm(`只为任务 ${script.rowKey} 调用 RunningHub 生成数字人画面并产生费用，完成后自动添加字幕和 BGM。是否继续？`)) return;
+            const retry = Boolean(script.allowedActions?.retry_composition);
+            let selectedRunningHubAccountIds;
+            if (retry) {
+                if (!window.confirm(`只为任务 ${script.rowKey} 从失败的原流水线继续处理，可能再次产生 RunningHub 费用。是否继续？`)) return;
+            } else {
+                selectedRunningHubAccountIds = await confirmRunningHubCost(
+                    `只为任务 ${script.rowKey} 调用 RunningHub 生成数字人画面并产生费用，完成后自动添加字幕和 BGM。`
+                );
+                if (selectedRunningHubAccountIds === null) return;
+            }
             buttonEl.disabled = true;
             row.setAttribute('data-video-status', 'loading');
             toggleRowVideoStatusUI(row, 'loading');
             pendingSingleCompositionItemIds.add(rowId);
             try {
-                const retry = Boolean(script.allowedActions?.retry_composition);
                 const path = retry
                     ? `/api/new/projects/${activeProject.project_id}/items/${rowId}/composition/retry`
                     : `/api/new/projects/${activeProject.project_id}/composition/generate`;
@@ -2877,9 +2972,10 @@
                     ? { cost_confirmed: true, idempotency_key: `composition-single-retry-${rowId}-${Date.now()}` }
                     : {
                         cost_confirmed: true,
-                        resolution: selectedDigitalHumanResolution(),
-                        item_ids: [rowId],
-                        idempotency_key: `composition-single-${rowId}-${Date.now()}`
+                         resolution: selectedDigitalHumanResolution(),
+                         item_ids: [rowId],
+                         idempotency_key: `composition-single-${rowId}-${Date.now()}`,
+                         ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
                     };
                 const project = await workspaceApi(path, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -3230,7 +3326,13 @@
                 await startGlobalPostprocess(unfinished.map((item) => item.id));
                 return;
             }
-            if (!window.confirm(`将为选中的 ${missingBase.length} 条任务调用 RunningHub 生成画面并产生费用；另外 ${unfinished.length - missingBase.length} 条已有画面只继续字幕/BGM。是否继续？`)) return;
+            const fresh = missingBase.filter((item) => item.allowedActions?.start_composition);
+            const retries = missingBase.filter((item) => item.allowedActions?.retry_composition);
+            const confirmationMessage = `将为选中的 ${missingBase.length} 条任务调用 RunningHub 生成画面并产生费用；另外 ${unfinished.length - missingBase.length} 条已有画面只继续字幕/BGM。`;
+            const selectedRunningHubAccountIds = fresh.length
+                ? await confirmRunningHubCost(confirmationMessage)
+                : (window.confirm(`${confirmationMessage}是否继续？`) ? undefined : null);
+            if (selectedRunningHubAccountIds === null) return;
             unfinished.forEach((item) => pendingSingleCompositionItemIds.add(item.id));
             missingBase.forEach((item) => {
                 const row = rowsById.get(item.id);
@@ -3243,17 +3345,16 @@
             refreshAudioStageActions();
             try {
                 let project = activeProject;
-                const fresh = missingBase.filter((item) => item.allowedActions?.start_composition);
-                const retries = missingBase.filter((item) => item.allowedActions?.retry_composition);
                 if (fresh.length) {
                     project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             cost_confirmed: true,
-                            resolution: selectedDigitalHumanResolution(),
-                            item_ids: fresh.map((item) => item.id),
-                            idempotency_key: `composition-selected-${activeProject.project_id}-${Date.now()}`
+                             resolution: selectedDigitalHumanResolution(),
+                             item_ids: fresh.map((item) => item.id),
+                             idempotency_key: `composition-selected-${activeProject.project_id}-${Date.now()}`,
+                             ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
                         })
                     });
                 }
@@ -4442,8 +4543,7 @@
         function updatePreviewTopTitles() {
             const label = document.getElementById('video-preview-title-label');
             const headline = document.getElementById('video-preview-title-headline');
-            const title = activePreviewScript()?.postprocessSettings?.top_title || {};
-            if (!isBrowserCompositionPreview() || (!title.label && !title.headline)) {
+            if (!isBrowserCompositionPreview()) {
                 [label, headline].forEach((element) => {
                     element.textContent = '';
                     element.classList.add('hidden');
@@ -4457,24 +4557,20 @@
             const displayedWidth = video.videoWidth * scale;
             const displayedHeight = video.videoHeight * scale;
             const verticalMargin = (frame.clientHeight - displayedHeight) / 2;
-            const rows = [
-                [label, title.label || '', 1535 / 1920, 11, '#FFD600'],
-                [headline, title.headline || '', 1350 / 1920, 13, '#FFFFFF']
-            ];
-            rows.forEach(([element, text, transformY, fontSize, color]) => {
-                element.textContent = text;
-                element.classList.toggle('hidden', !text);
-                element.style.left = '50%';
-                element.style.top = `${verticalMargin + displayedHeight * (0.5 - transformY / 2)}px`;
-                element.style.width = `${displayedWidth * 0.92}px`;
-                element.style.maxWidth = `${displayedWidth * 0.92}px`;
-                element.style.fontSize = `${Math.max(11, displayedWidth * fontSize / 220)}px`;
-                element.style.lineHeight = '1';
-                element.style.color = color;
-                element.style.webkitTextStroke = `${Math.max(1, displayedWidth * 0.04 / 15)}px #000000`;
-                element.style.paintOrder = 'stroke fill';
-                element.style.transform = 'translate(-50%, -50%)';
-            });
+            label.textContent = '';
+            label.classList.add('hidden');
+            headline.textContent = '世界冠军带你资料';
+            headline.classList.remove('hidden');
+            headline.style.left = '50%';
+            headline.style.top = `${verticalMargin + displayedHeight * (0.5 - (1535 / 1920) / 2)}px`;
+            headline.style.width = `${displayedWidth * 0.92}px`;
+            headline.style.maxWidth = `${displayedWidth * 0.92}px`;
+            headline.style.fontSize = `${Math.max(11, displayedWidth * 19 / 220)}px`;
+            headline.style.lineHeight = '1';
+            headline.style.color = '#E53935';
+            headline.style.webkitTextStroke = `${Math.max(1, displayedWidth * 0.06 / 15)}px #FFFFFF`;
+            headline.style.paintOrder = 'stroke fill';
+            headline.style.transform = 'translate(-50%, -50%)';
         }
 
         function updatePreviewDisclaimer() {
@@ -5111,7 +5207,11 @@
                 showToast('暂时不能生成完整成片', '请先确保每一行真实音频均已生成并确认。', 'warning');
                 return;
             }
-            if (!skipConfirmation && !window.confirm(`将为 ${rows.length} 条脚本调用 RunningHub 生成数字人画面并产生费用，随后自动添加字幕和所选背景音乐。是否继续？`)) return;
+            const selectedRunningHubAccountIds = await confirmRunningHubCost(
+                `将为 ${rows.length} 条脚本调用 RunningHub 生成数字人画面并产生费用，随后自动添加字幕和所选背景音乐。`,
+                { skipForNormalUser: skipConfirmation }
+            );
+            if (selectedRunningHubAccountIds === null) return;
 
             isGeneratingComposition = true;
             rows.forEach((row) => {
@@ -5126,9 +5226,10 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        cost_confirmed: true,
-                        resolution: selectedDigitalHumanResolution(),
-                        idempotency_key: `composition-${activeProject.project_id}-${Date.now()}`
+                         cost_confirmed: true,
+                         resolution: selectedDigitalHumanResolution(),
+                         idempotency_key: `composition-${activeProject.project_id}-${Date.now()}`,
+                         ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
                     })
                 });
                 syncProjectInputs(project);
@@ -5409,6 +5510,7 @@
                 const response = await fetch('/api/auth/session', { credentials: 'same-origin' });
                 const session = response.ok ? await response.json() : { authenticated: false };
                 if (!session.authenticated) throw new Error('unauthenticated');
+                authenticatedSession = session;
                 document.querySelectorAll('.current-user-name').forEach((element) => {
                     element.textContent = session.username || '已登录用户';
                 });

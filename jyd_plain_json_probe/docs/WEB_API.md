@@ -253,6 +253,7 @@ POST /api/new/projects/{project_id}/composition/generate
 GET  /api/new/projects/{project_id}/composition/status
 POST /api/new/projects/{project_id}/items/{item_id}/composition/retry
 GET  /api/new/projects/{project_id}/items/{item_id}/base-video
+GET  /api/new/runninghub-execution-accounts
 ```
 
 `digital-human-settings` 当前保存项目级 `resolution`，含义为数字人画面的最长边像素。
@@ -267,6 +268,19 @@ GET  /api/new/projects/{project_id}/items/{item_id}/base-video
 音频后创建 RunningHub 子任务。脚本行状态按真实任务依次使用 `COMPOSITION_QUEUED`、
 `DIGITAL_HUMAN_RUNNING`、`VIDEO_ENHANCING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
 `COMPOSITION_FAILED`。
+
+管理员首次启动还必须提交非空 `runninghub_execution_account_ids: number[]`。页面每次费用
+确认通过 `GET /api/new/runninghub-execution-accounts` 读取安全摘要并按
+`default_selected_account_ids` 重新默认全选；摘要只含内部 ID、备注名称、健康/冷却/启用、
+运行数和容量，不含 API Key、指纹、Base URL 或 AI App ID。普通用户禁止提交该字段并继续
+使用自己的单 RunningHub 账号。失败阶段重试和 SeedVR2 补跑不重新选号。
+
+`composition/generate` 只同步校验并为目标行创建持久化 `COMPOSITION_GENERATE/PENDING`
+操作，然后快速返回。每行快照保存声音批次、远程行、图片资产 ID及 SHA-256、分辨率、账号
+ID范围和稳定 `请求幂等键:行 ID`。最多 4 个后台线程原子执行
+`PENDING -> STARTING -> RUNNING` 的图片上传和云端交接；`RUNNING` 才表示云端已接受。
+单行失败不阻断其余行；进程启动把中断的 `STARTING` 恢复为 `PENDING`，下一次携带有效登录
+Cookie 的状态请求按原幂等键继续。已经 `RUNNING` 的付费任务不得退回重提。
 
 `VIDEO_ENHANCING` 表示云端已有数字人源片段，正在逐段执行固定 48G 的 SeedVR2。该状态
 属于活动状态，工作台必须继续轮询，不能提前下载、进入 4B 或显示为失败。云端任务清单中
@@ -369,12 +383,11 @@ RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不�
 
 统一内容分析的 `title` 分支返回唯一 `{"line_1":"减脂真相","line_2":"坚持才是关键"}`：第一行
 最多 5 个字符，新 AI 标题第二行最多 8 个字符；历史手工/已保存标题读取时兼容到 14 个字符，
-均不得含空白或重复。工作台将其保存为
-`postprocess.title`，并确定性映射到顶部固定标题和项目封面标题，两处不再生成两套文案。
-`postprocess-settings` 仍可在非运行状态保存字体、BGM 选择模式、文字颜色及兼容的标题字段：
-`top_title={"label":"黄色小标题","headline":"白色主标题"}`。两个文本都为空时不生成标题轨道；
-黄色小标题固定在 Y=1535，白色主标题固定在 Y=1350（均以 1080×1920 为参考）。如果该行已有最终
-成片，修改后只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
+均不得含空白或重复。工作台将其保存为 `postprocess.title`，只用于项目封面两行标题。
+正文视频顶部不再使用模型标题，而是始终渲染单行固定文案“世界冠军带你资料”：字号 19、
+1080×1920 参考 Y=1535、红色填充和白色描边，浏览器预览、普通导出与变体一致。
+`postprocess-settings` 仍兼容读取历史 `top_title` 字段，但该字段不再改变正文固定标题。标题或
+后处理设置变化时只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
 随后重新生成浏览器预览配方即可，不会自动再次导出。
 `cover_title={"line_1":"健康真相","line_2":"别再踩坑"}` 必须两行同时存在；第一行最多 5 字、
 新 AI 标题第二行最多 8 字且不含空白，历史已保存标题读取时兼容到 14 字。非空时普通导出和

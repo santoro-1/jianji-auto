@@ -460,6 +460,21 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 `project_audio.py` 不提交本地硬编码的 RunningHub 提示词；行级未显式设置时由数字人网站
 配置的默认提示词接管，避免工作台旧值截断服务器配置。
 
+管理员首次 4A 启动前，前端使用统一账号会话的 `is_admin` 决定是否读取
+`/api/new/runninghub-execution-accounts`。管理员每次费用弹窗按服务端默认列表重新全选，至少
+选择一项，只把内部 ID放入 `runninghub_execution_account_ids`；普通用户请求不含该字段。
+已有流水线的 retry/backfill 继续用云端锁定账号，不允许前端重新选择。
+
+批量 4A 不得在请求线程逐行上传。`ProjectCompositionCoordinator.start()` 只校验并创建逐行
+`PENDING` 操作；`ProjectCompositionStartDispatcher` 使用最多 4 个线程调用
+`start_pending_operation()`。`ProjectStore.claim_pending_operation()` 以 SQLite 条件更新原子
+认领为 `STARTING`，云端接受幂等请求后才转 `RUNNING`。重复轮询还受内存 scheduled set 去重，
+但正确性不能只依赖内存。进程初始化调用 `recover_interrupted_composition_starts()`，只把
+`STARTING` 恢复为 `PENDING`；登录令牌只作为内存参数，严禁写入 payload、结果或日志。
+后台按 payload 的图片资产 ID读取历史版本并复核 SHA-256，不能改用行当前图片。云端 5xx
+保留 PENDING 供原幂等键恢复，明确/本地错误只失败当前行。实际 RunningHub 容量仍由云端
+Worker 控制，本地 4 线程不是账号并发配额。
+
 `project_postprocess.py` 负责 4B：保存 MiniMax 原始 cues 不变，使用所选真实字体文件的
 glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续的单行 render cues。
 语义排版先修复过短逗号前缀，再把剩余软/硬标点边界视为不可跨越的分句边界；局部字宽
@@ -484,6 +499,8 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 5 字的文案；普通导出与所有变体统一调用 `build_project_cover()`，以当前上传人物图作为底图，
 固定 3 帧、思源粗宋和受控视觉参数。变体请求不能自定义封面。标题为空时不生成占位封面。
 参数和后续统一内容分析返回契约见 [AI_TITLE_AND_COVER_20260810.md](AI_TITLE_AND_COVER_20260810.md)。
+正文视频顶部与封面标题解耦：`build_top_title_texts()` 固定生成一行“世界冠军带你资料”，字号
+19、Y=1535、红字白描边；历史 `top_title` 只保留接口兼容，不再影响浏览器预览或剪映导出。
 
 `ProjectPostprocessCoordinator.sync()` 必须扫描全部仍为 `PENDING/RUNNING` 的 4B 操作，
 不能只检查每行最新一条。更新操作时通过 `operation_id` 精确定位；被新尝试取代的旧操作只
@@ -810,7 +827,9 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   material/segment，支持源片截取、静音、循环、cover/contain；单项失败按 optional 跳过。
 - 自动贴图优先使用当前音频绑定的 FunASR 字词时间，在关键词实际发音前 300ms 出现；未完成
   ASR 时使用 MiniMax raw cue 字符插值回退，不再无条件提前到整个逗号短句开头。持续时间至少
-  覆盖到关键词结束后 400ms，默认 1.8 秒、最长 4 秒。后处理得到精确 ASR 后会只在本地重绑
+  覆盖到关键词结束后 400ms，默认 1.5 秒、最长 2.5 秒。不同语义素材最短开始间隔 1.5 秒，
+  每 60 秒最多 24 条，因此食物/步骤列表可以连续快切；同 concept/asset 仍保持 20 秒去重，
+  且任何素材不得重叠。后处理得到精确 ASR 后会只在本地重绑
   未锁定自动配方，不再次调用 Ark。未人工锁定的自动项在预览和渲染时
   刷新素材库当前默认资源、位置、缩放和透明度，人工/锁定项保持冻结值。
 - `semantic_visual_library/fixed/nameplate_zhangluo` 是每条视频自动携带的固定人名牌，不新增

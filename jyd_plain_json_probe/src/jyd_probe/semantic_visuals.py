@@ -45,7 +45,10 @@ VISUAL_CORNERS = frozenset(
 )
 VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
 VISUAL_HOLD_AFTER_MATCH_US = 400_000
-VISUAL_MAX_AUTO_DURATION_US = 4_000_000
+VISUAL_DEFAULT_AUTO_DURATION_US = 1_500_000
+VISUAL_MAX_AUTO_DURATION_US = 2_500_000
+VISUAL_MIN_AUTO_START_GAP_US = 1_500_000
+VISUAL_MAX_AUTO_PER_MINUTE = 24
 VISUAL_KEYWORD_LEAD_US = 300_000
 VISUAL_OPENING_PROTECTION_US = 1_200_000
 VISUAL_ENRICHMENT_MIN_GAP_US = 20_000_000
@@ -929,7 +932,7 @@ def map_visual_candidates_to_raw_cues(
     asr_alignment: Mapping[str, Any] | None = None,
     cover_offset_us: int = 0,
     lead_us: int = 0,
-    default_duration_us: int = 1_800_000,
+    default_duration_us: int = VISUAL_DEFAULT_AUTO_DURATION_US,
 ) -> list[dict[str, Any]]:
     ranges = _character_time_ranges(original_script, raw_cues)
     mapped: list[dict[str, Any]] = []
@@ -1045,9 +1048,19 @@ def visual_overlay_conflicts(
         for item in active
     ):
         return True
-    if any(abs(start_us - int(item.get("start_us") or 0)) < 6_000_000 for item in active):
+    if any(
+        abs(start_us - int(item.get("start_us") or 0))
+        < VISUAL_MIN_AUTO_START_GAP_US
+        for item in active
+    ):
         return True
-    if sum(abs(start_us - int(item.get("start_us") or 0)) < 60_000_000 for item in active) >= 5:
+    if (
+        sum(
+            abs(start_us - int(item.get("start_us") or 0)) < 60_000_000
+            for item in active
+        )
+        >= VISUAL_MAX_AUTO_PER_MINUTE
+    ):
         return True
     if concept_id and any(
         str(item.get("concept_id") or "") == concept_id

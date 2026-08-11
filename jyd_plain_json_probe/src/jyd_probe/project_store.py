@@ -2582,6 +2582,74 @@ class ProjectStore:
         )
         return operation_payload
 
+    def claim_pending_operation(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        operation_id: str,
+        *,
+        operation_type: str,
+    ) -> dict[str, Any] | None:
+        """Atomically reserve one persisted operation for local handoff work.
+
+        ``STARTING`` is intentionally distinct from ``RUNNING``: the latter
+        means that the cloud accepted the idempotent paid request and status
+        polling may begin.  A process restart can therefore safely put only
+        interrupted local handoffs back into ``PENDING``.
+        """
+
+        clean_type = str(operation_type or "").strip().upper()
+        now = _now()
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            updated = connection.execute(
+                """
+                UPDATE project_operations
+                SET status='STARTING', attempt_count=attempt_count+1,
+                    started_at=COALESCE(started_at, ?), updated_at=?
+                WHERE operation_id=? AND project_id=?
+                  AND operation_type=? AND status='PENDING'
+                """,
+                (now, now, operation_id, project_id, clean_type),
+            )
+            if updated.rowcount != 1:
+                return None
+            row = connection.execute(
+                "SELECT * FROM project_operations WHERE operation_id=?",
+                (operation_id,),
+            ).fetchone()
+            operation = self._operation_payload(row)
+        log_event(
+            logger,
+            "workbench.operation_start_claimed",
+            "后台协调器已认领待启动操作",
+            component="workbench",
+            user_id=owner_user_id,
+            project_id=project_id,
+            item_id=operation.get("item_id"),
+            operation_id=operation_id,
+            operation_type=clean_type,
+            status="STARTING",
+            correlation_id=operation.get("correlation_id"),
+        )
+        return operation
+
+    def recover_interrupted_composition_starts(self) -> int:
+        """Return process-local 4A handoffs to the durable pending queue."""
+
+        now = _now()
+        with self._transaction() as connection:
+            updated = connection.execute(
+                """
+                UPDATE project_operations
+                SET status='PENDING', updated_at=?
+                WHERE operation_type='COMPOSITION_GENERATE'
+                  AND status='STARTING'
+                """,
+                (now,),
+            )
+            return int(updated.rowcount)
+
     def transition_audio_operation(
         self,
         owner_user_id: str,

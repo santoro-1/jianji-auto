@@ -6,6 +6,8 @@ import json
 import shutil
 import sqlite3
 import sys
+import threading
+import time
 import unittest
 import uuid
 from unittest.mock import MagicMock, patch
@@ -52,6 +54,27 @@ class ProjectCompositionApiTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def _wait_for_project(
+        self,
+        client: TestClient,
+        project_id: str,
+        predicate,
+        *,
+        timeout: float = 3.0,
+    ) -> dict:
+        deadline = time.monotonic() + timeout
+        latest: dict = {}
+        while time.monotonic() < deadline:
+            response = client.get(
+                f"/api/new/projects/{project_id}/composition/status"
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            latest = response.json()
+            if predicate(latest):
+                return latest
+            time.sleep(0.02)
+        self.fail(f"后台画面协调器未在期限内达到预期状态: {latest}")
 
     def test_retry_remote_rejection_does_not_leave_fake_pending_operation(self) -> None:
         from jyd_probe.project_composition import ProjectCompositionCoordinator
@@ -307,8 +330,15 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(generated.status_code, 200, generated.text)
                 payload = generated.json()
                 current = payload["items"][0]
-                self.assertEqual(payload["status"], "BASE_VIDEO_READY")
-                self.assertEqual(current["status"], "BASE_VIDEO_READY")
+                self.assertEqual(payload["status"], "PROCESSING")
+                self.assertEqual(current["status"], "COMPOSITION_QUEUED")
+                payload = self._wait_for_project(
+                    client,
+                    project["project_id"],
+                    lambda value: value["items"][0]["status"]
+                    == "BASE_VIDEO_READY",
+                )
+                current = payload["items"][0]
                 self.assertIsNotNone(current["outputs"]["base_video"])
                 self.assertEqual(len(current["outputs"]["original_video_segments"]), 1)
                 segment_asset = current["outputs"]["original_video_segments"][0]
@@ -465,6 +495,16 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(
                     historical_backfill.status_code, 200, historical_backfill.text
                 )
+                historical_backfill_payload = self._wait_for_project(
+                    client,
+                    project["project_id"],
+                    lambda value: any(
+                        operation["idempotency_key"]
+                        == "historical-seedvr2-backfill"
+                        and operation["status"] == "SUCCEEDED"
+                        for operation in value["operations"]
+                    ),
+                )
                 backfill_remote.assert_called_once_with(
                     "token",
                     "remote-item-1",
@@ -472,7 +512,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
                         f"historical-seedvr2-backfill:{item['item_id']}"
                     ),
                 )
-                backfilled_item = historical_backfill.json()["items"][0]
+                backfilled_item = historical_backfill_payload["items"][0]
                 self.assertEqual(backfilled_item["status"], "BASE_VIDEO_READY")
                 self.assertEqual(
                     backfilled_item["outputs"]["base_video"]["metadata"][
@@ -550,6 +590,16 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     },
                 )
                 self.assertEqual(regenerated.status_code, 200, regenerated.text)
+                regenerated_payload = self._wait_for_project(
+                    client,
+                    project["project_id"],
+                    lambda value: any(
+                        operation["idempotency_key"]
+                        == "composition-resolution-1920"
+                        and operation["status"] == "RUNNING"
+                        for operation in value["operations"]
+                    ),
+                )
                 start_remote.assert_called_once()
                 upload_remote.assert_called_once()
                 backfill_remote.assert_called_once_with(
@@ -561,7 +611,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 )
                 backfill_operation = next(
                     value
-                    for value in regenerated.json()["operations"]
+                    for value in regenerated_payload["operations"]
                     if value["operation_type"] == "COMPOSITION_GENERATE"
                     and value["idempotency_key"] == "composition-resolution-1920"
                 )
@@ -636,6 +686,205 @@ class ProjectCompositionApiTest(unittest.TestCase):
         self.assertIn("VIDEO_ENHANCING", REMOTE_COMPOSITION_ACTIVE)
         self.assertIn("VIDEO_ENHANCING", PROJECT_ITEM_STATUSES)
         self.assertIn("VIDEO_ENHANCING", ACTIVE_ITEM_STATUSES)
+
+    def test_hundred_rows_start_in_background_with_bounded_concurrency(self) -> None:
+        user = {
+            "user_id": "bulk-admin",
+            "username": "bulk-admin",
+            "enabled": True,
+            "is_admin": True,
+        }
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id=user["user_id"],
+            owner_username=user["username"],
+            name="100 行后台启动",
+            items=[
+                {"row_key": str(index), "script_text": f"第 {index} 条。"}
+                for index in range(1, 101)
+            ],
+        )
+        image_path = self.settings.storage_root / "bulk-person.png"
+        image_path.write_bytes(b"bulk-image")
+        store.register_input_image(
+            owner_user_id=user["user_id"],
+            project_id=project["project_id"],
+            filename=image_path.name,
+            content_type="image/png",
+            size_bytes=image_path.stat().st_size,
+            sha256=hashlib.sha256(image_path.read_bytes()).hexdigest(),
+            managed_path=str(image_path),
+        )
+        store.apply_image_strategy(
+            user["user_id"], project["project_id"], strategy="loop", reuse_count=1
+        )
+        project = store.get_project(user["user_id"], project["project_id"])
+        for index, item in enumerate(project["items"], start=1):
+            audio_path = self.settings.storage_root / f"bulk-audio-{index}.mp3"
+            audio_path.write_bytes(b"audio")
+            store.add_asset(
+                owner_user_id=user["user_id"],
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                asset_type="audio",
+                source_type="minimax",
+                status="READY",
+                filename=audio_path.name,
+                managed_path=str(audio_path),
+                make_current=True,
+            )
+            store.add_link(
+                owner_user_id=user["user_id"],
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                system="runninghub",
+                relation="digital_human_audio_item",
+                external_id=f"remote-{index}",
+                metadata={"batch_id": "remote-batch", "correlation_id": f"c-{index}"},
+            )
+
+        release_uploads = threading.Event()
+        counter_lock = threading.Lock()
+        active_uploads = 0
+        max_active_uploads = 0
+
+        def blocked_upload(_token, _path, *, kind, filename):
+            nonlocal active_uploads, max_active_uploads
+            with counter_lock:
+                active_uploads += 1
+                max_active_uploads = max(max_active_uploads, active_uploads)
+            try:
+                release_uploads.wait(timeout=5)
+                return {"asset_id": f"staged-{filename}"}
+            finally:
+                with counter_lock:
+                    active_uploads -= 1
+
+        def start_remote(_token, _batch_id, remote_item_id, **_kwargs):
+            if remote_item_id == "remote-50":
+                raise RuntimeError("模拟单行明确失败")
+            return {"composition": {"status": "COMPOSITION_QUEUED"}}
+
+        with patch(
+            "jyd_probe.auth_center.AuthCenterClient.login",
+            return_value={"access_token": "bulk-token", "user": user},
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.verify", return_value=user
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.upload_workbench_batch_asset",
+            side_effect=blocked_upload,
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.start_workbench_composition",
+            side_effect=start_remote,
+        ) as start_mock, patch(
+            "jyd_probe.auth_center.AuthCenterClient.get_workbench_task",
+            return_value={"composition": {"status": "COMPOSITION_QUEUED"}},
+        ):
+            with TestClient(create_app(self.settings)) as client:
+                login = client.post(
+                    "/api/auth/login",
+                    json={"username": user["username"], "password": "pass123"},
+                )
+                self.assertEqual(login.status_code, 200, login.text)
+                started_at = time.monotonic()
+                response = client.post(
+                    f"/api/new/projects/{project['project_id']}/composition/generate",
+                    json={
+                        "cost_confirmed": True,
+                        "idempotency_key": "bulk-100",
+                        "runninghub_execution_account_ids": [11, 22],
+                    },
+                )
+                elapsed = time.monotonic() - started_at
+                self.assertEqual(response.status_code, 200, response.text)
+                self.assertLess(elapsed, 1.0)
+                self.assertEqual(
+                    len(
+                        [
+                            operation
+                            for operation in response.json()["operations"]
+                            if operation["operation_type"] == "COMPOSITION_GENERATE"
+                        ]
+                    ),
+                    100,
+                )
+                # Repeated status requests must not enqueue duplicate paid
+                # handoffs while the first four rows are blocked in upload.
+                status_started_at = time.monotonic()
+                status = client.get(
+                    f"/api/new/projects/{project['project_id']}/composition/status"
+                )
+                self.assertEqual(status.status_code, 200, status.text)
+                self.assertLess(time.monotonic() - status_started_at, 1.0)
+                release_uploads.set()
+
+                deadline = time.monotonic() + 20
+                operations: list[dict] = []
+                while time.monotonic() < deadline:
+                    current = store.get_project(
+                        user["user_id"], project["project_id"]
+                    )
+                    operations = [
+                        operation
+                        for operation in current["operations"]
+                        if operation["operation_type"] == "COMPOSITION_GENERATE"
+                    ]
+                    if all(
+                        operation["status"] in {"RUNNING", "FAILED"}
+                        for operation in operations
+                    ):
+                        break
+                    time.sleep(0.02)
+                self.assertEqual(len(operations), 100)
+                self.assertEqual(
+                    sum(operation["status"] == "RUNNING" for operation in operations),
+                    99,
+                )
+                self.assertEqual(
+                    sum(operation["status"] == "FAILED" for operation in operations),
+                    1,
+                )
+                self.assertEqual(start_mock.call_count, 100)
+                self.assertLessEqual(max_active_uploads, 4)
+
+    def test_restart_recovers_only_interrupted_local_handoff(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="restart-owner",
+            owner_username="restart-owner",
+            name="重启恢复",
+            items=[{"row_key": "1", "script_text": "重启恢复。"}],
+        )
+        item = project["items"][0]
+        operation = store.create_operation(
+            owner_user_id="restart-owner",
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            operation_type="COMPOSITION_GENERATE",
+            idempotency_key="restart-safe-key",
+            payload={"batch_id": "batch", "remote_item_id": "remote"},
+        )
+        claimed = store.claim_pending_operation(
+            "restart-owner",
+            project["project_id"],
+            operation["operation_id"],
+            operation_type="COMPOSITION_GENERATE",
+        )
+        self.assertEqual(claimed["status"], "STARTING")
+
+        app = create_app(self.settings)
+        recovered = app.state.project_store.get_project(
+            "restart-owner", project["project_id"]
+        )
+        recovered_operation = next(
+            value
+            for value in recovered["operations"]
+            if value["operation_id"] == operation["operation_id"]
+        )
+        self.assertEqual(recovered_operation["status"], "PENDING")
+        self.assertEqual(recovered_operation["idempotency_key"], "restart-safe-key")
+        app.state.composition_start_dispatcher.shutdown()
+        app.state.storage_lifecycle.stop()
 
 
 if __name__ == "__main__":

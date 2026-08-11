@@ -541,7 +541,7 @@ def test_minimax_mapping_leads_and_clamps_to_video_duration() -> None:
 
     assert mapped[0]["start_us"] >= 200_000
     assert mapped[0]["start_us"] + mapped[0]["duration_us"] <= 3_100_000
-    assert mapped[0]["duration_us"] <= 4_000_000
+    assert mapped[0]["duration_us"] <= 2_500_000
 
 
 def test_mapping_starts_near_keyword_and_holds_through_food_name() -> None:
@@ -665,7 +665,48 @@ def test_recipe_conflict_prefers_importance_then_confidence() -> None:
         catalog=catalog, mapped_candidates=mapped, decisions=decisions
     )
 
-    assert [item["concept_id"] for item in recipe["overlays"]] == ["food.corn"]
+    assert [item["concept_id"] for item in recipe["overlays"]] == [
+        "food.egg",
+        "food.corn",
+    ]
+
+
+def test_distinct_food_images_can_form_a_short_rapid_sequence() -> None:
+    catalog = _catalog()
+    script = "牛肉鸡蛋豆腐苹果西红柿黄瓜杏仁"
+    candidates = recall_semantic_visual_candidates(script, catalog)["candidates"]
+    mapped = [
+        {
+            **candidate,
+            "start_us": 1_200_000 + index * 2_000_000,
+            "duration_us": 1_500_000,
+        }
+        for index, candidate in enumerate(candidates)
+    ]
+    decisions = [
+        {
+            "candidate_id": candidate["candidate_id"],
+            "decision": "SHOW",
+            "concept_id": candidate["allowed_concepts"][0]["concept_id"],
+            "importance": 0.9,
+            "confidence": 0.95,
+        }
+        for candidate in candidates
+    ]
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=mapped,
+        decisions=decisions,
+    )
+
+    assert len(candidates) >= 7
+    assert len(recipe["overlays"]) == len(candidates)
+    assert all(item["duration_us"] == 1_500_000 for item in recipe["overlays"])
+    assert all(
+        current["start_us"] - previous["start_us"] == 2_000_000
+        for previous, current in zip(recipe["overlays"], recipe["overlays"][1:])
+    )
 
 
 def test_recipe_protects_opening_without_delaying_past_original_window() -> None:

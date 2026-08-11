@@ -334,6 +334,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("loadedmetadata", workspace)
         self.assertIn("updatePreviewCaption", workspace)
         self.assertIn("playPreviewBgm", workspace)
+
         self.assertIn("previewBgmAudio.volume = 0.3", workspace)
         self.assertIn("/postprocess/export", workspace)
         self.assertIn("下载 MP4 才会按需启动剪映并导出一次", workspace)
@@ -350,7 +351,11 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("const fontSize = 6", workspace)
         self.assertIn("非医疗保健科普：仅供参考", workspace)
         self.assertIn("1535 / 1920", workspace)
-        self.assertIn("1350 / 1920", workspace)
+        self.assertNotIn("1350 / 1920", workspace)
+        self.assertIn("headline.textContent = '世界冠军带你资料'", workspace)
+        self.assertIn("displayedWidth * 19 / 220", workspace)
+        self.assertIn("headline.style.color = '#E53935'", workspace)
+        self.assertIn("#FFFFFF`;", workspace)
         self.assertIn("const nameplateScale = 0.60", workspace)
         self.assertIn("aspect-ratio: 9 / 16", workspace)
         self.assertIn('id="video-preview-play-button"', workspace)
@@ -411,6 +416,22 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/diagnostics", workspace)
         self.assertIn("error_code", workspace)
         self.assertNotIn("operation.error_message", workspace)
+
+    def test_admin_runninghub_pool_is_selected_per_fresh_4a_confirmation(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("confirmRunningHubCost", workspace)
+        self.assertIn("/api/new/runninghub-execution-accounts", workspace)
+        self.assertIn("authenticatedSession?.user?.is_admin === true", workspace)
+        self.assertIn("本次执行账号（每次重新默认全选）", workspace)
+        self.assertIn("取消勾选仅影响本次", workspace)
+        self.assertIn("请至少选择一个 RunningHub 执行账号", workspace)
+        self.assertIn("summary.default_selected_account_ids", workspace)
+        self.assertEqual(
+            workspace.count(
+                "...runningHubSelectionRequestFields(selectedRunningHubAccountIds)"
+            ),
+            3,
+        )
 
     def test_composition_poll_errors_are_deduplicated_and_backed_off(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")

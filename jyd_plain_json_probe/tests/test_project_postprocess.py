@@ -329,10 +329,18 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(
                     [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],
                     [
-                        ("减肥大实话", 1535 / 1920, 11.0, "#FFD600"),
-                        ("只有坚持才能达成目标", 1350 / 1920, 13.0, "#FFFFFF"),
+                        ("世界冠军带你资料", 1535 / 1920, 19.0, "#E53935"),
+                        (
+                            "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n"
+                            "如有不适请线下就医",
+                            -1760 / 1920,
+                            6.0,
+                            "#FFFFFF",
+                        ),
                     ],
                 )
+                self.assertEqual(job["texts"][0]["stroke_color"], "#FFFFFF")
+                self.assertEqual(job["texts"][0]["stroke_width"], 0.06)
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )
