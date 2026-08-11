@@ -225,11 +225,17 @@ class AuthCenterClient:
         )
 
     def retry_workbench_composition(
-        self, token: str, item_id: str
+        self, token: str, item_id: str, *, resolution: str | None = None
     ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "access_token": token,
+            "cost_confirmed": True,
+        }
+        if str(resolution or "").strip():
+            payload["resolution"] = str(resolution).strip()
         return self._post(
             f"/api/workbench/tasks/{item_id}/composition/retry",
-            {"access_token": token, "cost_confirmed": True},
+            payload,
         )
 
     def list_workbench_voices(self, token: str) -> dict[str, Any]:

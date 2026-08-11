@@ -329,6 +329,7 @@ class ProjectCompositionCoordinator:
                     owner_user_id,
                     project_id,
                     item_id,
+                    operation_id=operation.get("operation_id"),
                     operation_type="COMPOSITION_GENERATE",
                     status="FAILED",
                     item_status="COMPOSITION_FAILED",
@@ -373,6 +374,7 @@ class ProjectCompositionCoordinator:
                     owner_user_id,
                     project_id,
                     item_id,
+                    operation_id=operation.get("operation_id"),
                     operation_type="COMPOSITION_GENERATE",
                     status="SUCCEEDED",
                     item_status="BASE_VIDEO_READY",
@@ -440,6 +442,12 @@ class ProjectCompositionCoordinator:
             item.get("settings", {}).get("composition_invalidated_reason")
             == "DIGITAL_HUMAN_RESOLUTION_CHANGED"
         )
+        current_resolution = str(
+            project.get("settings", {})
+            .get("digital_human", {})
+            .get("resolution")
+            or "1024"
+        ).strip()
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,
@@ -449,6 +457,7 @@ class ProjectCompositionCoordinator:
             payload={
                 "retry": True,
                 "remote_item_id": link["external_id"],
+                "resolution": current_resolution,
                 "scope": (
                     "seedvr2_backfill_only"
                     if seedvr2_backfill
@@ -457,29 +466,45 @@ class ProjectCompositionCoordinator:
             },
         )
         if operation.get("status") == "PENDING":
-            if seedvr2_backfill:
-                self.client.backfill_workbench_video_enhancement(
-                    token,
-                    str(link["external_id"]),
-                    idempotency_key=f"{clean_key}:{item_id}",
+            try:
+                if seedvr2_backfill:
+                    self.client.backfill_workbench_video_enhancement(
+                        token,
+                        str(link["external_id"]),
+                        idempotency_key=f"{clean_key}:{item_id}",
+                    )
+                else:
+                    self.client.retry_workbench_composition(
+                        token,
+                        str(link["external_id"]),
+                        resolution=current_resolution,
+                    )
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="RUNNING",
+                    item_status="COMPOSITION_QUEUED",
+                    result={
+                        "remote_item_id": link["external_id"],
+                        "retry": True,
+                        "seedvr2_backfill_only": seedvr2_backfill,
+                        "resolution": current_resolution,
+                    },
                 )
-            else:
-                self.client.retry_workbench_composition(
-                    token, str(link["external_id"])
+            except Exception as exc:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    operation_type="COMPOSITION_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
                 )
-            self.store.transition_operation(
-                owner_user_id,
-                project_id,
-                item_id,
-                operation_type="COMPOSITION_GENERATE",
-                status="RUNNING",
-                item_status="COMPOSITION_QUEUED",
-                result={
-                    "remote_item_id": link["external_id"],
-                    "retry": True,
-                    "seedvr2_backfill_only": seedvr2_backfill,
-                },
-            )
+                raise
         return self.sync(owner_user_id, project_id, token)
 
     def backfill_seedvr2(

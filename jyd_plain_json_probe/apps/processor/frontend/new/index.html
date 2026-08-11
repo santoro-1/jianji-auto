@@ -482,6 +482,7 @@
                 <img id="video-preview-fixed-nameplate" class="hidden absolute z-[9] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview" alt="张雒人名牌">
                 <div id="video-preview-title-label" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 <div id="video-preview-title-headline" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
+                <div id="video-preview-disclaimer" class="hidden absolute z-[19] pointer-events-none text-center font-normal whitespace-pre-line" aria-live="off"></div>
                 <div id="video-preview-caption" class="hidden absolute z-20 pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 
                 <!-- Inner play controller simulation -->
@@ -4476,6 +4477,43 @@
             });
         }
 
+        function updatePreviewDisclaimer() {
+            const disclaimer = document.getElementById('video-preview-disclaimer');
+            if (!isBrowserCompositionPreview()) {
+                disclaimer.textContent = '';
+                disclaimer.classList.add('hidden');
+                return;
+            }
+            const video = document.getElementById('video-preview-local');
+            const frame = document.getElementById('video-preview-frame');
+            if (!video.videoWidth || !video.videoHeight) {
+                disclaimer.classList.add('hidden');
+                return;
+            }
+            const scale = Math.min(frame.clientWidth / video.videoWidth, frame.clientHeight / video.videoHeight);
+            const displayedWidth = video.videoWidth * scale;
+            const displayedHeight = video.videoHeight * scale;
+            const verticalMargin = (frame.clientHeight - displayedHeight) / 2;
+            const transformY = -1760 / 1920;
+            const fontSize = 6;
+            const strokeWidth = Math.max(0.35, displayedWidth * 0.0008);
+            disclaimer.textContent = '非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n如有不适请线下就医';
+            disclaimer.classList.remove('hidden');
+            disclaimer.style.left = '50%';
+            disclaimer.style.top = `${verticalMargin + displayedHeight * (0.5 - transformY / 2)}px`;
+            disclaimer.style.width = `${displayedWidth * 0.94}px`;
+            disclaimer.style.maxWidth = `${displayedWidth * 0.94}px`;
+            disclaimer.style.fontSize = `${Math.max(7, displayedWidth * fontSize / 220)}px`;
+            disclaimer.style.lineHeight = '1.25';
+            disclaimer.style.whiteSpace = 'pre-line';
+            disclaimer.style.color = '#FFFFFF';
+            disclaimer.style.fontWeight = '400';
+            disclaimer.style.webkitTextStroke = `${strokeWidth}px #000000`;
+            disclaimer.style.paintOrder = 'stroke fill';
+            disclaimer.style.textShadow = '0 1px 2px rgba(0, 0, 0, 0.85)';
+            disclaimer.style.transform = 'translate(-50%, -50%)';
+        }
+
         function updatePreviewCaption() {
             const caption = document.getElementById('video-preview-caption');
             if (!isBrowserCompositionPreview()) {
@@ -4726,6 +4764,7 @@
                 caption.textContent = '';
                 caption.classList.add('hidden');
                 updatePreviewTopTitles();
+                updatePreviewDisclaimer();
                 stopPreviewBgm();
                 updatePreviewFixedNameplate();
                 return;
@@ -4742,9 +4781,11 @@
                         caption.style.fontFamily = `"${family}", sans-serif`;
                         document.getElementById('video-preview-title-label').style.fontFamily = `"${family}", sans-serif`;
                         document.getElementById('video-preview-title-headline').style.fontFamily = `"${family}", sans-serif`;
+                        document.getElementById('video-preview-disclaimer').style.fontFamily = `"${family}", sans-serif`;
                     }
                 } catch (_) {
                     caption.style.fontFamily = 'sans-serif';
+                    document.getElementById('video-preview-disclaimer').style.fontFamily = 'sans-serif';
                 }
             }
             const previewBgmIdentity = config.bgmIdentity === 'auto'
@@ -4765,6 +4806,7 @@
             }
             updatePreviewCaption();
             updatePreviewTopTitles();
+            updatePreviewDisclaimer();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
             if (!document.getElementById('video-preview-local').paused) void playPreviewBgm();
@@ -4776,6 +4818,7 @@
                 updatePreviewVideoTimeline();
                 updatePreviewCaption();
                 updatePreviewTopTitles();
+                updatePreviewDisclaimer();
                 updatePreviewSemanticOverlay();
                 updatePreviewFixedNameplate();
                 if (eventName === 'loadedmetadata') syncPreviewBgm(true);
@@ -4815,6 +4858,8 @@
         });
         window.addEventListener('resize', () => {
             updatePreviewCaptionLayout();
+            updatePreviewTopTitles();
+            updatePreviewDisclaimer();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
         });
@@ -4862,6 +4907,7 @@
             document.getElementById('video-preview-caption').classList.add('hidden');
             document.getElementById('video-preview-title-label').classList.add('hidden');
             document.getElementById('video-preview-title-headline').classList.add('hidden');
+            document.getElementById('video-preview-disclaimer').classList.add('hidden');
             document.getElementById('video-preview-semantic-overlay').classList.add('hidden');
             const semanticVideo = document.getElementById('video-preview-semantic-video');
             semanticVideo.pause();

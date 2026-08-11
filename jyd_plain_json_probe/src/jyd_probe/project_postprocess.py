@@ -113,6 +113,13 @@ _PROTECTED_TERMS = (
     "葡萄糖",
 )
 
+BOTTOM_DISCLAIMER_TEXT = (
+    "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n"
+    "如有不适请线下就医"
+)
+BOTTOM_DISCLAIMER_FONT_SIZE = 6.0
+BOTTOM_DISCLAIMER_TRANSFORM_Y = -1760 / 1920
+BOTTOM_DISCLAIMER_COLOR = "#FFFFFF"
 
 def normalize_top_title(value: Any) -> dict[str, str]:
     """Normalize the optional two-line fixed top title contract."""
@@ -268,6 +275,14 @@ def build_top_title_texts(
             TOP_TITLE_HEADLINE_FONT_SIZE,
             TOP_TITLE_HEADLINE_COLOR,
             951,
+        ),
+        (
+            BOTTOM_DISCLAIMER_TEXT,
+            "底部固定免责声明",
+            BOTTOM_DISCLAIMER_TRANSFORM_Y,
+            BOTTOM_DISCLAIMER_FONT_SIZE,
+            BOTTOM_DISCLAIMER_COLOR,
+            952,
         ),
     ]
     return [

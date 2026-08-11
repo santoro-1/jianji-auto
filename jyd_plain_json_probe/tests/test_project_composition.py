@@ -8,7 +8,7 @@ import sqlite3
 import sys
 import unittest
 import uuid
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -52,6 +52,61 @@ class ProjectCompositionApiTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_retry_remote_rejection_does_not_leave_fake_pending_operation(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        store = MagicMock()
+        store.get_project.return_value = {
+            "settings": {"digital_human": {"resolution": "1024"}},
+            "items": [
+                {
+                    "item_id": "item-1",
+                    "row_key": "2",
+                    "status": "COMPOSITION_FAILED",
+                    "settings": {},
+                    "allowed_actions": {"retry_composition": True},
+                }
+            ],
+            "links": [
+                {
+                    "system": "runninghub",
+                    "relation": "digital_human_audio_item",
+                    "item_id": "item-1",
+                    "external_id": "remote-item-1",
+                }
+            ],
+        }
+        store.create_operation.return_value = {
+            "operation_id": "operation-1",
+            "status": "PENDING",
+        }
+        client = MagicMock()
+        client.retry_workbench_composition.side_effect = RuntimeError(
+            "当前画面任务没有可重试的失败阶段"
+        )
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            client,
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "没有可重试"):
+            coordinator.retry(
+                "composition-user",
+                "project-1",
+                "item-1",
+                "token",
+                idempotency_key="retry-key",
+            )
+
+        client.retry_workbench_composition.assert_called_once_with(
+            "token", "remote-item-1", resolution="1024"
+        )
+        failure = store.transition_operation.call_args
+        self.assertEqual(failure.kwargs["status"], "FAILED")
+        self.assertEqual(failure.kwargs["item_status"], "COMPOSITION_FAILED")
 
     def test_generate_downloads_original_segments_and_base_video_only(self) -> None:
         user = {

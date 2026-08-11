@@ -23,23 +23,39 @@ def test_top_title_is_optional_and_normalizes_whitespace() -> None:
     assert CAPTION_REFERENCE_MAX_EM == pytest.approx(10.214285714285714)
 
 
-def test_top_title_builds_two_full_duration_styled_text_additions() -> None:
+def test_top_title_builds_titles_and_fixed_bottom_disclaimer() -> None:
     texts = build_top_title_texts(
         {"line_1": "\u51cf\u8102\u771f\u76f8", "line_2": "\u575a\u6301\u624d\u662f\u5173\u952e"},
         font={"resource_id": "font-id", "path": "D:/font.ttf", "name": "Fixed"},
     )
-    assert [item["transform_y"] for item in texts] == [1535 / 1920, 1350 / 1920]
-    assert [item["size"] for item in texts] == [11.0, 13.0]
-    assert [item["color"] for item in texts] == ["#FFD600", "#FFFFFF"]
+    assert [item["transform_y"] for item in texts] == [
+        1535 / 1920,
+        1350 / 1920,
+        -1760 / 1920,
+    ]
+    assert [item["size"] for item in texts] == [11.0, 13.0, 6.0]
+    assert [item["color"] for item in texts] == [
+        "#FFD600",
+        "#FFFFFF",
+        "#FFFFFF",
+    ]
+    assert texts[-1]["text"] == (
+        "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n"
+        "如有不适请线下就医"
+    )
     assert all(item["duration_us"] == 0 for item in texts)
 
     _replacements, additions, _styles, _nested_styles = _build_text_replacements(
         {"texts": texts}, timeline_duration_us=5_000_000
     )
-    assert [item.duration_us for item in additions] == [5_000_000, 5_000_000]
-    assert [item.line_max_width for item in additions] == [0.92, 0.92]
-    assert [item.font_id for item in additions] == ["font-id", "font-id"]
-    assert [item.stroke_width for item in additions] == [0.04, 0.04]
+    assert [item.duration_us for item in additions] == [
+        5_000_000,
+        5_000_000,
+        5_000_000,
+    ]
+    assert [item.line_max_width for item in additions] == [0.92, 0.92, 0.92]
+    assert [item.font_id for item in additions] == ["font-id", "font-id", "font-id"]
+    assert [item.stroke_width for item in additions] == [0.04, 0.04, 0.04]
 
 
 def test_top_title_rejects_multiline_overflow() -> None:
