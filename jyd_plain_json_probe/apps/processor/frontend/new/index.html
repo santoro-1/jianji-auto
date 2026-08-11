@@ -975,6 +975,7 @@
         let audioStatusPollTimer = null;
         let compositionStatusPollTimer = null;
         let compositionStatusPollFailureCount = 0;
+        const COMPOSITION_STATUS_WARNING_THRESHOLD = 3;
         let postprocessStatusPollTimer = null;
         let variantStatusPollTimer = null;
         let isGeneratingComposition = false;
@@ -5526,10 +5527,10 @@
                     }
                 } catch (error) {
                     compositionStatusPollFailureCount += 1;
-                    if (compositionStatusPollFailureCount === 1) {
+                    if (compositionStatusPollFailureCount === COMPOSITION_STATUS_WARNING_THRESHOLD) {
                         showToast(
                             '画面状态暂时无法更新',
-                            `${error.message}。系统会在后台自动重试，不会重复提交 RunningHub 任务。`,
+                            `连续 ${COMPOSITION_STATUS_WARNING_THRESHOLD} 次刷新失败：${error.message}。系统会在后台自动重试，不会重复提交 RunningHub 任务。`,
                             'warning'
                         );
                     }

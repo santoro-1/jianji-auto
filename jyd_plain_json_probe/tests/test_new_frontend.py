@@ -450,7 +450,12 @@ class NewFrontendTest(unittest.TestCase):
     def test_composition_poll_errors_are_deduplicated_and_backed_off(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("let compositionStatusPollFailureCount = 0", workspace)
-        self.assertIn("compositionStatusPollFailureCount === 1", workspace)
+        self.assertIn("const COMPOSITION_STATUS_WARNING_THRESHOLD = 3", workspace)
+        self.assertIn(
+            "compositionStatusPollFailureCount === COMPOSITION_STATUS_WARNING_THRESHOLD",
+            workspace,
+        )
+        self.assertIn("连续 ${COMPOSITION_STATUS_WARNING_THRESHOLD} 次刷新失败", workspace)
         self.assertIn("Math.min(compositionStatusPollFailureCount - 1, 3)", workspace)
         self.assertIn("不会重复提交 RunningHub 任务", workspace)
 
