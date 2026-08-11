@@ -7,7 +7,10 @@ from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
 from .project_music import ProjectMusicSelector, automatic_music_identity_counts
-from .project_postprocess import normalize_cover_title
+from .project_postprocess import (
+    GENERATED_TITLE_MAX_LINE_2_CHARS,
+    normalize_cover_title,
+)
 from .project_store import ProjectStore
 from .semantic_subtitles import SemanticSubtitleMappingError
 from .semantic_visuals import SemanticVisualCatalog
@@ -93,6 +96,10 @@ def _validated_remote_result(
         title = normalize_cover_title(title)
         if not title["line_1"] or not title["line_2"]:
             raise ValueError("标题分析成功但缺少两行标题")
+        if len(title["line_2"]) > GENERATED_TITLE_MAX_LINE_2_CHARS:
+            raise ValueError(
+                f"AI 标题第二行最多 {GENERATED_TITLE_MAX_LINE_2_CHARS} 个字符"
+            )
 
     return {
         "schema_version": str(payload.get("schema_version") or "")[:100],

@@ -61,6 +61,9 @@ def test_cover_title_requires_two_compact_lines() -> None:
         normalize_cover_title({"line_1": "一二三四五六", "line_2": "别再踩坑"})
     with pytest.raises(ValueError, match="最多 14 个字符"):
         normalize_cover_title({"line_1": "健康真相", "line_2": "一二三四五六七八九十一二三四五"})
+    assert normalize_cover_title(
+        {"line_1": "健康真相", "line_2": "一二三四五六七八九十一二三四"}
+    )["line_2"] == "一二三四五六七八九十一二三四"
 
 
 def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> None:
@@ -90,8 +93,8 @@ def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> Non
     assert cover["frame_source"] == "input_image"
     assert cover["image_path"] == str(image.resolve())
     assert cover["frame_count"] == 3
-    assert cover["line_1_size"] == 35.0
-    assert cover["line_2_size"] == 27.0
+    assert cover["line_1_size"] == 30.0
+    assert cover["line_2_size"] == 22.0
     assert cover["line_1_color"] == "#FADF4A"
     assert cover["line_2_color"] == "#F5F6F0"
     assert cover["line_1_y"] == pytest.approx(-160 / 1920)

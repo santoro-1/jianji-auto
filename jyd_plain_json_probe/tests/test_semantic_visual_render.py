@@ -214,9 +214,9 @@ def test_fixed_nameplate_is_full_length_directly_above_video_and_below_semantic(
                     "start_us": 0,
                     "duration_us": 0,
                     "corner": "center",
-                    "scale": 0.7331057670319187,
-                    "transform_x": -0.26689423296808135,
-                    "transform_y": -0.18,
+                    "scale": 0.60,
+                    "transform_x": -0.40,
+                    "transform_y": -0.26,
                 }
             ]
         }
@@ -261,9 +261,9 @@ def test_fixed_nameplate_is_full_length_directly_above_video_and_below_semantic(
         "start": 0,
         "duration": 8_000_000,
     }
-    assert nameplate_segment["clip"]["transform"]["x"] == -0.26689423296808135
-    assert nameplate_segment["clip"]["transform"]["y"] == -0.18
-    assert nameplate_segment["clip"]["scale"]["x"] == 0.7331057670319187
+    assert nameplate_segment["clip"]["transform"]["x"] == -0.40
+    assert nameplate_segment["clip"]["transform"]["y"] == -0.26
+    assert nameplate_segment["clip"]["scale"]["x"] == 0.60
 
 
 def test_fixed_nameplate_recipe_uses_left_chest_preset() -> None:
@@ -277,9 +277,9 @@ def test_fixed_nameplate_recipe_uses_left_chest_preset() -> None:
     overlay = fixed_nameplate_overlay(library)
 
     assert overlay["corner"] == "center"
-    assert overlay["scale"] == 0.7331057670319187
-    assert overlay["transform_x"] == -0.26689423296808135
-    assert overlay["transform_y"] == -0.18
+    assert overlay["scale"] == 0.60
+    assert overlay["transform_x"] == -0.40
+    assert overlay["transform_y"] == -0.26
 
 
 def test_bottom_portrait_image_height_is_capped_at_thirty_percent() -> None:

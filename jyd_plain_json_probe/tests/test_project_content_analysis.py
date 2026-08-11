@@ -17,7 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.auth_center import AuthCenterError  # noqa: E402
-from jyd_probe.project_content_analysis import ProjectContentAnalysisCoordinator  # noqa: E402
+from jyd_probe.project_content_analysis import (  # noqa: E402
+    ProjectContentAnalysisCoordinator,
+    _validated_remote_result,
+)
 from jyd_probe.project_store import ProjectStore  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
@@ -83,6 +86,15 @@ def _remote_result(
         "cache_hit": False,
         "cacheable": "SUCCESS" in {music_status, subtitle_status, title_status},
     }
+
+
+def test_new_ai_title_rejects_more_than_eight_characters_on_line_two() -> None:
+    script = "测试脚本"
+    payload = _remote_result(script)
+    payload["title"] = {"line_1": "健康真相", "line_2": "一二三四五六七八九"}
+
+    with unittest.TestCase().assertRaisesRegex(ValueError, "AI 标题第二行最多 8 个字符"):
+        _validated_remote_result(payload, original_script=script)
 
 
 class ProjectContentAnalysisApiTest(unittest.TestCase):

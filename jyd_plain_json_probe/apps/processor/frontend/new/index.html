@@ -3106,7 +3106,8 @@
                 return;
             }
             const remapTargets = targets.filter((item) =>
-                item.visualAnalysis?.analysis_status === 'SUCCESS'
+                item.contentAnalysis?.overall_status === 'SUCCESS'
+                && item.visualAnalysis?.analysis_status === 'SUCCESS'
                 && item.visualAnalysis?.mapping_status !== 'SUCCESS'
             );
             const refreshTargets = targets.filter((item) => !remapTargets.includes(item));
@@ -4667,9 +4668,9 @@
             const height = video.videoHeight * scaleToFrame;
             const left = (frame.clientWidth - width) / 2;
             const top = (frame.clientHeight - height) / 2;
-            const nameplateScale = 0.7331057670319187;
-            const transformX = -0.26689423296808135;
-            const transformY = -0.18;
+            const nameplateScale = 0.60;
+            const transformX = -0.40;
+            const transformY = -0.26;
             const visualWidth = width * nameplateScale;
             const aspectRatio = image.naturalWidth && image.naturalHeight
                 ? image.naturalHeight / image.naturalWidth
