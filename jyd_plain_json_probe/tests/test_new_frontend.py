@@ -48,9 +48,17 @@ class NewFrontendTest(unittest.TestCase):
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn('href="/api/new/script-template"', html)
         self.assertIn("/api/new/script-imports/preview", html)
+        self.assertIn("/metadata-import", html)
+        self.assertIn("给当前批次回填文章类型和分配账号", html)
+        self.assertIn("source_metadata", html)
         self.assertIn("/content-analysis", html)
         self.assertIn("retryRowContentAnalysis", html)
         self.assertIn("contentAnalysisTargetsForRows", html)
+        self.assertIn(
+            "const titleStatus = script.contentAnalysis?.title_analysis_status || 'NOT_REQUESTED';",
+            html,
+        )
+        self.assertIn("titleStatus === 'NOT_REQUESTED'", html)
         self.assertIn("startContentAnalysisForChangedScripts", html)
         self.assertIn("markContentAnalysisPending", html)
         self.assertIn("AI 分析中...", html)

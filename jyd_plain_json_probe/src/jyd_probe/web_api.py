@@ -2122,6 +2122,60 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    @app.put("/api/new/projects/{project_id}/metadata-import")
+    async def import_new_project_source_metadata(
+        project_id: str, request: Request, filename: str = ""
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        original_filename = filename or request.headers.get("x-filename", "")
+        content = await request.body()
+        try:
+            parsed = parse_project_script_file(content, original_filename)
+            rows = parsed.get("rows") if isinstance(parsed.get("rows"), list) else []
+            if not rows or any(
+                not row.get("article_type") or not row.get("assigned_account")
+                for row in rows
+                if isinstance(row, dict)
+            ):
+                raise ValueError("回填分类信息必须使用包含文章类型、分配账号的四列表")
+            project_store.import_source_metadata(
+                user["user_id"], project_id, rows
+            )
+            safe_name = _safe_filename(original_filename)
+            directory = (
+                settings.storage_root
+                / "projects"
+                / user["user_id"]
+                / project_id
+                / "script_sources"
+            ).resolve()
+            directory.mkdir(parents=True, exist_ok=True)
+            target = directory / f"{uuid.uuid4().hex}-{safe_name}"
+            target.write_bytes(content)
+            try:
+                project_store.add_script_source(
+                    user["user_id"],
+                    project_id,
+                    filename=safe_name,
+                    content_type=(
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        if Path(safe_name).suffix.lower() == ".xlsx"
+                        else "text/csv"
+                    ),
+                    size_bytes=len(content),
+                    sha256=hashlib.sha256(content).hexdigest(),
+                    managed_path=str(target),
+                    allow_active=True,
+                )
+            except Exception:
+                _unlink_if_exists(target)
+                raise
+            return project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.put("/api/new/projects/{project_id}/script-source")
     async def save_new_project_script_source(
         project_id: str, request: Request, filename: str = ""

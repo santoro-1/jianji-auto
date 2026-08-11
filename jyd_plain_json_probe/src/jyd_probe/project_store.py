@@ -378,6 +378,23 @@ def _clean_script(value: Any) -> str:
     return result
 
 
+def _clean_source_metadata(article_type: Any, assigned_account: Any) -> dict[str, str]:
+    clean_article_type = str(article_type or "").strip()
+    clean_assigned_account = str(assigned_account or "").strip()
+    if not clean_article_type:
+        raise ValueError("文章类型不能为空")
+    if not clean_assigned_account:
+        raise ValueError("分配账号不能为空")
+    if len(clean_article_type) > 120:
+        raise ValueError("文章类型不能超过 120 个字符")
+    if len(clean_assigned_account) > 120:
+        raise ValueError("分配账号不能超过 120 个字符")
+    return {
+        "article_type": clean_article_type,
+        "assigned_account": clean_assigned_account,
+    }
+
+
 def _clean_status(value: Any, *, allowed: set[str], label: str) -> str:
     result = str(value or "").strip().upper()
     if result not in allowed:
@@ -938,6 +955,76 @@ class ProjectStore:
                     (now, project["project_id"]),
                 )
                 self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def import_source_metadata(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        rows: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Backfill article/account metadata without invalidating generated assets."""
+
+        if not isinstance(rows, list) or not rows:
+            raise ValueError("分类信息不能为空")
+        normalized: list[dict[str, Any]] = []
+        row_keys: set[str] = set()
+        for position, raw in enumerate(rows, start=1):
+            if not isinstance(raw, dict):
+                raise ValueError(f"第 {position} 条分类信息格式无效")
+            row_key = _clean_row_key(raw.get("row_key"), position)
+            if row_key in row_keys:
+                raise ValueError(f"脚本行编号重复: {row_key}")
+            row_keys.add(row_key)
+            normalized.append(
+                {
+                    "row_key": row_key,
+                    "script_text": _clean_script(raw.get("script_text")),
+                    "source_metadata": _clean_source_metadata(
+                        raw.get("article_type"), raw.get("assigned_account")
+                    ),
+                }
+            )
+
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            existing_rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            existing_by_key = {str(row["row_key"]): row for row in existing_rows}
+            existing_keys = set(existing_by_key)
+            if row_keys != existing_keys:
+                missing = sorted(existing_keys.difference(row_keys))
+                unknown = sorted(row_keys.difference(existing_keys))
+                details: list[str] = []
+                if missing:
+                    details.append(f"缺少任务ID: {', '.join(missing[:10])}")
+                if unknown:
+                    details.append(f"未知任务ID: {', '.join(unknown[:10])}")
+                raise ValueError("分类表必须完整对应当前项目；" + "；".join(details))
+
+            prepared: list[tuple[str, str]] = []
+            for row in normalized:
+                existing = existing_by_key[row["row_key"]]
+                settings = _object(existing["settings_json"], {})
+                updated_settings = {
+                    **settings,
+                    "source_metadata": row["source_metadata"],
+                }
+                if updated_settings != settings:
+                    prepared.append((_json(updated_settings), str(existing["item_id"])))
+
+            if prepared:
+                now = _now()
+                connection.executemany(
+                    "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
+                    [(settings_json, now, item_id) for settings_json, item_id in prepared],
+                )
+                connection.execute(
+                    "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                    (now, project["project_id"]),
+                )
         return self.get_project(owner_user_id, project_id)
 
     def delete_item(
@@ -1656,6 +1743,11 @@ class ProjectStore:
                     "row_key": row_key,
                     "position": position,
                     "script_text": _clean_script(raw.get("script_text")),
+                    "settings": (
+                        dict(raw.get("settings"))
+                        if isinstance(raw.get("settings"), dict)
+                        else {}
+                    ),
                 }
             )
 
@@ -1690,7 +1782,7 @@ class ProjectStore:
                             item_id, project_id, row_key, position, script_text,
                             status, subtitles_json, content_analysis_json, settings_json,
                             created_at, updated_at
-                        ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, '{}', ?, ?)
+                        ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?)
                         """,
                         (
                             item["item_id"],
@@ -1700,6 +1792,7 @@ class ProjectStore:
                             item["script_text"],
                             _json(_default_subtitles()),
                             _json(_default_content_analysis(item["script_text"])),
+                            _json(item["settings"]),
                             now,
                             now,
                         ),
@@ -1707,11 +1800,18 @@ class ProjectStore:
                 else:
                     previous = existing[item["item_id"]]
                     script_changed = str(previous["script_text"]) != item["script_text"]
+                    previous_settings = _object(previous["settings_json"], {})
+                    incoming_source_metadata = item["settings"].get("source_metadata")
+                    updated_settings = (
+                        {**previous_settings, "source_metadata": incoming_source_metadata}
+                        if isinstance(incoming_source_metadata, dict)
+                        else previous_settings
+                    )
                     connection.execute(
                         """
                         UPDATE project_items
                         SET row_key=?, position=?, script_text=?,
-                            content_analysis_json=?, updated_at=?
+                            content_analysis_json=?, settings_json=?, updated_at=?
                         WHERE item_id=?
                         """,
                         (
@@ -1728,6 +1828,7 @@ class ProjectStore:
                                 if script_changed
                                 else str(previous["content_analysis_json"] or "{}")
                             ),
+                            _json(updated_settings),
                             now,
                             item["item_id"],
                         ),
@@ -1794,12 +1895,18 @@ class ProjectStore:
                 if clean_row_key in existing_row_keys or clean_row_key in incoming_row_keys:
                     raise ValueError(f"脚本行编号重复: {clean_row_key}")
                 incoming_row_keys.add(clean_row_key)
+                item_settings = (
+                    dict(raw.get("settings"))
+                    if isinstance(raw.get("settings"), dict)
+                    else {}
+                )
                 normalized.append(
                     {
                         "item_id": uuid.uuid4().hex,
                         "row_key": clean_row_key,
                         "position": position,
                         "script_text": _clean_script(raw.get("script_text")),
+                        "settings": item_settings,
                     }
                 )
 
@@ -1818,7 +1925,7 @@ class ProjectStore:
                         item_id, project_id, row_key, position, script_text,
                         status, subtitles_json, content_analysis_json, settings_json,
                         created_at, updated_at
-                    ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, '{}', ?, ?)
+                    ) VALUES(?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?)
                     """,
                     (
                         item["item_id"],
@@ -1828,6 +1935,7 @@ class ProjectStore:
                         item["script_text"],
                         _json(_default_subtitles()),
                         _json(_default_content_analysis(item["script_text"])),
+                        _json(item["settings"]),
                         now,
                         now,
                     ),
@@ -2290,6 +2398,7 @@ class ProjectStore:
         size_bytes: int,
         sha256: str,
         managed_path: str,
+        allow_active: bool = False,
     ) -> dict[str, Any]:
         clean_filename = Path(str(filename or "")).name.strip()
         clean_path = str(managed_path or "").strip()
@@ -2297,7 +2406,8 @@ class ProjectStore:
             raise ValueError("脚本源文件名称和保存路径不能为空")
         with self._transaction() as connection:
             self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_inputs(connection, project_id)
+            if not allow_active:
+                self._require_editable_inputs(connection, project_id)
             version = int(
                 connection.execute(
                     "SELECT COALESCE(MAX(version), 0) + 1 FROM project_script_sources WHERE project_id=?",

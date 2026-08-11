@@ -40,6 +40,20 @@ _SCRIPT_HEADERS = {
     "scripttext",
     "script_text",
 }
+_ARTICLE_TYPE_HEADERS = {
+    "文章类型",
+    "内容类型",
+    "脚本类型",
+    "article_type",
+    "articletype",
+}
+_ASSIGNED_ACCOUNT_HEADERS = {
+    "分配账号",
+    "账号",
+    "账号编号",
+    "assigned_account",
+    "assignedaccount",
+}
 
 
 def parse_project_script_file(content: bytes, filename: str) -> dict[str, Any]:
@@ -59,7 +73,19 @@ def parse_project_script_file(content: bytes, filename: str) -> dict[str, Any]:
     else:
         raise ValueError("只支持 .xlsx 和 .csv 脚本文件")
 
-    header_index, row_key_column, script_column = _find_headers(table)
+    (
+        header_index,
+        row_key_column,
+        script_column,
+        article_type_column,
+        assigned_account_column,
+    ) = _find_headers(table)
+    metadata_columns = {
+        column
+        for column in (article_type_column, assigned_account_column)
+        if column is not None
+    }
+    allowed_columns = {row_key_column, script_column, *metadata_columns}
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
     for row_number, values in table[header_index + 1 :]:
@@ -68,9 +94,12 @@ def parse_project_script_file(content: bytes, filename: str) -> dict[str, Any]:
         if any(
             str(value).strip()
             for column, value in enumerate(values)
-            if column not in {row_key_column, script_column}
+            if column not in allowed_columns
         ):
-            raise ValueError(f"第 {row_number} 行包含多余列，模板只能填写任务ID、脚本内容")
+            raise ValueError(
+                f"第 {row_number} 行包含多余列，模板只允许填写"
+                "任务ID、脚本内容、文章类型、分配账号"
+            )
         row_key = _text_at(values, row_key_column)
         script_text = _text_at(values, script_column)
         if not row_key:
@@ -81,10 +110,37 @@ def parse_project_script_file(content: bytes, filename: str) -> dict[str, Any]:
             raise ValueError(f"第 {row_number} 行的 ID 不能超过 80 个字符")
         if len(script_text) > 50_000:
             raise ValueError(f"第 {row_number} 行的脚本不能超过 50000 个字符")
+        article_type = (
+            _text_at(values, article_type_column)
+            if article_type_column is not None
+            else ""
+        )
+        assigned_account = (
+            _text_at(values, assigned_account_column)
+            if assigned_account_column is not None
+            else ""
+        )
+        if article_type_column is not None:
+            if not article_type:
+                raise ValueError(f"第 {row_number} 行的文章类型不能为空")
+            if not assigned_account:
+                raise ValueError(f"第 {row_number} 行的分配账号不能为空")
+            if len(article_type) > 120:
+                raise ValueError(f"第 {row_number} 行的文章类型不能超过 120 个字符")
+            if len(assigned_account) > 120:
+                raise ValueError(f"第 {row_number} 行的分配账号不能超过 120 个字符")
         if row_key in seen:
             raise ValueError(f"脚本行编号重复: {row_key}")
         seen.add(row_key)
-        rows.append({"row_key": row_key, "script_text": script_text})
+        parsed_row = {"row_key": row_key, "script_text": script_text}
+        if article_type_column is not None:
+            parsed_row.update(
+                {
+                    "article_type": article_type,
+                    "assigned_account": assigned_account,
+                }
+            )
+        rows.append(parsed_row)
         if len(rows) > MAX_SCRIPT_ROWS:
             raise ValueError(f"单个项目最多包含 {MAX_SCRIPT_ROWS} 条脚本")
 
@@ -138,9 +194,17 @@ def _text_at(values: list[Any], index: int) -> str:
     return str(value if value is not None else "").strip()
 
 
-def _find_headers(table: list[tuple[int, list[Any]]]) -> tuple[int, int, int]:
+def _find_headers(
+    table: list[tuple[int, list[Any]]],
+) -> tuple[int, int, int, int | None, int | None]:
     normalized_row_keys = {_normalize_header(value) for value in _ROW_KEY_HEADERS}
     normalized_scripts = {_normalize_header(value) for value in _SCRIPT_HEADERS}
+    normalized_article_types = {
+        _normalize_header(value) for value in _ARTICLE_TYPE_HEADERS
+    }
+    normalized_assigned_accounts = {
+        _normalize_header(value) for value in _ASSIGNED_ACCOUNT_HEADERS
+    }
     for index, (_, values) in enumerate(table[:20]):
         normalized = [_normalize_header(value) for value in values]
         row_key_column = next(
@@ -152,10 +216,44 @@ def _find_headers(table: list[tuple[int, list[Any]]]) -> tuple[int, int, int]:
             None,
         )
         if row_key_column is not None and script_column is not None:
-            if sum(1 for value in values if str(value).strip()) != 2:
-                raise ValueError("脚本模板只能包含任务ID、脚本内容两列")
-            return index, row_key_column, script_column
-    raise ValueError("没有找到固定表头，请保留 ID、脚本内容两列")
+            article_type_column = next(
+                (
+                    column
+                    for column, value in enumerate(normalized)
+                    if value in normalized_article_types
+                ),
+                None,
+            )
+            assigned_account_column = next(
+                (
+                    column
+                    for column, value in enumerate(normalized)
+                    if value in normalized_assigned_accounts
+                ),
+                None,
+            )
+            if (article_type_column is None) != (assigned_account_column is None):
+                raise ValueError("文章类型、分配账号两列必须同时存在")
+            expected_columns = {row_key_column, script_column}
+            if article_type_column is not None:
+                expected_columns.update({article_type_column, assigned_account_column})
+            actual_columns = {
+                column for column, value in enumerate(values) if str(value).strip()
+            }
+            if actual_columns != expected_columns:
+                raise ValueError(
+                    "脚本模板只能包含任务ID、脚本内容，或再加文章类型、分配账号两列"
+                )
+            return (
+                index,
+                row_key_column,
+                script_column,
+                article_type_column,
+                assigned_account_column,
+            )
+    raise ValueError(
+        "没有找到固定表头，请保留任务ID、脚本内容、文章类型、分配账号四列"
+    )
 
 
 def _read_csv(content: bytes) -> list[tuple[int, list[Any]]]:

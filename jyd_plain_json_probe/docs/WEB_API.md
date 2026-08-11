@@ -23,7 +23,8 @@ HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登
 
 ## 脚本与图片输入（模块 2）
 
-脚本文件固定为两列：`任务ID`、`脚本内容`。可从新版页面下载模板：
+脚本文件正式模板固定为四列：`任务ID`、`脚本内容`、`文章类型`、`分配账号`；历史两列表
+继续兼容。可从新版页面下载模板：
 
 ```text
 GET  /api/new/script-template
@@ -31,7 +32,8 @@ POST /api/new/script-imports/preview?filename=脚本.xlsx
 ```
 
 预览接口使用原始请求体接收 `.xlsx` 或 `.csv`，不创建项目。服务端验证文件大小、XLSX
-压缩包路径和解压大小、固定表头、空 ID、空脚本、重复 ID、额外列和 500 行上限。任何
+压缩包路径和解压大小、固定表头、空 ID、空脚本、四列表分类字段、重复 ID、额外列和
+500 行上限。任何
 一行失败时整体返回 `422`，不会产生半个项目。旧版 `.xls` 需先另存为 `.xlsx` 或 `.csv`。
 
 解析通过后使用模块 0 的 `POST /api/new/projects` 创建项目；重新导入或调整脚本行使用：
@@ -52,6 +54,17 @@ DELETE /api/new/projects/{project_id}
 或变体异步操作的行。任务可以删到 0 行，之后仍可通过“添加分段”重新创建；删除会级联移除
 该行本地素材版本、操作和外部关联，并清理该行不再被引用的本地生成文件，项目公共图片池
 不受影响。
+
+已有项目补充分类信息使用：
+
+```text
+PUT /api/new/projects/{project_id}/metadata-import?filename=脚本.xlsx
+```
+
+请求体为四列 `.xlsx`/`.csv` 原始内容。服务端要求任务 ID 集合与当前项目完整一致，以任务 ID
+写入 `settings.source_metadata.article_type` 和 `assigned_account`；Excel 中的旧脚本文字不会
+覆盖当前项目脚本。该事务允许项目处于生成中，只更新分类元数据和项目修订，不清除或失效
+声音、视频、字幕、内容分析、语义视觉及变体，并把四列表保存为新的脚本源文件版本。
 
 `POST /api/new/projects/{project_id}/items/batch` 接收 `{ "items": [{ "row_key": "...",
 "script_text": "..." }] }`，用于“追加表格”。项目容量、已有任务 ID、批内重复 ID 和全部

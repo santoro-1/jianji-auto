@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 import shutil
+import sqlite3
 import sys
 import unittest
 import uuid
@@ -110,7 +112,7 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertEqual(invalid.status_code, 409, invalid.text)
             self.assertIn("正整数", invalid.json()["detail"])
 
-    def test_two_column_csv_and_downloadable_xlsx_template_are_accepted(self) -> None:
+    def test_two_and_four_column_csv_and_downloadable_xlsx_template_are_accepted(self) -> None:
         login_patch, verify_patch = self._client_context()
         with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
             self._login(client)
@@ -125,6 +127,8 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertEqual(xlsx_preview.status_code, 200, xlsx_preview.text)
             self.assertEqual(xlsx_preview.json()["total_rows"], 3)
             self.assertEqual(xlsx_preview.json()["rows"][0]["row_key"], "1")
+            self.assertEqual(xlsx_preview.json()["rows"][0]["article_type"], "干货类")
+            self.assertEqual(xlsx_preview.json()["rows"][0]["assigned_account"], "1")
 
             csv_preview = client.post(
                 "/api/new/script-imports/preview?filename=scripts.csv",
@@ -141,6 +145,25 @@ class ProjectInputsApiTest(unittest.TestCase):
                 ],
             )
 
+            four_column_preview = client.post(
+                "/api/new/script-imports/preview?filename=scripts.csv",
+                content=(
+                    "任务ID,脚本内容,文章类型,分配账号\n"
+                    "1,第一条口播,干货类,2\n"
+                    "2,第二条口播,鸡汤文,5\n"
+                ).encode("utf-8-sig"),
+            )
+            self.assertEqual(four_column_preview.status_code, 200, four_column_preview.text)
+            self.assertEqual(
+                four_column_preview.json()["rows"][1],
+                {
+                    "row_key": "2",
+                    "script_text": "第二条口播",
+                    "article_type": "鸡汤文",
+                    "assigned_account": "5",
+                },
+            )
+
             duplicate = client.post(
                 "/api/new/script-imports/preview?filename=bad.csv",
                 content="任务ID,脚本内容\n1,甲\n1,乙\n".encode("utf-8"),
@@ -155,6 +178,81 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertEqual(extra_column.status_code, 422)
             self.assertIn("两列", extra_column.json()["detail"])
             self.assertEqual(client.get("/api/new/projects").json()["total"], 0)
+
+    def test_four_column_metadata_backfill_preserves_current_scripts_and_generation_state(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            created = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "分类回填",
+                    "items": [
+                        {"row_key": "1", "script_text": "当前脚本一"},
+                        {"row_key": "2", "script_text": "当前脚本二"},
+                    ],
+                },
+            ).json()
+            project_id = created["project_id"]
+            database_path = self.settings.database_path or (
+                self.settings.storage_root / "control.db"
+            )
+            with sqlite3.connect(database_path) as connection:
+                connection.execute(
+                    "UPDATE project_items SET status='VIDEO_ENHANCING' WHERE project_id=?",
+                    (project_id,),
+                )
+                before = connection.execute(
+                    """
+                    SELECT row_key, script_text, status, current_audio_asset_id,
+                           current_base_video_asset_id, current_video_asset_id,
+                           subtitles_json, content_analysis_json, visual_analysis_json
+                      FROM project_items WHERE project_id=? ORDER BY position
+                    """,
+                    (project_id,),
+                ).fetchall()
+
+            content = (
+                "任务ID,脚本内容,文章类型,分配账号\n"
+                "1,表格里的旧脚本一,干货类,2\n"
+                "2,表格里的旧脚本二,鸡汤文,5\n"
+            ).encode("utf-8-sig")
+            response = client.put(
+                f"/api/new/projects/{project_id}/metadata-import?filename=四列脚本.csv",
+                content=content,
+            )
+            self.assertEqual(response.status_code, 200, response.text)
+            payload = response.json()
+            self.assertEqual(payload["items"][0]["script_text"], "当前脚本一")
+            self.assertEqual(payload["items"][0]["status"], "VIDEO_ENHANCING")
+            self.assertEqual(
+                payload["items"][0]["settings"]["source_metadata"],
+                {"article_type": "干货类", "assigned_account": "2"},
+            )
+            self.assertEqual(payload["script_source"]["filename"], "四列脚本.csv")
+            self.assertEqual(
+                Path(payload["script_source"]["managed_path"]).read_bytes(), content
+            )
+
+            with sqlite3.connect(database_path) as connection:
+                after = connection.execute(
+                    """
+                    SELECT row_key, script_text, status, current_audio_asset_id,
+                           current_base_video_asset_id, current_video_asset_id,
+                           subtitles_json, content_analysis_json, visual_analysis_json
+                      FROM project_items WHERE project_id=? ORDER BY position
+                    """,
+                    (project_id,),
+                ).fetchall()
+                settings = [
+                    json.loads(row[0])
+                    for row in connection.execute(
+                        "SELECT settings_json FROM project_items WHERE project_id=? ORDER BY position",
+                        (project_id,),
+                    ).fetchall()
+                ]
+            self.assertEqual(after, before)
+            self.assertEqual(settings[1]["source_metadata"]["assigned_account"], "5")
 
     def test_original_script_file_is_retained_for_result_batch_archives(self) -> None:
         login_patch, verify_patch = self._client_context()

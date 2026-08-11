@@ -22,7 +22,7 @@ apps/
 ```text
 src/jyd_probe/                    共用核心代码
 src/jyd_probe/project_store.py    新版统一项目、素材版本、操作和外部批次关联
-src/jyd_probe/project_inputs.py   新版两列 Excel/CSV 解析及输入图片校验
+src/jyd_probe/project_inputs.py   新版四列 Excel/CSV、历史两列兼容解析及输入图片校验
 src/jyd_probe/project_audio.py    新版音色校验、数字人音频批次编排、状态同步和版本落盘
 src/jyd_probe/project_variants.py 新版变体配方冻结、最大差异组合、剪映批次和失败重试
 src/jyd_probe/project_results.py  新版成果批次目录、原始脚本归档和真实成果查询
