@@ -205,7 +205,7 @@ class ProjectAudioApiTest(unittest.TestCase):
                 json={
                     "default_voice_asset_id": "official-voice-1",
                     "voice_assignments": {},
-                    "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
+                    "voice_settings": {"model": "speech-2.8-hd", "speed": 0.9},
                     "resolution": "2048",
                     "idempotency_key": "restart-audio-request-1",
                     "cost_confirmed": True,
@@ -247,6 +247,8 @@ class ProjectAudioApiTest(unittest.TestCase):
             self.assertEqual(resumed.status_code, 200, resumed.text)
             row = resumed.json()["items"][0]
             self.assertEqual(row["status"], "AUDIO_READY")
+            self.assertEqual(row["outputs"]["audio"]["filename"], "1_0.9倍速.mp3")
+            self.assertEqual(row["outputs"]["audio"]["metadata"]["speed"], 0.9)
             self.assertEqual(row["subtitles"]["source"], "minimax_timestamps")
             self.assertEqual(len(create_calls), 1)
 
@@ -302,6 +304,26 @@ class ProjectAudioApiTest(unittest.TestCase):
                         item["settings"]["voice_asset_id"] == "saved-voice-1"
                         for item in payload["project"]["items"]
                     )
+                )
+
+                speed = client.put(
+                    "/api/new/voices/default",
+                    json={
+                        "voice_asset_id": "saved-voice-1",
+                        "voice_settings": {
+                            "model": "speech-2.8-hd",
+                            "speed": 0.9,
+                            "volume": 1,
+                            "pitch": 0,
+                            "language_boost": "Chinese",
+                            "output_format": "mp3",
+                        },
+                    },
+                )
+                self.assertEqual(speed.status_code, 200, speed.text)
+                self.assertEqual(
+                    speed.json()["preferences"]["voice_settings"]["speed"],
+                    0.9,
                 )
 
                 invalid = client.put(
@@ -541,7 +563,7 @@ class ProjectAudioApiTest(unittest.TestCase):
                 json={
                     "default_voice_asset_id": "official-voice-1",
                     "voice_assignments": {},
-                    "voice_settings": {"model": "speech-2.8-hd", "speed": 1},
+                    "voice_settings": {"model": "speech-2.8-hd", "speed": 0.9},
                     "idempotency_key": (
                         "audio-3af55f2822e3478bbf3f15905af89f36-"
                         "1722770000000"
@@ -648,6 +670,7 @@ class ProjectAudioApiTest(unittest.TestCase):
             )
             self.assertEqual(audio.status_code, 200)
             self.assertEqual(audio.content, b"ID3-real-audio")
+            self.assertIn("1_0.9", audio.headers["content-disposition"])
             appended = client.post(
                 f"/api/new/projects/{project_id}/items",
                 json={"row_key": "2", "script_text": "尚未生成声音"},
@@ -659,8 +682,8 @@ class ProjectAudioApiTest(unittest.TestCase):
             self.assertEqual(audio_bundle.status_code, 200, audio_bundle.text)
             self.assertEqual(audio_bundle.headers["content-type"], "application/zip")
             with zipfile.ZipFile(BytesIO(audio_bundle.content)) as archive:
-                self.assertEqual(archive.namelist(), ["1.mp3"])
-                self.assertEqual(archive.read("1.mp3"), b"ID3-real-audio")
+                self.assertEqual(archive.namelist(), ["1_0.9倍速.mp3"])
+                self.assertEqual(archive.read("1_0.9倍速.mp3"), b"ID3-real-audio")
             removed = client.delete(
                 f"/api/new/projects/{project_id}/items/{appended.json()['items'][-1]['item_id']}"
             )

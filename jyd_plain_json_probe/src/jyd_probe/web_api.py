@@ -3135,6 +3135,13 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 item_id,
                 token,
                 idempotency_key=str(payload.get("idempotency_key") or uuid.uuid4().hex),
+                settings=(
+                    payload.get("voice_settings")
+                    if isinstance(payload.get("voice_settings"), dict)
+                    else project_store.get_voice_preferences(user["user_id"])[
+                        "voice_settings"
+                    ]
+                ),
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目或声音任务不存在") from exc

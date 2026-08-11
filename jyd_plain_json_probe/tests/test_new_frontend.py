@@ -160,6 +160,13 @@ class NewFrontendTest(unittest.TestCase):
             html,
         )
 
+    def test_selected_composition_rows_do_not_start_and_retry_twice(self) -> None:
+        html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn(
+            "const fresh = missingBase.filter((item) => item.allowedActions?.start_composition && !item.allowedActions?.retry_composition);",
+            html,
+        )
+
     def test_new_frontend_styles_are_bundled_locally(self) -> None:
         pages = ("index.html", "login.html", "voice-library.html", "gallery.html")
         for page in pages:
@@ -254,6 +261,12 @@ class NewFrontendTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("/api/new/voices", workspace)
+        self.assertIn('id="voice-speed-slider"', workspace)
+        self.assertIn('data-voice-speed="0.8"', workspace)
+        self.assertIn('data-voice-speed="0.9"', workspace)
+        self.assertIn("function saveVoiceSpeed(rawSpeed)", workspace)
+        self.assertIn("voice_settings: { ...(voicePreferences.voice_settings || {}), speed }", workspace)
+        self.assertIn("audio.playbackRate = selectedVoiceSpeed()", workspace)
         self.assertIn("/audio/generate", workspace)
         self.assertIn("/audio/status", workspace)
         self.assertIn("digital-human-resolution", workspace)
@@ -262,6 +275,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/digital-human-settings", workspace)
         self.assertIn("resolution: selectedDigitalHumanResolution()", workspace)
         self.assertIn("/items/${rowId}/audio/retry", workspace)
+        self.assertIn("voice_settings: voicePreferences.voice_settings || {}", workspace)
         self.assertIn("/projects/${activeProject.project_id}/voice", workspace)
         self.assertIn("/api/new/voice-creations", voice_center)
         self.assertIn("/api/new/voices/import", voice_center)
@@ -352,7 +366,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("非医疗保健科普：仅供参考", workspace)
         self.assertIn("1535 / 1920", workspace)
         self.assertNotIn("1350 / 1920", workspace)
-        self.assertIn("headline.textContent = '世界冠军带你资料'", workspace)
+        self.assertIn("headline.textContent = '世界冠军带你自律'", workspace)
         self.assertIn("displayedWidth * 19 / 220", workspace)
         self.assertIn("headline.style.color = '#E53935'", workspace)
         self.assertIn("#FFFFFF`;", workspace)
@@ -570,8 +584,10 @@ class NewFrontendTest(unittest.TestCase):
                     response = client.get(path)
                     self.assertEqual(response.status_code, 200, path)
                     self.assertEqual(
-                        response.text,
-                        (FRONTEND_ROOT / filename).read_text(encoding="utf-8"),
+                        response.text.replace("\r\n", "\n"),
+                        (FRONTEND_ROOT / filename)
+                        .read_text(encoding="utf-8")
+                        .replace("\r\n", "\n"),
                     )
                     self.assertIn("/api/auth/session", response.text)
                     self.assertIn("/api/auth/logout", response.text)

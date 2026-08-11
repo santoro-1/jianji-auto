@@ -37,7 +37,7 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
         "#E53935",
         "#FFFFFF",
     ]
-    assert texts[0]["text"] == "世界冠军带你资料"
+    assert texts[0]["text"] == "世界冠军带你自律"
     assert texts[0]["stroke_color"] == "#FFFFFF"
     assert texts[0]["stroke_width"] == 0.06
     assert texts[-1]["text"] == (

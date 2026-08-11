@@ -97,8 +97,9 @@ def test_analysis_builds_recipe_from_cloud_context_and_local_time(tmp_path: Path
     assert len(visual["recipe"]["overlays"]) == 1
     assert visual["recipe"]["overlays"][0]["concept_id"] == "food.egg"
     overlay = visual["recipe"]["overlays"][0]
-    assert 1_500_000 <= overlay["duration_us"] <= 2_500_000
-    assert overlay["timing_source"] == "minimax_raw_cue_keyword_start"
+    assert overlay["start_us"] == 0
+    assert overlay["phrase_text"] == "每天吃一个鸡蛋"
+    assert overlay["timing_source"] == "minimax_raw_cue_phrase_span"
     assert len(client.calls) == 1
 
 

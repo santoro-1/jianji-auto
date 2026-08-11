@@ -44,13 +44,7 @@ VISUAL_CORNERS = frozenset(
     }
 )
 VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
-VISUAL_HOLD_AFTER_MATCH_US = 400_000
-VISUAL_DEFAULT_AUTO_DURATION_US = 1_500_000
-VISUAL_MAX_AUTO_DURATION_US = 2_500_000
-VISUAL_MIN_AUTO_START_GAP_US = 1_500_000
 VISUAL_MAX_AUTO_PER_MINUTE = 24
-VISUAL_KEYWORD_LEAD_US = 300_000
-VISUAL_OPENING_PROTECTION_US = 1_200_000
 VISUAL_ENRICHMENT_MIN_GAP_US = 20_000_000
 VISUAL_ENRICHMENT_MAX_PER_MINUTE = 2
 VISUAL_ENRICHMENT_CHAR_INTERVAL = 100
@@ -731,6 +725,22 @@ def visual_candidate_context(
     return script[max(left, start - padding) : min(right, end + padding)].strip()
 
 
+def visual_phrase_char_range(script: str, *, start: int, end: int) -> tuple[int, int]:
+    """Expand a matched keyword to its punctuation-delimited spoken phrase."""
+
+    left = start
+    while left > 0 and script[left - 1] not in VISUAL_PHRASE_BOUNDARIES:
+        left -= 1
+    right = end
+    while right < len(script) and script[right] not in VISUAL_PHRASE_BOUNDARIES:
+        right += 1
+    while left < right and script[left].isspace():
+        left += 1
+    while right > left and script[right - 1].isspace():
+        right -= 1
+    return left, right
+
+
 def recall_semantic_visual_candidates(
     original_script: str,
     catalog: SemanticVisualCatalog,
@@ -931,8 +941,6 @@ def map_visual_candidates_to_raw_cues(
     video_duration_us: int | None = None,
     asr_alignment: Mapping[str, Any] | None = None,
     cover_offset_us: int = 0,
-    lead_us: int = 0,
-    default_duration_us: int = VISUAL_DEFAULT_AUTO_DURATION_US,
 ) -> list[dict[str, Any]]:
     ranges = _character_time_ranges(original_script, raw_cues)
     mapped: list[dict[str, Any]] = []
@@ -943,29 +951,42 @@ def map_visual_candidates_to_raw_cues(
             raise SemanticSubtitleMappingError(
                 "VISUAL_CANDIDATE_RANGE_INVALID", "语义图片候选字符范围无效"
             )
-        usage = str(
-            candidate.get("usage")
-            or ("enrichment" if str(candidate.get("candidate_id") or "").startswith("ve_") else "explicit")
+        phrase_start, phrase_end = visual_phrase_char_range(
+            original_script, start=start, end=end
         )
-        precise_range = _asr_candidate_time_range(
+        keyword_precise_range = _asr_candidate_time_range(
             original_script,
             raw_cues,
             asr_alignment,
             start=start,
             end=end,
         )
-        anchor_start_us = precise_range[0] if precise_range else ranges[start][0]
-        anchor_end_us = precise_range[1] if precise_range else ranges[end - 1][1]
-        automatic_lead_us = VISUAL_KEYWORD_LEAD_US if usage == "explicit" else 0
-        start_us = (
-            max(0, anchor_start_us - automatic_lead_us - max(0, lead_us))
-            + max(0, cover_offset_us)
+        phrase_precise_range = _asr_candidate_time_range(
+            original_script,
+            raw_cues,
+            asr_alignment,
+            start=phrase_start,
+            end=phrase_end,
         )
-        matched_end_us = anchor_end_us + max(0, cover_offset_us)
-        duration_us = min(
-            VISUAL_MAX_AUTO_DURATION_US,
-            max(default_duration_us, matched_end_us - start_us + VISUAL_HOLD_AFTER_MATCH_US),
+        phrase_start_us = (
+            phrase_precise_range[0]
+            if phrase_precise_range is not None
+            else ranges[phrase_start][0]
         )
+        phrase_end_us = (
+            phrase_precise_range[1]
+            if phrase_precise_range is not None
+            else ranges[phrase_end - 1][1]
+        )
+        offset_us = max(0, cover_offset_us)
+        start_us = max(0, phrase_start_us) + offset_us
+        phrase_end_us += offset_us
+        matched_end_us = (
+            keyword_precise_range[1]
+            if keyword_precise_range is not None
+            else ranges[end - 1][1]
+        ) + offset_us
+        duration_us = max(0, phrase_end_us - start_us)
         if video_duration_us is not None:
             duration_us = min(duration_us, max(0, int(video_duration_us) - start_us))
         if duration_us <= 0:
@@ -979,12 +1000,13 @@ def map_visual_candidates_to_raw_cues(
                 "duration_us": duration_us,
                 "matched_end_us": matched_end_us,
                 "video_duration_us": video_duration_us,
-                "phrase_char_start": start,
-                "phrase_text": original_script[start:end],
+                "phrase_char_start": phrase_start,
+                "phrase_char_end": phrase_end,
+                "phrase_text": original_script[phrase_start:phrase_end],
                 "timing_source": (
-                    "funasr_word_timestamps"
-                    if precise_range is not None
-                    else "minimax_raw_cue_keyword_start"
+                    "funasr_phrase_timestamps"
+                    if phrase_precise_range is not None
+                    else "minimax_raw_cue_phrase_span"
                 ),
             }
         )
@@ -1045,12 +1067,6 @@ def visual_overlay_conflicts(
     if any(
         start_us < int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
         and int(item.get("start_us") or 0) < start_us + duration_us
-        for item in active
-    ):
-        return True
-    if any(
-        abs(start_us - int(item.get("start_us") or 0))
-        < VISUAL_MIN_AUTO_START_GAP_US
         for item in active
     ):
         return True
@@ -1146,18 +1162,6 @@ def build_visual_recipe(
         asset = assets[occurrence % len(assets)]
         start_us = int(candidate["start_us"])
         duration_us = int(candidate["duration_us"])
-        if start_us < VISUAL_OPENING_PROTECTION_US:
-            matched_end_us = int(
-                candidate.get("matched_end_us", start_us + duration_us)
-            )
-            if matched_end_us <= VISUAL_OPENING_PROTECTION_US:
-                continue
-            start_us = VISUAL_OPENING_PROTECTION_US
-            mapped_video_duration_us = candidate.get("video_duration_us")
-            if isinstance(mapped_video_duration_us, int) and mapped_video_duration_us > 0:
-                duration_us = min(duration_us, mapped_video_duration_us - start_us)
-            if duration_us <= 0:
-                continue
         defaults = asset["defaults"]
         resource = asset["resource"]
         media_type = asset["media_type"]
@@ -1187,7 +1191,14 @@ def build_visual_recipe(
             "usage": usage,
             "reason_code": decision.get("reason_code"),
             "timing_source": str(
-                candidate.get("timing_source") or "minimax_raw_cue_phrase_start"
+                candidate.get("timing_source") or "minimax_raw_cue_phrase_span"
+            ),
+            "phrase_text": str(candidate.get("phrase_text") or candidate.get("text") or ""),
+            "phrase_char_start": int(
+                candidate.get("phrase_char_start", candidate.get("char_start", 0)) or 0
+            ),
+            "phrase_char_end": int(
+                candidate.get("phrase_char_end", candidate.get("char_end", 0)) or 0
             ),
         }
         if media_type == "video":

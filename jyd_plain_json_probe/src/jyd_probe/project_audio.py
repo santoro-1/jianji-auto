@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 import hashlib
 import logging
+import math
 from pathlib import Path
 from typing import Any, Mapping
 import uuid
@@ -24,6 +25,31 @@ REMOTE_AUDIO_ACTIVE = {
     "HANDOFF",
 }
 logger = logging.getLogger("jyd_probe.workbench")
+
+
+def _audio_speed(project: dict[str, Any], item_id: str) -> float:
+    """Return the speed snapshot of the latest paid audio command for a row."""
+
+    for operation in reversed(project.get("operations", [])):
+        if (
+            operation.get("item_id") != item_id
+            or operation.get("operation_type") != "AUDIO_GENERATE"
+        ):
+            continue
+        payload = operation.get("payload")
+        speech = payload.get("speech_settings") if isinstance(payload, dict) else None
+        try:
+            speed = float(speech.get("speed", 1.0))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if math.isfinite(speed) and 0.5 <= speed <= 2.0:
+            return speed
+    return 1.0
+
+
+def _audio_filename(row_key: object, speed: float) -> str:
+    speed_text = f"{speed:.2f}".rstrip("0").rstrip(".")
+    return f"{str(row_key or '').strip()}_{speed_text}倍速.mp3"
 
 
 def _current_audio_links(
@@ -424,6 +450,7 @@ class ProjectAudioCoordinator:
                     continue
                 if provider_status == "AWAITING_REVIEW" and remote_item.get("audio_ready"):
                     local_item = local_by_item[local_item_id]
+                    speed = _audio_speed(project, local_item_id)
                     generation_version = int(remote_item.get("generation_version") or 1)
                     current = local_item.get("outputs", {}).get("audio")
                     current_ref = current.get("external_ref", {}) if isinstance(current, dict) else {}
@@ -462,7 +489,7 @@ class ProjectAudioCoordinator:
                             asset_type="audio",
                             source_type="minimax",
                             status="READY",
-                            filename=f"{local_item['row_key']}.mp3",
+                            filename=_audio_filename(local_item["row_key"], speed),
                             managed_path=str(target),
                             external_ref={
                                 "batch_id": batch_id,
@@ -477,6 +504,7 @@ class ProjectAudioCoordinator:
                                 "script_length": link.get("metadata", {}).get(
                                     "script_length"
                                 ),
+                                "speed": speed,
                             },
                             make_current=True,
                         )
@@ -556,8 +584,10 @@ class ProjectAudioCoordinator:
         token: str,
         *,
         idempotency_key: str,
+        settings: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
+        speech = _speech_settings(settings)
         matching_links = [
             link
             for link in project["links"]
@@ -580,10 +610,17 @@ class ProjectAudioCoordinator:
             item_id=item_id,
             operation_type="AUDIO_GENERATE",
             idempotency_key=idempotency_key,
-            payload={"retry": True, "remote_item_id": link["external_id"]},
+            payload={
+                "retry": True,
+                "remote_item_id": link["external_id"],
+                "speech_settings": speech,
+            },
         )
         self.client.retry_workbench_audio(
-            token, batch_id, str(link["external_id"])
+            token,
+            batch_id,
+            str(link["external_id"]),
+            speed=speech["speed"],
         )
         self.store.transition_audio_operation(
             owner_user_id,

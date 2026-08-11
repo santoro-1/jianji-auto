@@ -300,7 +300,7 @@ class ProjectVariantTest(unittest.TestCase):
             self.assertEqual(
                 [text["text"] for text in job["texts"]],
                 [
-                    "世界冠军带你资料",
+                    "世界冠军带你自律",
                     "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n如有不适请线下就医",
                 ],
             )

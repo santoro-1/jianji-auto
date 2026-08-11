@@ -457,6 +457,10 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 云端对整行补建或重试 SeedVR2 48G 阶段。本地继续轮询同一 `remote_item_id`，下载清晰片段和
 新基础视频后由 `ProjectStore` 清除失效原因。补跑操作的 `scope` 固定为
 `seedvr2_backfill_only`，便于日志和费用审计。
+若该行在数字人阶段被 RunningHub 手动取消、因而没有任何已下载源片段，则不能误走 SeedVR2
+补跑：重新生成改为上传当前图片，并通过原声音关联调用画面启动接口；云端保留已审核音频，
+按当前分辨率创建全新的数字人命令。失败行即使同时具备 start/retry 能力，前端批量分组也只
+进入 retry 一次，防止同一行重复提交和重复计费。
 `project_audio.py` 不提交本地硬编码的 RunningHub 提示词；行级未显式设置时由数字人网站
 配置的默认提示词接管，避免工作台旧值截断服务器配置。
 
@@ -499,7 +503,7 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 5 字的文案；普通导出与所有变体统一调用 `build_project_cover()`，以当前上传人物图作为底图，
 固定 3 帧、思源粗宋和受控视觉参数。变体请求不能自定义封面。标题为空时不生成占位封面。
 参数和后续统一内容分析返回契约见 [AI_TITLE_AND_COVER_20260810.md](AI_TITLE_AND_COVER_20260810.md)。
-正文视频顶部与封面标题解耦：`build_top_title_texts()` 固定生成一行“世界冠军带你资料”，字号
+正文视频顶部与封面标题解耦：`build_top_title_texts()` 固定生成一行“世界冠军带你自律”，字号
 19、Y=1535、红字白描边；历史 `top_title` 只保留接口兼容，不再影响浏览器预览或剪映导出。
 
 `ProjectPostprocessCoordinator.sync()` 必须扫描全部仍为 `PENDING/RUNNING` 的 4B 操作，
@@ -618,6 +622,11 @@ XLSX/CSV 的版本与校验信息；`project_result_batches` 使用 SQLite 当�
 可试听结果，用户试听确认后再保存。保存后的自定义音色仍是 `READY`，必须由用户二次
 确认激活，后端执行第一次正式 TTS 并切换到 `ACTIVE` 后才能进入核心工作台。删除音色卡
 只从可用音色库移除，不破坏历史任务和历史音频；当前项目仍引用时拒绝删除。
+
+生成语速保存在 `project_user_preferences.voice_settings_json.speed`，范围为 `0.5–2.0`，
+默认 `1.0`。核心工作台默认声音区负责读写该偏好；批量、选中、单行新生成和单行重新生成
+都必须提交同一份 `voice_settings`。调整语速不使已有素材失效，只有明确发起下一次付费
+MiniMax 生成时才生效；切换默认音色不重置语速。
 
 ## 9. 自动化测试
 
@@ -825,11 +834,12 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
 - 浏览器播放预览和 `project_postprocess.py` / `project_variants.py` 的 4B 冻结任务读取同一
   `mixed` 配方。`image_apply.py` 写入真实 photo 轨道，`video_overlay_apply.py` 写入原生 video
   material/segment，支持源片截取、静音、循环、cover/contain；单项失败按 optional 跳过。
-- 自动贴图优先使用当前音频绑定的 FunASR 字词时间，在关键词实际发音前 300ms 出现；未完成
-  ASR 时使用 MiniMax raw cue 字符插值回退，不再无条件提前到整个逗号短句开头。持续时间至少
-  覆盖到关键词结束后 400ms，默认 1.5 秒、最长 2.5 秒。不同语义素材最短开始间隔 1.5 秒，
-  每 60 秒最多 24 条，因此食物/步骤列表可以连续快切；同 concept/asset 仍保持 20 秒去重，
-  且任何素材不得重叠。后处理得到精确 ASR 后会只在本地重绑
+- 自动贴图先把命中关键词扩展到它所在的标点分句（逗号、句号、问号、感叹号、分号、冒号
+  或换行），再优先使用当前音频绑定的 FunASR 字词时间取得该分句的真实开始和结束；未完成
+  ASR 时使用 MiniMax raw cue 字符插值回退。素材在该分句开始时出现、说完时结束，不再使用
+  关键词前 300ms、开场 1.2 秒保护或固定 1.5～2.5 秒时长。相邻分句只要求时间不重叠，不再
+  强制额外开始间隔；每 60 秒最多 24 条，同 concept/asset 仍保持 20 秒去重。后处理得到精确
+  ASR 后会只在本地重绑
   未锁定自动配方，不再次调用 Ark。未人工锁定的自动项在预览和渲染时
   刷新素材库当前默认资源、位置、缩放和透明度，人工/锁定项保持冻结值。
 - `semantic_visual_library/fixed/nameplate_zhangluo` 是每条视频自动携带的固定人名牌，不新增

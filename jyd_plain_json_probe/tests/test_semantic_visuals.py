@@ -528,7 +528,7 @@ def test_recall_does_not_decide_idiom_negation_or_meta_context_locally() -> None
     assert [item["text"] for item in payload["candidates"]] == ["鸡蛋"] * 4
 
 
-def test_minimax_mapping_leads_and_clamps_to_video_duration() -> None:
+def test_minimax_mapping_uses_phrase_span_and_clamps_to_video_duration() -> None:
     script = "每天吃一个鸡蛋"
     candidates = recall_semantic_visual_candidates(script, _catalog())["candidates"]
     mapped = map_visual_candidates_to_raw_cues(
@@ -539,12 +539,12 @@ def test_minimax_mapping_leads_and_clamps_to_video_duration() -> None:
         cover_offset_us=200_000,
     )
 
-    assert mapped[0]["start_us"] >= 200_000
-    assert mapped[0]["start_us"] + mapped[0]["duration_us"] <= 3_100_000
-    assert mapped[0]["duration_us"] <= 2_500_000
+    assert mapped[0]["start_us"] == 1_200_000
+    assert mapped[0]["duration_us"] == 1_900_000
+    assert mapped[0]["start_us"] + mapped[0]["duration_us"] == 3_100_000
 
 
-def test_mapping_starts_near_keyword_and_holds_through_food_name() -> None:
+def test_mapping_covers_the_punctuation_phrase_containing_the_keyword() -> None:
     script = "早餐可以灵活安排，比如早上喝碗杂粮粥。"
     candidate = next(
         item
@@ -559,15 +559,16 @@ def test_mapping_starts_near_keyword_and_holds_through_food_name() -> None:
         video_duration_us=8_000_000,
     )[0]
 
-    assert mapped["phrase_text"] == "杂粮粥"
-    assert mapped["phrase_char_start"] == candidate["char_start"]
+    assert mapped["phrase_text"] == "比如早上喝碗杂粮粥"
+    assert mapped["phrase_char_start"] == script.index("比如")
+    assert mapped["phrase_char_end"] == script.index("。")
     keyword_time_us = candidate["char_start"] / len(script) * 8_000_000
     assert mapped["start_us"] < keyword_time_us
     assert mapped["start_us"] + mapped["duration_us"] > keyword_time_us
-    assert mapped["timing_source"] == "minimax_raw_cue_keyword_start"
+    assert mapped["timing_source"] == "minimax_raw_cue_phrase_span"
 
 
-def test_mapping_prefers_funasr_word_timestamps_when_available() -> None:
+def test_mapping_prefers_funasr_phrase_timestamps_when_available() -> None:
     script = "每天吃一个鸡蛋"
     candidate = recall_semantic_visual_candidates(script, _catalog())["candidates"][0]
     raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
@@ -590,9 +591,11 @@ def test_mapping_prefers_funasr_word_timestamps_when_available() -> None:
         asr_alignment=alignment,
     )[0]
 
-    assert mapped["start_us"] == 1_700_000
+    assert mapped["start_us"] == 500_000
+    assert mapped["duration_us"] == 2_060_000
     assert mapped["matched_end_us"] == 2_560_000
-    assert mapped["timing_source"] == "funasr_word_timestamps"
+    assert mapped["phrase_text"] == script
+    assert mapped["timing_source"] == "funasr_phrase_timestamps"
 
 
 def test_mapping_rejects_raw_cue_text_mismatch() -> None:
@@ -700,7 +703,7 @@ def test_distinct_food_images_can_form_a_short_rapid_sequence() -> None:
         decisions=decisions,
     )
 
-    assert len(candidates) >= 7
+    assert len(candidates) >= 6
     assert len(recipe["overlays"]) == len(candidates)
     assert all(item["duration_us"] == 1_500_000 for item in recipe["overlays"])
     assert all(
@@ -709,7 +712,7 @@ def test_distinct_food_images_can_form_a_short_rapid_sequence() -> None:
     )
 
 
-def test_recipe_protects_opening_without_delaying_past_original_window() -> None:
+def test_recipe_allows_first_phrase_visual_to_start_at_zero() -> None:
     catalog = _catalog()
     candidate = recall_semantic_visual_candidates("早餐吃鸡蛋", catalog)["candidates"][0]
     recipe = build_visual_recipe(
@@ -732,11 +735,11 @@ def test_recipe_protects_opening_without_delaying_past_original_window() -> None
         ],
     )
 
-    assert recipe["overlays"][0]["start_us"] == 1_200_000
+    assert recipe["overlays"][0]["start_us"] == 0
     assert recipe["overlays"][0]["duration_us"] == 2_000_000
 
 
-def test_recipe_discards_opening_visual_when_semantic_ends_during_protection() -> None:
+def test_recipe_keeps_a_short_first_phrase_without_opening_delay() -> None:
     catalog = _catalog()
     candidate = recall_semantic_visual_candidates("早餐吃鸡蛋", catalog)["candidates"][0]
     recipe = build_visual_recipe(
@@ -759,7 +762,9 @@ def test_recipe_discards_opening_visual_when_semantic_ends_during_protection() -
         ],
     )
 
-    assert recipe["overlays"] == []
+    assert len(recipe["overlays"]) == 1
+    assert recipe["overlays"][0]["start_us"] == 0
+    assert recipe["overlays"][0]["duration_us"] == 1_800_000
 
 
 def test_low_confidence_show_is_not_auto_enabled() -> None:

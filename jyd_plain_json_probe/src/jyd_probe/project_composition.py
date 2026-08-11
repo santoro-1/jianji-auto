@@ -36,6 +36,14 @@ def _current_audio_item_links(
     return newest_by_item
 
 
+def _has_saved_remote_video_segments(item: dict[str, Any]) -> bool:
+    """Whether the row has evidence of reusable digital-human source output."""
+
+    outputs = item.get("outputs", {})
+    segments = outputs.get("original_video_segments", [])
+    return isinstance(segments, list) and bool(segments)
+
+
 def _composition_operations(project: dict[str, Any]) -> dict[str, dict[str, Any]]:
     latest: dict[str, dict[str, Any]] = {}
     for operation in project.get("operations", []):
@@ -242,7 +250,7 @@ class ProjectCompositionCoordinator:
         links_by_item = _current_audio_item_links(project["links"])
 
         for item in target_items:
-            backfill_seedvr2 = (
+            backfill_seedvr2 = _has_saved_remote_video_segments(item) and (
                 item.get("settings", {}).get("composition_invalidated_reason")
                 == "DIGITAL_HUMAN_RESOLUTION_CHANGED"
             )
@@ -607,7 +615,7 @@ class ProjectCompositionCoordinator:
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("画面重试请求缺少幂等键")
-        seedvr2_backfill = (
+        resolution_invalidated = (
             item.get("settings", {}).get("composition_invalidated_reason")
             == "DIGITAL_HUMAN_RESOLUTION_CHANGED"
         )
@@ -617,6 +625,22 @@ class ProjectCompositionCoordinator:
             .get("resolution")
             or "1024"
         ).strip()
+        seedvr2_backfill = resolution_invalidated and _has_saved_remote_video_segments(
+            item
+        )
+        if resolution_invalidated and not seedvr2_backfill:
+            # No digital-human source exists to enhance (for example, the 4A
+            # command was cancelled in RunningHub). Retry through the normal
+            # composition-start contract so the current image is uploaded and
+            # the cloud can rebuild a fresh 4A command from approved audio.
+            return self.start(
+                owner_user_id,
+                project_id,
+                token,
+                idempotency_key=clean_key,
+                resolution=current_resolution,
+                item_ids=[item_id],
+            )
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,

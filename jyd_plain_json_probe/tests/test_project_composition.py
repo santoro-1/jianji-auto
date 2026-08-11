@@ -131,6 +131,66 @@ class ProjectCompositionApiTest(unittest.TestCase):
         self.assertEqual(failure.kwargs["status"], "FAILED")
         self.assertEqual(failure.kwargs["item_status"], "COMPOSITION_FAILED")
 
+    def test_resolution_change_without_source_restarts_with_current_inputs(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        store = MagicMock()
+        store.get_project.return_value = {
+            "settings": {"digital_human": {"resolution": "1024"}},
+            "items": [
+                {
+                    "item_id": "item-2",
+                    "row_key": "2",
+                    "status": "COMPOSITION_FAILED",
+                    "settings": {
+                        "composition_invalidated_reason": (
+                            "DIGITAL_HUMAN_RESOLUTION_CHANGED"
+                        )
+                    },
+                    "outputs": {"original_video_segments": []},
+                    "allowed_actions": {
+                        "start_composition": True,
+                        "retry_composition": True,
+                    },
+                }
+            ],
+            "links": [
+                {
+                    "system": "runninghub",
+                    "relation": "digital_human_audio_item",
+                    "item_id": "item-2",
+                    "external_id": "remote-item-2",
+                }
+            ],
+        }
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            MagicMock(),
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+
+        with patch.object(
+            coordinator, "start", return_value={"project_id": "project-2"}
+        ) as restart:
+            result = coordinator.retry(
+                "composition-user",
+                "project-2",
+                "item-2",
+                "token",
+                idempotency_key="retry-current-inputs",
+            )
+
+        self.assertEqual(result["project_id"], "project-2")
+        restart.assert_called_once_with(
+            "composition-user",
+            "project-2",
+            "token",
+            idempotency_key="retry-current-inputs",
+            resolution="1024",
+            item_ids=["item-2"],
+        )
+
     def test_generate_downloads_original_segments_and_base_video_only(self) -> None:
         user = {
             "user_id": "composition-user",

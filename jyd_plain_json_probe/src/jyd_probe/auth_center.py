@@ -364,11 +364,20 @@ class AuthCenterClient:
         )
 
     def retry_workbench_audio(
-        self, token: str, batch_id: str, item_id: str
+        self,
+        token: str,
+        batch_id: str,
+        item_id: str,
+        *,
+        speed: float,
     ) -> dict[str, Any]:
         return self._post(
             f"/api/workbench/audio-batches/{batch_id}/items/{item_id}/retry",
-            {"access_token": token, "cost_confirmed": True},
+            {
+                "access_token": token,
+                "cost_confirmed": True,
+                "speed": speed,
+            },
         )
 
     def download_voice_preview(

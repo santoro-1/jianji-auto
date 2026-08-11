@@ -680,6 +680,22 @@
                     <div class="space-y-2 max-h-[175px] overflow-y-auto pr-1 narrow-scrollbar" id="voice-preset-container">
                         <div class="p-3 rounded-xl border border-slate-800 text-[10px] text-gray-400">正在从数字人账号加载声音...</div>
                     </div>
+                    <div class="mt-3 pt-3 border-t border-slate-800/80" id="voice-speed-control">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="text-[11px] font-semibold text-white">生成语速</div>
+                                <div class="text-[9px] text-gray-500 mt-0.5">用于新生成和重新生成的声音，换音色后继续沿用。</div>
+                            </div>
+                            <span id="voice-speed-value" class="text-xs font-bold text-brand-accent tabular-nums">1.00×</span>
+                        </div>
+                        <input id="voice-speed-slider" type="range" min="0.5" max="2" step="0.05" value="1"
+                            class="w-full mt-2 accent-cyan-400" oninput="previewVoiceSpeed(this.value)" onchange="saveVoiceSpeed(this.value)">
+                        <div class="grid grid-cols-3 gap-2 mt-2">
+                            <button type="button" data-voice-speed="0.8" onclick="saveVoiceSpeed(0.8)" class="voice-speed-preset rounded-lg border border-slate-700/80 py-1 text-[10px] text-gray-300 hover:border-brand-primary/70">0.8× 慢速</button>
+                            <button type="button" data-voice-speed="0.9" onclick="saveVoiceSpeed(0.9)" class="voice-speed-preset rounded-lg border border-slate-700/80 py-1 text-[10px] text-gray-300 hover:border-brand-primary/70">0.9× 稍慢</button>
+                            <button type="button" data-voice-speed="1" onclick="saveVoiceSpeed(1)" class="voice-speed-preset rounded-lg border border-slate-700/80 py-1 text-[10px] text-gray-300 hover:border-brand-primary/70">1.0× 原速</button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Input 3: Images Upload & Distribution Strategy -->
@@ -1708,6 +1724,55 @@
             }).join('');
         }
 
+        function selectedVoiceSpeed() {
+            const raw = Number(voicePreferences?.voice_settings?.speed ?? 1);
+            return Number.isFinite(raw) ? Math.min(2, Math.max(0.5, raw)) : 1;
+        }
+
+        function renderVoiceSpeedControl(displaySpeed = selectedVoiceSpeed()) {
+            const speed = Math.round(Math.min(2, Math.max(0.5, Number(displaySpeed) || 1)) * 100) / 100;
+            const slider = document.getElementById('voice-speed-slider');
+            const value = document.getElementById('voice-speed-value');
+            if (slider) slider.value = String(speed);
+            if (value) value.textContent = `${speed.toFixed(2)}×`;
+            document.querySelectorAll('.voice-speed-preset').forEach((button) => {
+                const selected = Math.abs(Number(button.dataset.voiceSpeed) - speed) < 0.001;
+                button.classList.toggle('border-brand-primary', selected);
+                button.classList.toggle('bg-brand-primary/10', selected);
+                button.classList.toggle('text-brand-accent', selected);
+            });
+        }
+
+        function previewVoiceSpeed(rawSpeed) {
+            renderVoiceSpeedControl(rawSpeed);
+        }
+
+        async function saveVoiceSpeed(rawSpeed) {
+            const voice = voicePresets[selectedDefaultVoiceIndex];
+            if (!voice) {
+                renderVoiceSpeedControl();
+                showToast('语速尚未保存', '请先选择一个可用声音。', 'warning');
+                return;
+            }
+            const speed = Math.round(Math.min(2, Math.max(0.5, Number(rawSpeed) || 1)) * 100) / 100;
+            renderVoiceSpeedControl(speed);
+            try {
+                const result = await workspaceApi('/api/new/voices/default', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        voice_asset_id: voice.id,
+                        voice_settings: { ...(voicePreferences.voice_settings || {}), speed }
+                    })
+                });
+                voicePreferences = result.preferences || voicePreferences;
+                renderVoiceSpeedControl();
+                showToast('生成语速已保存', `${voice.name} 及之后切换的音色都会按 ${selectedVoiceSpeed().toFixed(2)}× 生成。`, 'success');
+            } catch (error) {
+                renderVoiceSpeedControl();
+                showToast('生成语速保存失败', error.message, 'warning');
+            }
+        }
+
         async function loadWorkspaceVoices() {
             try {
                 const result = await workspaceApi('/api/new/voices');
@@ -1723,6 +1788,7 @@
                 const preferredIndex = voicePresets.findIndex((voice) => voice.id === preferred);
                 selectedDefaultVoiceIndex = preferredIndex >= 0 ? preferredIndex : 0;
                 renderVoicePresetCards();
+                renderVoiceSpeedControl();
                 if (activeProject) syncProjectInputs(activeProject);
             } catch (error) {
                 voicePresets = [];
@@ -1751,6 +1817,7 @@
                 }
                 selectedDefaultVoiceIndex = index;
                 renderVoicePresetCards();
+                renderVoiceSpeedControl();
                 showToast('项目默认声音已更改', activeProject
                     ? `已将「${voice.name}」应用到当前项目全部脚本行，右侧仍可逐行覆盖。`
                     : `已选择「${voice.name}」作为后续项目的默认配音。`, 'success');
@@ -1773,6 +1840,7 @@
                 if (selectedActiveVoiceAudio) selectedActiveVoiceAudio.pause();
                 const button = event.currentTarget;
                 const audio = new Audio(`/api/new/voices/${encodeURIComponent(voiceAssetId)}/preview?t=${Date.now()}`);
+                audio.playbackRate = selectedVoiceSpeed();
                 selectedActiveVoiceAudio = audio;
                 button.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-[9px]"></i>';
                 audio.onplaying = () => { button.innerHTML = '<i class="fa-solid fa-pause text-[9px]"></i>'; };
@@ -2836,7 +2904,11 @@
             try {
                 const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/audio/retry`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ cost_confirmed: true, idempotency_key: `audio-retry-${rowId}-${Date.now()}` })
+                    body: JSON.stringify({
+                        cost_confirmed: true,
+                        idempotency_key: `audio-retry-${rowId}-${Date.now()}`,
+                        voice_settings: voicePreferences.voice_settings || {}
+                    })
                 });
                 syncProjectInputs(project);
                 scheduleAudioStatusPoll();
@@ -3326,7 +3398,7 @@
                 await startGlobalPostprocess(unfinished.map((item) => item.id));
                 return;
             }
-            const fresh = missingBase.filter((item) => item.allowedActions?.start_composition);
+            const fresh = missingBase.filter((item) => item.allowedActions?.start_composition && !item.allowedActions?.retry_composition);
             const retries = missingBase.filter((item) => item.allowedActions?.retry_composition);
             const confirmationMessage = `将为选中的 ${missingBase.length} 条任务调用 RunningHub 生成画面并产生费用；另外 ${unfinished.length - missingBase.length} 条已有画面只继续字幕/BGM。`;
             const selectedRunningHubAccountIds = fresh.length
@@ -4559,7 +4631,7 @@
             const verticalMargin = (frame.clientHeight - displayedHeight) / 2;
             label.textContent = '';
             label.classList.add('hidden');
-            headline.textContent = '世界冠军带你资料';
+            headline.textContent = '世界冠军带你自律';
             headline.classList.remove('hidden');
             headline.style.left = '50%';
             headline.style.top = `${verticalMargin + displayedHeight * (0.5 - (1535 / 1920) / 2)}px`;

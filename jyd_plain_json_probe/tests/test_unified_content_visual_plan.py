@@ -64,8 +64,10 @@ class UnifiedClient:
             "overall_status": "SUCCESS",
             "music_analysis_status": "SUCCESS",
             "subtitle_analysis_status": "SUCCESS",
+            "title_analysis_status": "SUCCESS",
             "visual_analysis_status": "SUCCESS",
             "music_intent": {"primary_scene": "health_education"},
+            "title": {"line_1": "长期坚持", "line_2": "习惯决定结果"},
             "subtitle_units": [
                 {
                     "start": 0,
@@ -80,7 +82,12 @@ class UnifiedClient:
                 visual_context["catalog_version"] if visual_context is not None else None
             ),
             "visual_plan": visual_plan,
-            "errors": {"music": None, "subtitle": None, "visual": None},
+            "errors": {
+                "music": None,
+                "subtitle": None,
+                "title": None,
+                "visual": None,
+            },
             "provider_request_id": "unified-test",
             "provider_attempts": 1,
             "cache_hit": False,
@@ -264,7 +271,7 @@ def test_invalid_visual_plan_does_not_discard_content_branches(tmp_path: Path) -
 def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     tmp_path: Path,
 ) -> None:
-    script = "控制体重需要长期坚持，饮食、睡眠和日常活动都要逐步调整。" * 8
+    script = "控制体重需要长期坚持，各项习惯和日常安排都要逐步调整。" * 8
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
         owner_user_id="user-1",
@@ -308,7 +315,7 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
 
 
 def test_enrichment_below_key_priority_stays_review_only(tmp_path: Path) -> None:
-    script = "三伏天常常喝黑豆汤，三十克黑豆和红枣加水煮开，放温以后饮用。" * 4
+    script = "三伏天常常整理房间，把桌面擦干净，再把物品整齐归位。" * 8
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
         owner_user_id="user-1",
