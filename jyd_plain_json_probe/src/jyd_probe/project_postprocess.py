@@ -211,6 +211,8 @@ def build_project_cover(
     font = fonts.get(COVER_FONT_IDENTITY)
     if not isinstance(font, dict) or not font.get("path"):
         raise ValueError("固定封面字体“思源粗宋”不可用")
+    profile = layout_profile(postprocess.get("layout_profile", DEFAULT_LAYOUT_PROFILE))
+    cover_style = profile["cover"]
     overlay_top = COVER_OVERLAY_CENTER_RATIO - COVER_OVERLAY_HEIGHT_RATIO / 2
     overlay_bottom = COVER_OVERLAY_CENTER_RATIO + COVER_OVERLAY_HEIGHT_RATIO / 2
     return {
@@ -226,27 +228,29 @@ def build_project_cover(
             "font_path": str(Path(str(font["path"])).expanduser().resolve()),
             "font_title": str(font.get("name") or "SourceHanSerifCN-Heavy"),
         },
-        "text_scale": 1.0,
+        "text_scale": float(cover_style["text_scale"]),
         "letter_spacing": 0,
         "line_spacing": 6,
-        "line_1_x": 0.0,
-        "line_1_y": COVER_LINE_1_TRANSFORM_Y,
-        "line_2_x": 0.0,
-        "line_2_y": COVER_LINE_2_TRANSFORM_Y,
-        "line_1_size": COVER_LINE_1_FONT_SIZE,
-        "line_2_size": COVER_LINE_2_FONT_SIZE,
-        "line_1_color": COVER_LINE_1_COLOR,
-        "line_2_color": COVER_LINE_2_COLOR,
-        "line_1_shadow_color": "#000000",
-        "line_1_shadow_alpha": 0.9,
-        "line_1_shadow_smoothing": 0.15,
-        "line_1_shadow_distance": 5.0,
-        "line_1_shadow_angle": -45.0,
-        "line_2_shadow_color": "#1F1A05",
-        "line_2_shadow_alpha": 0.5,
-        "line_2_shadow_smoothing": 0.15,
-        "line_2_shadow_distance": 5.0,
-        "line_2_shadow_angle": -45.0,
+        "auto_wrapping": bool(cover_style["auto_wrapping"]),
+        "max_line_width": float(cover_style["max_line_width"]),
+        "line_1_x": float(cover_style["line_1_x"]),
+        "line_1_y": float(cover_style["line_1_y"]),
+        "line_2_x": float(cover_style["line_2_x"]),
+        "line_2_y": float(cover_style["line_2_y"]),
+        "line_1_size": float(cover_style["line_1_size"]),
+        "line_2_size": float(cover_style["line_2_size"]),
+        "line_1_color": str(cover_style["line_1_color"]),
+        "line_2_color": str(cover_style["line_2_color"]),
+        "line_1_shadow_color": str(cover_style["shadow_color"]),
+        "line_1_shadow_alpha": float(cover_style["shadow_alpha"]),
+        "line_1_shadow_smoothing": float(cover_style["shadow_smoothing"]),
+        "line_1_shadow_distance": float(cover_style["shadow_distance"]),
+        "line_1_shadow_angle": float(cover_style["shadow_angle"]),
+        "line_2_shadow_color": str(cover_style["shadow_color"]),
+        "line_2_shadow_alpha": float(cover_style["shadow_alpha"]),
+        "line_2_shadow_smoothing": float(cover_style["shadow_smoothing"]),
+        "line_2_shadow_distance": float(cover_style["shadow_distance"]),
+        "line_2_shadow_angle": float(cover_style["shadow_angle"]),
         "frame_scale": 1.0,
         "frame_offset_x": 0.0,
         "frame_offset_y": 0.0,
@@ -433,9 +437,10 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
         tagged.append((word, str(token.flag), start, end))
         cursor = end
     penalties: dict[int, float] = {}
-    for left, right in zip(tagged, tagged[1:]):
+    for index, (left, right) in enumerate(zip(tagged, tagged[1:])):
         _left_word, left_flag, _left_start, boundary = left
         right_word, right_flag, _right_start, _right_end = right
+        following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
         if (
             (left_flag.startswith("n") or left_flag == "vn")
             and (right_flag.startswith("n") or right_flag == "vn")
@@ -445,7 +450,13 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
             right_flag.startswith("v") or right_flag.startswith("a")
         ):
             penalties[boundary] = max(penalties.get(boundary, 0.0), 2.0)
-        elif left_flag.startswith("v") and right_flag.startswith("a"):
+        elif (
+            left_flag.startswith("v")
+            and right_flag.startswith("a")
+            and not following_flag.startswith("n")
+        ):
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 2.0)
+        elif left_flag.startswith("n") and right_flag.startswith("a"):
             penalties[boundary] = max(penalties.get(boundary, 0.0), 2.0)
         elif (
             left_flag.startswith("v")
@@ -562,6 +573,43 @@ def _unsafe_break_offsets(text: str) -> set[int]:
         if len(token) <= 1 or token.isspace():
             continue
         unsafe_offsets.update(range(int(start) + 1, int(end)))
+    tagged: list[tuple[str, str, int, int]] = []
+    cursor = 0
+    for token in _JIEBA_POS_TOKENIZER.cut(text, HMM=False):
+        word = str(token.word)
+        start = cursor
+        end = start + len(word)
+        tagged.append((word, str(token.flag), start, end))
+        cursor = end
+    for index, (left, right) in enumerate(zip(tagged, tagged[1:])):
+        _left_word, left_flag, _left_start, boundary = left
+        _right_word, right_flag, _right_start, _right_end = right
+        following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
+        if (
+            left_flag in {"d", "df", "zg"}
+            and (right_flag.startswith("a") or right_flag.startswith("v"))
+        ):
+            # Degree/modal modifiers belong with what follows: 很|高、不要|吃。
+            unsafe_offsets.add(boundary)
+        elif left_flag.startswith("a") and right_flag.startswith("n"):
+            # Attribute + noun is one lexical phrase: 甜|蛋糕、软|面包。
+            unsafe_offsets.add(boundary)
+        elif (
+            left_flag.startswith("v")
+            and right_flag.startswith("a")
+            and not following_flag.startswith("n")
+        ):
+            # Predicate/state complements belong together: 呼吸|急促。
+            # An adjective followed by a noun instead begins an object phrase,
+            # so `吃|甜蛋糕` remains a good legal break.
+            unsafe_offsets.add(boundary)
+        elif left_flag.startswith("m") and (
+            right_flag.startswith("a")
+            or right_flag.startswith("n")
+            or right_flag.startswith("q")
+        ):
+            # Numeric/quantified modifiers must not be stranded: 五种|好食物。
+            unsafe_offsets.add(boundary)
     for term in _unbreakable_terms():
         cursor = 0
         while True:
@@ -577,10 +625,7 @@ def _unsafe_break_offsets(text: str) -> set[int]:
         # boundary value means "before text[boundary]"; checking both adjacent
         # characters avoids the former off-by-one that incorrectly protected
         # `，|管得` instead of `管|得`.
-        if (
-            text[boundary] in _STRUCTURAL_PARTICLES
-            or text[boundary - 1] in _STRUCTURAL_PARTICLES
-        ):
+        if text[boundary] in _STRUCTURAL_PARTICLES:
             unsafe_offsets.add(boundary)
     return unsafe_offsets
 
@@ -759,23 +804,26 @@ def _split_one_line(
                 preferred_term_ends.add(term_end)
             cursor = position + 1
 
-    # Use a whole-sentence optimum instead of greedily preferring the first
-    # punctuation seen in each window.  The greedy version could turn the
-    # beginning of the next window into an orphan such as ``糖，``.
+    # Use a whole-sentence optimum so punctuation and grammar can be considered
+    # together. Width is only a hard ceiling: it must never reward filling or
+    # balancing lines, because that can create unnatural breaks such as
+    # `很|高` merely to make two captions similar in length.
     length = len(normalized)
     widths = [0.0]
     for character in normalized:
         widths.append(widths[-1] + metrics.text_width_em(character))
 
-    scores = [float("inf")] * (length + 1)
+    caption_counts = [length + 1] * (length + 1)
+    quality_scores = [float("inf")] * (length + 1)
     previous: list[int | None] = [None] * (length + 1)
-    scores[0] = 0.0
+    caption_counts[0] = 0
+    quality_scores[0] = 0.0
     for end in range(1, length + 1):
         for start in range(end - 1, -1, -1):
             width = widths[end] - widths[start]
             if width > maximum_width_em:
                 break
-            if scores[start] == float("inf"):
+            if quality_scores[start] == float("inf"):
                 continue
             chunk = normalized[start:end].strip()
             if not chunk:
@@ -793,8 +841,11 @@ def _split_one_line(
             ):
                 continue
             core_length = len(chunk)
-            fill_ratio = width / maximum_width_em
-            score = scores[start] + (1.0 - fill_ratio) ** 2
+            # Minimize the necessary caption count first. For plans with that
+            # same count, compare only semantic and grammatical break quality;
+            # unused width is deliberately absent from both values.
+            candidate_count = caption_counts[start] + 1
+            score = quality_scores[start]
             if core_length < 4:
                 score += (4 - core_length) * 8.0
             if end < length:
@@ -809,7 +860,7 @@ def _split_one_line(
                 if end in connector_ends or chunk.endswith(_LEADING_CONNECTORS):
                     score += 4.0
                 if chunk.endswith(_ORPHAN_PARTICLES):
-                    score += 10.0
+                    score += 1.5
                 if chunk.endswith(_BAD_LINE_ENDINGS):
                     score += 12.0
                 next_text = normalized[end:]
@@ -822,8 +873,12 @@ def _split_one_line(
                     score += 4.0
             if start > 0 and chunk.startswith(_ORPHAN_PARTICLES):
                 score += 10.0
-            if score < scores[end]:
-                scores[end] = score
+            if (candidate_count, score) < (
+                caption_counts[end],
+                quality_scores[end],
+            ):
+                caption_counts[end] = candidate_count
+                quality_scores[end] = score
                 previous[end] = start
 
     if previous[length] is None:

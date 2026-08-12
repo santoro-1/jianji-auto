@@ -60,12 +60,32 @@ class CaptionRenderContractTest(unittest.TestCase):
         self.assertEqual(style["strokes"][0]["content"]["solid"]["color"], [0, 0, 0])
         self.assertEqual(style["strokes"][0]["width"], 0.06)
 
-    def test_balanced_split_does_not_create_orphan_punctuation_phrase(self) -> None:
+    def test_width_limited_split_does_not_create_orphan_punctuation_phrase(self) -> None:
         text = "一部分糖原就在血液循环成为血糖，另外一部分就叫到肌肉和肝脏成为肌糖原和肝糖原。"
         chunks = _split_one_line(text, _UnitWidthMetrics(), maximum_width_em=14)
         self.assertEqual("".join(chunks), "一部分糖原就在血液循环成为血糖另外一部分就叫到肌肉和肝脏成为肌糖原和肝糖原")
         self.assertTrue(all(not any(symbol in chunk for symbol in "，。！？；：、") for chunk in chunks))
         self.assertTrue(all(len(chunk) >= 4 for chunk in chunks))
+
+    def test_width_limit_does_not_balance_by_splitting_modifiers(self) -> None:
+        metrics = _UnitWidthMetrics()
+
+        self.assertEqual(
+            _split_one_line(
+                "蛋白质很高的五种好食物",
+                metrics,
+                maximum_width_em=10.21,
+            ),
+            ["蛋白质很高的", "五种好食物"],
+        )
+        self.assertEqual(
+            _split_one_line(
+                "再也不要吃甜蛋糕软面包了",
+                metrics,
+                maximum_width_em=10.21,
+            ),
+            ["再也不要吃", "甜蛋糕软面包了"],
+        )
 
     def test_connector_moves_to_next_caption_and_display_hides_punctuation(self) -> None:
         text = "而肝糖原没被利用完的话，那么一部分糖原就会转化成脂肪。那么这些脂肪又怎么排出去呢？"
