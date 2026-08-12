@@ -69,6 +69,38 @@ def _normalized_execution_account_ids(
     return sorted(value)
 
 
+def _normalized_execution_mode(value: str | None) -> str | None:
+    if value is None:
+        return None
+    clean = str(value).strip()
+    if clean not in {"same_account_v1", "dual_pool_v1"}:
+        raise ValueError("RunningHub 执行模式不合法")
+    return clean
+
+
+def _normalized_seedvr2_account_ids(value: list[int] | None) -> list[int] | None:
+    if value is None:
+        return None
+    if (
+        not value
+        or any(type(value_id) is not int or value_id <= 0 for value_id in value)
+        or len(set(value)) != len(value)
+    ):
+        raise ValueError("SeedVR2 执行账号 ID 必须是非空且不重复的正整数列表")
+    return sorted(value)
+
+
+def _execution_modes_match(stored: object, requested: str | None) -> bool:
+    """Treat pre-upgrade missing mode as the frozen same-account branch."""
+
+    if stored == requested:
+        return True
+    return stored in {None, "same_account_v1"} and requested in {
+        None,
+        "same_account_v1",
+    }
+
+
 class ProjectCompositionStartDispatcher:
     """Bounded in-process executor backed by durable per-row operations.
 
@@ -183,6 +215,8 @@ class ProjectCompositionCoordinator:
         idempotency_key: str,
         resolution: str = "1024",
         runninghub_execution_account_ids: list[int] | None = None,
+        seedvr2_execution_account_ids: list[int] | None = None,
+        execution_mode: str | None = None,
         item_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
@@ -232,6 +266,19 @@ class ProjectCompositionCoordinator:
         selected_account_ids = _normalized_execution_account_ids(
             runninghub_execution_account_ids
         )
+        selected_seedvr2_account_ids = _normalized_seedvr2_account_ids(
+            seedvr2_execution_account_ids
+        )
+        selected_execution_mode = _normalized_execution_mode(execution_mode)
+        if selected_execution_mode == "dual_pool_v1" and (
+            selected_account_ids is None or selected_seedvr2_account_ids is None
+        ):
+            raise ValueError("双资源池模式必须分别选择数字人和 SeedVR2 执行账号")
+        if (
+            selected_execution_mode == "same_account_v1"
+            and selected_seedvr2_account_ids is not None
+        ):
+            raise ValueError("同账号模式不能提交独立 SeedVR2 执行账号")
         for existing in project.get("operations", []):
             if (
                 existing.get("operation_type") == "COMPOSITION_GENERATE"
@@ -240,6 +287,13 @@ class ProjectCompositionCoordinator:
                     existing.get("payload", {}).get(
                         "runninghub_execution_account_ids"
                     ) != selected_account_ids
+                    or existing.get("payload", {}).get(
+                        "seedvr2_execution_account_ids"
+                    ) != selected_seedvr2_account_ids
+                    or not _execution_modes_match(
+                        existing.get("payload", {}).get("execution_mode"),
+                        selected_execution_mode,
+                    )
                     or str(existing.get("payload", {}).get("resolution") or "1024")
                     != clean_resolution
                 )
@@ -295,6 +349,8 @@ class ProjectCompositionCoordinator:
                 ),
                 "resolution": clean_resolution,
                 "runninghub_execution_account_ids": selected_account_ids,
+                "seedvr2_execution_account_ids": selected_seedvr2_account_ids,
+                "execution_mode": selected_execution_mode,
             }
             if not backfill_seedvr2:
                 operation_payload.update(
@@ -317,6 +373,19 @@ class ProjectCompositionCoordinator:
             ) != selected_account_ids:
                 raise ValueError(
                     "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
+                )
+            if operation.get("payload", {}).get(
+                "seedvr2_execution_account_ids"
+            ) != selected_seedvr2_account_ids:
+                raise ValueError(
+                    "该画面生成操作的 SeedVR2 执行账号快照已锁定，不能修改"
+                )
+            if not _execution_modes_match(
+                operation.get("payload", {}).get("execution_mode"),
+                selected_execution_mode,
+            ):
+                raise ValueError(
+                    "该画面生成操作的 RunningHub 执行模式快照已锁定，不能修改"
                 )
             if (
                 not backfill_seedvr2
@@ -363,6 +432,12 @@ class ProjectCompositionCoordinator:
             resolution = str(payload.get("resolution") or "1024")
             selected_account_ids = _normalized_execution_account_ids(
                 payload.get("runninghub_execution_account_ids")
+            )
+            selected_seedvr2_account_ids = _normalized_seedvr2_account_ids(
+                payload.get("seedvr2_execution_account_ids")
+            )
+            selected_execution_mode = _normalized_execution_mode(
+                payload.get("execution_mode")
             )
             if not batch_id or not remote_item_id:
                 raise ValueError("画面启动操作缺少云端声音任务关联")
@@ -414,8 +489,20 @@ class ProjectCompositionCoordinator:
                     resolution=resolution,
                     correlation_id=str(operation.get("correlation_id") or ""),
                     runninghub_execution_account_ids=selected_account_ids,
+                    seedvr2_execution_account_ids=selected_seedvr2_account_ids,
                 )
             composition = remote.get("composition", {})
+            authoritative_mode = _normalized_execution_mode(
+                composition.get("execution_mode")
+            )
+            if (
+                selected_execution_mode is not None
+                and authoritative_mode is not None
+                and selected_execution_mode != authoritative_mode
+            ):
+                raise ValueError(
+                    "云端锁定的 RunningHub 执行模式与本地费用确认快照不一致"
+                )
             remote_status = str(
                 composition.get("status") or "COMPOSITION_QUEUED"
             )
@@ -440,6 +527,8 @@ class ProjectCompositionCoordinator:
                     "input_image_sha256": image_sha256,
                     "seedvr2_backfill_only": backfill_seedvr2,
                     "runninghub_execution_account_ids": selected_account_ids,
+                    "seedvr2_execution_account_ids": selected_seedvr2_account_ids,
+                    "execution_mode": authoritative_mode or selected_execution_mode,
                 },
             )
         except AuthCenterError as exc:

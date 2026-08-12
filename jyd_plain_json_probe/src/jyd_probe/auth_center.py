@@ -183,6 +183,7 @@ class AuthCenterClient:
         resolution: str = "1024",
         correlation_id: str = "",
         runninghub_execution_account_ids: list[int] | None = None,
+        seedvr2_execution_account_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "access_token": token,
@@ -196,6 +197,10 @@ class AuthCenterClient:
         if runninghub_execution_account_ids is not None:
             payload["runninghub_execution_account_ids"] = list(
                 runninghub_execution_account_ids
+            )
+        if seedvr2_execution_account_ids is not None:
+            payload["seedvr2_execution_account_ids"] = list(
+                seedvr2_execution_account_ids
             )
         return self._post(
             f"/api/workbench/audio-batches/{batch_id}/items/{item_id}/composition",
@@ -221,6 +226,12 @@ class AuthCenterClient:
     def list_workbench_execution_accounts(self, token: str) -> dict[str, Any]:
         return self._post(
             "/api/workbench/runninghub-execution-accounts",
+            {"access_token": token},
+        )
+
+    def list_workbench_dual_pool_accounts(self, token: str) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/runninghub-dual-pool-accounts",
             {"access_token": token},
         )
 

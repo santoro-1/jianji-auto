@@ -400,6 +400,16 @@ data/template_library/<template_id>/
 - 本地必须在云端接受请求后才把操作改为 `RUNNING`。远端返回 4xx/5xx 或抛出异常时，应立即把
   刚创建的操作改为 `FAILED/COMPOSITION_FAILED`，避免页面永久显示“完整成片生成中”。
 
+### 7.3 RunningHub 双池费用确认与本地快照
+
+- `/api/new/runninghub-execution-accounts` 只代理云端安全摘要。`same_account_v1` 沿用一组数字人
+  ID；`dual_pool_v1` 必须同时展示并提交数字人、SeedVR2 两组非空内部 ID，不得接收或落盘 Key。
+- `ProjectCompositionCoordinator` 在每个 `COMPOSITION_GENERATE` 操作中冻结 `execution_mode`、
+  `runninghub_execution_account_ids` 和 `seedvr2_execution_account_ids`。同一幂等键改变任一项均
+  拒绝；升级前缺少模式字段的操作按 `same_account_v1` 继续恢复。
+- HTTP 请求只创建持久化 `PENDING` 行并快速返回，后台线程逐行交接。云端响应的权威模式若与
+  本地快照不一致，该行失败；不得静默切分支或重提。重启恢复继续使用原两组快照和行级幂等键。
+
 ## 8. API 与状态存储
 
 开发时以 FastAPI 自动文档 `/docs` 为当前接口事实来源，专题说明见 `docs/WEB_API.md`。

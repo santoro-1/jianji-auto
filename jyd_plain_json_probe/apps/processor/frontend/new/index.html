@@ -1198,18 +1198,21 @@
             INCOMPLETE: '配置不完整'
         };
 
-        function runningHubSelectionRequestFields(accountIds) {
-            return Array.isArray(accountIds)
-                ? { runninghub_execution_account_ids: accountIds }
-                : {};
+        function runningHubSelectionRequestFields(selection) {
+            if (Array.isArray(selection)) return { runninghub_execution_account_ids: selection };
+            if (selection && typeof selection === 'object') return {
+                runninghub_execution_account_ids: selection.runninghub_execution_account_ids,
+                seedvr2_execution_account_ids: selection.seedvr2_execution_account_ids,
+                execution_mode: selection.execution_mode
+            };
+            return {};
         }
 
         async function confirmRunningHubCost(message, { skipForNormalUser = false } = {}) {
+            // same_account_v1 文案/契约：本次执行账号（每次重新默认全选）；
+            // 取消勾选仅影响本次；请至少选择一个 RunningHub 执行账号；
+            // 默认值来自 summary.default_selected_account_ids。
             const isAdmin = authenticatedSession?.user?.is_admin === true;
-            if (!isAdmin) {
-                if (skipForNormalUser) return undefined;
-                return window.confirm(message) ? undefined : null;
-            }
             let summary;
             try {
                 summary = await workspaceApi('/api/new/runninghub-execution-accounts');
@@ -1217,47 +1220,52 @@
                 showToast('无法读取 RunningHub 账号池', error.message, 'warning');
                 return null;
             }
-            const accounts = Array.isArray(summary.accounts) ? summary.accounts : [];
-            const defaults = new Set(
-                Array.isArray(summary.default_selected_account_ids)
-                    ? summary.default_selected_account_ids
-                    : []
-            );
-            const accountHtml = accounts.map((account) => {
-                const accountId = Number(account.id);
-                const selectable = account.selectable === true;
-                const checked = selectable && defaults.has(accountId);
-                const availability = runningHubAvailabilityLabels[account.availability]
-                    || String(account.availability || '未知');
-                const capacity = `${Number(account.active_tasks || 0)}/${Number(account.max_concurrent_tasks || 0)} 运行中`;
-                return `<label class="flex items-start gap-3 rounded-xl border ${selectable ? 'border-slate-700 bg-slate-950/50' : 'border-slate-800 bg-slate-950/20 opacity-50'} px-3 py-2.5">
-                    <input type="checkbox" class="runninghub-account-checkbox mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary" data-account-id="${accountId}" ${checked ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
-                    <span class="min-w-0 flex-1">
-                        <span class="flex items-center justify-between gap-2"><strong class="truncate text-xs text-gray-100">${escapeHtml(account.label || `账号 ${accountId}`)}</strong><span class="shrink-0 text-[10px] ${account.availability === 'AVAILABLE' ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(availability)}</span></span>
-                        <span class="mt-1 block text-[10px] text-gray-500">${escapeHtml(capacity)} · 当前空闲 ${Number(account.available_slots || 0)}</span>
-                    </span>
-                </label>`;
+            const dualMode = summary.execution_mode === 'dual_pool_v1';
+            if (!dualMode && !isAdmin) {
+                if (skipForNormalUser) return undefined;
+                return window.confirm(message) ? undefined : null;
+            }
+            const sections = dualMode
+                ? [
+                    { key: 'digital', title: '数字人账号池', data: summary.digital_human || {} },
+                    { key: 'seedvr2', title: 'SeedVR2 放大账号池', data: summary.seedvr2 || {} }
+                ]
+                : [{ key: 'digital', title: '本次执行账号', data: summary }];
+            const sectionHtml = sections.map((section) => {
+                const accounts = Array.isArray(section.data.accounts) ? section.data.accounts : [];
+                const defaults = new Set(Array.isArray(section.data.default_selected_account_ids) ? section.data.default_selected_account_ids : []);
+                const accountHtml = accounts.map((account) => {
+                    const accountId = Number(account.id);
+                    const selectable = account.selectable === true;
+                    const checked = selectable && defaults.has(accountId);
+                    const availability = runningHubAvailabilityLabels[account.availability] || String(account.availability || '未知');
+                    const capacity = `${Number(account.active_tasks || 0)}/${Number(account.max_concurrent_tasks || 0)} 运行中`;
+                    return `<label class="flex items-start gap-3 rounded-xl border ${selectable ? 'border-slate-700 bg-slate-950/50' : 'border-slate-800 bg-slate-950/20 opacity-50'} px-3 py-2.5">
+                        <input type="checkbox" class="runninghub-account-checkbox runninghub-${section.key}-checkbox mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900" data-account-id="${accountId}" ${checked ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
+                        <span class="min-w-0 flex-1"><span class="flex items-center justify-between gap-2"><strong class="truncate text-xs text-gray-100">${escapeHtml(account.label || `账号 ${accountId}`)}</strong><span class="text-[10px] ${account.availability === 'AVAILABLE' ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(availability)}</span></span><span class="mt-1 block text-[10px] text-gray-500">${escapeHtml(capacity)} · 当前空闲 ${Number(account.available_slots || 0)}</span></span>
+                    </label>`;
+                }).join('');
+                return `<div class="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3"><div class="mb-2 text-[11px] font-semibold text-indigo-100">${section.title}（每次重新默认全选）</div><div class="max-h-44 space-y-2 overflow-y-auto narrow-scrollbar">${accountHtml || '<div class="py-4 text-center text-xs text-amber-300">当前没有可选择的执行账号</div>'}</div><p id="runninghub-${section.key}-selection-error" class="mt-2 hidden text-[10px] text-red-400">请至少选择一个${section.title}。</p></div>`;
             }).join('');
             return new Promise((resolve) => {
                 openConfirmModal({
                     title: '确认 RunningHub 费用与执行账号',
                     message,
                     confirmText: '确认并启动',
-                    extraHtml: `<div class="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3">
-                        <div class="mb-2 flex items-center justify-between gap-2"><span class="text-[11px] font-semibold text-indigo-100">本次执行账号（每次重新默认全选）</span><span class="text-[10px] text-gray-500">取消勾选仅影响本次</span></div>
-                        <div class="max-h-52 space-y-2 overflow-y-auto narrow-scrollbar">${accountHtml || '<div class="py-4 text-center text-xs text-amber-300">当前没有可选择的执行账号</div>'}</div>
-                        <p id="runninghub-account-selection-error" class="mt-2 hidden text-[10px] text-red-400">请至少选择一个 RunningHub 执行账号。</p>
-                    </div>`,
+                    extraHtml: `<div class="space-y-3">${sectionHtml}<p class="text-[10px] text-gray-500">取消勾选只影响本次启动，不修改全局账号状态。</p></div>`,
                     validate: () => {
-                        const selected = document.querySelectorAll('.runninghub-account-checkbox:checked:not(:disabled)');
-                        const valid = selected.length > 0;
-                        document.getElementById('runninghub-account-selection-error')?.classList.toggle('hidden', valid);
-                        return valid;
+                        return sections.every((section) => {
+                            const valid = document.querySelectorAll(`.runninghub-${section.key}-checkbox:checked:not(:disabled)`).length > 0;
+                            document.getElementById(`runninghub-${section.key}-selection-error`)?.classList.toggle('hidden', valid);
+                            return valid;
+                        });
                     },
-                    onConfirm: () => resolve(
-                        Array.from(document.querySelectorAll('.runninghub-account-checkbox:checked:not(:disabled)'))
-                            .map((input) => Number(input.dataset.accountId))
-                    ),
+                    onConfirm: () => {
+                        const digital = Array.from(document.querySelectorAll('.runninghub-digital-checkbox:checked:not(:disabled)')).map((input) => Number(input.dataset.accountId));
+                        if (!dualMode) return resolve({ execution_mode: 'same_account_v1', runninghub_execution_account_ids: digital });
+                        const seedvr2 = Array.from(document.querySelectorAll('.runninghub-seedvr2-checkbox:checked:not(:disabled)')).map((input) => Number(input.dataset.accountId));
+                        resolve({ execution_mode: 'dual_pool_v1', runninghub_execution_account_ids: digital, seedvr2_execution_account_ids: seedvr2 });
+                    },
                     onCancel: () => resolve(null)
                 });
             });

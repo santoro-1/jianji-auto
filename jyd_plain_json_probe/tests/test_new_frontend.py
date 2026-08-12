@@ -461,6 +461,10 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("取消勾选仅影响本次", workspace)
         self.assertIn("请至少选择一个 RunningHub 执行账号", workspace)
         self.assertIn("summary.default_selected_account_ids", workspace)
+        self.assertIn("数字人账号池", workspace)
+        self.assertIn("SeedVR2 放大账号池", workspace)
+        self.assertIn("seedvr2_execution_account_ids", workspace)
+        self.assertIn("execution_mode: 'dual_pool_v1'", workspace)
         self.assertEqual(
             workspace.count(
                 "...runningHubSelectionRequestFields(selectedRunningHubAccountIds)"

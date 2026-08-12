@@ -291,15 +291,19 @@ GET  /api/new/runninghub-execution-accounts
 `DIGITAL_HUMAN_RUNNING`、`VIDEO_ENHANCING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
 `COMPOSITION_FAILED`。
 
-管理员首次启动还必须提交非空 `runninghub_execution_account_ids: number[]`。页面每次费用
-确认通过 `GET /api/new/runninghub-execution-accounts` 读取安全摘要并按
-`default_selected_account_ids` 重新默认全选；摘要只含内部 ID、备注名称、健康/冷却/启用、
-运行数和容量，不含 API Key、指纹、Base URL 或 AI App ID。普通用户禁止提交该字段并继续
-使用自己的单 RunningHub 账号。失败阶段重试和 SeedVR2 补跑不重新选号。
+`GET /api/new/runninghub-execution-accounts` 返回云端权威模式。`same_account_v1` 保持原单池
+摘要和非空 `runninghub_execution_account_ids: number[]`；`dual_pool_v1` 返回
+`digital_human`、`seedvr2` 两组安全摘要，首次启动必须同时提交非空
+`runninghub_execution_account_ids`、`seedvr2_execution_account_ids`，并把
+`execution_mode: "dual_pool_v1"` 冻结在本地持久化操作中。两组按各自
+`default_selected_account_ids` 每次重新默认全选。摘要只含内部 ID、名称、健康/冷却/启用、
+运行数和容量，不含 API Key、指纹、Base URL 或 App ID。云端仍重新判权和决定模式；工作台
+不会把本地模式字段作为云端授权开关。普通用户继续自己的单账号，受控非管理员只有云端明确
+授权才会收到双池摘要。失败阶段重试和 SeedVR2 补跑不重新选择或修改快照。
 
 `composition/generate` 只同步校验并为目标行创建持久化 `COMPOSITION_GENERATE/PENDING`
-操作，然后快速返回。每行快照保存声音批次、远程行、图片资产 ID及 SHA-256、分辨率、账号
-ID范围和稳定 `请求幂等键:行 ID`。最多 4 个后台线程原子执行
+操作，然后快速返回。每行快照保存声音批次、远程行、图片资产 ID及 SHA-256、分辨率、执行
+模式、两组账号 ID范围和稳定 `请求幂等键:行 ID`。最多 4 个后台线程原子执行
 `PENDING -> STARTING -> RUNNING` 的图片上传和云端交接；`RUNNING` 才表示云端已接受。
 单行失败不阻断其余行；进程启动把中断的 `STARTING` 恢复为 `PENDING`，下一次携带有效登录
 Cookie 的状态请求按原幂等键继续。已经 `RUNNING` 的付费任务不得退回重提。

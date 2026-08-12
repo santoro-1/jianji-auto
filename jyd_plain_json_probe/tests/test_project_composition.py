@@ -191,6 +191,115 @@ class ProjectCompositionApiTest(unittest.TestCase):
             item_ids=["item-2"],
         )
 
+    def test_dual_pool_mode_and_both_account_snapshots_are_immutable(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        image_path = self.settings.storage_root / "dual-pool-person.png"
+        image_path.write_bytes(b"dual-pool-image")
+        image_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+        project = {
+            "allowed_actions": {"start_composition": True},
+            "operations": [],
+            "items": [
+                {
+                    "item_id": "dual-item-1",
+                    "row_key": "1",
+                    "settings": {},
+                    "outputs": {},
+                    "inputs": {
+                        "image": {
+                            "asset_id": "dual-image-1",
+                            "managed_path": str(image_path),
+                            "metadata": {"sha256": image_sha256},
+                        }
+                    },
+                }
+            ],
+            "links": [
+                {
+                    "system": "runninghub",
+                    "relation": "digital_human_audio_item",
+                    "item_id": "dual-item-1",
+                    "external_id": "remote-dual-item-1",
+                    "metadata": {"batch_id": "remote-dual-batch-1"},
+                }
+            ],
+        }
+        store = MagicMock()
+        store.get_project.return_value = project
+
+        def create_operation(**kwargs):
+            operation = {
+                "operation_id": "dual-operation-1",
+                "operation_type": kwargs["operation_type"],
+                "idempotency_key": kwargs["idempotency_key"],
+                "payload": kwargs["payload"],
+            }
+            project["operations"] = [operation]
+            return operation
+
+        store.create_operation.side_effect = create_operation
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            MagicMock(),
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+        with self.assertRaisesRegex(ValueError, "必须分别选择"):
+            coordinator.start(
+                "dual-user",
+                "dual-project",
+                "token",
+                idempotency_key="dual-operation-missing-seed",
+                runninghub_execution_account_ids=[11],
+                execution_mode="dual_pool_v1",
+            )
+        coordinator.start(
+            "dual-user",
+            "dual-project",
+            "token",
+            idempotency_key="dual-operation-key",
+            runninghub_execution_account_ids=[22, 11],
+            seedvr2_execution_account_ids=[42, 31],
+            execution_mode="dual_pool_v1",
+        )
+        payload = store.create_operation.call_args.kwargs["payload"]
+        self.assertEqual(payload["runninghub_execution_account_ids"], [11, 22])
+        self.assertEqual(payload["seedvr2_execution_account_ids"], [31, 42])
+        self.assertEqual(payload["execution_mode"], "dual_pool_v1")
+
+        with self.assertRaisesRegex(ValueError, "快照已锁定"):
+            coordinator.start(
+                "dual-user",
+                "dual-project",
+                "token",
+                idempotency_key="dual-operation-key",
+                runninghub_execution_account_ids=[11, 22],
+                seedvr2_execution_account_ids=[31],
+                execution_mode="dual_pool_v1",
+            )
+
+        project["operations"] = [
+            {
+                "operation_id": "legacy-same-account-operation",
+                "operation_type": "COMPOSITION_GENERATE",
+                "idempotency_key": "legacy-same-account-key",
+                "payload": {
+                    "resolution": "1024",
+                    "runninghub_execution_account_ids": [11, 22],
+                    "seedvr2_execution_account_ids": None,
+                },
+            }
+        ]
+        coordinator.start(
+            "dual-user",
+            "dual-project",
+            "token",
+            idempotency_key="legacy-same-account-key",
+            runninghub_execution_account_ids=[22, 11],
+            execution_mode="same_account_v1",
+        )
+
     def test_generate_downloads_original_segments_and_base_video_only(self) -> None:
         user = {
             "user_id": "composition-user",

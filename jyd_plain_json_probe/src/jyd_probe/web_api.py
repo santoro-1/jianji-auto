@@ -3298,14 +3298,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         request: Request,
     ) -> dict[str, Any]:
         user = current_project_user(request)
-        if user.get("is_admin") is not True:
-            raise HTTPException(
-                status_code=403,
-                detail="只有管理员可以查看 RunningHub 执行账号资源池",
-            )
         client, token = digital_human_access(request)
         try:
-            return client.list_workbench_execution_accounts(token)
+            if user.get("is_admin") is True:
+                return client.list_workbench_execution_accounts(token)
+            return client.list_workbench_dual_pool_accounts(token)
         except AuthCenterError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
@@ -3332,6 +3329,14 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="脚本行 ID 必须是非空且不重复的字符串列表")
         selection_provided = "runninghub_execution_account_ids" in payload
         selected_account_ids = payload.get("runninghub_execution_account_ids")
+        seed_selection_provided = "seedvr2_execution_account_ids" in payload
+        selected_seedvr2_account_ids = payload.get("seedvr2_execution_account_ids")
+        requested_execution_mode = payload.get("execution_mode")
+        if requested_execution_mode is not None and requested_execution_mode not in {
+            "same_account_v1",
+            "dual_pool_v1",
+        }:
+            raise HTTPException(status_code=422, detail="RunningHub 执行模式不合法")
         if selection_provided and (
             not isinstance(selected_account_ids, list)
             or not selected_account_ids
@@ -3350,11 +3355,13 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 status_code=422,
                 detail="管理员画面生成必须至少选择一个 RunningHub 执行账号",
             )
-        if user.get("is_admin") is not True and selection_provided:
-            raise HTTPException(
-                status_code=403,
-                detail="普通用户不能指定 RunningHub 执行账号资源池",
-            )
+        if seed_selection_provided and (
+            not isinstance(selected_seedvr2_account_ids, list)
+            or not selected_seedvr2_account_ids
+            or any(type(account_id) is not int or account_id <= 0 for account_id in selected_seedvr2_account_ids)
+            or len(set(selected_seedvr2_account_ids)) != len(selected_seedvr2_account_ids)
+        ):
+            raise HTTPException(status_code=422, detail="SeedVR2 执行账号 ID 必须是非空且不重复的正整数列表")
         try:
             coordinator = project_composition_coordinator(client)
             project = coordinator.start(
@@ -3365,6 +3372,14 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 resolution=str(payload.get("resolution") or "1024"),
                 runninghub_execution_account_ids=(
                     list(selected_account_ids) if selection_provided else None
+                ),
+                seedvr2_execution_account_ids=(
+                    list(selected_seedvr2_account_ids) if seed_selection_provided else None
+                ),
+                execution_mode=(
+                    str(requested_execution_mode)
+                    if requested_execution_mode is not None
+                    else None
                 ),
                 item_ids=list(item_ids) if item_ids is not None else None,
             )

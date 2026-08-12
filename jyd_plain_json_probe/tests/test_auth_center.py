@@ -136,6 +136,27 @@ class AuthCenterTest(unittest.TestCase):
         )
         self.assertEqual(result, summary)
 
+        dual_summary = {
+            "schema": "runninghub.workbench-dual-pool.v1",
+            "execution_mode": "dual_pool_v1",
+            "digital_human": {"accounts": [{"id": 11}]},
+            "seedvr2": {"accounts": [{"id": 31}]},
+        }
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response(dual_summary),
+        ) as request_mock:
+            result = AuthCenterClient(
+                "http://127.0.0.1:8000"
+            ).list_workbench_dual_pool_accounts("center-token")
+        request = request_mock.call_args.args[0]
+        self.assertTrue(
+            request.full_url.endswith(
+                "/api/workbench/runninghub-dual-pool-accounts"
+            )
+        )
+        self.assertEqual(result, dual_summary)
+
         with patch(
             "jyd_probe.auth_center.urlopen",
             return_value=_Response({"composition": {"status": "COMPOSITION_QUEUED"}}),
@@ -148,10 +169,12 @@ class AuthCenterTest(unittest.TestCase):
                 image_asset_id="image-1",
                 image_sha256="a" * 64,
                 runninghub_execution_account_ids=[11, 22],
+                seedvr2_execution_account_ids=[31, 32],
             )
         request = request_mock.call_args.args[0]
         submitted = json.loads(request.data.decode("utf-8"))
         self.assertEqual(submitted["runninghub_execution_account_ids"], [11, 22])
+        self.assertEqual(submitted["seedvr2_execution_account_ids"], [31, 32])
         self.assertEqual(submitted["image_sha256"], "a" * 64)
         self.assertNotIn("api_key", submitted)
         self.assertNotIn("base_url", submitted)
