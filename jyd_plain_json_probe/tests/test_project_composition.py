@@ -399,6 +399,20 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 "status": "BASE_VIDEO_READY",
                 "segment_count": 1,
                 "base_video_ready": True,
+                "execution_mode": "same_account_v1",
+                "execution_assignments": [
+                    {
+                        "segment_index": 1,
+                        "digital_human": {
+                            "status": "SUCCESS",
+                            "account": {"id": 11, "label": "测试一号"},
+                        },
+                        "seedvr2": {
+                            "status": "SUCCESS",
+                            "account": {"id": 11, "label": "测试一号"},
+                        },
+                    }
+                ],
                 "image_sha256": hashlib.sha256(
                     replacement_path.read_bytes()
                 ).hexdigest(),
@@ -561,6 +575,15 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     [11, 22],
                 )
                 self.assertEqual(operation["payload"]["resolution"], "2048")
+                self.assertEqual(
+                    operation["result"]["execution_mode"], "same_account_v1"
+                )
+                self.assertEqual(
+                    operation["result"]["execution_assignments"][0][
+                        "digital_human"
+                    ]["account"]["label"],
+                    "测试一号",
+                )
 
                 synced = client.get(
                     f"/api/new/projects/{project['project_id']}/composition/status"

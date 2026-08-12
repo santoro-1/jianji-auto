@@ -412,6 +412,9 @@ data/template_library/<template_id>/
   拒绝；升级前缺少模式字段的操作按 `same_account_v1` 继续恢复。
 - HTTP 请求只创建持久化 `PENDING` 行并快速返回，后台线程逐行交接。云端响应的权威模式若与
   本地快照不一致，该行失败；不得静默切分支或重提。重启恢复继续使用原两组快照和行级幂等键。
+- 费用确认显式显示当前“一控多/双池”。云端 `composition.execution_assignments` 的安全逐分段
+  摘要在启动与每次轮询时复制到 `COMPOSITION_GENERATE.result`；表格据此显示实际账号，未预留
+  阶段显示“待分配”。账号名称仅用于操作定位，Key、指纹、Base URL 和 App ID 不进入本地。
 
 ## 8. API 与状态存储
 

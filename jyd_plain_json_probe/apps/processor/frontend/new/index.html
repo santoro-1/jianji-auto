@@ -1209,6 +1209,43 @@
             INCOMPLETE: '配置不完整'
         };
 
+        function runningHubModeLabel(mode) {
+            return mode === 'dual_pool_v1' ? '双池' : '一控多';
+        }
+
+        function runningHubExecutionSummary(operation) {
+            const result = operation?.result || {};
+            const mode = result.execution_mode;
+            if (!['same_account_v1', 'dual_pool_v1'].includes(mode)) return '';
+            const assignments = Array.isArray(result.execution_assignments)
+                ? result.execution_assignments
+                : [];
+            const modeLabel = runningHubModeLabel(mode);
+            const detailLines = assignments.length
+                ? assignments.map((assignment, index) => {
+                    const segment = Number(assignment?.segment_index) || index + 1;
+                    const digital = assignment?.digital_human?.account?.label || '待分配';
+                    if (mode === 'same_account_v1') {
+                        return `分段 ${segment}：${digital}（数字人 + 放大）`;
+                    }
+                    const seedvr2 = assignment?.seedvr2?.account?.label || '待分配';
+                    return `分段 ${segment}：数字人 ${digital} / 放大 ${seedvr2}`;
+                })
+                : ['等待云端分配实际执行账号'];
+            return `<div class="mt-2 max-w-48 rounded-lg border border-cyan-400/15 bg-cyan-400/5 px-2 py-1.5 text-left" title="${escapeHtml(detailLines.join('；'))}">
+                <div class="text-[8px] font-bold text-cyan-300">RunningHub · ${escapeHtml(modeLabel)}</div>
+                <div class="mt-0.5 max-h-12 overflow-y-auto whitespace-normal text-[8px] leading-4 text-slate-400 narrow-scrollbar">${detailLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}</div>
+            </div>`;
+        }
+
+        function refreshRunningHubExecutionSummaries() {
+            uploadedScripts.forEach((script) => {
+                const row = document.querySelector(`.table-data-row[data-id="${CSS.escape(script.id)}"]`);
+                const container = row?.querySelector('.row-runninghub-execution-summary');
+                if (container) container.innerHTML = runningHubExecutionSummary(script.compositionOperation);
+            });
+        }
+
         function runningHubSelectionRequestFields(selection) {
             if (Array.isArray(selection)) return { runninghub_execution_account_ids: selection };
             if (selection && typeof selection === 'object') return {
@@ -1232,6 +1269,7 @@
                 return null;
             }
             const dualMode = summary.execution_mode === 'dual_pool_v1';
+            const modeLabel = runningHubModeLabel(summary.execution_mode);
             const hasPoolAccess = isAdmin || summary.pool_access === true;
             if (!dualMode && !hasPoolAccess) {
                 if (skipForNormalUser) return undefined;
@@ -1261,10 +1299,10 @@
             }).join('');
             return new Promise((resolve) => {
                 openConfirmModal({
-                    title: '确认 RunningHub 费用与执行账号',
+                    title: `确认 RunningHub 费用与执行账号（${modeLabel}）`,
                     message,
                     confirmText: '确认并启动',
-                    extraHtml: `<div class="space-y-3">${sectionHtml}<p class="text-[10px] text-gray-500">取消勾选只影响本次启动，不修改全局账号状态。</p></div>`,
+                    extraHtml: `<div class="space-y-3"><div class="rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold text-cyan-200">当前执行模式：${modeLabel}${dualMode ? '（数字人与 SeedVR2 分别调度）' : '（同一账号完成数字人与 SeedVR2）'}</div>${sectionHtml}<p class="text-[10px] text-gray-500">取消勾选只影响本次启动，不修改全局账号状态。</p></div>`,
                     validate: () => {
                         return sections.every((section) => {
                             const valid = document.querySelectorAll(`.runninghub-${section.key}-checkbox:checked:not(:disabled)`).length > 0;
@@ -1536,9 +1574,13 @@
             const variantOperations = Array.isArray(project?.operations)
                 ? project.operations.filter(operation => ['VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY'].includes(operation.operation_type))
                 : [];
+            const compositionOperations = Array.isArray(project?.operations)
+                ? project.operations.filter(operation => operation.operation_type === 'COMPOSITION_GENERATE')
+                : [];
             uploadedScripts = Array.isArray(project?.items) ? project.items.map((item, itemIndex) => {
                 const variantOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
                 const variantGenerationOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id && operation.operation_type === 'VARIANT_GENERATE') || null;
+                const compositionOperation = [...compositionOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
                 return ({
                 id: item.item_id,
                 rowKey: item.row_key,
@@ -1556,6 +1598,7 @@
                 compositionVideo: item.outputs?.composition_video || null,
                 originalVideoSegments: item.outputs?.original_video_segments || [],
                 variants: item.outputs?.variants || [],
+                compositionOperation,
                 variantOperation,
                 variantGenerationOperation,
                 assetHistory: item.asset_history || {},
@@ -1613,6 +1656,7 @@
             } else {
                 // Status polling updates state and progress without rebuilding
                 // controls the user may be editing in another row.
+                refreshRunningHubExecutionSummaries();
                 updateCompositionProgress();
                 refreshAudioStageActions();
                 refreshVariantActionAvailability();
@@ -2310,6 +2354,7 @@
                 const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
                 const videoWasGenerated = Boolean(script.assetHistory?.base_video?.length || script.assetHistory?.composition_video?.length);
                 const canBackfillSeedvr2 = Boolean(script.allowedActions?.backfill_seedvr2);
+                const runningHubExecutionHtml = runningHubExecutionSummary(script.compositionOperation);
                 const videoActionText = videoCanReuse
                     ? '复用视频'
                     : (script.baseVideo
@@ -2454,6 +2499,7 @@
                                 ${browserPreviewReady ? '<button type="button" onclick="retryRowPostprocessPreview(this)" class="text-[9px] text-brand-accent hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>刷新动态预览</button>' : ''}
                                 ${canBackfillSeedvr2 ? '<button type="button" onclick="backfillRowSeedvr2(this)" class="text-[9px] text-cyan-300 hover:text-white transition-colors" title="复用已有数字人分段，仅补跑 SeedVR2 48G"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>补跑 SeedVR2 高清</button>' : ''}
                             </div>
+                            <div class="row-runninghub-execution-summary">${runningHubExecutionHtml}</div>
                         </div>
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">

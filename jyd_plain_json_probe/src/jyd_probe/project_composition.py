@@ -101,6 +101,18 @@ def _execution_modes_match(stored: object, requested: str | None) -> bool:
     }
 
 
+def _execution_runtime_fields(composition: dict[str, Any]) -> dict[str, Any]:
+    """Copy only the cloud's safe mode and per-segment account summaries."""
+
+    mode = _normalized_execution_mode(composition.get("execution_mode"))
+    raw_assignments = composition.get("execution_assignments")
+    assignments = raw_assignments if isinstance(raw_assignments, list) else []
+    return {
+        "execution_mode": mode,
+        "execution_assignments": assignments,
+    }
+
+
 class ProjectCompositionStartDispatcher:
     """Bounded in-process executor backed by durable per-row operations.
 
@@ -529,6 +541,11 @@ class ProjectCompositionCoordinator:
                     "runninghub_execution_account_ids": selected_account_ids,
                     "seedvr2_execution_account_ids": selected_seedvr2_account_ids,
                     "execution_mode": authoritative_mode or selected_execution_mode,
+                    "execution_assignments": (
+                        composition.get("execution_assignments")
+                        if isinstance(composition.get("execution_assignments"), list)
+                        else []
+                    ),
                 },
             )
         except AuthCenterError as exc:
@@ -648,6 +665,7 @@ class ProjectCompositionCoordinator:
                         "remote_item_id": remote_item_id,
                         "remote_status": remote_status,
                         "segment_count": int(composition.get("segment_count") or 0),
+                        **_execution_runtime_fields(composition),
                     },
                 )
             elif remote_status == "COMPOSITION_FAILED":
@@ -658,7 +676,10 @@ class ProjectCompositionCoordinator:
                     operation_type="COMPOSITION_GENERATE",
                     status="FAILED",
                     item_status="COMPOSITION_FAILED",
-                    result={"remote_item_id": remote_item_id},
+                    result={
+                        "remote_item_id": remote_item_id,
+                        **_execution_runtime_fields(composition),
+                    },
                     error_code="REMOTE_COMPOSITION_FAILED",
                     error_message=str(
                         composition.get("error_message") or "数字人画面生成失败"
@@ -676,6 +697,7 @@ class ProjectCompositionCoordinator:
                         "remote_item_id": remote_item_id,
                         "remote_status": remote_status,
                         "segment_count": int(composition.get("segment_count") or 0),
+                        **_execution_runtime_fields(composition),
                     },
                 )
         return self.store.get_project(owner_user_id, project_id)

@@ -474,6 +474,12 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("SeedVR2 放大账号池", workspace)
         self.assertIn("seedvr2_execution_account_ids", workspace)
         self.assertIn("execution_mode: 'dual_pool_v1'", workspace)
+        self.assertIn("当前执行模式：${modeLabel}", workspace)
+        self.assertIn("runningHubExecutionSummary", workspace)
+        self.assertIn("refreshRunningHubExecutionSummaries", workspace)
+        self.assertIn("等待云端分配实际执行账号", workspace)
+        self.assertIn("（数字人 + 放大）", workspace)
+        self.assertIn("数字人 ${digital} / 放大 ${seedvr2}", workspace)
         self.assertEqual(
             workspace.count(
                 "...runningHubSelectionRequestFields(selectedRunningHubAccountIds)"

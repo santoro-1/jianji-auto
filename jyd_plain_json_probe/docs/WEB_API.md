@@ -291,15 +291,24 @@ GET  /api/new/runninghub-execution-accounts
 `DIGITAL_HUMAN_RUNNING`、`VIDEO_ENHANCING`、`VIDEO_MERGING`、`BASE_VIDEO_READY` 或
 `COMPOSITION_FAILED`。
 
-`GET /api/new/runninghub-execution-accounts` 返回云端权威模式。`same_account_v1` 保持原单池
-摘要和非空 `runninghub_execution_account_ids: number[]`；`dual_pool_v1` 返回
+`GET /api/new/runninghub-execution-accounts` 返回云端权威模式。`same_account_v1` 对管理员或
+受控测试授权用户返回 `pool_access=true`、原单池摘要和非空
+`runninghub_execution_account_ids: number[]`；每个分段的数字人与 SeedVR2 使用同一执行账号。
+无授权普通用户的 `pool_access=false`，继续自己的单账号。`dual_pool_v1` 返回
 `digital_human`、`seedvr2` 两组安全摘要，首次启动必须同时提交非空
 `runninghub_execution_account_ids`、`seedvr2_execution_account_ids`，并把
 `execution_mode: "dual_pool_v1"` 冻结在本地持久化操作中。两组按各自
 `default_selected_account_ids` 每次重新默认全选。摘要只含内部 ID、名称、健康/冷却/启用、
 运行数和容量，不含 API Key、指纹、Base URL 或 App ID。云端仍重新判权和决定模式；工作台
-不会把本地模式字段作为云端授权开关。普通用户继续自己的单账号，受控非管理员只有云端明确
-授权才会收到双池摘要。失败阶段重试和 SeedVR2 补跑不重新选择或修改快照。
+不会把本地模式字段作为云端授权开关。受控非管理员只有云端明确授权才会收到单池选择或双池
+摘要；显示哪一种由云端管理员网页开关决定。失败阶段重试和 SeedVR2 补跑不重新选择或修改快照。
+
+4A 费用确认明确显示“一控多”或“双池”及本次候选账号。任务清单的
+`composition.execution_assignments[]` 是云端实际分配结果，按 `segment_index` 提供
+`digital_human.account` 与 `seedvr2.account` 的安全内部 ID和备注名称以及阶段状态。一控多的
+两个阶段显示同一账号；双池分别显示独立账号；尚未原子预留时账号为 `null`，页面显示“待分配”。
+工作台把这组字段写入逐行 `COMPOSITION_GENERATE.result`，使刷新和重启后仍可恢复显示；接口
+不得返回 API Key、凭据指纹、Base URL 或 App ID。
 
 `composition/generate` 只同步校验并为目标行创建持久化 `COMPOSITION_GENERATE/PENDING`
 操作，然后快速返回。每行快照保存声音批次、远程行、图片资产 ID及 SHA-256、分辨率、执行
