@@ -12,6 +12,7 @@ from typing import Any, Iterator
 import uuid
 
 from .logging_config import log_event
+from .layout_profiles import normalize_layout_profile
 from .semantic_visuals import (
     DEFAULT_LIBRARY_ID,
     MEDIA_POLICIES,
@@ -1407,6 +1408,7 @@ class ProjectStore:
         music_selection: dict[str, Any] | None = None,
         top_title: dict[str, str] | None = None,
         cover_title: dict[str, str] | None = None,
+        layout_profile: str | None = None,
         force_invalidate: bool = False,
     ) -> dict[str, Any]:
         """Save editable subtitle/BGM settings and invalidate only final rendering."""
@@ -1427,6 +1429,11 @@ class ProjectStore:
             raise ValueError("顶部固定标题必须是对象")
         if cover_title is not None and not isinstance(cover_title, dict):
             raise ValueError("封面标题必须是对象")
+        clean_layout_profile = (
+            normalize_layout_profile(layout_profile)
+            if layout_profile is not None
+            else None
+        )
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
             item = self._owned_item(connection, project_id, item_id)
@@ -1442,6 +1449,8 @@ class ProjectStore:
                     "text_color": clean_color,
                 }
             )
+            if clean_layout_profile is not None:
+                requested["layout_profile"] = clean_layout_profile
             if top_title is not None:
                 requested["top_title"] = {
                     "label": str(top_title.get("label") or "").strip(),

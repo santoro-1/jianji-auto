@@ -1080,6 +1080,8 @@ def add_text_track_segment(draft: Any, script: Any, args: argparse.Namespace) ->
             max_line_width=float(getattr(args, "text_line_max_width", None) or 0.82),
         ),
         clip_settings=draft.ClipSettings(
+            scale_x=float(getattr(args, "text_scale", 1.0)),
+            scale_y=float(getattr(args, "text_scale", 1.0)),
             transform_x=args.text_transform_x,
             transform_y=args.text_transform_y,
         ),

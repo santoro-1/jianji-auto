@@ -1,0 +1,14 @@
+{
+  "schema": "jyd_probe.fixed_overlay.v1",
+  "identity": "resource_id:7524935254470249790",
+  "name": "规范坐人名板底图",
+  "usage": "fixed_nameplate",
+  "layout_profile": "seated",
+  "preview_file": "resources/sticker/singleImage.png",
+  "resource": {
+    "library_path": "resources/sticker",
+    "width": 360,
+    "height": 360,
+    "status": "copied_from_decrypted_draft_cache"
+  }
+}

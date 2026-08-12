@@ -18,8 +18,20 @@ from .project_postprocess import (
     build_project_cover,
     build_top_title_texts,
 )
-from .project_export_naming import variant_export_filename
+from .project_export_naming import (
+    available_draft_name,
+    variant_draft_name,
+    variant_export_filename,
+)
 from .semantic_visuals import fixed_nameplate_overlay, frozen_visual_overlays
+from .layout_profiles import (
+    DEFAULT_LAYOUT_PROFILE,
+    apply_layout_to_visual_overlays,
+    layout_font,
+    layout_profile,
+    nameplate_texts,
+    normalize_layout_profile,
+)
 
 
 VARIANT_OPERATION_TYPES = {
@@ -423,12 +435,15 @@ class ProjectVariantCoordinator:
             item = self._item(project, item_id)
             for row in rows:
                 serial += 1
-                row["job"]["output"]["mp4_path"] = str(
-                    self._variant_output(
-                        output_directory,
-                        item=item,
-                        index=serial,
-                    )
+                variant_output = self._variant_output(
+                    output_directory,
+                    item=item,
+                    index=serial,
+                )
+                row["job"]["output"]["mp4_path"] = str(variant_output)
+                row["job"]["output"]["draft_name"] = available_draft_name(
+                    self.draft_root,
+                    variant_draft_name(item, index=serial),
                 )
 
         operations: dict[str, dict[str, Any]] = {}
@@ -569,12 +584,15 @@ class ProjectVariantCoordinator:
         output_directory = Path(str(archive["export_path"]))
         item = self._item(project, item_id)
         for output_index, row in enumerate(rows, start=1):
-            row["job"]["output"]["mp4_path"] = str(
-                self._variant_output(
-                    output_directory,
-                    item=item,
-                    index=output_index,
-                )
+            variant_output = self._variant_output(
+                output_directory,
+                item=item,
+                index=output_index,
+            )
+            row["job"]["output"]["mp4_path"] = str(variant_output)
+            row["job"]["output"]["draft_name"] = available_draft_name(
+                self.draft_root,
+                variant_draft_name(item, index=output_index),
             )
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
@@ -830,10 +848,16 @@ class ProjectVariantCoordinator:
         cues = subtitles.get("render_cues", [])
         style = subtitles.get("style", {})
         postprocess = item.get("settings", {}).get("postprocess", {})
+        profile_id = normalize_layout_profile(
+            postprocess.get("layout_profile") or DEFAULT_LAYOUT_PROFILE
+        )
+        profile = layout_profile(profile_id)
+        caption_profile = profile["caption"]
         font_identity = str(
             style.get("font_id") or postprocess.get("font_identity") or ""
         )
-        font = self.fonts.get(font_identity)
+        font = layout_font(self.fonts, font_identity)
+        font_identity = str(font.get("identity") or font_identity)
         if cues and font is None:
             raise ValueError(f"任务 {item['row_key']} 冻结的字幕字体不可用")
         bgm_identity = str(postprocess.get("bgm_identity") or "")
@@ -850,13 +874,19 @@ class ProjectVariantCoordinator:
             job["captions"] = {
                 "cues": cues,
                 "track_name": "MiniMax 单行字幕",
-                "size": CAPTION_REFERENCE_FONT_SIZE,
-                "color": str(style.get("text_color") or "#FFFFFF"),
-                "stroke_color": CAPTION_STROKE_COLOR,
-                "stroke_width": CAPTION_STROKE_WIDTH,
+                "size": float(caption_profile["font_size"]),
+                "clip_scale": float(caption_profile["clip_scale"]),
+                "color": "#FFFFFF",
+                "stroke_color": "",
+                "stroke_width": 0.0,
+                "shadow_color": "#000000",
+                "shadow_alpha": float(caption_profile["shadow_alpha"]),
+                "shadow_distance": 5.0,
+                "shadow_angle": -45.0,
+                "shadow_smoothing": 0.45000001788139343,
                 "transform_x": 0.0,
-                "transform_y": float(style.get("transform_y") or CAPTION_TRANSFORM_Y),
-                "line_max_width": 0.8,
+                "transform_y": float(caption_profile["transform_y"]),
+                "line_max_width": float(caption_profile["max_width_ratio"]),
                 "max_lines": 1,
                 "single_line": True,
                 "font_id": str(font.get("resource_id") or ""),
@@ -874,13 +904,19 @@ class ProjectVariantCoordinator:
                     "volume": 0.3,
                 }
             )
-        job["visual_overlays"] = frozen_visual_overlays(
-            item, library_root=self.semantic_visual_library_root
+        job["visual_overlays"] = apply_layout_to_visual_overlays(
+            frozen_visual_overlays(item, library_root=self.semantic_visual_library_root),
+            profile_id,
         )
         job["fixed_overlays"] = [
-            fixed_nameplate_overlay(self.semantic_visual_library_root)
+            fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
         ]
-        title_texts = build_top_title_texts(postprocess.get("top_title"), font=font)
+        title_texts = [
+            *build_top_title_texts(
+                postprocess.get("top_title"), font=font, layout_profile_id=profile_id
+            ),
+            *nameplate_texts(profile_id, font=font),
+        ]
         if title_texts:
             job["texts"] = title_texts
         cover = build_project_cover(item, fonts=self.fonts)

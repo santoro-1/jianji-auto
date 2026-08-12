@@ -23,8 +23,20 @@ from .project_music import (
     automatic_music_identity_counts,
     manual_music_selection,
 )
-from .project_export_naming import composition_export_filename
+from .project_export_naming import (
+    available_draft_name,
+    composition_draft_name,
+    composition_export_filename,
+)
 from .project_store import ProjectStore
+from .layout_profiles import (
+    DEFAULT_LAYOUT_PROFILE,
+    apply_layout_to_visual_overlays,
+    layout_font,
+    layout_profile,
+    nameplate_texts,
+    normalize_layout_profile,
+)
 from .project_video_source import build_project_speech_audio, build_project_video_source
 from .semantic_subtitles import (
     SEMANTIC_MAPPING_SCHEMA,
@@ -252,6 +264,7 @@ def build_top_title_texts(
     top_title: Any,
     *,
     font: dict[str, Any] | None = None,
+    layout_profile_id: Any = DEFAULT_LAYOUT_PROFILE,
 ) -> list[dict[str, Any]]:
     """Build the fixed video banner and bottom disclaimer text layers."""
 
@@ -259,6 +272,9 @@ def build_top_title_texts(
     # the body video now uses one product-fixed memory hook.  Keep the argument
     # for render-job/API compatibility with already saved projects.
     _ = top_title
+    profile = layout_profile(layout_profile_id)
+    title_style = profile["title"]
+    disclaimer_style = profile["disclaimer"]
     font_fields = {
         "font_id": str((font or {}).get("resource_id") or ""),
         "font_path": str((font or {}).get("path") or ""),
@@ -268,23 +284,27 @@ def build_top_title_texts(
         (
             FIXED_VIDEO_TITLE_TEXT,
             "顶部固定标题·世界冠军",
-            FIXED_VIDEO_TITLE_TRANSFORM_Y,
-            FIXED_VIDEO_TITLE_FONT_SIZE,
-            FIXED_VIDEO_TITLE_COLOR,
-            FIXED_VIDEO_TITLE_STROKE_COLOR,
-            FIXED_VIDEO_TITLE_STROKE_WIDTH,
+            title_style["transform_y"],
+            title_style["font_size"],
+            "#FFF589",
+            "",
+            0.0,
             1.0,
+            title_style["clip_scale"],
+            title_style["shadow_alpha"],
             950,
         ),
         (
             BOTTOM_DISCLAIMER_TEXT,
             "底部固定免责声明",
-            BOTTOM_DISCLAIMER_TRANSFORM_Y,
-            BOTTOM_DISCLAIMER_FONT_SIZE,
+            disclaimer_style["transform_y"],
+            disclaimer_style["font_size"],
             BOTTOM_DISCLAIMER_COLOR,
-            "#000000",
-            0.04,
-            BOTTOM_DISCLAIMER_OPACITY,
+            "",
+            0.0,
+            disclaimer_style["opacity"],
+            disclaimer_style["clip_scale"],
+            disclaimer_style["shadow_alpha"],
             952,
         ),
     ]
@@ -299,6 +319,7 @@ def build_top_title_texts(
             "relative_index": relative_index,
             "transform_x": 0.0,
             "transform_y": transform_y,
+            "scale": clip_scale,
             "size": size,
             "align": 1,
             "auto_wrapping": False,
@@ -307,6 +328,11 @@ def build_top_title_texts(
             "stroke_color": stroke_color,
             "stroke_width": stroke_width,
             "opacity": opacity,
+            "shadow_color": "#000000" if shadow_alpha > 0 else "",
+            "shadow_alpha": shadow_alpha,
+            "shadow_distance": 5.0,
+            "shadow_angle": -45.0,
+            "shadow_smoothing": 0.45000001788139343,
             **font_fields,
         }
         for (
@@ -318,6 +344,8 @@ def build_top_title_texts(
             stroke_color,
             stroke_width,
             opacity,
+            clip_scale,
+            shadow_alpha,
             relative_index,
         ) in rows
         if text
@@ -1294,6 +1322,15 @@ class ProjectPostprocessCoordinator:
             if bgm_identity and bgm_identity not in self.bgm_assets:
                 raise ValueError(f"任务 {item['row_key']} 选择的 BGM 不可用")
             saved_postprocess = dict(item.get("settings", {}).get("postprocess") or {})
+            profile_id = normalize_layout_profile(
+                config.get("layout_profile")
+                or saved_postprocess.get("layout_profile")
+                or DEFAULT_LAYOUT_PROFILE
+            )
+            profile = layout_profile(profile_id)
+            caption_style = profile["caption"]
+            font = layout_font(self.fonts, font_identity)
+            font_identity = str(font.get("identity") or font_identity)
             top_title = normalize_top_title(
                 config["top_title"]
                 if "top_title" in config
@@ -1311,8 +1348,9 @@ class ProjectPostprocessCoordinator:
                 "music_selection": music_selection,
                 "top_title": top_title,
                 "cover_title": cover_title,
+                "layout_profile": profile_id,
             }
-            color = str(config.get("text_color") or "#FFFFFF").strip().upper()
+            color = "#FFFFFF"
             if _HEX_COLOR.fullmatch(color) is None:
                 raise ValueError(f"任务 {item['row_key']} 的字幕颜色不合法")
             subtitles = dict(item.get("subtitles") or {})
@@ -1369,8 +1407,8 @@ class ProjectPostprocessCoordinator:
                 render_cues, semantic_mapping = derive_project_render_cues(
                     render_item,
                     font_path=str(font["path"]),
-                    font_size=CAPTION_REFERENCE_FONT_SIZE,
-                    max_width_ratio=CAPTION_MAX_WIDTH_RATIO,
+                    font_size=float(caption_style["font_size"]) * float(caption_style["clip_scale"]),
+                    max_width_ratio=float(caption_style["max_width_ratio"]),
                     asr_alignment=(asr_alignment if alignment_is_current else None),
                     require_precise_alignment=self.require_precise_alignment,
                 )
@@ -1408,14 +1446,21 @@ class ProjectPostprocessCoordinator:
                     "style": {
                         "font_id": font_identity,
                         "font_name": str(font.get("name") or ""),
-                        "font_size": CAPTION_REFERENCE_FONT_SIZE,
+                        "font_size": float(caption_style["font_size"]),
+                        "clip_scale": float(caption_style["clip_scale"]),
                         "text_color": color,
-                        "stroke_color": CAPTION_STROKE_COLOR,
-                        "stroke_width": CAPTION_STROKE_WIDTH,
-                        "max_width_ratio": CAPTION_MAX_WIDTH_RATIO,
+                        "stroke_color": "",
+                        "stroke_width": 0.0,
+                        "shadow_color": "#000000",
+                        "shadow_alpha": float(caption_style["shadow_alpha"]),
+                        "shadow_distance": 5.0,
+                        "shadow_angle": -45.0,
+                        "shadow_smoothing": 0.45000001788139343,
+                        "max_width_ratio": float(caption_style["max_width_ratio"]),
                         "max_lines": CAPTION_MAX_LINES,
-                        "bottom_offset_ratio": CAPTION_BOTTOM_OFFSET_RATIO,
-                        "transform_y": CAPTION_TRANSFORM_Y,
+                        "bottom_offset_ratio": 0.5 + float(caption_style["transform_y"]) / 2,
+                        "transform_y": float(caption_style["transform_y"]),
+                        "layout_profile": profile_id,
                     },
                 }
             )
@@ -1435,6 +1480,7 @@ class ProjectPostprocessCoordinator:
                 music_selection=dict(selected.get("music_selection") or {}),
                 top_title=dict(selected.get("top_title") or {}),
                 cover_title=dict(selected.get("cover_title") or {}),
+                layout_profile=str(selected.get("layout_profile") or DEFAULT_LAYOUT_PROFILE),
             )
             updated_project = self.store.set_item_subtitles(
                 owner_user_id, project_id, item["item_id"], subtitles
@@ -1482,7 +1528,9 @@ class ProjectPostprocessCoordinator:
                     "music_selection": selected.get("music_selection"),
                     "caption_max_width_ratio": CAPTION_MAX_WIDTH_RATIO,
                     "caption_max_lines": CAPTION_MAX_LINES,
-                    "caption_bottom_offset_ratio": CAPTION_BOTTOM_OFFSET_RATIO,
+                    "caption_bottom_offset_ratio": 0.5
+                    + float(layout_profile(selected.get("layout_profile"))["caption"]["transform_y"])
+                    / 2,
                 },
             )
             self.store.transition_operation(
@@ -1547,10 +1595,14 @@ class ProjectPostprocessCoordinator:
             raise ValueError("当前浏览器预览缺少画面源文件")
         style = dict(subtitles.get("style") or {})
         settings = dict(item.get("settings", {}).get("postprocess") or {})
-        font_identity = str(style.get("font_id") or settings.get("font_identity") or "")
-        font = self.fonts.get(font_identity)
-        if font is None:
-            raise ValueError("浏览器预览绑定的字幕字体不可用")
+        profile_id = normalize_layout_profile(
+            settings.get("layout_profile") or DEFAULT_LAYOUT_PROFILE
+        )
+        profile = layout_profile(profile_id)
+        caption_profile = profile["caption"]
+        font = layout_font(
+            self.fonts, str(style.get("font_id") or settings.get("font_identity") or "")
+        )
         bgm_identity = str(settings.get("bgm_identity") or "")
         if bgm_identity and bgm_identity not in self.bgm_assets:
             raise ValueError("浏览器预览绑定的 BGM 不可用")
@@ -1569,19 +1621,28 @@ class ProjectPostprocessCoordinator:
             "original_video_volume": 0.0,
             "output": {
                 "draft_root": str(self.draft_root),
+                "draft_name": available_draft_name(
+                    self.draft_root, composition_draft_name(item)
+                ),
                 "mp4_path": str(output),
                 "skip_export": False,
             },
             "captions": {
                 "cues": subtitles["render_cues"],
                 "track_name": "MiniMax 单行字幕",
-                "size": CAPTION_REFERENCE_FONT_SIZE,
-                "color": str(style.get("text_color") or "#FFFFFF"),
-                "stroke_color": CAPTION_STROKE_COLOR,
-                "stroke_width": CAPTION_STROKE_WIDTH,
+                "size": float(caption_profile["font_size"]),
+                "clip_scale": float(caption_profile["clip_scale"]),
+                "color": "#FFFFFF",
+                "stroke_color": "",
+                "stroke_width": 0.0,
+                "shadow_color": "#000000",
+                "shadow_alpha": float(caption_profile["shadow_alpha"]),
+                "shadow_distance": 5.0,
+                "shadow_angle": -45.0,
+                "shadow_smoothing": 0.45000001788139343,
                 "transform_x": 0.0,
-                "transform_y": CAPTION_TRANSFORM_Y,
-                "line_max_width": CAPTION_MAX_WIDTH_RATIO,
+                "transform_y": float(caption_profile["transform_y"]),
+                "line_max_width": float(caption_profile["max_width_ratio"]),
                 "max_lines": 1,
                 "single_line": True,
                 "font_id": str(font.get("resource_id") or ""),
@@ -1607,13 +1668,19 @@ class ProjectPostprocessCoordinator:
             ],
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
-        job["visual_overlays"] = frozen_visual_overlays(
-            item, library_root=self.semantic_visual_library_root
+        job["visual_overlays"] = apply_layout_to_visual_overlays(
+            frozen_visual_overlays(item, library_root=self.semantic_visual_library_root),
+            profile_id,
         )
         job["fixed_overlays"] = [
-            fixed_nameplate_overlay(self.semantic_visual_library_root)
+            fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
         ]
-        title_texts = build_top_title_texts(settings.get("top_title"), font=font)
+        title_texts = [
+            *build_top_title_texts(
+                settings.get("top_title"), font=font, layout_profile_id=profile_id
+            ),
+            *nameplate_texts(profile_id, font=font),
+        ]
         if title_texts:
             job["texts"] = title_texts
         cover = build_project_cover(item, fonts=self.fonts)

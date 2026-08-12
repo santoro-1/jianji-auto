@@ -10,6 +10,7 @@ from typing import Any, Iterable, Mapping
 
 from .caption_alignment import CaptionAlignmentError, script_tokens
 from .semantic_subtitles import SemanticSubtitleMappingError
+from .layout_profiles import nameplate_overlay
 
 
 CATALOG_SCHEMA_V1 = "jyd.semantic-visual-catalog.v1"
@@ -67,23 +68,12 @@ class SemanticVisualCatalogError(ValueError):
     pass
 
 
-def fixed_nameplate_overlay(library_root: str | Path) -> dict[str, Any]:
+def fixed_nameplate_overlay(
+    library_root: str | Path, layout_profile: Any = "standing"
+) -> dict[str, Any]:
     """Return the portable, non-editable nameplate recipe used by every project video."""
 
-    bundle = Path(library_root).expanduser().resolve() / FIXED_NAMEPLATE_BUNDLE
-    return {
-        "enabled": True,
-        "bundle_path": str(bundle),
-        "preview_url": FIXED_NAMEPLATE_PREVIEW_URL,
-        "start_us": 0,
-        "duration_us": 0,
-        "corner": "center",
-        "scale": FIXED_NAMEPLATE_SCALE,
-        "transform_x": FIXED_NAMEPLATE_TRANSFORM_X,
-        "transform_y": FIXED_NAMEPLATE_TRANSFORM_Y,
-        "opacity": 1.0,
-        "track_name": "固定人名牌",
-    }
+    return nameplate_overlay(library_root, layout_profile)
 
 
 @dataclass(frozen=True)

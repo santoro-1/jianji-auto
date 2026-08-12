@@ -486,7 +486,10 @@
                 </div>
                 <img id="video-preview-semantic-overlay" class="hidden absolute z-10 pointer-events-none object-contain drop-shadow-2xl" src="" alt="语义前景图片">
                 <video id="video-preview-semantic-video" class="hidden absolute z-10 pointer-events-none object-contain" muted playsinline preload="metadata"></video>
-                <img id="video-preview-fixed-nameplate" class="hidden absolute z-[9] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview" alt="张雒人名牌">
+                <img id="video-preview-fixed-nameplate" class="hidden absolute z-[9] pointer-events-none object-contain drop-shadow-xl" src="/api/new/fixed-visuals/nameplate/preview?layout_profile=standing" alt="张雒人名牌">
+                <div id="video-preview-nameplate-text-1" class="hidden absolute z-[11] pointer-events-none whitespace-nowrap font-bold"></div>
+                <div id="video-preview-nameplate-text-2" class="hidden absolute z-[11] pointer-events-none whitespace-nowrap font-bold"></div>
+                <div id="video-preview-nameplate-text-3" class="hidden absolute z-[11] pointer-events-none whitespace-nowrap font-bold"></div>
                 <div id="video-preview-title-label" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 <div id="video-preview-title-headline" class="hidden absolute z-[19] pointer-events-none text-center font-bold whitespace-nowrap" aria-live="off"></div>
                 <div id="video-preview-disclaimer" class="hidden absolute z-[19] pointer-events-none text-center font-normal whitespace-pre-line" aria-live="off"></div>
@@ -819,13 +822,15 @@
                         <button type="button" onclick="clearRowSelection()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] text-gray-400 hover:text-white">清空</button>
                         <span class="hidden sm:inline h-5 w-px bg-slate-700"></span>
                         <button type="button" onclick="analyzeSelectedRows()" class="px-3 py-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/5 text-[10px] font-semibold text-cyan-200 hover:text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>统一分析</button>
+                        <button type="button" onclick="applyLayoutProfileToSelected('standing')" class="px-3 py-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/5 text-[10px] font-semibold text-emerald-200 hover:text-white"><i class="fa-solid fa-person mr-1"></i>设为站姿</button>
+                        <button type="button" onclick="applyLayoutProfileToSelected('seated')" class="px-3 py-1.5 rounded-lg border border-amber-400/30 bg-amber-400/5 text-[10px] font-semibold text-amber-200 hover:text-white"><i class="fa-solid fa-chair mr-1"></i>设为坐姿</button>
                         <button type="button" onclick="generateSelectedAudio()" class="px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white"><i class="fa-solid fa-wave-square mr-1"></i>生成声音</button>
                         <button type="button" onclick="generateSelectedVideos()" class="px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white"><i class="fa-solid fa-film mr-1"></i>生成完整成片</button>
                     </div>
 
                     <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
                     <div class="overflow-x-auto relative flex-1 overflow-y-auto">
-                        <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1680px]">
+                        <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1770px]">
                             <thead class="text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
                                     <th scope="col" class="table-header-input px-3 py-3.5 w-12 text-center whitespace-nowrap"><input id="select-all-project-items" type="checkbox" aria-label="全选脚本行" onchange="toggleSelectAllRows(this.checked)" class="rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary"></th>
@@ -834,6 +839,7 @@
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-32">声音原型</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-36">声音预览</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center">画面</th>
+                                    <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">姿态</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center">背景音乐</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-44 text-center whitespace-nowrap">语义视觉</th>
@@ -847,7 +853,7 @@
                             <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
                                 <!-- Placeholders when empty -->
                                 <tr id="empty-table-placeholder">
-                                    <td colspan="14" class="px-6 py-20 text-center text-gray-500">
+                                    <td colspan="15" class="px-6 py-20 text-center text-gray-500">
                                         <div class="flex flex-col items-center justify-center">
                                             <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
                                             <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
@@ -927,6 +933,11 @@
         ];
         let fontPresets = [];
         let defaultPostprocessFontIdentity = '';
+        let defaultLayoutProfile = 'standing';
+        let layoutProfileOptions = [
+            { id: 'standing', label: '站姿' },
+            { id: 'seated', label: '坐姿' }
+        ];
         const fontPreviewLoads = new Map();
         let fontPreviewSequence = 0;
         let rowPostprocessConfigs = {};
@@ -1221,7 +1232,8 @@
                 return null;
             }
             const dualMode = summary.execution_mode === 'dual_pool_v1';
-            if (!dualMode && !isAdmin) {
+            const hasPoolAccess = isAdmin || summary.pool_access === true;
+            if (!dualMode && !hasPoolAccess) {
                 if (skipForNormalUser) return undefined;
                 return window.confirm(message) ? undefined : null;
             }
@@ -1287,6 +1299,10 @@
             const options = await workspaceApi('/api/new/postprocess/options');
             fontPresets = Array.isArray(options.fonts) ? options.fonts : [];
             defaultPostprocessFontIdentity = options.default_font_identity || fontPresets[0]?.identity || '';
+            defaultLayoutProfile = options.default_layout_profile || 'standing';
+            if (Array.isArray(options.layout_profiles) && options.layout_profiles.length) {
+                layoutProfileOptions = options.layout_profiles;
+            }
             bgmPresets = [
                 { id: 'none', name: '无音乐', previewUrl: '' },
                 ...(Array.isArray(options.bgm) ? options.bgm.map((item) => ({
@@ -1575,15 +1591,12 @@
                         : (saved.bgm_identity
                             || rowPostprocessConfigs[item.id]?.resolvedBgmIdentity
                             || ''),
-                    fontIdentity: saved.font_identity
-                        || rowPostprocessConfigs[item.id]?.fontIdentity
-                        || style.font_id
-                        || defaultPostprocessFontIdentity
-                        || '',
-                    textColor: saved.text_color
-                        || rowPostprocessConfigs[item.id]?.textColor
-                        || style.text_color
-                        || '#ffffff'
+                    fontIdentity: defaultPostprocessFontIdentity || 'resource_id:7086699209738424840',
+                    textColor: '#ffffff',
+                    layoutProfile: saved.layout_profile
+                        || rowPostprocessConfigs[item.id]?.layoutProfile
+                        || defaultLayoutProfile
+                        || 'standing'
                 };
             });
 
@@ -2085,6 +2098,58 @@
             refreshRowSelectionControls();
         }
 
+        async function handleRowLayoutProfileChange(select) {
+            const rowId = select.closest('tr')?.getAttribute('data-id');
+            if (!rowId || !activeProject) return;
+            const previous = rowPostprocessConfigs[rowId]?.layoutProfile || defaultLayoutProfile || 'standing';
+            rowPostprocessConfigs[rowId] = {
+                ...(rowPostprocessConfigs[rowId] || {}),
+                layoutProfile: select.value
+            };
+            variantDirtyItemIds.add(rowId);
+            select.disabled = true;
+            try {
+                const project = await persistRowPostprocessSettings(rowId);
+                syncProjectInputs(project);
+                showToast('姿态规范已保存', `任务已切换为${select.value === 'seated' ? '坐姿' : '站姿'}；声音和数字人画面会保留，只需重新生成成片预览。`, 'success');
+            } catch (error) {
+                rowPostprocessConfigs[rowId].layoutProfile = previous;
+                select.value = previous;
+                showToast('姿态设置失败', error.message, 'error');
+            } finally {
+                select.disabled = false;
+            }
+        }
+
+        async function applyLayoutProfileToSelected(layoutProfile) {
+            const selected = selectedRowsOrWarn();
+            if (!selected || !activeProject) return;
+            const editable = selected.filter((item) => item.allowedActions?.edit_postprocess);
+            if (!editable.length) {
+                showToast('当前任务不能修改', '所选任务正在生成，请完成后再切换姿态。', 'warning');
+                return;
+            }
+            editable.forEach((item) => {
+                rowPostprocessConfigs[item.id] = {
+                    ...(rowPostprocessConfigs[item.id] || {}),
+                    layoutProfile
+                };
+                variantDirtyItemIds.add(item.id);
+            });
+            try {
+                await Promise.all(editable.map((item) => persistRowPostprocessSettings(item.id)));
+                syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                showToast(
+                    '批量姿态已保存',
+                    `已将 ${editable.length} 条任务设为${layoutProfile === 'seated' ? '坐姿' : '站姿'}${editable.length < selected.length ? `，跳过 ${selected.length - editable.length} 条生成中的任务` : ''}。`,
+                    'success'
+                );
+            } catch (error) {
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+                showToast('批量姿态设置失败', error.message, 'error');
+            }
+        }
+
         function applyQuickTaskSelection() {
             const input = document.getElementById('quick-select-task-ids');
             const raw = String(input?.value || '').trim();
@@ -2192,6 +2257,11 @@
                 // Render BGM options
                 let bgmOptionsHTML = '';
                 const postprocessConfig = rowPostprocessConfigs[script.id] || {};
+                const selectedLayoutProfile = postprocessConfig.layoutProfile || defaultLayoutProfile || 'standing';
+                const layoutOptionsHTML = layoutProfileOptions.map((profile) => {
+                    const selected = profile.id === selectedLayoutProfile ? 'selected' : '';
+                    return `<option value="${escapeHtml(profile.id)}" ${selected}>${escapeHtml(profile.label || profile.id)}</option>`;
+                }).join('');
                 const subtitlePreviewText = '这是字幕预览';
                 const displayedBgmIdentity = postprocessConfig.bgmIdentity === 'auto'
                     ? (postprocessConfig.resolvedBgmIdentity || 'none')
@@ -2319,15 +2389,20 @@
                             <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
                         </div>
                     </td>
+                    <td class="px-3 py-4 text-center">
+                        <select ${canEditPostprocess ? '' : 'disabled'} onchange="handleRowLayoutProfileChange(this)" title="按这一行选择站姿或坐姿规范" class="row-layout-profile bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-[11px] ${canEditPostprocess ? 'text-gray-300' : 'text-gray-600 cursor-not-allowed'} w-full focus:outline-none">
+                            ${layoutOptionsHTML}
+                        </select>
+                    </td>
                     <td class="px-4 py-4 text-center">
                         <select ${canEditPostprocess ? '' : 'disabled'} onchange="handleRowBgmChange(this)" class="bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-[11px] ${canEditPostprocess ? 'text-gray-300' : 'text-gray-600 cursor-not-allowed'} w-full focus:outline-none">
                             ${bgmOptionsHTML}
                         </select>
                     </td>
                     <td class="px-4 py-4 text-center whitespace-nowrap">
-                        <button ${canEditPostprocess ? '' : 'disabled'} onclick="openSubtitleModal('${script.id}')" title="点击配置字幕样式" data-font-identity="${escapeHtml(postprocessConfig.fontIdentity || defaultPostprocessFontIdentity)}" class="row-subtitle-preview w-24 h-12 mx-auto rounded-lg overflow-hidden border ${canEditPostprocess ? 'border-brand-primary/30 hover:border-brand-accent cursor-pointer' : 'border-slate-800 cursor-not-allowed'} bg-gradient-to-br from-slate-800 via-slate-950 to-indigo-950 relative transition-colors">
-                            <span class="absolute inset-x-1 top-1 text-[7px] text-gray-500 font-semibold">字幕预览 · 点击配置</span>
-                            <span class="row-subtitle-preview-text absolute inset-x-1 bottom-2 text-[11px] leading-none font-bold truncate" style="color: ${escapeHtml(postprocessConfig.textColor || '#ffffff')}; -webkit-text-stroke: 0.45px #000000; paint-order: stroke fill; text-shadow: 0 0 1px #000000;">${escapeHtml(subtitlePreviewText)}</span>
+                        <button disabled title="字幕字体、字号、位置和阴影由当前站姿/坐姿规范自动决定" data-font-identity="${escapeHtml(defaultPostprocessFontIdentity)}" class="row-subtitle-preview w-24 h-12 mx-auto rounded-lg overflow-hidden border border-brand-primary/20 cursor-default bg-gradient-to-br from-slate-800 via-slate-950 to-indigo-950 relative">
+                            <span class="absolute inset-x-1 top-1 text-[7px] text-gray-500 font-semibold">字幕预览 · 随姿态</span>
+                            <span class="row-subtitle-preview-text absolute inset-x-1 bottom-2 text-[11px] leading-none font-bold truncate" style="color: #ffffff; -webkit-text-stroke: 0 transparent; text-shadow: 1px 1px 2px rgba(0,0,0,.9);">${escapeHtml(subtitlePreviewText)}</span>
                         </button>
                     </td>
                     <td class="px-3 py-3 text-center whitespace-nowrap">
@@ -3029,7 +3104,8 @@
                             bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
                             bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
                             font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
-                            text_color: config.textColor || '#ffffff'
+                            text_color: config.textColor || '#ffffff',
+                            layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing'
                         }]
                     })
                 });
@@ -4462,7 +4538,8 @@
                         font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
                         bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
                         bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
-                        text_color: config.textColor || '#ffffff'
+                        text_color: config.textColor || '#ffffff',
+                        layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing'
                     })
                 }
             );
@@ -4534,6 +4611,7 @@
                         bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
                         font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
                         text_color: config.textColor || '#ffffff',
+                        layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing',
                         force_retry: true
                     })
                 });
@@ -4547,7 +4625,8 @@
                             bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
                             bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
                             font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
-                            text_color: config.textColor || '#ffffff'
+                            text_color: config.textColor || '#ffffff',
+                            layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing'
                         }]
                     })
                 });
@@ -4621,6 +4700,17 @@
         function activePreviewScript() {
             const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '';
             return uploadedScripts.find((item) => item.id === rowId) || null;
+        }
+
+        function activeLayoutProfileConfig() {
+            const script = activePreviewScript();
+            const profileId = rowPostprocessConfigs[script?.id]?.layoutProfile
+                || script?.postprocessSettings?.layout_profile
+                || defaultLayoutProfile
+                || 'standing';
+            return layoutProfileOptions.find((item) => item.id === profileId)
+                || layoutProfileOptions.find((item) => item.id === 'standing')
+                || { id: 'standing', label: '站姿' };
         }
 
         function isBrowserCompositionPreview() {
@@ -4704,12 +4794,11 @@
             const displayedWidth = video.videoWidth * scale;
             const displayedHeight = video.videoHeight * scale;
             const verticalMargin = (frameHeight - displayedHeight) / 2;
-            const style = activePreviewScript()?.subtitles?.style || {};
+            const style = activeLayoutProfileConfig().caption || activePreviewScript()?.subtitles?.style || {};
             const safeWidth = displayedWidth * Number(style.max_width_ratio || 0.8);
-            const fontSize = Number(style.font_size || 14);
+            const fontSize = Number(style.font_size || 14) * Number(style.clip_scale || 1);
             const transformY = Number(style.transform_y ?? (-850 / 1920));
-            const strokeColor = '#000000';
-            const strokeWidth = Math.max(1, displayedWidth * 0.06 / 15);
+            const shadowAlpha = Number(style.shadow_alpha ?? 0.9);
             caption.style.left = '50%';
             caption.style.top = `${verticalMargin + displayedHeight * (0.5 - transformY / 2)}px`;
             caption.style.bottom = 'auto';
@@ -4718,9 +4807,9 @@
             caption.style.fontSize = `${Math.max(11, displayedWidth * fontSize / 220)}px`;
             caption.style.lineHeight = '1';
             caption.style.whiteSpace = 'nowrap';
-            caption.style.webkitTextStroke = `${strokeWidth}px ${strokeColor}`;
+            caption.style.webkitTextStroke = '0px transparent';
             caption.style.paintOrder = 'stroke fill';
-            caption.style.textShadow = `0 0 ${strokeWidth}px ${strokeColor}`;
+            caption.style.textShadow = `${Math.max(1, displayedWidth * 0.004)}px ${Math.max(1, displayedWidth * 0.004)}px ${Math.max(1, displayedWidth * 0.005)}px rgba(0, 0, 0, ${shadowAlpha})`;
             caption.style.transform = 'translate(-50%, -50%)';
         }
 
@@ -4741,20 +4830,22 @@
             const displayedWidth = video.videoWidth * scale;
             const displayedHeight = video.videoHeight * scale;
             const verticalMargin = (frame.clientHeight - displayedHeight) / 2;
+            const style = activeLayoutProfileConfig().title || {};
             label.textContent = '';
             label.classList.add('hidden');
             headline.textContent = '世界冠军带你自律';
             headline.classList.remove('hidden');
             headline.style.left = '50%';
-            headline.style.top = `${verticalMargin + displayedHeight * (0.5 - (1535 / 1920) / 2)}px`;
+            headline.style.top = `${verticalMargin + displayedHeight * (0.5 - Number(style.transform_y ?? (1535 / 1920)) / 2)}px`;
             headline.style.width = `${displayedWidth * 0.92}px`;
             headline.style.maxWidth = `${displayedWidth * 0.92}px`;
-            headline.style.fontSize = `${Math.max(11, displayedWidth * 19 / 220)}px`;
+            headline.style.fontSize = `${Math.max(11, displayedWidth * Number(style.font_size || 19) / 220)}px`;
             headline.style.lineHeight = '1';
-            headline.style.color = '#E53935';
-            headline.style.webkitTextStroke = `${Math.max(1, displayedWidth * 0.06 / 15)}px #FFFFFF`;
+            headline.style.color = '#FFF589';
+            headline.style.webkitTextStroke = '0px transparent';
             headline.style.paintOrder = 'stroke fill';
-            headline.style.transform = 'translate(-50%, -50%)';
+            headline.style.textShadow = `${Math.max(1, displayedWidth * 0.004)}px ${Math.max(1, displayedWidth * 0.004)}px ${Math.max(1, displayedWidth * 0.005)}px rgba(0, 0, 0, ${Number(style.shadow_alpha ?? 0.9)})`;
+            headline.style.transform = `translate(-50%, -50%) scale(${Number(style.clip_scale || 1)})`;
         }
 
         function updatePreviewDisclaimer() {
@@ -4774,9 +4865,9 @@
             const displayedWidth = video.videoWidth * scale;
             const displayedHeight = video.videoHeight * scale;
             const verticalMargin = (frame.clientHeight - displayedHeight) / 2;
-            const transformY = -1760 / 1920;
-            const fontSize = 6;
-            const strokeWidth = Math.max(0.35, displayedWidth * 0.0008);
+            const style = activeLayoutProfileConfig().disclaimer || {};
+            const transformY = Number(style.transform_y ?? (-1760 / 1920));
+            const fontSize = Number(style.font_size || 6);
             disclaimer.textContent = '非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n如有不适请线下就医';
             disclaimer.classList.remove('hidden');
             disclaimer.style.left = '50%';
@@ -4787,12 +4878,14 @@
             disclaimer.style.lineHeight = '1.25';
             disclaimer.style.whiteSpace = 'pre-line';
             disclaimer.style.color = '#FFFFFF';
-            disclaimer.style.opacity = '0.5';
+            disclaimer.style.opacity = String(Number(style.opacity ?? 0.5));
             disclaimer.style.fontWeight = '400';
-            disclaimer.style.webkitTextStroke = `${strokeWidth}px #000000`;
+            disclaimer.style.webkitTextStroke = '0px transparent';
             disclaimer.style.paintOrder = 'stroke fill';
-            disclaimer.style.textShadow = '0 1px 2px rgba(0, 0, 0, 0.85)';
-            disclaimer.style.transform = 'translate(-50%, -50%)';
+            disclaimer.style.textShadow = Number(style.shadow_alpha || 0) > 0
+                ? `1px 1px 2px rgba(0, 0, 0, ${Number(style.shadow_alpha)})`
+                : 'none';
+            disclaimer.style.transform = `translate(-50%, -50%) scale(${Number(style.clip_scale || 1)})`;
         }
 
         function updatePreviewCaption() {
@@ -4843,6 +4936,42 @@
             return { width: renderedWidth, height: renderedHeight, left: x, top: y };
         }
 
+        const semanticAlphaGeometryCache = new Map();
+
+        function semanticAlphaGeometry(image) {
+            const key = image.currentSrc || image.src || '';
+            if (semanticAlphaGeometryCache.has(key)) return semanticAlphaGeometryCache.get(key);
+            let result = null;
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+                const context = canvas.getContext('2d', { willReadFrequently: true });
+                context.drawImage(image, 0, 0);
+                const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+                let minX = canvas.width;
+                let minY = canvas.height;
+                let maxX = -1;
+                let maxY = -1;
+                for (let y = 0; y < canvas.height; y += 1) {
+                    for (let x = 0; x < canvas.width; x += 1) {
+                        if (pixels[(y * canvas.width + x) * 4 + 3] === 0) continue;
+                        minX = Math.min(minX, x);
+                        minY = Math.min(minY, y);
+                        maxX = Math.max(maxX, x);
+                        maxY = Math.max(maxY, y);
+                    }
+                }
+                if (maxX >= minX && maxY >= minY) {
+                    result = { minX, minY, maxX: maxX + 1, maxY: maxY + 1 };
+                }
+            } catch (_) {
+                result = null;
+            }
+            semanticAlphaGeometryCache.set(key, result);
+            return result;
+        }
+
         function updatePreviewSemanticOverlay() {
             updatePreviewSemanticVideo();
             const image = document.getElementById('video-preview-semantic-overlay');
@@ -4866,6 +4995,10 @@
             }
             const effectiveOverlay = normalizeAutomaticSemanticOverlay(overlay);
             if (image.getAttribute('src') !== effectiveOverlay.preview_url) image.src = effectiveOverlay.preview_url;
+            if (!image.complete || !image.naturalWidth || !image.naturalHeight) {
+                image.classList.add('hidden');
+                return;
+            }
             const video = document.getElementById('video-preview-local');
             const frame = document.getElementById('video-preview-frame');
             if (!video.videoWidth || !video.videoHeight) return;
@@ -4874,6 +5007,30 @@
             const height = video.videoHeight * scaleToFrame;
             const left = (frame.clientWidth - width) / 2;
             const top = (frame.clientHeight - height) / 2;
+            const imageRules = activeLayoutProfileConfig().image || {};
+            if (Object.keys(imageRules).length) {
+                const alpha = semanticAlphaGeometry(image);
+                const contentWidth = alpha ? Math.max(1, alpha.maxX - alpha.minX) : image.naturalWidth;
+                const contentHeight = alpha ? Math.max(1, alpha.maxY - alpha.minY) : image.naturalHeight;
+                const shape = contentHeight > contentWidth ? 'portrait' : 'landscape';
+                const rule = imageRules.default || imageRules[shape] || imageRules.landscape || imageRules.portrait;
+                if (rule) {
+                    const visualWidth = Math.max(32, width * Number(rule.visible_width_ratio || 0.28));
+                    const renderedWidth = visualWidth * image.naturalWidth / Math.max(1, contentWidth);
+                    const renderedHeight = renderedWidth * image.naturalHeight / image.naturalWidth;
+                    const contentCenterX = alpha ? (alpha.minX + alpha.maxX) / 2 : image.naturalWidth / 2;
+                    const contentCenterY = alpha ? (alpha.minY + alpha.maxY) / 2 : image.naturalHeight / 2;
+                    const targetX = left + width * (0.5 + Number(rule.transform_x || 0) / 2);
+                    const targetY = top + height * (0.5 - Number(rule.transform_y || 0) / 2);
+                    image.style.width = `${renderedWidth}px`;
+                    image.style.height = `${renderedHeight}px`;
+                    image.style.opacity = String(Number(effectiveOverlay.opacity ?? 1));
+                    image.style.left = `${targetX - renderedWidth * contentCenterX / image.naturalWidth}px`;
+                    image.style.top = `${targetY - renderedHeight * contentCenterY / image.naturalHeight}px`;
+                    image.classList.remove('hidden');
+                    return;
+                }
+            }
             const visualWidth = Math.max(32, width * Number(effectiveOverlay.scale || 0.28));
             const aspectRatio = image.naturalWidth && image.naturalHeight
                 ? image.naturalHeight / image.naturalWidth
@@ -4975,8 +5132,10 @@
 
         function updatePreviewFixedNameplate() {
             const image = document.getElementById('video-preview-fixed-nameplate');
+            const textElements = [1, 2, 3].map((index) => document.getElementById(`video-preview-nameplate-text-${index}`));
             if (!isBrowserCompositionPreview() || shouldShowPreviewCover()) {
                 image.classList.add('hidden');
+                textElements.forEach((element) => element.classList.add('hidden'));
                 return;
             }
             const video = document.getElementById('video-preview-local');
@@ -4987,19 +5146,44 @@
             const height = video.videoHeight * scaleToFrame;
             const left = (frame.clientWidth - width) / 2;
             const top = (frame.clientHeight - height) / 2;
-            const nameplateScale = 0.60;
-            const transformX = -0.40;
-            const transformY = -0.26;
+            const profile = activeLayoutProfileConfig();
+            const nameplate = profile.nameplate || {};
+            const expectedSource = nameplate.preview_url || `/api/new/fixed-visuals/nameplate/preview?layout_profile=${encodeURIComponent(profile.id || 'standing')}`;
+            if (image.getAttribute('src') !== expectedSource) image.src = expectedSource;
+            const nameplateScale = Number(nameplate.scale || 0.45);
+            const transformX = Number(nameplate.transform_x || 0);
+            const transformY = Number(nameplate.transform_y || 0);
             const visualWidth = width * nameplateScale;
             const aspectRatio = image.naturalWidth && image.naturalHeight
                 ? image.naturalHeight / image.naturalWidth
-                : 0.282;
+                : 1;
             const visualHeight = visualWidth * aspectRatio;
             image.style.width = `${visualWidth}px`;
             image.style.height = 'auto';
             image.style.left = `${left + width * (0.5 + transformX / 2) - visualWidth / 2}px`;
             image.style.top = `${top + height * (0.5 - transformY / 2) - visualHeight / 2}px`;
+            image.style.transform = `rotate(${Number(nameplate.rotation || 0)}deg)`;
+            image.style.transformOrigin = 'center center';
             image.classList.remove('hidden');
+            const textRows = Array.isArray(nameplate.texts) ? nameplate.texts : [];
+            textElements.forEach((element, index) => {
+                const row = textRows[index];
+                if (!row) {
+                    element.classList.add('hidden');
+                    return;
+                }
+                element.textContent = row.text || '';
+                element.style.left = `${left + width * (0.5 + Number(row.x || 0) / 2)}px`;
+                element.style.top = `${top + height * (0.5 - Number(row.y || 0) / 2)}px`;
+                element.style.fontSize = `${Math.max(7, width * Number(row.size || 11) / 220)}px`;
+                element.style.lineHeight = '1';
+                element.style.letterSpacing = `${Number(row.letter_spacing || 0)}em`;
+                element.style.color = profile.id === 'seated' && index === 0 ? '#FCFCFC' : '#FFFFFF';
+                element.style.webkitTextStroke = '0px transparent';
+                element.style.textShadow = '1px 1px 2px rgba(0, 0, 0, 1)';
+                element.style.transform = `translate(-50%, -50%) scale(${Number(row.scale || 1)})`;
+                element.classList.remove('hidden');
+            });
         }
 
         function stopPreviewBgm() {
@@ -5069,6 +5253,9 @@
                         document.getElementById('video-preview-title-label').style.fontFamily = `"${family}", sans-serif`;
                         document.getElementById('video-preview-title-headline').style.fontFamily = `"${family}", sans-serif`;
                         document.getElementById('video-preview-disclaimer').style.fontFamily = `"${family}", sans-serif`;
+                        [1, 2, 3].forEach((index) => {
+                            document.getElementById(`video-preview-nameplate-text-${index}`).style.fontFamily = `"${family}", sans-serif`;
+                        });
                     }
                 } catch (_) {
                     caption.style.fontFamily = 'sans-serif';
@@ -5233,6 +5420,7 @@
             semanticVideo.pause();
             semanticVideo.classList.add('hidden');
             document.getElementById('video-preview-fixed-nameplate').classList.add('hidden');
+            [1, 2, 3].forEach((index) => document.getElementById(`video-preview-nameplate-text-${index}`).classList.add('hidden'));
             modal.querySelector('.transform').classList.remove('scale-100');
             modal.querySelector('.transform').classList.add('scale-95');
             modal.classList.add('opacity-0', 'pointer-events-none');
@@ -5536,7 +5724,8 @@
                     bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
                     bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
                     font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
-                    text_color: config.textColor || '#ffffff'
+                    text_color: config.textColor || '#ffffff',
+                    layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing'
                 };
             });
             isStartingPostprocess = true;

@@ -206,13 +206,20 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(options.status_code, 200, options.text)
                 self.assertAlmostEqual(
                     options.json()["caption"]["bottom_offset_ratio"],
-                    0.5 + (-850 / 1920) / 2,
+                    0.5 + (-0.382336816305469) / 2,
                 )
-                self.assertEqual(options.json()["caption"]["font_size"], 14.0)
+                self.assertEqual(options.json()["caption"]["font_size"], 11.0)
+                self.assertAlmostEqual(options.json()["caption"]["clip_scale"], 1.351709192276617)
                 self.assertEqual(options.json()["caption"]["stroke_color"], "#000000")
+                self.assertEqual(options.json()["caption"]["stroke_width"], 0.0)
+                self.assertEqual(options.json()["default_layout_profile"], "standing")
+                self.assertEqual(
+                    [profile["id"] for profile in options.json()["layout_profiles"]],
+                    ["standing", "seated"],
+                )
                 self.assertEqual(
                     options.json()["default_font_identity"],
-                    "resource_id:7244518590332801592",
+                    "resource_id:7086699209738424840",
                 )
                 font = options.json()["fonts"][0]
                 self.assertEqual(font["name"], "DouyinSansBold")
@@ -262,10 +269,12 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(row["subtitles"]["style"]["max_width_ratio"], 0.8)
                 self.assertAlmostEqual(
                     row["subtitles"]["style"]["bottom_offset_ratio"],
-                    0.5 + (-850 / 1920) / 2,
+                    0.5 + (-0.382336816305469) / 2,
                 )
-                self.assertAlmostEqual(row["subtitles"]["style"]["transform_y"], -850 / 1920)
-                self.assertEqual(row["subtitles"]["style"]["font_size"], 14.0)
+                self.assertAlmostEqual(row["subtitles"]["style"]["transform_y"], -0.382336816305469)
+                self.assertEqual(row["subtitles"]["style"]["font_size"], 11.0)
+                self.assertAlmostEqual(row["subtitles"]["style"]["clip_scale"], 1.351709192276617)
+                self.assertEqual(row["settings"]["postprocess"]["layout_profile"], "standing")
                 self.assertEqual(
                     row["settings"]["postprocess"]["top_title"],
                     {"label": "减肥大实话", "headline": "只有坚持才能达成目标"},
@@ -274,8 +283,9 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     row["settings"]["postprocess"]["cover_title"],
                     {"line_1": "健康真相", "line_2": "别再踩坑"},
                 )
-                self.assertEqual(row["subtitles"]["style"]["stroke_color"], "#000000")
-                self.assertEqual(row["subtitles"]["style"]["stroke_width"], 0.06)
+                self.assertEqual(row["subtitles"]["style"]["stroke_color"], "")
+                self.assertEqual(row["subtitles"]["style"]["stroke_width"], 0.0)
+                self.assertAlmostEqual(row["subtitles"]["style"]["shadow_alpha"], 0.8999999761581421)
                 self.assertEqual(row["subtitles"]["semantic_mapping"]["status"], "FALLBACK")
                 self.assertGreater(len(row["subtitles"]["render_cues"]), 1)
                 self.assertTrue(
@@ -309,16 +319,18 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertIsNotNone(exported_row["outputs"]["composition_video"])
                 self.assertEqual(captured["submit_count"], 1)
                 job = captured["job"]
+                self.assertEqual(job["output"]["draft_name"], "1-composition")
                 self.assertEqual(job["cover"]["frame_source"], "input_image")
                 self.assertEqual(job["cover"]["image_path"], str(image_path.resolve()))
                 self.assertEqual(job["cover"]["text_line_1"], "健康真相")
                 self.assertEqual(job["cover"]["text_line_2"], "别再踩坑")
                 self.assertTrue(job["captions"]["single_line"])
                 self.assertEqual(job["captions"]["max_lines"], 1)
-                self.assertAlmostEqual(job["captions"]["transform_y"], -850 / 1920)
-                self.assertEqual(job["captions"]["size"], 14.0)
-                self.assertEqual(job["captions"]["stroke_color"], "#000000")
-                self.assertEqual(job["captions"]["stroke_width"], 0.06)
+                self.assertAlmostEqual(job["captions"]["transform_y"], -0.382336816305469)
+                self.assertEqual(job["captions"]["size"], 11.0)
+                self.assertAlmostEqual(job["captions"]["clip_scale"], 1.351709192276617)
+                self.assertEqual(job["captions"]["stroke_color"], "")
+                self.assertEqual(job["captions"]["stroke_width"], 0.0)
                 self.assertEqual(job["source"]["type"], "video_sequence")
                 self.assertEqual(
                     [entry["target_duration_us"] for entry in job["source"]["items"]],
@@ -335,20 +347,25 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(
                     [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],
                     [
-                        ("世界冠军带你自律", 1535 / 1920, 19.0, "#E53935"),
+                        ("世界冠军带你自律", 0.8155959933996199, 19.0, "#FFF589"),
                         (
                             "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n"
                             "如有不适请线下就医",
-                            -1760 / 1920,
+                            -0.916666666666667,
                             6.0,
                             "#FFFFFF",
                         ),
+                        ("张雒", -0.10062777724609877, 11.0, "#FFFFFF"),
+                        ("世界蹦床冠军", -0.06835219192755801, 11.0, "#FFFFFF"),
+                        ("专注35+女性身材管理", -0.14366189100415258, 11.0, "#FFFFFF"),
                     ],
                 )
-                self.assertEqual(job["texts"][0]["stroke_color"], "#FFFFFF")
-                self.assertEqual(job["texts"][0]["stroke_width"], 0.06)
+                self.assertEqual(job["texts"][0]["stroke_color"], "")
+                self.assertEqual(job["texts"][0]["stroke_width"], 0.0)
                 self.assertEqual(job["texts"][0]["opacity"], 1.0)
                 self.assertEqual(job["texts"][1]["opacity"], 0.5)
+                self.assertEqual(job["fixed_overlays"][0]["rotation"], -90.0)
+                self.assertAlmostEqual(job["fixed_overlays"][0]["scale"], 0.44706740211185944)
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )
@@ -388,7 +405,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(regenerated.status_code, 200, regenerated.text)
                 self.assertEqual(
                     regenerated.json()["items"][0]["subtitles"]["style"]["font_size"],
-                    14.0,
+                    11.0,
                 )
                 self.assertEqual(
                     regenerated.json()["items"][0]["settings"]["postprocess"]["top_title"],
@@ -401,6 +418,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                         "font_identity": font["identity"],
                         "bgm_identity": "",
                         "text_color": "#00FF00",
+                        "layout_profile": "seated",
                     },
                 )
                 self.assertEqual(changed.status_code, 200, changed.text)
@@ -412,6 +430,9 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     len(changed_row["asset_history"].get("composition_video", [])), 1
                 )
                 self.assertTrue(changed_row["allowed_actions"]["start_postprocess"])
+                self.assertEqual(
+                    changed_row["settings"]["postprocess"]["layout_profile"], "seated"
+                )
 
                 retried = client.post(
                     f"/api/new/projects/{project['project_id']}/postprocess/generate",
@@ -423,6 +444,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                                 "font_identity": font["identity"],
                                 "bgm_identity": "",
                                 "text_color": "#00FF00",
+                                "layout_profile": "seated",
                             }
                         ],
                     },
@@ -430,7 +452,13 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(retried.status_code, 200, retried.text)
                 retried_row = retried.json()["items"][0]
                 self.assertEqual(retried_row["subtitles"]["status"], "PREVIEW_READY")
-                self.assertEqual(retried_row["subtitles"]["style"]["text_color"], "#00FF00")
+                self.assertEqual(retried_row["subtitles"]["style"]["text_color"], "#FFFFFF")
+                self.assertEqual(retried_row["subtitles"]["style"]["font_size"], 15.0)
+                self.assertEqual(retried_row["subtitles"]["style"]["clip_scale"], 1.0)
+                self.assertAlmostEqual(
+                    retried_row["subtitles"]["style"]["transform_y"],
+                    -0.32080308951309267,
+                )
                 self.assertIsNone(retried_row["outputs"]["composition_video"])
                 self.assertEqual(captured["submit_count"], 1)
 

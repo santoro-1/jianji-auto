@@ -374,6 +374,7 @@ def _apply_captions_to_output(
         stroke_width=_optional_float(captions, "stroke_width"),
         transform_x=_optional_float(captions, "transform_x"),
         transform_y=_optional_float(captions, "transform_y"),
+        clip_scale=_optional_float(captions, "clip_scale"),
         line_max_width=_optional_float(captions, "line_max_width"),
         single_line=_as_bool(
             _value(
@@ -386,6 +387,11 @@ def _apply_captions_to_output(
         font_path=str(_value(captions, "font_path", default="")),
         font_title=str(_value(captions, "font_title", "font_name", default="")),
         track_name=str(_value(captions, "track_name", default="网页自动字幕")),
+        shadow_color=str(_value(captions, "shadow_color", default="")),
+        shadow_alpha=_optional_float(captions, "shadow_alpha"),
+        shadow_distance=_optional_float(captions, "shadow_distance"),
+        shadow_angle=_optional_float(captions, "shadow_angle"),
+        shadow_smoothing=_optional_float(captions, "shadow_smoothing"),
     )
     return len(cues)
 
@@ -563,6 +569,7 @@ def _build_text_replacements(
                     relative_index=int(_value(item, "relative_index", default=999)),
                     transform_x=float(_value(item, "transform_x", default=0.0)),
                     transform_y=float(_value(item, "transform_y", default=0.0)),
+                    scale=float(_value(item, "scale", "clip_scale", default=1.0)),
                     size=float(_value(item, "size", default=8.0)),
                     align=int(_value(item, "align", default=1)),
                     auto_wrapping=_as_bool(_value(item, "auto_wrapping", default=False)),
@@ -571,6 +578,12 @@ def _build_text_replacements(
                     stroke_color=str(_value(item, "stroke_color", default="")),
                     stroke_width=_optional_float(item, "stroke_width"),
                     opacity=opacity,
+                    letter_spacing=_optional_float(item, "letter_spacing"),
+                    shadow_color=str(_value(item, "shadow_color", default="")),
+                    shadow_alpha=_optional_float(item, "shadow_alpha"),
+                    shadow_distance=_optional_float(item, "shadow_distance"),
+                    shadow_angle=_optional_float(item, "shadow_angle"),
+                    shadow_smoothing=_optional_float(item, "shadow_smoothing"),
                     font_id=str(_value(item, "font_id", default="")),
                     font_path=str(_value(item, "font_path", default="")),
                     font_title=str(_value(item, "font_title", default="")),
@@ -954,11 +967,14 @@ def _build_visual_overlay_additions(
                 duration_us=int(_value(item, "duration_us", default=1_800_000)),
                 corner="" if corner == "center" else corner,
                 scale=scale,
+                rotation=float(_value(item, "rotation", default=0.0)),
                 opacity=opacity,
                 track_name="语义前景图片",
                 optional=True,
                 render_below_text=True,
                 layer_order=10,
+                transform_x=_optional_float(item, "transform_x"),
+                transform_y=_optional_float(item, "transform_y"),
             )
         )
     return additions
@@ -1035,6 +1051,7 @@ def _build_fixed_overlay_additions(
                 duration_us=int(_value(item, "duration_us", default=0)),
                 corner=str(_value(item, "corner", default="middle_left")),
                 scale=scale,
+                rotation=float(_value(item, "rotation", default=0.0)),
                 opacity=opacity,
                 track_name=str(_value(item, "track_name", default="固定人名牌")),
                 optional=True,

@@ -59,9 +59,6 @@ from .project_export_naming import (
 )
 from .project_music import ProjectMusicSelector
 from .project_postprocess import (
-    CAPTION_BOTTOM_OFFSET_RATIO,
-    CAPTION_REFERENCE_FONT_SIZE,
-    CAPTION_TRANSFORM_Y,
     ProjectPostprocessCoordinator,
     normalize_cover_title,
     normalize_top_title,
@@ -70,7 +67,14 @@ from .project_results import ProjectResultLibrary
 from .project_variants import ProjectVariantCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
-from .semantic_visuals import FIXED_NAMEPLATE_BUNDLE, load_semantic_visual_catalog
+from .semantic_visuals import load_semantic_visual_catalog
+from .layout_profiles import (
+    DEFAULT_LAYOUT_PROFILE,
+    LAYOUT_PROFILE_FONT_IDENTITY,
+    layout_profile,
+    normalize_layout_profile,
+    public_layout_profiles,
+)
 from .subtitles import (
     build_caption_cues,
     caption_cues_from_payload,
@@ -2495,9 +2499,13 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     @app.get("/api/new/fixed-visuals/nameplate/preview")
     def new_fixed_nameplate_preview(request: Request) -> FileResponse:
         current_project_user(request)
+        try:
+            profile = layout_profile(request.query_params.get("layout_profile"))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         preview_path = (
             semantic_visual_catalog.root
-            / FIXED_NAMEPLATE_BUNDLE
+            / str(profile["nameplate"]["bundle"])
             / "resources"
             / "sticker"
             / "singleImage.png"
@@ -3519,20 +3527,24 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def get_new_postprocess_options(request: Request) -> dict[str, Any]:
         current_project_user(request)
         fonts, bgm_assets = project_postprocess_resources()
+        default_profile = layout_profile(DEFAULT_LAYOUT_PROFILE)
+        default_caption = default_profile["caption"]
         return {
             "schema": "jyd.project-postprocess-options.v1",
-            "default_font_identity": (
-                str(fonts[0].get("identity") or "") if fonts else None
-            ),
+            "default_font_identity": LAYOUT_PROFILE_FONT_IDENTITY,
             "caption": {
-                "max_width_ratio": 0.8,
+                "max_width_ratio": default_caption["max_width_ratio"],
                 "max_lines": 1,
-                "bottom_offset_ratio": CAPTION_BOTTOM_OFFSET_RATIO,
-                "transform_y": CAPTION_TRANSFORM_Y,
-                "font_size": CAPTION_REFERENCE_FONT_SIZE,
+                "bottom_offset_ratio": 0.5 + default_caption["transform_y"] / 2,
+                "transform_y": default_caption["transform_y"],
+                "font_size": default_caption["font_size"],
+                "clip_scale": default_caption["clip_scale"],
                 "stroke_color": "#000000",
-                "stroke_width": 0.06,
+                "stroke_width": 0.0,
+                "shadow_alpha": default_caption["shadow_alpha"],
             },
+            "default_layout_profile": DEFAULT_LAYOUT_PROFILE,
+            "layout_profiles": public_layout_profiles(),
             "fonts": [
                 {
                     "identity": item.get("identity"),
@@ -3595,6 +3607,14 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             payload.get("bgm_selection_mode") or "manual"
         ).strip().lower()
         text_color = str(payload.get("text_color") or "#FFFFFF").strip().upper()
+        try:
+            layout_profile_id = (
+                normalize_layout_profile(payload.get("layout_profile"))
+                if "layout_profile" in payload
+                else None
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         fonts, bgm_assets = project_postprocess_resources()
         available_fonts = {str(item.get("identity") or "") for item in fonts}
         available_bgm = {str(item.get("identity") or "") for item in bgm_assets}
@@ -3632,6 +3652,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 bgm_selection_mode=bgm_selection_mode,
                 top_title=top_title,
                 cover_title=cover_title,
+                layout_profile=layout_profile_id,
                 force_invalidate=payload.get("force_retry") is True,
             )
         except KeyError as exc:
@@ -7454,6 +7475,21 @@ def _list_font_library(root: Path) -> list[dict[str, Any]]:
                 "path": str(path) if relative_file and _is_relative_to(path, root_resolved) else "",
                 "available": available,
                 "size_bytes": int(entry.get("size_bytes", 0) or 0),
+            }
+        )
+    layout_font_path = root / "files" / "FZCuJinLJW_7086699209738424840.ttf"
+    if layout_font_path.is_file() and not any(
+        item.get("identity") == LAYOUT_PROFILE_FONT_IDENTITY for item in result
+    ):
+        result.append(
+            {
+                "identity": LAYOUT_PROFILE_FONT_IDENTITY,
+                "name": "FZCuJinLJW",
+                "resource_id": "7086699209738424840",
+                "effect_id": "",
+                "path": str(layout_font_path.resolve()),
+                "available": True,
+                "size_bytes": layout_font_path.stat().st_size,
             }
         )
     return result

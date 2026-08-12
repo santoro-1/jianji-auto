@@ -1,0 +1,525 @@
+{
+  "schema": "jyd_probe.font_asset.v1",
+  "exported_at": "2026-08-12T17:39:24",
+  "identity": "resource_id:7086699209738424840",
+  "name": "FZCuJinLJW",
+  "resource_id": "7086699209738424840",
+  "effect_id": "7086699209738424840",
+  "checksum_sha256": "3c15643db0ef339e1faf39b8b0c12ffead661565876e617fd25ca5209eabb1ea",
+  "size_bytes": 6189036,
+  "file": "files/FZCuJinLJW_7086699209738424840.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\jyd_plain_json_probe\\data\\libraries\\font_library\\files\\FZCuJinLJW_7086699209738424840.ttf",
+  "metadata_file": "metadata/FZCuJinLJW_7086699209738424840.json",
+  "sources": [
+    {
+      "label": "D:\\工作内容\\轻盈健\\数字人\\.codex_tmp\\draft_specs_20260812\\decrypted\\规范站_decrypted_20260812_164527_817713da",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\effect\\7086699209738424840\\599831579b8aa5b5f0608d5e7d4ec5ce\\FZCuJinLJW.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "a323c21b89f047cba2d91683a206a5d8",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "a323c21b89f047cba2d91683a206a5d8",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 0,
+          "material_id": "a323c21b89f047cba2d91683a206a5d8",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "7f793cec36c44079a51a9988cd52f31b",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "7f793cec36c44079a51a9988cd52f31b",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 1,
+          "material_id": "7f793cec36c44079a51a9988cd52f31b",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 4,
+          "material_id": "8cde44df4dd244b88d9454e63369f04e",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 4,
+          "material_id": "8cde44df4dd244b88d9454e63369f04e",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 4,
+          "material_id": "8cde44df4dd244b88d9454e63369f04e",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 5,
+          "material_id": "614ee9554d1d4fd0b4c2344425751b36",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 5,
+          "material_id": "614ee9554d1d4fd0b4c2344425751b36",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 5,
+          "material_id": "614ee9554d1d4fd0b4c2344425751b36",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 6,
+          "material_id": "8cc59bedfcb44f5ab39954a13ae6d0ab",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 6,
+          "material_id": "8cc59bedfcb44f5ab39954a13ae6d0ab",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 6,
+          "material_id": "8cc59bedfcb44f5ab39954a13ae6d0ab",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 7,
+          "material_id": "85332a65bbd14194a5237111229eef6e",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 7,
+          "material_id": "85332a65bbd14194a5237111229eef6e",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 7,
+          "material_id": "85332a65bbd14194a5237111229eef6e",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 8,
+          "material_id": "2f623132ceba42dea2f15dadb6522633",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 8,
+          "material_id": "2f623132ceba42dea2f15dadb6522633",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 8,
+          "material_id": "2f623132ceba42dea2f15dadb6522633",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 9,
+          "material_id": "c771ec6bfc4e472a954b944f7d1fc718",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 9,
+          "material_id": "c771ec6bfc4e472a954b944f7d1fc718",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 9,
+          "material_id": "c771ec6bfc4e472a954b944f7d1fc718",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 10,
+          "material_id": "94a29789ee40478eaf173c6059f5944b",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 10,
+          "material_id": "94a29789ee40478eaf173c6059f5944b",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 10,
+          "material_id": "94a29789ee40478eaf173c6059f5944b",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 11,
+          "material_id": "7b089a685dcd4c72b8ef7aa7e8f68fe3",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 11,
+          "material_id": "7b089a685dcd4c72b8ef7aa7e8f68fe3",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 11,
+          "material_id": "7b089a685dcd4c72b8ef7aa7e8f68fe3",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 12,
+          "material_id": "a8793a6b95e2462d93023d7b3f784b8e",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 12,
+          "material_id": "a8793a6b95e2462d93023d7b3f784b8e",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 12,
+          "material_id": "a8793a6b95e2462d93023d7b3f784b8e",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 13,
+          "material_id": "1eeed31670b8406096618c55d03b7206",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 13,
+          "material_id": "1eeed31670b8406096618c55d03b7206",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 13,
+          "material_id": "1eeed31670b8406096618c55d03b7206",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 14,
+          "material_id": "dd3eb545f7f04c41924cb5bf321d2f0a",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 14,
+          "material_id": "dd3eb545f7f04c41924cb5bf321d2f0a",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 14,
+          "material_id": "dd3eb545f7f04c41924cb5bf321d2f0a",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 15,
+          "material_id": "0de76d54ac31422686c32d40dfcda91f",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 15,
+          "material_id": "0de76d54ac31422686c32d40dfcda91f",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 15,
+          "material_id": "0de76d54ac31422686c32d40dfcda91f",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 16,
+          "material_id": "dd40d13b53ef42dc9872e55695071fee",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 16,
+          "material_id": "dd40d13b53ef42dc9872e55695071fee",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 16,
+          "material_id": "dd40d13b53ef42dc9872e55695071fee",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 17,
+          "material_id": "6b461c70731b4f3d81826efe56d02cec",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 17,
+          "material_id": "6b461c70731b4f3d81826efe56d02cec",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 17,
+          "material_id": "6b461c70731b4f3d81826efe56d02cec",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 18,
+          "material_id": "e48107d444284db8af8057030509c00e",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 18,
+          "material_id": "e48107d444284db8af8057030509c00e",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 18,
+          "material_id": "e48107d444284db8af8057030509c00e",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 19,
+          "material_id": "fd0d2d6979ad41fa98282598c8b4b0e2",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 19,
+          "material_id": "fd0d2d6979ad41fa98282598c8b4b0e2",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 19,
+          "material_id": "fd0d2d6979ad41fa98282598c8b4b0e2",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 20,
+          "material_id": "2437fc81eb1a4d4284b3414c44644ce7",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 20,
+          "material_id": "2437fc81eb1a4d4284b3414c44644ce7",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 20,
+          "material_id": "2437fc81eb1a4d4284b3414c44644ce7",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 21,
+          "material_id": "9c7205e1267a4a7cb90d7c084065e6d6",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 21,
+          "material_id": "9c7205e1267a4a7cb90d7c084065e6d6",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 21,
+          "material_id": "9c7205e1267a4a7cb90d7c084065e6d6",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 22,
+          "material_id": "0273c4a3d28e4f3d9786bf5aec59042b",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 22,
+          "material_id": "0273c4a3d28e4f3d9786bf5aec59042b",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 22,
+          "material_id": "0273c4a3d28e4f3d9786bf5aec59042b",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 23,
+          "material_id": "4e24a9f8c8414a36b4adde9c31642a30",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 23,
+          "material_id": "4e24a9f8c8414a36b4adde9c31642a30",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 23,
+          "material_id": "4e24a9f8c8414a36b4adde9c31642a30",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 24,
+          "material_id": "9cb544264f894f78bee56c3294a688bb",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 24,
+          "material_id": "9cb544264f894f78bee56c3294a688bb",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 24,
+          "material_id": "9cb544264f894f78bee56c3294a688bb",
+          "json_pointer": "/fonts/0/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 25,
+          "material_id": "85094ACF-B28D-4288-A39D-86FF8537D28B",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 26,
+          "material_id": "7A73E097-0288-41a4-AA5F-98C6B07F68E1",
+          "json_pointer": "/content$json/styles/0/font/path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 27,
+          "material_id": "66F6AC27-59F4-4b84-BF3C-6A37681A8C4C",
+          "json_pointer": "/content$json/styles/0/font/path"
+        }
+      ]
+    }
+  ]
+}

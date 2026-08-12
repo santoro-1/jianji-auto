@@ -24,6 +24,8 @@ class UpdatePackageContractTest(unittest.TestCase):
             'Copy-Item -LiteralPath (Join-Path $ProjectRoot "data\\libraries\\audio_library")',
             update_block,
         )
+        self.assertIn("FZCuJinLJW_7086699209738424840.ttf", update_block)
+        self.assertIn('$LayoutFontDestination = Join-Path $LibrariesDir "font_library\\files"', update_block)
 
     def test_update_instructions_name_the_music_profile_contract(self) -> None:
         instructions = (PROJECT_ROOT / "docs" / "PROCESSOR_UPDATE.md").read_text(
@@ -31,6 +33,7 @@ class UpdatePackageContractTest(unittest.TestCase):
         )
         self.assertIn("music_profiles.v1.json", instructions)
         self.assertIn("不会携带\n音乐文件", instructions)
+        self.assertIn("金陵体字体", instructions)
 
 
 if __name__ == "__main__":

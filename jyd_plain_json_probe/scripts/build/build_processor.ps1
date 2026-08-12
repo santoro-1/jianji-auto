@@ -169,6 +169,13 @@ try {
         $MusicProfileDestination = Join-Path $LibrariesDir "audio_library\manifest"
         New-Item -ItemType Directory -Path $MusicProfileDestination -Force | Out-Null
         Copy-Item -LiteralPath $MusicProfileSource -Destination $MusicProfileDestination -Force
+        $LayoutFontSource = Join-Path $ProjectRoot "data\libraries\font_library\files\FZCuJinLJW_7086699209738424840.ttf"
+        if (-not (Test-Path -LiteralPath $LayoutFontSource -PathType Leaf)) {
+            throw "Standing/seated layout font was not found: $LayoutFontSource"
+        }
+        $LayoutFontDestination = Join-Path $LibrariesDir "font_library\files"
+        New-Item -ItemType Directory -Path $LayoutFontDestination -Force | Out-Null
+        Copy-Item -LiteralPath $LayoutFontSource -Destination $LayoutFontDestination -Force
     }
 
     $ToolsDir = Join-Path $DistDir "tools"

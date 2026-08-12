@@ -1,7 +1,7 @@
 # 剪映批量剪辑工作台更新说明
 
-这个压缩包只用于更新已经安装好的工作台。它会携带并合并官方语义贴图素材库，以及覆盖
-官方音乐语义标签 `data/libraries/audio_library/manifest/music_profiles.v1.json`；不会携带
+这个压缩包只用于更新已经安装好的工作台。它会携带并合并官方语义贴图素材库、站姿 / 坐姿
+规范使用的金陵体字体，以及覆盖官方音乐语义标签 `data/libraries/audio_library/manifest/music_profiles.v1.json`；不会携带
 音乐文件、音频素材清单、ASR 运行时、用户任务、密码、配置、个人素材库或其他历史数据。
 
 ## 更新步骤

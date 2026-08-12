@@ -289,8 +289,9 @@ class ProjectVariantTest(unittest.TestCase):
                 [0.0, 0.0],
             )
             self.assertEqual(job["original_video_volume"], 0.0)
-            self.assertEqual(job["captions"]["size"], 14.0)
-            self.assertEqual(job["captions"]["stroke_color"], "#000000")
+            self.assertEqual(job["captions"]["size"], 11.0)
+            self.assertAlmostEqual(job["captions"]["clip_scale"], 1.351709192276617)
+            self.assertEqual(job["captions"]["stroke_color"], "")
             self.assertEqual(job["captions"]["font_title"], "固定字体")
             self.assertEqual(
                 job["audios"][0]["media_path"],
@@ -302,8 +303,13 @@ class ProjectVariantTest(unittest.TestCase):
                 [
                     "世界冠军带你自律",
                     "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n如有不适请线下就医",
+                    "张雒",
+                    "世界蹦床冠军",
+                    "专注35+女性身材管理",
                 ],
             )
+            self.assertEqual(job["fixed_overlays"][0]["rotation"], -90.0)
+            self.assertAlmostEqual(job["fixed_overlays"][0]["scale"], 0.44706740211185944)
             self.assertEqual(job["cover"]["frame_count"], 3)
             self.assertEqual(job["cover"]["frame_source"], "input_image")
             self.assertEqual(job["cover"]["image_path"], str((self.root / "image-1.png").resolve()))
@@ -332,6 +338,10 @@ class ProjectVariantTest(unittest.TestCase):
         self.assertEqual(archive_path.name, "1")
         self.assertTrue((archive_path / "原始脚本.xlsx").is_file())
         self.assertTrue(all(Path(job["output"]["mp4_path"]).parent == archive_path for job in self.queue.jobs))
+        self.assertEqual(
+            [job["output"]["draft_name"] for job in self.queue.jobs[:3]],
+            ["任务-1-变体-001", "任务-1-变体-002", "任务-1-变体-003"],
+        )
         gallery = self.coordinator.result_library.list_results("user")
         self.assertEqual(gallery["total_batches"], 1)
         self.assertEqual(gallery["total_videos"], 30)

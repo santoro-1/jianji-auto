@@ -179,6 +179,7 @@ class TextAddition:
     relative_index: int = 999
     transform_x: float = 0.0
     transform_y: float = 0.0
+    scale: float = 1.0
     size: float = 8.0
     align: int = 1
     auto_wrapping: bool = False
@@ -187,6 +188,12 @@ class TextAddition:
     stroke_color: str = ""
     stroke_width: float | None = None
     opacity: float = 1.0
+    letter_spacing: float | None = None
+    shadow_color: str = ""
+    shadow_alpha: float | None = None
+    shadow_distance: float | None = None
+    shadow_angle: float | None = None
+    shadow_smoothing: float | None = None
     font_id: str = ""
     font_path: str = ""
     font_title: str = ""
@@ -580,6 +587,7 @@ def _apply_top_level_changes(
                     text_relative_index=item.relative_index,
                     text_transform_x=item.transform_x,
                     text_transform_y=item.transform_y,
+                    text_scale=item.scale,
                     text_size=item.size,
                     text_align=item.align,
                     text_auto_wrapping=item.auto_wrapping,
@@ -1147,6 +1155,12 @@ def _apply_text_material_overrides(
     stroke_width: float | None,
     line_max_width: float | None,
     opacity: float | None = None,
+    letter_spacing: float | None = None,
+    shadow_color: str = "",
+    shadow_alpha: float | None = None,
+    shadow_distance: float | None = None,
+    shadow_angle: float | None = None,
+    shadow_smoothing: float | None = None,
 ) -> None:
     content = _parse_text_material_content(material)
     styles = content.get("styles")
@@ -1156,6 +1170,7 @@ def _apply_text_material_overrides(
 
     rgb = _parse_hex_color(color) if color else None
     stroke_rgb = _parse_hex_color(stroke_color) if stroke_color else None
+    shadow_rgb = _parse_hex_color(shadow_color) if shadow_color else None
     for style in styles:
         if not isinstance(style, dict):
             continue
@@ -1178,12 +1193,40 @@ def _apply_text_material_overrides(
                     "width": float(stroke_width),
                 }
             ]
+        if shadow_rgb is not None and shadow_alpha is not None and shadow_alpha > 0:
+            style["shadows"] = [
+                {
+                    "content": {
+                        "render_type": "solid",
+                        "solid": {"color": shadow_rgb},
+                    },
+                    "alpha": float(shadow_alpha),
+                    "distance": float(shadow_distance if shadow_distance is not None else 5.0),
+                    "angle": float(shadow_angle if shadow_angle is not None else -45.0),
+                    "diffuse": 0.02500000037252903,
+                }
+            ]
 
     material["content"] = json.dumps(content, ensure_ascii=False)
     if opacity is not None:
         material["global_alpha"] = float(opacity)
     if line_max_width is not None:
         material["line_max_width"] = line_max_width
+    if letter_spacing is not None:
+        material["letter_spacing"] = float(letter_spacing)
+    if shadow_rgb is not None and shadow_alpha is not None:
+        enabled = shadow_alpha > 0
+        material["has_shadow"] = enabled
+        if enabled:
+            material.update(
+                {
+                    "shadow_color": shadow_color.upper(),
+                    "shadow_alpha": float(shadow_alpha),
+                    "shadow_distance": float(shadow_distance if shadow_distance is not None else 5.0),
+                    "shadow_angle": float(shadow_angle if shadow_angle is not None else -45.0),
+                    "shadow_smoothing": float(shadow_smoothing if shadow_smoothing is not None else 0.45),
+                }
+            )
 
 
 def apply_text_track_style(
@@ -1202,6 +1245,11 @@ def apply_text_track_style(
     font_id: str = "",
     font_path: str = "",
     font_title: str = "",
+    shadow_color: str = "",
+    shadow_alpha: float | None = None,
+    shadow_distance: float | None = None,
+    shadow_angle: float | None = None,
+    shadow_smoothing: float | None = None,
 ) -> int:
     """Apply one preset and optional overrides to every segment on a text track."""
 
@@ -1244,6 +1292,11 @@ def apply_text_track_style(
                 stroke_color=stroke_color,
                 stroke_width=stroke_width,
                 line_max_width=line_max_width,
+                shadow_color=shadow_color,
+                shadow_alpha=shadow_alpha,
+                shadow_distance=shadow_distance,
+                shadow_angle=shadow_angle,
+                shadow_smoothing=shadow_smoothing,
             )
             if font_id and font_path:
                 _apply_font_to_text_material(
@@ -1410,6 +1463,12 @@ def _apply_text_style_preset_to_added_text(
             stroke_width=item.stroke_width,
             line_max_width=item.line_max_width,
             opacity=item.opacity,
+            letter_spacing=item.letter_spacing,
+            shadow_color=item.shadow_color,
+            shadow_alpha=item.shadow_alpha,
+            shadow_distance=item.shadow_distance,
+            shadow_angle=item.shadow_angle,
+            shadow_smoothing=item.shadow_smoothing,
         )
         if item.font_id and item.font_path:
             _apply_font_to_text_material(

@@ -1,0 +1,14 @@
+{
+  "schema": "jyd_probe.fixed_overlay.v1",
+  "identity": "resource_id:7533070364969078040",
+  "name": "规范站人名板底图",
+  "usage": "fixed_nameplate",
+  "layout_profile": "standing",
+  "preview_file": "resources/sticker/singleImage.png",
+  "resource": {
+    "library_path": "resources/sticker",
+    "width": 540,
+    "height": 540,
+    "status": "copied_from_decrypted_draft_cache"
+  }
+}
