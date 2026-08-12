@@ -50,6 +50,13 @@ from .project_composition import (
 )
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
+from .project_export_naming import (
+    audio_export_filename,
+    composition_export_filename,
+    project_item_export_stem,
+    segment_export_filename,
+    variant_export_filename,
+)
 from .project_music import ProjectMusicSelector
 from .project_postprocess import (
     CAPTION_BOTTOM_OFFSET_RATIO,
@@ -3227,7 +3234,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         return FileResponse(
             path,
             media_type="audio/mpeg",
-            filename=str(audio.get("filename") or f"{item['row_key']}.mp3"),
+            filename=audio_export_filename(item, audio),
         )
 
     @app.get("/api/new/projects/{project_id}/audios/download")
@@ -3258,9 +3265,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             selected.append(
                 (
                     path,
-                    _safe_filename(
-                        str(audio.get("filename") or f"{item.get('row_key')}.mp3")
-                    ),
+                    _safe_filename(audio_export_filename(item, audio)),
                 )
             )
         if not selected:
@@ -3756,7 +3761,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         path = Path(str(asset.get("managed_path") or "")).resolve()
         if not path.is_file() or not is_managed_project_file(path):
             raise HTTPException(status_code=404, detail="变体文件不存在")
-        return FileResponse(path, media_type="video/mp4", filename=str(asset.get("filename") or f"{item['row_key']}-variant.mp4"))
+        return FileResponse(
+            path,
+            media_type="video/mp4",
+            filename=variant_export_filename(item, asset),
+        )
 
     @app.delete("/api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}")
     def delete_new_project_variant(
@@ -3812,6 +3821,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             for video in batch["videos"]
         }
         selected = []
+        project_cache: dict[str, dict[str, Any]] = {}
         for asset_id in asset_ids:
             video = available.get(asset_id)
             if video is None:
@@ -3819,7 +3829,20 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             path = Path(str(video.get("managed_path") or "")).resolve()
             if not path.is_file() or not is_managed_project_file(path):
                 raise HTTPException(status_code=404, detail=f"成果文件不存在: {video.get('filename')}")
-            selected.append((path, str(video.get("filename") or path.name)))
+            project_id = str(video.get("project_id") or "")
+            project = project_cache.get(project_id)
+            if project is None:
+                project = project_store.get_project(user["user_id"], project_id)
+                project_cache[project_id] = project
+            item = next(
+                (
+                    entry
+                    for entry in project.get("items", [])
+                    if entry.get("item_id") == video.get("item_id")
+                ),
+                {},
+            )
+            selected.append((path, variant_export_filename(item, video)))
         archive_root = settings.storage_root / "gallery_downloads"
         archive_root.mkdir(parents=True, exist_ok=True)
         archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
@@ -3934,7 +3957,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         return FileResponse(
             path,
             media_type=media_type,
-            filename=str(video.get("filename") or f"{item['row_key']}-composition.mp4"),
+            filename=composition_export_filename(item, video),
         )
 
     @app.get("/api/new/projects/{project_id}/videos/download")
@@ -3965,9 +3988,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             selected.append(
                 (
                     path,
-                    _safe_filename(
-                        str(video.get("filename") or f"{item.get('row_key')}-成片.mp4")
-                    ),
+                    _safe_filename(composition_export_filename(item, video)),
                 )
             )
         if not selected:
@@ -4035,9 +4056,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             return FileResponse(
                 path,
                 media_type="video/mp4",
-                filename=str(
-                    segment.get("filename") or f"{item['row_key']}-segment-001.mp4"
-                ),
+                filename=segment_export_filename(item, segment, index=1),
             )
 
         archive_root = settings.storage_root / "temporary_downloads"
@@ -4048,7 +4067,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
         ) as archive:
             for sequence, (segment, path) in enumerate(resolved, start=1):
-                archive_name = f"{item['row_key']}-segment-{sequence:03d}{path.suffix.lower() or '.mp4'}"
+                archive_name = segment_export_filename(item, segment, index=sequence)
                 archive.write(path, archive_name)
                 manifest.append(
                     {
@@ -4073,7 +4092,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         return FileResponse(
             archive_path,
             media_type="application/zip",
-            filename=f"{_safe_download_stem(str(item['row_key']))}-原始片段.zip",
+            filename=f"{project_item_export_stem(item)}-原始片段.zip",
             background=BackgroundTask(_unlink_if_exists, archive_path),
         )
 

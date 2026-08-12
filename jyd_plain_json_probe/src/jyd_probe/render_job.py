@@ -548,6 +548,9 @@ def _build_text_replacements(
                 timeline_duration_us,
                 "新增文字",
             )
+            opacity = float(_value(item, "opacity", "global_alpha", default=1.0))
+            if not 0.0 <= opacity <= 1.0:
+                raise ValueError("文字透明度必须在 0.0 到 1.0 之间")
             additions.append(
                 TextAddition(
                     text=text,
@@ -567,6 +570,7 @@ def _build_text_replacements(
                     color=str(_value(item, "color", default="")),
                     stroke_color=str(_value(item, "stroke_color", default="")),
                     stroke_width=_optional_float(item, "stroke_width"),
+                    opacity=opacity,
                     font_id=str(_value(item, "font_id", default="")),
                     font_path=str(_value(item, "font_path", default="")),
                     font_title=str(_value(item, "font_title", default="")),

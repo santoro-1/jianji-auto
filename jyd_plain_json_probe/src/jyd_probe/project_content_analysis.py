@@ -215,6 +215,10 @@ class ProjectContentAnalysisCoordinator:
                 else None
             )
             is_current = previous.get("script_sha256") == script_hash
+            title_is_current = (
+                str(previous.get("title_analysis_status") or "NOT_REQUESTED").upper()
+                in _BRANCH_STATUSES
+            )
             visual_is_current = True
             if visual is not None:
                 previous_visual = visual.previous
@@ -229,6 +233,7 @@ class ProjectContentAnalysisCoordinator:
             if (
                 not force_refresh
                 and is_current
+                and title_is_current
                 and visual_is_current
                 and str(previous.get("overall_status") or "")
                 in _UNCHANGED_SCRIPT_STATUSES

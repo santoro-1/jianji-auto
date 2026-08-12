@@ -4,7 +4,6 @@ from copy import deepcopy
 import hashlib
 from itertools import product
 from pathlib import Path
-import re
 from typing import Any, Iterable
 import uuid
 
@@ -19,6 +18,7 @@ from .project_postprocess import (
     build_project_cover,
     build_top_title_texts,
 )
+from .project_export_naming import variant_export_filename
 from .semantic_visuals import fixed_nameplate_overlay, frozen_visual_overlays
 
 
@@ -426,7 +426,7 @@ class ProjectVariantCoordinator:
                 row["job"]["output"]["mp4_path"] = str(
                     self._variant_output(
                         output_directory,
-                        row_key=str(item.get("row_key") or item_id),
+                        item=item,
                         index=serial,
                     )
                 )
@@ -572,7 +572,7 @@ class ProjectVariantCoordinator:
             row["job"]["output"]["mp4_path"] = str(
                 self._variant_output(
                     output_directory,
-                    row_key=str(item.get("row_key") or item_id),
+                    item=item,
                     index=output_index,
                 )
             )
@@ -1096,7 +1096,6 @@ class ProjectVariantCoordinator:
         return operation.get("payload", {}) if operation else {}
 
     def _variant_output(
-        self, output_directory: Path, *, row_key: str, index: int
+        self, output_directory: Path, *, item: dict[str, Any], index: int
     ) -> Path:
-        safe_row = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "_", row_key).strip(" .")
-        return output_directory / f"任务-{safe_row or '未编号'}-变体-{index:03d}.mp4"
+        return output_directory / variant_export_filename(item, index=index)

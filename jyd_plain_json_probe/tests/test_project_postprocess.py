@@ -204,7 +204,10 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(login.status_code, 200, login.text)
                 options = client.get("/api/new/postprocess/options")
                 self.assertEqual(options.status_code, 200, options.text)
-                self.assertAlmostEqual(options.json()["caption"]["bottom_offset_ratio"], 0.296875)
+                self.assertAlmostEqual(
+                    options.json()["caption"]["bottom_offset_ratio"],
+                    0.5 + (-850 / 1920) / 2,
+                )
                 self.assertEqual(options.json()["caption"]["font_size"], 14.0)
                 self.assertEqual(options.json()["caption"]["stroke_color"], "#000000")
                 self.assertEqual(
@@ -257,8 +260,11 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 )
                 self.assertEqual(row["subtitles"]["style"]["max_lines"], 1)
                 self.assertEqual(row["subtitles"]["style"]["max_width_ratio"], 0.8)
-                self.assertAlmostEqual(row["subtitles"]["style"]["bottom_offset_ratio"], 0.296875)
-                self.assertAlmostEqual(row["subtitles"]["style"]["transform_y"], -780 / 1920)
+                self.assertAlmostEqual(
+                    row["subtitles"]["style"]["bottom_offset_ratio"],
+                    0.5 + (-850 / 1920) / 2,
+                )
+                self.assertAlmostEqual(row["subtitles"]["style"]["transform_y"], -850 / 1920)
                 self.assertEqual(row["subtitles"]["style"]["font_size"], 14.0)
                 self.assertEqual(
                     row["settings"]["postprocess"]["top_title"],
@@ -309,7 +315,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["cover"]["text_line_2"], "别再踩坑")
                 self.assertTrue(job["captions"]["single_line"])
                 self.assertEqual(job["captions"]["max_lines"], 1)
-                self.assertAlmostEqual(job["captions"]["transform_y"], -780 / 1920)
+                self.assertAlmostEqual(job["captions"]["transform_y"], -850 / 1920)
                 self.assertEqual(job["captions"]["size"], 14.0)
                 self.assertEqual(job["captions"]["stroke_color"], "#000000")
                 self.assertEqual(job["captions"]["stroke_width"], 0.06)
@@ -341,6 +347,8 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 )
                 self.assertEqual(job["texts"][0]["stroke_color"], "#FFFFFF")
                 self.assertEqual(job["texts"][0]["stroke_width"], 0.06)
+                self.assertEqual(job["texts"][0]["opacity"], 1.0)
+                self.assertEqual(job["texts"][1]["opacity"], 0.5)
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )

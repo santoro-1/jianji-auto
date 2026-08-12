@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from jyd_probe.content_replace import _apply_text_material_overrides
 from jyd_probe.project_postprocess import (
     CAPTION_REFERENCE_MAX_EM,
     build_project_cover,
@@ -40,6 +41,7 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
     assert texts[0]["text"] == "世界冠军带你自律"
     assert texts[0]["stroke_color"] == "#FFFFFF"
     assert texts[0]["stroke_width"] == 0.06
+    assert [item["opacity"] for item in texts] == [1.0, 0.5]
     assert texts[-1]["text"] == (
         "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n"
         "如有不适请线下就医"
@@ -56,6 +58,22 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
     assert [item.line_max_width for item in additions] == [0.92, 0.92]
     assert [item.font_id for item in additions] == ["font-id", "font-id"]
     assert [item.stroke_width for item in additions] == [0.06, 0.04]
+    assert [item.opacity for item in additions] == [1.0, 0.5]
+
+    material = {
+        "content": '{"text":"免责声明","styles":[{"range":[0,5]}]}',
+        "global_alpha": 1.0,
+    }
+    _apply_text_material_overrides(
+        material,
+        size=6.0,
+        color="#FFFFFF",
+        stroke_color="#000000",
+        stroke_width=0.04,
+        line_max_width=0.92,
+        opacity=0.5,
+    )
+    assert material["global_alpha"] == 0.5
 
 
 def test_top_title_rejects_multiline_overflow() -> None:

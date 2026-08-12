@@ -196,7 +196,7 @@ def test_v2_catalog_loads_unified_image_and_reserved_video_assets(tmp_path: Path
     assert image is not None and image["concept_ids"] == ["food.beef", "meal.breakfast"]
     assert image["media_type"] == "image"
     assert image["defaults"]["corner"] == "bottom_center"
-    assert image["defaults"]["scale"] == 0.78
+    assert image["defaults"]["scale"] == 0.56
     assert video is not None and video["media_type"] == "video"
     assert video["renderer"] == "video_overlay"
     assert video["defaults"]["corner"] == "bottom_center"
@@ -457,7 +457,7 @@ def test_untouched_auto_recipe_refreshes_current_asset_layout_and_resource() -> 
     refreshed = frozen_visual_overlays(item, library_root=CATALOG_ROOT)[0]
 
     assert refreshed["corner"] == "bottom_center"
-    assert refreshed["scale"] == 0.78
+    assert refreshed["scale"] == 0.56
     assert Path(refreshed["bundle_path"]).name == "cucumber_salad_lower_fade_02"
 
     overlay.update({"manual": True, "locked": True})

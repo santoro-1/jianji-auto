@@ -186,6 +186,7 @@ class TextAddition:
     color: str = ""
     stroke_color: str = ""
     stroke_width: float | None = None
+    opacity: float = 1.0
     font_id: str = ""
     font_path: str = ""
     font_title: str = ""
@@ -1145,6 +1146,7 @@ def _apply_text_material_overrides(
     stroke_color: str,
     stroke_width: float | None,
     line_max_width: float | None,
+    opacity: float | None = None,
 ) -> None:
     content = _parse_text_material_content(material)
     styles = content.get("styles")
@@ -1178,6 +1180,8 @@ def _apply_text_material_overrides(
             ]
 
     material["content"] = json.dumps(content, ensure_ascii=False)
+    if opacity is not None:
+        material["global_alpha"] = float(opacity)
     if line_max_width is not None:
         material["line_max_width"] = line_max_width
 
@@ -1405,6 +1409,7 @@ def _apply_text_style_preset_to_added_text(
             stroke_color=item.stroke_color,
             stroke_width=item.stroke_width,
             line_max_width=item.line_max_width,
+            opacity=item.opacity,
         )
         if item.font_id and item.font_path:
             _apply_font_to_text_material(

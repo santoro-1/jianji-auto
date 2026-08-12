@@ -9,6 +9,7 @@ from typing import Any, Mapping
 import uuid
 
 from .auth_center import AuthCenterClient
+from .project_export_naming import audio_export_filename
 from .project_store import ProjectStore
 from .logging_config import log_event
 from .semantic_visuals import SemanticVisualCatalog
@@ -45,11 +46,6 @@ def _audio_speed(project: dict[str, Any], item_id: str) -> float:
         if math.isfinite(speed) and 0.5 <= speed <= 2.0:
             return speed
     return 1.0
-
-
-def _audio_filename(row_key: object, speed: float) -> str:
-    speed_text = f"{speed:.2f}".rstrip("0").rstrip(".")
-    return f"{str(row_key or '').strip()}_{speed_text}倍速.mp3"
 
 
 def _current_audio_links(
@@ -489,7 +485,9 @@ class ProjectAudioCoordinator:
                             asset_type="audio",
                             source_type="minimax",
                             status="READY",
-                            filename=_audio_filename(local_item["row_key"], speed),
+                            filename=audio_export_filename(
+                                local_item, {"metadata": {"speed": speed}}
+                            ),
                             managed_path=str(target),
                             external_ref={
                                 "batch_id": batch_id,

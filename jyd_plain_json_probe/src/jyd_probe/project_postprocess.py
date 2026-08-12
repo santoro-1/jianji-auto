@@ -23,6 +23,7 @@ from .project_music import (
     automatic_music_identity_counts,
     manual_music_selection,
 )
+from .project_export_naming import composition_export_filename
 from .project_store import ProjectStore
 from .project_video_source import build_project_speech_audio, build_project_video_source
 from .semantic_subtitles import (
@@ -43,7 +44,7 @@ from .unified_visual_plan import remap_saved_visual_plan
 
 CAPTION_MAX_WIDTH_RATIO = 0.8
 CAPTION_MAX_LINES = 1
-CAPTION_TRANSFORM_Y = -780 / 1920
+CAPTION_TRANSFORM_Y = -850 / 1920
 CAPTION_BOTTOM_OFFSET_RATIO = 0.5 + CAPTION_TRANSFORM_Y / 2
 CAPTION_REFERENCE_FONT_SIZE = 14.0
 CAPTION_REFERENCE_MAX_EM = 13.0 * 11.0 / CAPTION_REFERENCE_FONT_SIZE
@@ -120,6 +121,7 @@ BOTTOM_DISCLAIMER_TEXT = (
 BOTTOM_DISCLAIMER_FONT_SIZE = 6.0
 BOTTOM_DISCLAIMER_TRANSFORM_Y = -1760 / 1920
 BOTTOM_DISCLAIMER_COLOR = "#FFFFFF"
+BOTTOM_DISCLAIMER_OPACITY = 0.5
 
 def normalize_top_title(value: Any) -> dict[str, str]:
     """Normalize the optional two-line fixed top title contract."""
@@ -271,6 +273,7 @@ def build_top_title_texts(
             FIXED_VIDEO_TITLE_COLOR,
             FIXED_VIDEO_TITLE_STROKE_COLOR,
             FIXED_VIDEO_TITLE_STROKE_WIDTH,
+            1.0,
             950,
         ),
         (
@@ -281,6 +284,7 @@ def build_top_title_texts(
             BOTTOM_DISCLAIMER_COLOR,
             "#000000",
             0.04,
+            BOTTOM_DISCLAIMER_OPACITY,
             952,
         ),
     ]
@@ -302,6 +306,7 @@ def build_top_title_texts(
             "color": color,
             "stroke_color": stroke_color,
             "stroke_width": stroke_width,
+            "opacity": opacity,
             **font_fields,
         }
         for (
@@ -312,6 +317,7 @@ def build_top_title_texts(
             color,
             stroke_color,
             stroke_width,
+            opacity,
             relative_index,
         ) in rows
         if text
@@ -1775,7 +1781,7 @@ class ProjectPostprocessCoordinator:
                     asset_type="composition_video",
                     source_type="jianying_postprocess",
                     status="READY",
-                    filename=f"{item['row_key']}-composition.mp4",
+                    filename=composition_export_filename(item),
                     managed_path=str(output),
                     external_ref={"render_job_id": job_id},
                     metadata={

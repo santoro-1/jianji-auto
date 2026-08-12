@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import shutil
 import sys
@@ -273,6 +274,56 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertEqual(calls, 1)
         self.assertEqual(first["items"][0]["content_analysis"]["overall_status"], "FAILED")
         self.assertEqual(second["items"][0]["content_analysis"]["overall_status"], "FAILED")
+
+    def test_legacy_success_without_title_is_analyzed_again_to_fill_title(self) -> None:
+        script = "旧版已经分析过但还没有标题"
+        calls = 0
+
+        class SuccessfulClient:
+            def analyze_workbench_content(
+                self, _token, original_script, *, force_refresh=False
+            ):
+                nonlocal calls
+                calls += 1
+                return _remote_result(original_script)
+
+        store = ProjectStore(self.settings.storage_root / "legacy_title.db")
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="补齐旧版标题",
+            items=[{"row_key": "1", "script_text": script}],
+        )
+        item_id = project["items"][0]["item_id"]
+        legacy_analysis = {
+            "snapshot_schema": "jyd.project-content-analysis.v1",
+            "script_sha256": hashlib.sha256(script.encode("utf-8")).hexdigest(),
+            "script_length": len(script),
+            "overall_status": "SUCCESS",
+            "music_analysis_status": "SUCCESS",
+            "subtitle_analysis_status": "SUCCESS",
+            "music_intent": {"primary_scene": "health_education"},
+            "subtitle_units": [{"text": script}],
+        }
+        with store._connect() as connection:
+            connection.execute(
+                "UPDATE project_items SET content_analysis_json=? WHERE item_id=?",
+                (json.dumps(legacy_analysis, ensure_ascii=False), item_id),
+            )
+
+        analyzed = ProjectContentAnalysisCoordinator(
+            store, SuccessfulClient()
+        ).analyze(self.user["user_id"], project["project_id"], "token")
+
+        snapshot = analyzed["items"][0]["content_analysis"]
+        expected_title = {"line_1": "减脂真相", "line_2": "坚持才是关键"}
+        self.assertEqual(calls, 1)
+        self.assertEqual(snapshot["title_analysis_status"], "SUCCESS")
+        self.assertEqual(snapshot["title"], expected_title)
+        self.assertEqual(
+            analyzed["items"][0]["settings"]["postprocess"]["cover_title"],
+            expected_title,
+        )
 
     def test_script_change_invalidates_and_only_reanalyzes_changed_item(self) -> None:
         calls: list[tuple[str, bool]] = []

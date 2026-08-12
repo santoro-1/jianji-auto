@@ -389,7 +389,7 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 ```
 
 字幕使用 MiniMax `raw_cues` 派生 `render_cues`：固定居中且禁止换行、字号 `14`、最大宽度 `0.8`、
-`transform_y=-780/1920`（1080×1920 参考画面中心约 Y=1350）。过长文本按真实字体 glyph advance 测量后，
+`transform_y=-850/1920`（1080×1920 参考参数 Y=-850）。过长文本按真实字体 glyph advance 测量后，
 在原始 cue 时间范围内拆成连续字幕；原始 cues 不修改。缺字、字体损坏或无法满足安全
 宽度/最短显示时长时返回 `409`，并把该行字幕标记为 `REVIEW_REQUIRED`，不会静默提交
 溢出字幕。BGM 可不选；选择时使用音乐库 identity、音量 0.3，并适配视频时长。
@@ -406,6 +406,12 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不直接作为上述时间线画面源；
 这样字幕、BGM 和视频使用完全相同的绝对时间轴，不会因供应商分段的容器实际时长偏短而
 使末尾字幕越界。`base_video` 已包含 4A 生成的 250000 微秒保时长叠化。
+
+声音、普通成片、原始分段和变体下载统一读取 `item.settings.source_metadata`。后两列齐全时，
+文件名以 `账号{分配账号}-{文章类型}-{任务ID}` 开头，例如
+`账号5-鸡汤文-2_0.9倍速.mp3`、`账号5-鸡汤文-2-composition.mp4` 和
+`账号5-鸡汤文-2-变体-001.mp4`。该规则在下载响应时动态生效，因此给旧项目回填四列表后，
+既有文件也会立即使用新名称；历史两列表继续返回原文件名。
 
 统一内容分析的 `title` 分支返回唯一 `{"line_1":"减脂真相","line_2":"坚持才是关键"}`：第一行
 最多 5 个字符，新 AI 标题第二行最多 8 个字符；历史手工/已保存标题读取时兼容到 14 个字符，
