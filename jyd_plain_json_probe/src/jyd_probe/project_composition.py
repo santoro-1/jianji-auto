@@ -113,6 +113,16 @@ def _execution_runtime_fields(composition: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _remote_failure_item_status(composition: dict[str, Any]) -> str:
+    """Map a cloud failure back to the retry action for its actual stage."""
+
+    return (
+        "AUDIO_FAILED"
+        if str(composition.get("failure_stage") or "") == "audio"
+        else "COMPOSITION_FAILED"
+    )
+
+
 class ProjectCompositionStartDispatcher:
     """Bounded in-process executor backed by durable per-row operations.
 
@@ -518,18 +528,27 @@ class ProjectCompositionCoordinator:
             remote_status = str(
                 composition.get("status") or "COMPOSITION_QUEUED"
             )
+            if remote_status == "COMPOSITION_FAILED":
+                operation_status = "FAILED"
+                item_status = _remote_failure_item_status(composition)
+            elif remote_status in REMOTE_COMPOSITION_ACTIVE:
+                operation_status = "RUNNING"
+                item_status = remote_status
+            elif remote_status == "BASE_VIDEO_READY":
+                # Keep the durable operation active until the normal sync path
+                # downloads and verifies the cloud result.
+                operation_status = "RUNNING"
+                item_status = "VIDEO_MERGING"
+            else:
+                raise ValueError(f"云端返回了未知的画面生成状态：{remote_status}")
             self.store.transition_operation(
                 owner_user_id,
                 project_id,
                 item_id,
                 operation_id=operation_id,
                 operation_type="COMPOSITION_GENERATE",
-                status="RUNNING",
-                item_status=(
-                    remote_status
-                    if remote_status in REMOTE_COMPOSITION_ACTIVE
-                    else "COMPOSITION_QUEUED"
-                ),
+                status=operation_status,
+                item_status=item_status,
                 result={
                     "batch_id": batch_id,
                     "remote_item_id": remote_item_id,
@@ -547,6 +566,16 @@ class ProjectCompositionCoordinator:
                         else []
                     ),
                 },
+                error_code=(
+                    str(composition.get("error_code") or "REMOTE_COMPOSITION_FAILED")
+                    if operation_status == "FAILED"
+                    else None
+                ),
+                error_message=(
+                    str(composition.get("error_message") or "画面生成前置任务失败")
+                    if operation_status == "FAILED"
+                    else None
+                ),
             )
         except AuthCenterError as exc:
             retryable = exc.status_code >= 500
@@ -675,12 +704,16 @@ class ProjectCompositionCoordinator:
                     item_id,
                     operation_type="COMPOSITION_GENERATE",
                     status="FAILED",
-                    item_status="COMPOSITION_FAILED",
+                    item_status=_remote_failure_item_status(composition),
                     result={
                         "remote_item_id": remote_item_id,
+                        "remote_status": remote_status,
                         **_execution_runtime_fields(composition),
                     },
-                    error_code="REMOTE_COMPOSITION_FAILED",
+                    error_code=str(
+                        composition.get("error_code")
+                        or "REMOTE_COMPOSITION_FAILED"
+                    ),
                     error_message=str(
                         composition.get("error_message") or "数字人画面生成失败"
                     ),

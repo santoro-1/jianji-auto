@@ -131,6 +131,78 @@ class ProjectCompositionApiTest(unittest.TestCase):
         self.assertEqual(failure.kwargs["status"], "FAILED")
         self.assertEqual(failure.kwargs["item_status"], "COMPOSITION_FAILED")
 
+    def test_background_start_maps_cloud_audio_failure_to_audio_retry(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        image_path = self.settings.storage_root / "approved-image.png"
+        image_path.write_bytes(b"approved-image")
+        image_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+        store = MagicMock()
+        store.claim_pending_operation.return_value = {
+            "operation_id": "operation-audio-failed",
+            "item_id": "item-audio-failed",
+            "idempotency_key": "start-audio-failed",
+            "correlation_id": "correlation-audio-failed",
+            "payload": {
+                "batch_id": "batch-audio-failed",
+                "remote_item_id": "remote-audio-failed",
+                "resolution": "1024",
+                "scope": "base_video_only",
+                "input_image_asset_id": "image-audio-failed",
+                "input_image_sha256": image_sha256,
+                "runninghub_execution_account_ids": [3],
+                "seedvr2_execution_account_ids": None,
+                "execution_mode": "same_account_v1",
+            },
+        }
+        store.get_project.return_value = {
+            "items": [
+                {
+                    "item_id": "item-audio-failed",
+                    "asset_history": {
+                        "input_image": [
+                            {
+                                "asset_id": "image-audio-failed",
+                                "managed_path": str(image_path),
+                                "filename": "approved-image.png",
+                            }
+                        ]
+                    },
+                }
+            ]
+        }
+        client = MagicMock()
+        client.upload_workbench_batch_asset.return_value = {
+            "asset_id": "staged-audio-failed"
+        }
+        client.start_workbench_composition.return_value = {
+            "composition": {
+                "status": "COMPOSITION_FAILED",
+                "failure_stage": "audio",
+                "error_code": "CONFIGURATION_ERROR",
+                "error_message": "MiniMax 账号配置缺失或已更换",
+                "execution_mode": "same_account_v1",
+            }
+        }
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            client,
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+
+        coordinator.start_pending_operation(
+            "composition-user",
+            "project-audio-failed",
+            "operation-audio-failed",
+            "token",
+        )
+
+        transition = store.transition_operation.call_args
+        self.assertEqual(transition.kwargs["status"], "FAILED")
+        self.assertEqual(transition.kwargs["item_status"], "AUDIO_FAILED")
+        self.assertEqual(transition.kwargs["error_code"], "CONFIGURATION_ERROR")
+
     def test_resolution_change_without_source_restarts_with_current_inputs(self) -> None:
         from jyd_probe.project_composition import ProjectCompositionCoordinator
 
