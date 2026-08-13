@@ -145,7 +145,14 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
     )
     sticker_additions = _build_sticker_additions(config)
     image_additions = _build_visual_overlay_additions(config)
-    image_additions.extend(_build_fixed_overlay_additions(config))
+    for fixed_overlay in _build_fixed_overlay_additions(
+        config,
+        timeline_duration_us=source_timeline_duration_us,
+    ):
+        if isinstance(fixed_overlay, StickerAddition):
+            sticker_additions.append(fixed_overlay)
+        else:
+            image_additions.append(fixed_overlay)
     video_overlay_additions = _build_visual_video_additions(config)
     visual_variant = _build_visual_variant(config)
     cover = _build_cover(config, source_data)
@@ -928,6 +935,8 @@ def _build_sticker_additions(config: Mapping[str, Any]) -> list[StickerAddition]
                 rotation=float(_value(item, "rotation", default=0.0)),
                 opacity=opacity,
                 track_name=str(_value(item, "track_name", default="")),
+                transform_x=_optional_float(item, "transform_x"),
+                transform_y=_optional_float(item, "transform_y"),
             )
         )
     return additions
@@ -1004,7 +1013,6 @@ def _build_visual_video_additions(
                 duration_us=int(_value(item, "duration_us", default=1_800_000)),
                 source_start_us=int(_value(item, "source_start_us", default=0)),
                 mute=_as_bool(_value(item, "mute", default=True)),
-                loop=_as_bool(_value(item, "loop", default=False)),
                 fit=str(_value(item, "fit", default="cover")),
                 corner=corner,
                 scale=scale,
@@ -1020,10 +1028,12 @@ def _build_visual_video_additions(
 
 def _build_fixed_overlay_additions(
     config: Mapping[str, Any],
-) -> list[ImageAddition]:
+    *,
+    timeline_duration_us: int = 0,
+) -> list[ImageAddition | StickerAddition]:
     """Build branding first, directly above the base video and below every overlay."""
 
-    additions: list[ImageAddition] = []
+    additions: list[ImageAddition | StickerAddition] = []
     for item in _list_config(
         _value(config, "fixed_overlays", default=None), "fixed_overlays"
     ):
@@ -1040,15 +1050,44 @@ def _build_fixed_overlay_additions(
         )
         opacity = float(_value(item, "opacity", default=1.0))
         scale = float(_value(item, "scale", default=0.5))
+        start_us = int(_value(item, "start_us", default=0))
+        raw_duration_us = int(_value(item, "duration_us", default=0))
+        duration_us = (
+            _resolve_timeline_duration(
+                start_us,
+                raw_duration_us,
+                timeline_duration_us,
+                "固定前景",
+            )
+            if timeline_duration_us > 0
+            else raw_duration_us
+        )
         if not 0.0 <= opacity <= 1.0:
             raise ValueError("固定前景透明度必须在 0.0 到 1.0 之间")
         if scale <= 0.0 or scale > 2.0:
             raise ValueError("固定前景缩放必须大于 0 且不超过 2")
+        if str(_value(item, "renderer", default="photo")).strip().lower() == "sticker":
+            additions.append(
+                StickerAddition(
+                    sticker_json_path=bundle_path / "sticker.json",
+                    start_us=start_us,
+                    duration_us=duration_us,
+                    scale=scale,
+                    rotation=float(_value(item, "rotation", default=0.0)),
+                    opacity=opacity,
+                    track_name=str(_value(item, "track_name", default="固定人名牌")),
+                    transform_x=_optional_float(item, "transform_x"),
+                    transform_y=_optional_float(item, "transform_y"),
+                    optional=True,
+                    render_below_text=True,
+                )
+            )
+            continue
         additions.append(
             ImageAddition(
                 image_path=image_path,
-                start_us=int(_value(item, "start_us", default=0)),
-                duration_us=int(_value(item, "duration_us", default=0)),
+                start_us=start_us,
+                duration_us=duration_us,
                 corner=str(_value(item, "corner", default="middle_left")),
                 scale=scale,
                 rotation=float(_value(item, "rotation", default=0.0)),
@@ -1153,6 +1192,8 @@ def _build_cover(
         font_title=str(_value(font, "font_title", "font_name", "name", default="")).strip(),
         letter_spacing=int(_value(value, "letter_spacing", default=0)),
         line_spacing=int(_value(value, "line_spacing", default=6)),
+        auto_wrapping=_as_bool(_value(value, "auto_wrapping", default=False)),
+        max_line_width=float(_value(value, "max_line_width", default=0.86)),
         line_1_shadow_color=str(_value(value, "line_1_shadow_color", default="#000000")),
         line_1_shadow_alpha=float(_value(value, "line_1_shadow_alpha", default=0.9)),
         line_1_shadow_smoothing=float(_value(value, "line_1_shadow_smoothing", default=0.15)),

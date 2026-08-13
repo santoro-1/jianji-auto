@@ -247,7 +247,7 @@ class ProjectVisualAnalysisCoordinator:
                     "schema": RECIPE_SCHEMA,
                     "library_id": self.catalog.library_id or DEFAULT_LIBRARY_ID,
                     "catalog_version": self.catalog.catalog_version,
-                    "media_policy": "image_only",
+                    "media_policy": "mixed",
                     "overlays": self._locked_overlays(target.previous),
                 },
                 mapping_status="SUCCESS",
@@ -293,28 +293,14 @@ class ProjectVisualAnalysisCoordinator:
                             target.raw_cues,
                             video_duration_us=target.video_duration_us,
                         )
+                        locked = self._locked_overlays(target.previous)
                         recipe = build_visual_recipe(
                             catalog=self.catalog,
                             mapped_candidates=mapped,
                             decisions=result["decisions"],
+                            media_policy="mixed",
+                            locked_overlays=locked,
                         )
-                        locked = self._locked_overlays(target.previous)
-                        locked_ids = {item.get("overlay_id") for item in locked}
-                        recipe["overlays"] = locked + [
-                            item
-                            for item in recipe["overlays"]
-                            if item.get("overlay_id") not in locked_ids
-                            and not any(
-                                int(item.get("start_us") or 0)
-                                < int(saved.get("start_us") or 0)
-                                + int(saved.get("duration_us") or 0)
-                                and int(saved.get("start_us") or 0)
-                                < int(item.get("start_us") or 0)
-                                + int(item.get("duration_us") or 0)
-                                for saved in locked
-                                if saved.get("enabled") is not False
-                            )
-                        ]
                         self.store.complete_item_visual_analysis(
                             owner_user_id,
                             project_id,
@@ -341,7 +327,7 @@ class ProjectVisualAnalysisCoordinator:
                                 "schema": RECIPE_SCHEMA,
                                 "library_id": self.catalog.library_id or DEFAULT_LIBRARY_ID,
                                 "catalog_version": self.catalog.catalog_version,
-                                "media_policy": "image_only",
+                                "media_policy": "mixed",
                                 "overlays": self._locked_overlays(target.previous),
                             },
                             mapping_status="FAILED",

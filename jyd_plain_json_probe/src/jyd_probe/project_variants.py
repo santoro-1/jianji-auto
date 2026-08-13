@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Iterable
 import uuid
 
+from .bgm_loudness import BGM_FALLBACK_VOLUME, automatic_bgm_mix
 from .project_results import ProjectResultLibrary
 from .project_store import ProjectStore
 from .project_video_source import build_project_speech_audio, build_project_video_source
@@ -894,6 +895,18 @@ class ProjectVariantCoordinator:
                 "font_title": str(font.get("name") or ""),
             }
         if bgm_identity:
+            saved_bgm_volume = postprocess.get("bgm_volume")
+            if saved_bgm_volume is None:
+                audio = outputs.get("audio")
+                bgm = self.bgm_assets.get(bgm_identity) or {}
+                voice_path = str(audio.get("managed_path") or "") if isinstance(audio, dict) else ""
+                bgm_path = str(bgm.get("absolute_path") or "")
+                bgm_mix = (
+                    automatic_bgm_mix(voice_path, bgm_path)
+                    if voice_path and bgm_path
+                    else {"volume": BGM_FALLBACK_VOLUME}
+                )
+                saved_bgm_volume = bgm_mix["volume"]
             job["audios"].append(
                 {
                     "type": "bgm",
@@ -901,7 +914,7 @@ class ProjectVariantCoordinator:
                     "target_start_us": 0,
                     "target_duration_us": 0,
                     "fit_to_video": True,
-                    "volume": 0.3,
+                    "volume": float(saved_bgm_volume or BGM_FALLBACK_VOLUME),
                 }
             )
         job["visual_overlays"] = apply_layout_to_visual_overlays(

@@ -55,6 +55,38 @@ def _composition_operations(project: dict[str, Any]) -> dict[str, dict[str, Any]
     return latest
 
 
+def _frozen_composition_image(
+    operations: list[dict[str, Any]], remote_item_id: str
+) -> dict[str, str]:
+    """Return the first image snapshot that was accepted for a remote item."""
+
+    fallback: dict[str, str] = {}
+    for operation in operations:
+        if operation.get("operation_type") != "COMPOSITION_GENERATE":
+            continue
+        payload = operation.get("payload", {})
+        if not isinstance(payload, dict) or str(
+            payload.get("remote_item_id") or ""
+        ) != str(remote_item_id or ""):
+            continue
+        asset_id = str(payload.get("input_image_asset_id") or "")
+        sha256 = str(payload.get("input_image_sha256") or "").strip().lower()
+        if not asset_id or not sha256:
+            continue
+        candidate = {
+            "input_image_asset_id": asset_id,
+            "input_image_sha256": sha256,
+        }
+        if not fallback:
+            fallback = candidate
+        result = operation.get("result", {})
+        if isinstance(result, dict) and str(
+            result.get("remote_item_id") or ""
+        ) == str(remote_item_id or ""):
+            return candidate
+    return fallback
+
+
 def _normalized_execution_account_ids(
     value: list[int] | None,
 ) -> list[int] | None:
@@ -681,6 +713,11 @@ class ProjectCompositionCoordinator:
                     remote_item_id,
                     remote,
                     token,
+                    input_image_asset_id=str(
+                        operation.get("payload", {}).get("input_image_asset_id")
+                        or ""
+                    ),
+                    input_image_sha256=expected_image_sha256,
                 )
                 self.store.transition_operation(
                     owner_user_id,
@@ -785,22 +822,40 @@ class ProjectCompositionCoordinator:
                 resolution=current_resolution,
                 item_ids=[item_id],
             )
+        frozen_image = _frozen_composition_image(
+            project.get("operations", []), str(link["external_id"])
+        )
+        if not seedvr2_backfill and frozen_image:
+            current_image_sha256 = str(
+                item.get("inputs", {})
+                .get("image", {})
+                .get("metadata", {})
+                .get("sha256")
+                or ""
+            ).strip().lower()
+            if current_image_sha256 != frozen_image["input_image_sha256"]:
+                raise ValueError(
+                    "当前人物图与原付费任务冻结图片不一致，不能重试旧任务"
+                )
+        retry_payload = {
+            "retry": True,
+            "remote_item_id": link["external_id"],
+            "resolution": current_resolution,
+            "scope": (
+                "seedvr2_backfill_only"
+                if seedvr2_backfill
+                else "failed_remote_stage"
+            ),
+        }
+        if not seedvr2_backfill and frozen_image:
+            retry_payload.update(frozen_image)
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,
             item_id=item_id,
             operation_type="COMPOSITION_GENERATE",
             idempotency_key=clean_key,
-            payload={
-                "retry": True,
-                "remote_item_id": link["external_id"],
-                "resolution": current_resolution,
-                "scope": (
-                    "seedvr2_backfill_only"
-                    if seedvr2_backfill
-                    else "failed_remote_stage"
-                ),
-            },
+            payload=retry_payload,
         )
         if operation.get("status") == "PENDING":
             try:
@@ -1030,6 +1085,9 @@ class ProjectCompositionCoordinator:
         remote_item_id: str,
         remote: dict[str, Any],
         token: str,
+        *,
+        input_image_asset_id: str = "",
+        input_image_sha256: str = "",
     ) -> None:
         videos = remote.get("source", {}).get("videos", [])
         task_ids = [
@@ -1106,10 +1164,10 @@ class ProjectCompositionCoordinator:
             metadata={
                 "segment_count": len(task_ids),
                 "normalized_to_approved_audio": True,
-                "input_image_asset_id": str(
-                    item.get("inputs", {}).get("image", {}).get("asset_id") or ""
-                ),
-                "input_image_sha256": signature["image_sha256"],
+                "input_image_asset_id": input_image_asset_id
+                or str(item.get("inputs", {}).get("image", {}).get("asset_id") or ""),
+                "input_image_sha256": input_image_sha256
+                or signature["image_sha256"],
                 "module": "4A",
                 "quality_variant": quality_variant or None,
                 "enhanced_by": (

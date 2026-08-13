@@ -29,9 +29,11 @@ def test_layout_profiles_preserve_the_two_manual_draft_standards() -> None:
     assert standing["caption"]["font_size"] == 11.0
     assert standing["caption"]["clip_scale"] == pytest.approx(1.351709192276617)
     assert standing["caption"]["transform_y"] == pytest.approx(-0.382336816305469)
+    assert standing["caption"]["max_width_ratio"] == 0.8
     assert seated["caption"]["font_size"] == 15.0
     assert seated["caption"]["clip_scale"] == 1.0
     assert seated["caption"]["transform_y"] == pytest.approx(-0.32080308951309267)
+    assert seated["caption"]["max_width_ratio"] == 0.8
     assert [row["text"] for row in standing["nameplate"]["texts"]] == [
         "张雒",
         "世界蹦床冠军",
@@ -51,14 +53,22 @@ def test_layout_profile_aliases_and_nameplate_assets() -> None:
         normalize_layout_profile("lying")
 
     for profile_id, expected_scale in (
-        ("standing", 0.44706740211185944),
-        ("seated", 0.36291208125632),
+        ("standing", 0.8941348042237189),
+        ("seated", 1.08873624376896),
     ):
         overlay = nameplate_overlay(VISUAL_LIBRARY, profile_id)
         image = Path(overlay["bundle_path"]) / "resources" / "sticker" / "singleImage.png"
         assert image.is_file()
         assert overlay["rotation"] == -90.0
         assert overlay["scale"] == pytest.approx(expected_scale)
+        assert overlay["renderer"] == "sticker"
+
+    assert layout_profile("standing")["cover"]["text_scale"] == pytest.approx(
+        1.1045453049181124
+    )
+    assert layout_profile("seated")["cover"]["text_scale"] == 1.0
+    assert layout_profile("standing")["cover"]["auto_wrapping"] is False
+    assert layout_profile("seated")["cover"]["auto_wrapping"] is False
 
 
 def test_nameplate_texts_are_separate_editable_layers() -> None:

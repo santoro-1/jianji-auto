@@ -1329,7 +1329,67 @@
           "volume": 1.0
         }
       ]
+    },
+    {
+      "identity": "music_id:7645200539881769012",
+      "name": "裂缝中的阳光（止与初见 Remix）（剪辑版）",
+      "music_id": "7645200539881769012",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 61000000,
+      "checksum_sha256": "12a88fe2bfc395b11f45802a4c360984cfd235d75647366ed069be14c91f515c",
+      "file": "files/裂缝中的阳光（止与初见_Remix）（剪辑版）_7645200539881769012.mp3",
+      "metadata_file": "metadata/裂缝中的阳光（止与初见_Remix）（剪辑版）_7645200539881769012.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 0,
+          "material_id": "60CFB6C0-D67C-4588-B358-9A8222AB095C",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\67043638bcdb9d6dd4d77767ea76137d.mp3",
+          "source_timerange": {
+            "duration": 61000000,
+            "start": 0
+          },
+          "target_timerange": {
+            "duration": 61000000,
+            "start": 0
+          },
+          "volume": 1.0
+        }
+      ]
+    },
+    {
+      "identity": "music_id:6926801235057002497",
+      "name": "还是分开 （剪辑版）",
+      "music_id": "6926801235057002497",
+      "resource_id": "",
+      "original_type": "music",
+      "duration_us": 60000000,
+      "checksum_sha256": "670bff9435bf703f8c194d9a0eaf233e36ebc7dad519b243d3a733956f1a9520",
+      "file": "files/还是分开_（剪辑版）_6926801235057002497.mp3",
+      "metadata_file": "metadata/还是分开_（剪辑版）_6926801235057002497.json",
+      "sources": [
+        {
+          "label": "D:\\剪映草稿\\JianyingPro Drafts\\音乐",
+          "audio_track_index": 0,
+          "raw_track_index": 1,
+          "segment_index": 1,
+          "material_id": "2F0E7279-A481-4bdb-B5BF-2415AB8E513B",
+          "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\User Data\\Cache\\music\\ed66c4fa111c5c1d6ad7a6b1491b2e51.mp3",
+          "source_timerange": {
+            "duration": 60000000,
+            "start": 0
+          },
+          "target_timerange": {
+            "duration": 60000000,
+            "start": 61000000
+          },
+          "volume": 1.0
+        }
+      ]
     }
   ],
-  "updated_at": "2026-07-13T20:04:36"
+  "updated_at": "2026-08-12T13:33:56"
 }

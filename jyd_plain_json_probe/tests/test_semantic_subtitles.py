@@ -26,6 +26,15 @@ FONT_PATH = (
     / "files"
     / "DouyinSansBold_7244518590332801592.otf"
 )
+PRODUCTION_CAPTION_FONT_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "libraries"
+    / "font_library"
+    / "files"
+    / "FZCuJinLJW_7086699209738424840.ttf"
+)
+PRODUCTION_CAPTION_FONT_SIZE = 11.0 * 1.351709192276617
 
 
 def _units(parts: list[tuple[str, str, str, str]]) -> list[dict[str, object]]:
@@ -266,6 +275,157 @@ def test_soft_comma_does_not_force_an_orphan_short_caption() -> None:
     )
 
 
+def test_model_preferred_boundary_beats_short_tail_penalty() -> None:
+    script = "只是让你多上点心坚持，"
+    units = _units(
+        [
+            ("只是让你多上点心", "phrase", "none", "prefer"),
+            ("坚持，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [str(cue["text"]) for cue in render_cues] == [
+        "只是让你多上点心",
+        "坚持",
+    ]
+
+
+def test_local_reflow_preserves_task_11_phrase_without_model_boundary() -> None:
+    script = "只是让你多上点心坚持，"
+    units = _units([(script, "phrase", "none", "prefer")])
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [str(cue["text"]) for cue in render_cues] == [
+        "只是让你多上点心",
+        "坚持",
+    ]
+
+
+def test_local_reflow_keeps_predicate_object_dependency_without_term_lists() -> None:
+    script = "坚持吃一个带壳煮鸡蛋，"
+    units = _units([(script, "phrase", "none", "prefer")])
+    raw_cues = [{"start_us": 0, "end_us": 3_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert "带|壳" not in "|".join(texts)
+    assert "".join(texts) == "坚持吃一个带壳煮鸡蛋"
+
+
+def test_model_preference_cannot_create_one_character_particle_tail() -> None:
+    script = "找几个你喜欢的就OK了，"
+    units = _units(
+        [
+            ("找几个你喜欢的就OK", "phrase", "none", "prefer"),
+            ("了，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 3_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert "了" not in texts
+    assert texts[-1].endswith("了")
+    assert all(len(text) >= 2 for text in texts)
+
+
+def test_model_preference_cannot_isolate_a_pronoun() -> None:
+    script = "你今天不愿意为未来的健康做一点投资，"
+    units = _units(
+        [
+            ("你", "phrase", "none", "prefer"),
+            ("今天不愿意为未来的健康做一点投资，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert "你" not in texts
+    assert texts[0].startswith("你")
+
+
+@pytest.mark.parametrize(
+    ("script", "parts", "forbidden_boundary"),
+    [
+        (
+            "希望你好好做体重管理给你带来帮助，",
+            [("希望你好好做体重", "phrase", "none", "prefer"),
+             ("管理给你带来帮助，", "phrase", "none", "prefer")],
+            "体重|管理",
+        ),
+        (
+            "你会越来越喜欢你自己，",
+            [("你会越来越喜欢你", "phrase", "none", "prefer"),
+             ("自己，", "phrase", "none", "prefer")],
+            "你|自己",
+        ),
+        (
+            "你的体重如果增加五斤，",
+            [("你的体重如果增加", "phrase", "none", "prefer"),
+             ("五斤，", "phrase", "none", "prefer")],
+            "增加|五斤",
+        ),
+    ],
+)
+def test_model_preference_cannot_split_generic_syntax_dependencies(
+    script: str,
+    parts: list[tuple[str, str, str, str]],
+    forbidden_boundary: str,
+) -> None:
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, _units(parts), raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert forbidden_boundary not in "|".join(texts)
+    assert "".join(texts) == script.rstrip("，")
+
+
 def test_enumeration_commas_remain_legal_breaks_after_punctuation_is_hidden() -> None:
     script = "当你掉秤慢、嘴馋、减不动的时候啊，你就安排吃这十种蔬菜"
     units = _units(
@@ -380,6 +540,29 @@ def test_structural_particle_boundary_repair_is_not_tied_to_one_script() -> None
     assert mapping["status"] == "SUCCESS"
     assert "带|来的" not in joined
     assert "稳定|地" not in joined
+
+
+def test_model_boundary_cannot_split_adverb_quantity_phrases() -> None:
+    script = "而要把更多的营养留给身体，至少三个方法都要记住。"
+    units = _units(
+        [
+            ("而要把更", "phrase", "none", "prefer"),
+            ("多的营养留给身体，至少", "phrase", "none", "prefer"),
+            ("三个方法都要记住。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=FONT_PATH,
+    )
+
+    joined = "|".join(str(cue["text"]) for cue in render_cues)
+    assert mapping["status"] == "SUCCESS"
+    assert "更|多" not in joined
+    assert "至少|三个" not in joined
+    assert "更多" in "".join(str(cue["text"]) for cue in render_cues)
 
 
 def test_leading_particle_is_rebalanced_with_its_phrase() -> None:

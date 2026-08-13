@@ -131,6 +131,88 @@ class ProjectCompositionApiTest(unittest.TestCase):
         self.assertEqual(failure.kwargs["status"], "FAILED")
         self.assertEqual(failure.kwargs["item_status"], "COMPOSITION_FAILED")
 
+    def test_retry_preserves_paid_image_snapshot_and_rejects_changed_image(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        frozen_sha256 = hashlib.sha256(b"frozen-image").hexdigest()
+        store = MagicMock()
+        project = {
+            "settings": {"digital_human": {"resolution": "1024"}},
+            "items": [
+                {
+                    "item_id": "item-1",
+                    "row_key": "1",
+                    "status": "COMPOSITION_FAILED",
+                    "settings": {},
+                    "inputs": {"image": {"metadata": {"sha256": frozen_sha256}}},
+                    "allowed_actions": {"retry_composition": True},
+                }
+            ],
+            "links": [
+                {
+                    "system": "runninghub",
+                    "relation": "digital_human_audio_item",
+                    "item_id": "item-1",
+                    "external_id": "remote-item-1",
+                }
+            ],
+            "operations": [
+                {
+                    "operation_type": "COMPOSITION_GENERATE",
+                    "status": "FAILED",
+                    "payload": {
+                        "remote_item_id": "remote-item-1",
+                        "input_image_asset_id": "frozen-image-asset",
+                        "input_image_sha256": frozen_sha256,
+                    },
+                    "result": {"remote_item_id": "remote-item-1"},
+                }
+            ],
+        }
+        store.get_project.return_value = project
+        store.create_operation.return_value = {
+            "operation_id": "retry-operation",
+            "status": "PENDING",
+        }
+        client = MagicMock()
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            client,
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+
+        coordinator.retry(
+            "composition-user",
+            "project-1",
+            "item-1",
+            "token",
+            idempotency_key="retry-frozen-image",
+        )
+
+        payload = store.create_operation.call_args.kwargs["payload"]
+        self.assertEqual(payload["input_image_asset_id"], "frozen-image-asset")
+        self.assertEqual(payload["input_image_sha256"], frozen_sha256)
+        client.retry_workbench_composition.assert_called_once_with(
+            "token", "remote-item-1", resolution="1024"
+        )
+
+        project["items"][0]["inputs"]["image"]["metadata"]["sha256"] = hashlib.sha256(
+            b"changed-image"
+        ).hexdigest()
+        store.create_operation.reset_mock()
+        client.retry_workbench_composition.reset_mock()
+        with self.assertRaisesRegex(ValueError, "冻结图片不一致"):
+            coordinator.retry(
+                "composition-user",
+                "project-1",
+                "item-1",
+                "token",
+                idempotency_key="retry-changed-image",
+            )
+        store.create_operation.assert_not_called()
+        client.retry_workbench_composition.assert_not_called()
+
     def test_background_start_maps_cloud_audio_failure_to_audio_retry(self) -> None:
         from jyd_probe.project_composition import ProjectCompositionCoordinator
 

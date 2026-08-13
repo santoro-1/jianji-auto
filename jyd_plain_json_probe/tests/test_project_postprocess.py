@@ -343,7 +343,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["original_video_volume"], 0.0)
                 self.assertEqual(job["audios"][0]["media_path"], str(audio_path.resolve()))
                 self.assertEqual(job["audios"][0]["volume"], 1.0)
-                self.assertEqual(job["audios"][1]["volume"], 0.3)
+                self.assertEqual(job["audios"][1]["volume"], 0.18)
                 self.assertEqual(
                     [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],
                     [
@@ -365,7 +365,10 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["texts"][0]["opacity"], 1.0)
                 self.assertEqual(job["texts"][1]["opacity"], 0.5)
                 self.assertEqual(job["fixed_overlays"][0]["rotation"], -90.0)
-                self.assertAlmostEqual(job["fixed_overlays"][0]["scale"], 0.44706740211185944)
+                self.assertEqual(job["fixed_overlays"][0]["renderer"], "sticker")
+                self.assertAlmostEqual(job["fixed_overlays"][0]["scale"], 0.8941348042237189)
+                self.assertAlmostEqual(job["cover"]["text_scale"], 1.1045453049181124)
+                self.assertFalse(job["cover"]["auto_wrapping"])
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
                 )
@@ -534,6 +537,26 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     auto_row["content_analysis"]["subtitle_analysis_status"], "FAILED"
                 )
                 self.assertEqual(auto_row["subtitles"]["status"], "PREVIEW_READY")
+
+                layout_changed = client.patch(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/postprocess-settings",
+                    json={
+                        "font_identity": font["identity"],
+                        "bgm_identity": "",
+                        "bgm_selection_mode": "auto",
+                        "preserve_auto_bgm": True,
+                        "text_color": "#00FF00",
+                        "layout_profile": "seated",
+                    },
+                )
+                self.assertEqual(layout_changed.status_code, 200, layout_changed.text)
+                preserved = layout_changed.json()["items"][0]["settings"]["postprocess"]
+                self.assertEqual(preserved["layout_profile"], "seated")
+                self.assertEqual(
+                    preserved["bgm_identity"], "music_id:6874387537750657031"
+                )
+                self.assertEqual(preserved["music_selection"], selection)
+                self.assertEqual(preserved["bgm_volume"], auto_settings["bgm_volume"])
 
 
 if __name__ == "__main__":

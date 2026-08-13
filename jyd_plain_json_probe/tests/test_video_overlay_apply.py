@@ -89,7 +89,7 @@ class _Draft:
     VideoSegment = _VideoSegment
 
 
-def test_native_video_overlay_loops_and_covers_portrait_canvas(tmp_path: Path) -> None:
+def test_native_video_overlay_plays_once_and_covers_portrait_canvas(tmp_path: Path) -> None:
     video = tmp_path / "action.mp4"
     video.write_bytes(b"test")
     data = {
@@ -109,25 +109,50 @@ def test_native_video_overlay_loops_and_covers_portrait_canvas(tmp_path: Path) -
         video,
         start_us=1_000_000,
         duration_us=5_000_000,
-        loop=True,
         fit="cover",
         corner="center",
         scale=1.0,
         track_name="全屏 B-roll",
     )
 
-    assert changed == 3
+    assert changed == 1
     track = next(item for item in data["tracks"] if item.get("name") == "全屏 B-roll")
-    assert [item["target_timerange"]["duration"] for item in track["segments"]] == [
-        2_000_000,
-        2_000_000,
-        1_000_000,
-    ]
+    assert [item["target_timerange"]["duration"] for item in track["segments"]] == [2_000_000]
     assert data["tracks"].index(track) < next(
         index for index, item in enumerate(data["tracks"]) if item["type"] == "text"
     )
     assert round(track["segments"][0]["clip"]["scale"]["x"], 2) == 3.16
     assert all(item["volume"] == 0.0 for item in track["segments"])
+
+
+def test_native_video_overlay_ends_at_remaining_source_duration(
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "short.mp4"
+    video.write_bytes(b"test")
+    data = {
+        "duration": 6_000_000,
+        "canvas_config": {"width": 1080, "height": 1920},
+        "materials": {"videos": [], "speeds": []},
+        "tracks": [{"type": "video", "segments": [{"render_index": 0}]}],
+    }
+
+    changed = add_video_overlay_to_data(
+        _Draft(),
+        data,
+        video,
+        start_us=0,
+        duration_us=5_000_000,
+        source_start_us=500_000,
+    )
+
+    assert changed == 1
+    track = next(item for item in data["tracks"] if item.get("name") == "语义前景视频")
+    assert [item["target_timerange"]["duration"] for item in track["segments"]] == [1_500_000]
+    assert track["segments"][0]["source_timerange"] == {
+        "start": 500_000,
+        "duration": 1_500_000,
+    }
 
 
 def test_bottom_center_action_window_matches_manually_accepted_layout() -> None:
@@ -163,6 +188,7 @@ def test_render_builder_places_window_video_below_nameplate_and_broll_above() ->
                     "video_path": "broll.mp4",
                     "start_us": 8_000_000,
                     "duration_us": 3_000_000,
+                    "loop": True,
                     "corner": "center",
                     "scale": 1.0,
                 },
@@ -174,6 +200,7 @@ def test_render_builder_places_window_video_below_nameplate_and_broll_above() ->
         ("语义前景视频", 10),
         ("全屏 B-roll", 30),
     ]
+    assert all(not hasattr(item, "loop") for item in additions)
 
 
 def test_visual_layer_order_is_image_or_window_then_nameplate_then_broll(tmp_path: Path) -> None:

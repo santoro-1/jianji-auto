@@ -760,6 +760,13 @@
                                 <p class="text-[10px] text-gray-400 mt-1">将上传的图片集按顺序匹配脚本分段。如果脚本行数大于图片总数，图片集将重新开始循环。</p>
                             </div>
                         </label>
+
+                        <div class="h-px bg-slate-800/60 my-2"></div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" onclick="setSelectedImageMappingScope()" class="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-2 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20"><i class="fa-solid fa-lock mr-1"></i>锁定选中行为换图范围</button>
+                            <button type="button" onclick="clearImageMappingScope()" class="rounded-lg border border-slate-700 bg-slate-900/70 px-2 py-2 text-[10px] font-semibold text-gray-300 hover:border-slate-500"><i class="fa-solid fa-lock-open mr-1"></i>清除换图范围</button>
+                        </div>
+                        <p id="image-lock-status" class="text-[10px] leading-relaxed text-gray-500">先锁定需要换图的脚本范围，再上传新图片；新图只在该范围内循环。</p>
                     </div>
                 </div>
 
@@ -822,6 +829,8 @@
                         <button type="button" onclick="clearRowSelection()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] text-gray-400 hover:text-white">清空</button>
                         <span class="hidden sm:inline h-5 w-px bg-slate-700"></span>
                         <button type="button" onclick="analyzeSelectedRows()" class="px-3 py-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/5 text-[10px] font-semibold text-cyan-200 hover:text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>统一分析</button>
+                        <button id="btn-refresh-previews" type="button" onclick="refreshBatchPostprocessPreviews()" title="有勾选时刷新选中任务；未勾选时刷新全部已有数字人画面的任务" class="px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-arrows-rotate mr-1"></i>刷新预览</button>
+                        <button id="btn-download-selected-videos" type="button" onclick="downloadSelectedProjectVideos()" title="有勾选时下载选中任务；未勾选时下载全部已完成普通成片" class="px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-file-arrow-down mr-1"></i>下载视频</button>
                         <button type="button" onclick="applyLayoutProfileToSelected('standing')" class="px-3 py-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/5 text-[10px] font-semibold text-emerald-200 hover:text-white"><i class="fa-solid fa-person mr-1"></i>设为站姿</button>
                         <button type="button" onclick="applyLayoutProfileToSelected('seated')" class="px-3 py-1.5 rounded-lg border border-amber-400/30 bg-amber-400/5 text-[10px] font-semibold text-amber-200 hover:text-white"><i class="fa-solid fa-chair mr-1"></i>设为坐姿</button>
                         <button type="button" onclick="generateSelectedAudio()" class="px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white"><i class="fa-solid fa-wave-square mr-1"></i>生成声音</button>
@@ -952,6 +961,7 @@
         let availableProjects = [];
         let uploadedScripts = [];
         let uploadedImages = [];
+        let currentMappingImageIds = [];
         let scriptImportMode = 'create';
         const selectedProjectItemIds = new Set();
         let selectedDefaultVoiceIndex = 0; // Index of voicePresets
@@ -995,6 +1005,8 @@
         let isGeneratingVariants = false;
         let audioStatusPollTimer = null;
         let compositionStatusPollTimer = null;
+        let compositionSnapshotPollTimer = null;
+        let compositionStatusRequestInFlight = false;
         let compositionStatusPollFailureCount = 0;
         const COMPOSITION_STATUS_WARNING_THRESHOLD = 3;
         let postprocessStatusPollTimer = null;
@@ -1003,6 +1015,7 @@
         let isGeneratingPostprocess = false;
         let isStartingPostprocess = false;
         let isStartingSinglePostprocess = false;
+        let isRefreshingBatchPreviews = false;
         let isDownloadingProjectVideos = false;
         let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
@@ -1020,7 +1033,7 @@
         const previewBgmAudio = new Audio();
         previewBgmAudio.preload = 'metadata';
         previewBgmAudio.loop = true;
-        previewBgmAudio.volume = 0.3;
+        previewBgmAudio.volume = 0.18;
 
         function setFinalGenerationPhase(phase) {
             finalGenerationPhase = phase || null;
@@ -1290,9 +1303,14 @@
                     const checked = selectable && defaults.has(accountId);
                     const availability = runningHubAvailabilityLabels[account.availability] || String(account.availability || '未知');
                     const capacity = `${Number(account.active_tasks || 0)}/${Number(account.max_concurrent_tasks || 0)} 运行中`;
+                    const balance = account.balance && typeof account.balance === 'object' ? account.balance : {};
+                    const remainCoins = balance.remain_coins === null || balance.remain_coins === undefined || balance.remain_coins === ''
+                        ? 'RH 币未知'
+                        : `剩余 ${balance.remain_coins} RH 币`;
+                    const balanceAge = balance.checked_at ? (balance.stale ? '余额缓存已过期' : '余额已更新') : '尚未查询余额';
                     return `<label class="flex items-start gap-3 rounded-xl border ${selectable ? 'border-slate-700 bg-slate-950/50' : 'border-slate-800 bg-slate-950/20 opacity-50'} px-3 py-2.5">
                         <input type="checkbox" class="runninghub-account-checkbox runninghub-${section.key}-checkbox mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900" data-account-id="${accountId}" ${checked ? 'checked' : ''} ${selectable ? '' : 'disabled'}>
-                        <span class="min-w-0 flex-1"><span class="flex items-center justify-between gap-2"><strong class="truncate text-xs text-gray-100">${escapeHtml(account.label || `账号 ${accountId}`)}</strong><span class="text-[10px] ${account.availability === 'AVAILABLE' ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(availability)}</span></span><span class="mt-1 block text-[10px] text-gray-500">${escapeHtml(capacity)} · 当前空闲 ${Number(account.available_slots || 0)}</span></span>
+                        <span class="min-w-0 flex-1"><span class="flex items-center justify-between gap-2"><strong class="truncate text-xs text-gray-100">${escapeHtml(account.label || `账号 ${accountId}`)}</strong><span class="text-[10px] ${account.availability === 'AVAILABLE' ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(availability)}</span></span><span class="mt-1 block text-[10px] text-gray-500">${escapeHtml(capacity)} · 当前空闲 ${Number(account.available_slots || 0)}</span><span class="mt-1 block text-[10px] ${balance.remain_coins === null || balance.remain_coins === undefined ? 'text-amber-300' : 'text-cyan-300'}">${escapeHtml(remainCoins)} · ${escapeHtml(balanceAge)}</span></span>
                     </label>`;
                 }).join('');
                 return `<div class="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3"><div class="mb-2 text-[11px] font-semibold text-indigo-100">${section.title}（每次重新默认全选）</div><div class="max-h-44 space-y-2 overflow-y-auto narrow-scrollbar">${accountHtml || '<div class="py-4 text-center text-xs text-amber-300">当前没有可选择的执行账号</div>'}</div><p id="runninghub-${section.key}-selection-error" class="mt-2 hidden text-[10px] text-red-400">请至少选择一个${section.title}。</p></div>`;
@@ -1488,6 +1506,7 @@
             activeProject = null;
             uploadedScripts = [];
             uploadedImages = [];
+            currentMappingImageIds = [];
             selectedProjectItemIds.clear();
             globalVariantConfig = null;
             variantDirtyItemIds.clear();
@@ -1571,6 +1590,10 @@
             document.getElementById('strategy-count').checked = currentStrategy === 'count';
             document.getElementById('strategy-loop').checked = currentStrategy === 'loop';
             uploadedImages = Array.isArray(project?.input_images) ? project.input_images : [];
+            const availableImageIds = new Set(uploadedImages.map((image) => image.image_id));
+            currentMappingImageIds = Array.isArray(mapping.image_ids)
+                ? [...new Set(mapping.image_ids.filter((imageId) => availableImageIds.has(imageId)))]
+                : [];
             const variantOperations = Array.isArray(project?.operations)
                 ? project.operations.filter(operation => ['VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY'].includes(operation.operation_type))
                 : [];
@@ -1588,6 +1611,7 @@
                 text: item.script_text,
                 sourceMetadata: item.settings?.source_metadata || {},
                 image: item.inputs?.image || null,
+                imageMappingTarget: item.inputs?.image_mapping_target === true,
                 voiceAssetId: item.settings?.voice_asset_id || null,
                 postprocessSettings: item.settings?.postprocess || {},
                 variantSettings: item.settings?.variants || {},
@@ -1608,6 +1632,13 @@
                 allowedActions: item.allowed_actions || {}
                 });
             }) : [];
+            const mappingTargetCount = uploadedScripts.filter((item) => item.imageMappingTarget).length;
+            const mappingImageText = currentMappingImageIds.length
+                ? `当前循环仅使用最近选定的 ${currentMappingImageIds.length} 张图片。`
+                : '当前循环使用项目图片池中的全部图片。';
+            document.getElementById('image-lock-status').textContent = mappingTargetCount
+                ? `已锁定 ${mappingTargetCount} 条为本次换图范围；${mappingImageText}`
+                : `未限定换图行时会按全部可编辑行分配；${mappingImageText}`;
             const currentItemIds = new Set(uploadedScripts.map((item) => item.id));
             Array.from(selectedProjectItemIds).forEach((itemId) => {
                 if (!currentItemIds.has(itemId)) selectedProjectItemIds.delete(itemId);
@@ -1964,16 +1995,26 @@
                 event.target.value = '';
                 return;
             }
+            const targetItemIds = [...selectedProjectItemIds];
             showToast('正在导入图片集', `正在上传并校验 ${files.length} 张图片...`);
             try {
+                await updateImageMappingScope(targetItemIds, false);
                 const results = [];
                 for (const file of files) results.push(await uploadProjectImage(file));
-                const duplicateCount = results.filter((image) => image.deduplicated).length;
-                const importedCount = results.length - duplicateCount;
+                const importedCount = results.length;
                 syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
-                if (importedCount > 0) await applyStrategyChange(false);
-                const duplicateText = duplicateCount > 0 ? `，另有 ${duplicateCount} 张同名或相同内容图片已自动跳过` : '';
-                showToast('图片导入完成', `${importedCount} 张新图片已保存${duplicateText}。`, 'success');
+                const uploadedImageIds = [...new Set(results
+                    .map((image) => image.image_id)
+                    .filter(Boolean))];
+                if (importedCount > 0 && uploadedScripts.length > 0) {
+                    await applyStrategyChange(false, targetItemIds.length ? uploadedImageIds : []);
+                }
+                const mappingText = importedCount > 0
+                    ? (targetItemIds.length
+                        ? `，并已只在当前勾选的 ${targetItemIds.length} 条脚本内循环分配`
+                        : '，并已按原有全项目图片池规则分配给全部可编辑脚本')
+                    : '';
+                showToast('图片导入完成', `${importedCount} 张本地新图片已全部保存${mappingText}。`, 'success');
             } catch (error) {
                 syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
                 showToast('部分图片未能导入', error.message, 'warning');
@@ -1994,11 +2035,14 @@
             container.classList.remove('hidden');
             container.innerHTML = '';
 
+            const mappingImageIdSet = new Set(currentMappingImageIds);
             uploadedImages.forEach((image) => {
+                const isMappingImage = mappingImageIdSet.has(image.image_id);
                 const wrapper = document.createElement('div');
-                wrapper.className = "relative group aspect-square rounded-lg overflow-hidden border border-slate-700 bg-slate-900";
+                wrapper.className = `relative group aspect-square rounded-lg overflow-hidden border bg-slate-900 ${isMappingImage ? 'border-amber-400 ring-1 ring-amber-400/50' : 'border-slate-700'}`;
                 wrapper.innerHTML = `
                     <img src="${image.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="${escapeHtml(image.filename)}">
+                    ${isMappingImage ? '<span class="absolute z-10 top-1.5 left-1.5 rounded bg-amber-400/95 px-1.5 py-0.5 text-[8px] font-bold text-slate-950">本次映射</span>' : ''}
                     <button type="button" title="删除图片" aria-label="删除图片 ${escapeHtml(image.filename)}" onclick="removeImage('${image.image_id}', event)" class="absolute z-20 top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-600/95 hover:bg-red-500 text-white flex items-center justify-center text-sm shadow-lg ring-1 ring-white/30"><i class="fa-solid fa-trash-can"></i></button>
                 `;
                 container.appendChild(wrapper);
@@ -2031,19 +2075,24 @@
             applyStrategyChange();
         }
 
-        async function applyStrategyChange(showNotice = true) {
+        async function applyStrategyChange(showNotice = true, imageIds = null) {
             if (currentStrategy === 'count') {
                 currentStrategyCountVal = parseInt(document.getElementById('strategy-count-val').value) || 1;
             }
             if (!activeProject || uploadedScripts.length === 0 || uploadedImages.length === 0) return;
             try {
+                const effectiveImageIds = Array.isArray(imageIds) ? imageIds : currentMappingImageIds;
                 const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/image-mapping`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ strategy: currentStrategy, reuse_count: currentStrategyCountVal })
+                    body: JSON.stringify({
+                        strategy: currentStrategy,
+                        reuse_count: currentStrategyCountVal,
+                        ...(effectiveImageIds.length ? { image_ids: effectiveImageIds } : {})
+                    })
                 });
                 syncProjectInputs(project);
-                if (showNotice) showToast('分配规则已保存', '后端已重新计算并保存全部脚本的当前图片。', 'success');
+                if (showNotice) showToast('分配规则已保存', uploadedScripts.some((item) => item.imageMappingTarget) ? '后端只重新计算了锁定的换图范围。' : '后端已重新计算全部可编辑脚本的当前图片。', 'success');
             } catch (error) {
                 showToast('图片分配失败', error.message, 'warning');
             }
@@ -2063,10 +2112,13 @@
                 const indexBadge = row.querySelector('.row-thumbnail-badge');
 
                 const image = uploadedScripts[i]?.image;
+                const imageMappingTarget = uploadedScripts[i]?.imageMappingTarget === true;
                 imgEl.src = image?.url || '';
                 imgEl.classList.toggle('opacity-0', !image?.url);
                 if (image) {
-                    indexBadge.textContent = image.metadata?.mapping_source === 'manual'
+                    indexBadge.textContent = imageMappingTarget
+                        ? '换图'
+                        : image.metadata?.mapping_source === 'manual'
                         ? '替换'
                         : `P-${image.metadata?.pool_position || '?'}`;
                     indexBadge.classList.remove('hidden');
@@ -2110,6 +2162,8 @@
             const toolbar = document.getElementById('batch-selection-toolbar');
             const count = document.getElementById('selected-row-count');
             const selectAll = document.getElementById('select-all-project-items');
+            const refreshPreviews = document.getElementById('btn-refresh-previews');
+            const downloadVideos = document.getElementById('btn-download-selected-videos');
             if (toolbar) toolbar.classList.toggle('hidden', uploadedScripts.length === 0);
             if (count) count.textContent = `已选 ${selectedCount} 条`;
             if (selectAll) {
@@ -2119,6 +2173,32 @@
             document.querySelectorAll('.row-select-checkbox').forEach((checkbox) => {
                 checkbox.checked = selectedProjectItemIds.has(checkbox.value);
             });
+            if (refreshPreviews) {
+                const candidates = selectedCount ? selectedProjectItems() : uploadedScripts;
+                const refreshableCount = candidates.filter((item) =>
+                    Boolean(item.baseVideo) && Boolean(item.allowedActions?.edit_postprocess)
+                ).length;
+                refreshPreviews.disabled = isRefreshingBatchPreviews || refreshableCount === 0;
+                refreshPreviews.innerHTML = isRefreshingBatchPreviews
+                    ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>刷新中...'
+                    : '<i class="fa-solid fa-arrows-rotate mr-1"></i>刷新预览';
+                refreshPreviews.title = selectedCount
+                    ? `刷新选中的 ${refreshableCount} 条可用任务`
+                    : `未勾选任务：刷新全部 ${refreshableCount} 条已有数字人画面的任务`;
+            }
+            if (downloadVideos) {
+                const candidates = selectedCount ? selectedProjectItems() : uploadedScripts;
+                const downloadableCount = candidates.filter((item) =>
+                    document.querySelector(`.table-data-row[data-id="${CSS.escape(item.id)}"]`)?.getAttribute('data-video-status') === 'ready'
+                ).length;
+                downloadVideos.disabled = isDownloadingProjectVideos || downloadableCount === 0;
+                downloadVideos.innerHTML = isDownloadingProjectVideos
+                    ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>打包中...'
+                    : '<i class="fa-solid fa-file-arrow-down mr-1"></i>下载视频';
+                downloadVideos.title = selectedCount
+                    ? `下载选中的 ${downloadableCount} 条已完成普通成片`
+                    : `未勾选任务：下载全部 ${downloadableCount} 条已完成普通成片`;
+            }
         }
 
         function toggleRowSelection(checkbox) {
@@ -2316,6 +2396,8 @@
                 });
                 const canEditPostprocess = Boolean(script.allowedActions?.edit_postprocess);
                 const canReplaceImage = Boolean(script.allowedActions?.replace_image);
+                const canSetImageMappingTarget = Boolean(script.allowedActions?.set_image_mapping_target);
+                const imageMappingTarget = script.imageMappingTarget === true;
                 const canDeleteItem = Boolean(script.allowedActions?.delete_item);
                 const analysisStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
                 const musicAnalysisStatus = script.contentAnalysis?.music_analysis_status || 'NOT_REQUESTED';
@@ -2431,7 +2513,10 @@
                                 </span>
                                 <span class="row-thumbnail-badge absolute bottom-0 right-0 bg-slate-950/80 backdrop-blur-xs text-[7px] text-brand-accent px-1 py-[0.5px] rounded-tl font-bold hidden">P-1</span>
                             </button>
-                            <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" ${canSetImageMappingTarget ? '' : 'disabled'} onclick="toggleRowImageMappingTarget(this, event)" class="text-[9px] ${imageMappingTarget ? 'text-amber-300 hover:text-amber-200' : (canSetImageMappingTarget ? 'text-gray-500 hover:text-amber-300' : 'text-gray-700 cursor-not-allowed')} transition-colors"><i class="fa-solid ${imageMappingTarget ? 'fa-minus' : 'fa-plus'} mr-1"></i>${imageMappingTarget ? '移出换图范围' : '加入换图范围'}</button>
+                                <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
+                            </div>
                         </div>
                     </td>
                     <td class="px-3 py-4 text-center">
@@ -2830,6 +2915,7 @@
 
         function normalizeAutomaticSemanticOverlay(overlay) {
             const normalized = { ...overlay };
+            if (normalized.media_type === 'video') delete normalized.loop;
             if (normalized.selection_mode !== 'auto' || normalized.manual === true || normalized.locked === true) {
                 return normalized;
             }
@@ -2845,7 +2931,7 @@
             if (normalized.media_type === 'video') {
                 normalized.source_start_us = Number(asset.defaults?.source_start_us ?? normalized.source_start_us ?? 0);
                 normalized.mute = asset.defaults?.mute !== false;
-                normalized.loop = asset.defaults?.loop === true;
+                delete normalized.loop;
                 normalized.fit = asset.defaults?.fit || normalized.fit || 'cover';
             }
             return normalized;
@@ -2936,7 +3022,7 @@
                     if (asset.media_type === 'video') {
                         semanticVisualDraft[index].source_start_us = Number(asset.defaults?.source_start_us || 0);
                         semanticVisualDraft[index].mute = asset.defaults?.mute !== false;
-                        semanticVisualDraft[index].loop = asset.defaults?.loop === true;
+                        delete semanticVisualDraft[index].loop;
                         semanticVisualDraft[index].fit = asset.defaults?.fit || 'cover';
                     }
                 }
@@ -2981,7 +3067,6 @@
                 ...(asset.media_type === 'video' ? {
                     source_start_us: Number(asset.defaults?.source_start_us || 0),
                     mute: asset.defaults?.mute !== false,
-                    loop: asset.defaults?.loop === true,
                     fit: asset.defaults?.fit || 'cover'
                 } : {})
             });
@@ -4123,21 +4208,31 @@
                 : (isDownloadingProjectVideos ? '正在逐条导出并打包' : '当前项目还没有已完成的普通成片预览');
         }
 
-        async function downloadProjectVideos() {
+        function downloadSelectedProjectVideos() {
+            const selectedIds = [...selectedProjectItemIds];
+            void downloadProjectVideos(selectedIds.length ? selectedIds : null);
+        }
+
+        async function downloadProjectVideos(itemIds = null) {
             if (!activeProject || !uploadedScripts.length || isDownloadingProjectVideos) return;
+            const requestedIds = Array.isArray(itemIds) ? new Set(itemIds) : null;
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            const readyRows = rows.filter(row => row.getAttribute('data-video-status') === 'ready');
+            const candidateRows = rows.filter((row) =>
+                !requestedIds || requestedIds.has(row.getAttribute('data-id'))
+            );
+            const readyRows = candidateRows.filter(row => row.getAttribute('data-video-status') === 'ready');
             if (!readyRows.length) {
-                showToast('暂时不能一键下载', '当前项目还没有已完成的普通成片预览。', 'warning');
+                showToast('暂时不能下载', requestedIds ? '勾选任务中还没有已完成的普通成片预览。' : '当前项目还没有已完成的普通成片预览。', 'warning');
                 return;
             }
             const projectId = activeProject.project_id;
             const readyItemIds = new Set(readyRows.map(row => row.getAttribute('data-id')));
             const readyItems = uploadedScripts.filter(item => readyItemIds.has(item.id));
             const missing = readyItems.filter(item => !item.compositionVideo);
-            if (missing.length && !window.confirm(`本次下载 ${readyItems.length} 条已完成预览，其中 ${missing.length} 条只有浏览器动态预览，将逐条启动剪映导出；另外跳过 ${rows.length - readyItems.length} 条未完成任务。不会生成或下载变体。是否继续？`)) return;
+            if (missing.length && !window.confirm(`本次下载 ${readyItems.length} 条已完成预览，其中 ${missing.length} 条只有浏览器动态预览，将逐条启动剪映导出；另外跳过 ${candidateRows.length - readyItems.length} 条未完成任务。不会生成或下载变体。是否继续？`)) return;
             isDownloadingProjectVideos = true;
             refreshVariantActionAvailability();
+            refreshRowSelectionControls();
             try {
                 for (let index = 0; index < missing.length; index += 1) {
                     const item = missing[index];
@@ -4169,12 +4264,13 @@
                     }
                 }
                 const link = document.createElement('a');
-                link.href = `/api/new/projects/${projectId}/videos/download`;
+                const itemIdsQuery = encodeURIComponent(readyItems.map((item) => item.id).join(','));
+                link.href = `/api/new/projects/${projectId}/videos/download?item_ids=${itemIdsQuery}`;
                 link.download = '';
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
-                showToast('正在打包下载', `共 ${readyItems.length} 条已完成未变体成片，跳过 ${rows.length - readyItems.length} 条未完成任务；压缩包不包含变体视频。`, 'success');
+                showToast('正在打包下载', `共 ${readyItems.length} 条已完成未变体成片，跳过 ${candidateRows.length - readyItems.length} 条未完成任务；压缩包不包含变体视频。`, 'success');
             } catch (error) {
                 showToast('一键下载失败', error.message, 'warning');
                 try {
@@ -4183,6 +4279,7 @@
             } finally {
                 isDownloadingProjectVideos = false;
                 refreshVariantActionAvailability();
+                refreshRowSelectionControls();
             }
         }
 
@@ -4390,6 +4487,55 @@
             input.click();
         }
 
+        async function updateImageMappingScope(itemIds, showNotice = true) {
+            if (!activeProject?.project_id) return;
+            const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/image-mapping-scope`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item_ids: itemIds })
+            });
+            syncProjectInputs(project);
+            if (showNotice) showToast('换图范围已更新', itemIds.length ? `上传的新图片将只在这 ${itemIds.length} 条脚本内循环。` : '已清除限定范围，后续分配恢复为全部可编辑脚本。', 'success');
+        }
+
+        async function setSelectedImageMappingScope() {
+            const itemIds = [...selectedProjectItemIds];
+            if (!itemIds.length) {
+                showToast('请先选择脚本行', '例如选择 11-30，再锁定为本次换图范围。', 'warning');
+                return;
+            }
+            try {
+                await updateImageMappingScope(itemIds);
+            } catch (error) {
+                showToast('换图范围保存失败', error.message, 'warning');
+            }
+        }
+
+        async function clearImageMappingScope() {
+            try {
+                await updateImageMappingScope([]);
+            } catch (error) {
+                showToast('换图范围清除失败', error.message, 'warning');
+            }
+        }
+
+        async function toggleRowImageMappingTarget(button, event) {
+            if (event) event.stopPropagation();
+            if (button.disabled) return;
+            const itemId = button.closest('tr')?.getAttribute('data-id') || '';
+            const script = uploadedScripts.find((item) => item.id === itemId);
+            if (!script) return;
+            const itemIds = uploadedScripts
+                .filter((item) => item.imageMappingTarget && item.id !== itemId)
+                .map((item) => item.id);
+            if (!script.imageMappingTarget) itemIds.push(itemId);
+            try {
+                await updateImageMappingScope(itemIds);
+            } catch (error) {
+                showToast('换图范围保存失败', error.message, 'warning');
+            }
+        }
+
         function triggerActiveRowImageReplace() {
             if (!activeImageItemId) return;
             const script = uploadedScripts.find((item) => item.id === activeImageItemId);
@@ -4584,11 +4730,95 @@
                         font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
                         bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
                         bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
+                        preserve_auto_bgm: config.bgmIdentity === 'auto',
                         text_color: config.textColor || '#ffffff',
                         layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing'
                     })
                 }
             );
+        }
+
+        function postprocessRequestSettings(rowId) {
+            const config = rowPostprocessConfigs[rowId] || {};
+            return {
+                bgm_identity: ['auto', 'none'].includes(config.bgmIdentity) ? '' : (config.bgmIdentity || ''),
+                bgm_selection_mode: config.bgmIdentity === 'auto' ? 'auto' : 'manual',
+                font_identity: config.fontIdentity || defaultPostprocessFontIdentity,
+                text_color: config.textColor || '#ffffff',
+                layout_profile: config.layoutProfile || defaultLayoutProfile || 'standing'
+            };
+        }
+
+        async function refreshBatchPostprocessPreviews() {
+            if (!activeProject || isRefreshingBatchPreviews) return;
+            const selected = selectedProjectItems();
+            const candidates = selected.length ? selected : uploadedScripts;
+            const targets = candidates.filter((item) =>
+                Boolean(item.baseVideo) && Boolean(item.allowedActions?.edit_postprocess)
+            );
+            const skippedCount = candidates.length - targets.length;
+            if (!targets.length) {
+                showToast('没有可刷新的预览', '任务需要已有数字人画面，且当前不能正在生成。', 'warning');
+                return;
+            }
+            const scope = selected.length ? '选中的' : '当前批次全部';
+            if (!window.confirm(`将刷新${scope} ${targets.length} 条浏览器预览，重新计算字幕断句、ASR 时间绑定、自动 BGM 推荐和三帧封面。不会重新生成声音、数字人或启动剪映导出。是否继续？`)) return;
+
+            const projectId = activeProject.project_id;
+            const targetIds = new Set(targets.map((item) => item.id));
+            isRefreshingBatchPreviews = true;
+            targets.forEach((item) => {
+                previewRetryingItems.add(item.id);
+                const row = document.querySelector(`.table-data-row[data-id="${CSS.escape(item.id)}"]`);
+                if (row) {
+                    row.setAttribute('data-video-status', 'loading');
+                    toggleRowVideoStatusUI(row, 'loading');
+                }
+            });
+            refreshRowSelectionControls();
+            try {
+                await Promise.all(targets.map((item) => workspaceApi(
+                    `/api/new/projects/${projectId}/items/${item.id}/postprocess-settings`,
+                    {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...postprocessRequestSettings(item.id),
+                            force_retry: true
+                        })
+                    }
+                )));
+                const project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idempotency_key: `preview-batch-refresh-${projectId}-${Date.now()}`,
+                        items: targets.map((item) => ({
+                            item_id: item.id,
+                            ...postprocessRequestSettings(item.id)
+                        }))
+                    })
+                });
+                syncProjectInputs(project);
+                const refreshedCount = (project.items || []).filter((item) =>
+                    targetIds.has(item.item_id) && item.subtitles?.status === 'PREVIEW_READY'
+                ).length;
+                if (refreshedCount !== targets.length) {
+                    throw new Error(`仅有 ${refreshedCount}/${targets.length} 条预览准备完成，请稍后重试未完成任务`);
+                }
+                showToast(
+                    '批量预览已刷新',
+                    `已重算 ${refreshedCount} 条字幕、BGM 和封面预览${skippedCount ? `，跳过 ${skippedCount} 条无画面或生成中的任务` : ''}；没有生成新的 MP4。`,
+                    'success'
+                );
+            } catch (error) {
+                showToast('批量预览刷新失败', error.message, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${projectId}`)); } catch (_) {}
+            } finally {
+                targets.forEach((item) => previewRetryingItems.delete(item.id));
+                isRefreshingBatchPreviews = false;
+                refreshRowSelectionControls();
+            }
         }
 
         async function saveSubtitleStyles() {
@@ -4773,6 +5003,26 @@
             return line1 && line2 ? { line1, line2 } : null;
         }
 
+        function activePreviewCoverImage() {
+            const script = activePreviewScript();
+            const frozenSha = String(
+                script?.baseVideo?.metadata?.input_image_sha256
+                || script?.baseVideo?.external_ref?.image_sha256
+                || ''
+            ).trim().toLowerCase();
+            if (!frozenSha) return script?.image || null;
+            const candidates = [
+                script?.image,
+                ...(Array.isArray(script?.assetHistory?.input_image)
+                    ? script.assetHistory.input_image
+                    : [])
+            ].filter(Boolean);
+            return candidates.find((candidate) => (
+                String(candidate?.metadata?.sha256 || '').trim().toLowerCase() === frozenSha
+                && candidate?.url
+            )) || null;
+        }
+
         function shouldShowPreviewCover() {
             if (!isBrowserCompositionPreview() || !activePreviewCoverTitle()) return false;
             const video = document.getElementById('video-preview-local');
@@ -4788,8 +5038,7 @@
                 cover.classList.add('hidden');
                 return;
             }
-            const script = activePreviewScript();
-            const imageUrl = String(script?.image?.url || '');
+            const imageUrl = String(activePreviewCoverImage()?.url || '');
             if (!imageUrl) {
                 cover.classList.add('hidden');
                 return;
@@ -4808,16 +5057,23 @@
             cover.style.height = `${displayedHeight}px`;
 
             const overlay = document.getElementById('video-preview-cover-overlay');
-            overlay.style.top = `${displayedHeight * (0.609375 - 0.36 / 2)}px`;
-            overlay.style.height = `${displayedHeight * 0.36}px`;
+            const coverStyle = activeLayoutProfileConfig()?.cover || {};
+            const overlayYRatio = Number(coverStyle.overlay_y_ratio ?? 0.625);
+            const overlayHeightRatio = Number(coverStyle.overlay_height_ratio ?? 0.26);
+            overlay.style.top = `${displayedHeight * (overlayYRatio - overlayHeightRatio / 2)}px`;
+            overlay.style.height = `${displayedHeight * overlayHeightRatio}px`;
             const line1 = document.getElementById('video-preview-cover-line-1');
             const line2 = document.getElementById('video-preview-cover-line-2');
             line1.textContent = title.line1;
             line2.textContent = title.line2;
-            line1.style.top = `${displayedHeight * (0.5 - (-160 / 1920) / 2)}px`;
-            line2.style.top = `${displayedHeight * (0.5 - (-655 / 1920) / 2)}px`;
-            line1.style.fontSize = `${Math.max(16, displayedWidth * 30 / 220)}px`;
-            line2.style.fontSize = `${Math.max(13, displayedWidth * 22 / 220)}px`;
+            const line1Y = Number(coverStyle.line_1_y ?? (-160 / 1920));
+            const line2Y = Number(coverStyle.line_2_y ?? (-655 / 1920));
+            const line1Size = Number(coverStyle.line_1_size ?? 30);
+            const line2Size = Number(coverStyle.line_2_size ?? 22);
+            line1.style.top = `${displayedHeight * (0.5 - line1Y / 2)}px`;
+            line2.style.top = `${displayedHeight * (0.5 - line2Y / 2)}px`;
+            line1.style.fontSize = `${Math.max(16, displayedWidth * line1Size / 220)}px`;
+            line2.style.fontSize = `${Math.max(13, displayedWidth * line2Size / 220)}px`;
             line1.style.lineHeight = '1';
             line2.style.lineHeight = '1';
             line1.style.color = '#FADF4A';
@@ -5108,7 +5364,15 @@
             const overlay = (script?.visualAnalysis?.recipe?.overlays || []).find((item) => {
                 if (item.enabled === false || item.requires_review === true || item.media_type !== 'video') return false;
                 const startUs = Number(item.start_us || 0);
-                return currentUs >= startUs && currentUs < startUs + Number(item.duration_us || 0);
+                const effective = normalizeAutomaticSemanticOverlay(item);
+                const currentAsset = (semanticVisualCatalog?.assets || []).find((asset) => asset.asset_id === effective.asset_id);
+                const sourceStartUs = Number(effective.source_start_us || currentAsset?.defaults?.source_start_us || 0);
+                const sourceDurationUs = Math.max(0, Number(currentAsset?.resource?.duration_us || 0) - sourceStartUs);
+                const requestedDurationUs = Number(effective.duration_us || 0);
+                const playbackDurationUs = sourceDurationUs > 0
+                    ? Math.min(requestedDurationUs, sourceDurationUs)
+                    : requestedDurationUs;
+                return currentUs >= startUs && currentUs < startUs + playbackDurationUs;
             });
             if (!overlay) {
                 overlayVideo.pause();
@@ -5127,9 +5391,7 @@
                 overlayVideo.load();
             }
             const sourceStart = Number(effectiveOverlay.source_start_us || asset.defaults?.source_start_us || 0) / 1_000_000;
-            const sourceDuration = Math.max(0, Number(asset.resource?.duration_us || 0) / 1_000_000 - sourceStart);
             let sourceTime = sourceStart + (currentUs - Number(effectiveOverlay.start_us || 0)) / 1_000_000;
-            if (effectiveOverlay.loop === true && sourceDuration > 0) sourceTime = sourceStart + ((sourceTime - sourceStart) % sourceDuration);
             if (Number.isFinite(overlayVideo.duration)) sourceTime = Math.min(sourceTime, Math.max(0, overlayVideo.duration - 0.03));
             if (Math.abs(overlayVideo.currentTime - sourceTime) > 0.12) {
                 try { overlayVideo.currentTime = Math.max(0, sourceTime); } catch (_) {}
@@ -5326,6 +5588,10 @@
                 : config.bgmIdentity;
             const bgm = bgmPresets.find((item) => item.id === previewBgmIdentity);
             const nextBgmUrl = bgm?.previewUrl || '';
+            const savedBgmVolume = Number(script?.postprocessSettings?.bgm_volume);
+            previewBgmAudio.volume = Number.isFinite(savedBgmVolume)
+                ? Math.max(0, Math.min(1, savedBgmVolume))
+                : 0.18;
             if (nextBgmUrl) {
                 const absoluteUrl = new URL(nextBgmUrl, window.location.origin).href;
                 if (previewBgmAudio.src !== absoluteUrl) {
@@ -5922,6 +6188,25 @@
             }
         }
 
+        function scheduleCompositionSnapshotPoll(projectId) {
+            clearTimeout(compositionSnapshotPollTimer);
+            if (!compositionStatusRequestInFlight || activeProject?.project_id !== projectId) return;
+            compositionSnapshotPollTimer = setTimeout(async () => {
+                try {
+                    const project = await workspaceApi(`/api/new/projects/${projectId}`);
+                    if (activeProject?.project_id !== projectId) return;
+                    syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
+                } catch (_) {
+                    // The authoritative composition request keeps running; a
+                    // transient lightweight snapshot failure needs no toast.
+                } finally {
+                    if (compositionStatusRequestInFlight && activeProject?.project_id === projectId) {
+                        scheduleCompositionSnapshotPoll(projectId);
+                    }
+                }
+            }, 3000);
+        }
+
         function scheduleCompositionStatusPoll() {
             clearTimeout(compositionStatusPollTimer);
             updateCompositionProgress();
@@ -5930,6 +6215,10 @@
             );
             isGeneratingComposition = active;
             refreshAudioStageActions();
+            if (compositionStatusRequestInFlight) {
+                if (activeProject?.project_id) scheduleCompositionSnapshotPoll(activeProject.project_id);
+                return;
+            }
             if (!active || !activeProject) {
                 compositionStatusPollFailureCount = 0;
                 if (!active && activeProject && pendingSingleCompositionItemIds.size) {
@@ -5941,9 +6230,14 @@
                 return;
             }
             compositionStatusPollTimer = setTimeout(async () => {
+                compositionStatusPollTimer = null;
+                const projectId = activeProject.project_id;
+                compositionStatusRequestInFlight = true;
+                scheduleCompositionSnapshotPoll(projectId);
                 try {
                     const wasActive = active;
-                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/status`);
+                    const project = await workspaceApi(`/api/new/projects/${projectId}/composition/status`);
+                    if (activeProject?.project_id !== projectId) return;
                     compositionStatusPollFailureCount = 0;
                     const responseItems = project.items || [];
                     const stillActiveInResponse = responseItems.some((item) =>
@@ -5975,6 +6269,12 @@
                         5000 * (2 ** Math.min(compositionStatusPollFailureCount - 1, 3))
                     );
                     compositionStatusPollTimer = setTimeout(scheduleCompositionStatusPoll, retryDelay);
+                } finally {
+                    compositionStatusRequestInFlight = false;
+                    clearTimeout(compositionSnapshotPollTimer);
+                    if (!compositionStatusPollTimer && activeProject?.project_id === projectId) {
+                        scheduleCompositionStatusPoll();
+                    }
                 }
             }, 3000);
         }

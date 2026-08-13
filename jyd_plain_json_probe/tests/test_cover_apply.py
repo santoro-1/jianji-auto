@@ -251,6 +251,8 @@ class CoverApplyTest(unittest.TestCase):
         self.assertEqual(cover.line_2_y, -655 / 1920)
         self.assertEqual(cover.line_1_color, "#FADF4A")
         self.assertEqual(cover.line_2_color, "#F5F6F0")
+        self.assertFalse(cover.auto_wrapping)
+        self.assertEqual(cover.max_line_width, 0.86)
 
     def test_builds_editable_cover_layout(self) -> None:
         cover = _build_cover(

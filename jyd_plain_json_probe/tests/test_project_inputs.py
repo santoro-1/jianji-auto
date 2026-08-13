@@ -25,6 +25,10 @@ TEMPLATE_PATH = (
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
+from jyd_probe.project_inputs import (  # noqa: E402
+    MAX_PROJECT_IMAGE_BYTES,
+    detect_project_image,
+)
 
 
 PNG_1X1 = base64.b64decode(
@@ -33,6 +37,16 @@ PNG_1X1 = base64.b64decode(
 
 
 class ProjectInputsApiTest(unittest.TestCase):
+    def test_project_image_limit_is_200_mb(self) -> None:
+        self.assertEqual(MAX_PROJECT_IMAGE_BYTES, 200 * 1024 * 1024)
+
+        class OversizedImage:
+            def __len__(self) -> int:
+                return MAX_PROJECT_IMAGE_BYTES + 1
+
+        with self.assertRaisesRegex(ValueError, "单张图片不能超过 200 MB"):
+            detect_project_image(OversizedImage(), "large.png")  # type: ignore[arg-type]
+
     def setUp(self) -> None:
         self.root = (
             PROJECT_ROOT / "runtime" / "test_tmp" / f"project_inputs_{uuid.uuid4().hex}"
@@ -484,6 +498,283 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertEqual(removed.status_code, 200, removed.text)
             self.assertNotEqual(initial["image_id"], replacement_id)
 
+    def test_locked_mapping_scope_receives_new_images_and_preserves_other_rows(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "分批换图锁定",
+                    "items": [
+                        {"row_key": str(index), "script_text": f"脚本 {index}"}
+                        for index in range(1, 4)
+                    ],
+                },
+            ).json()
+            project_id = project["project_id"]
+            old_image = client.post(
+                f"/api/new/projects/{project_id}/images?filename=old.png",
+                content=PNG_1X1 + b"old",
+            ).json()
+            mapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={"strategy": "loop", "reuse_count": 1},
+            ).json()
+            target_item_ids = [item["item_id"] for item in mapped["items"][1:]]
+
+            scoped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping-scope",
+                json={"item_ids": target_item_ids},
+            )
+            self.assertEqual(scoped.status_code, 200, scoped.text)
+            self.assertFalse(
+                scoped.json()["items"][0]["inputs"]["image_mapping_target"]
+            )
+            self.assertTrue(
+                all(
+                    item["inputs"]["image_mapping_target"]
+                    for item in scoped.json()["items"][1:]
+                )
+            )
+
+            new_images = []
+            for name in ("new-a.png", "new-b.png"):
+                response = client.post(
+                    f"/api/new/projects/{project_id}/images?filename={name}",
+                    content=PNG_1X1 + name.encode("ascii"),
+                )
+                self.assertEqual(response.status_code, 201, response.text)
+                new_images.append(response.json())
+            remapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={
+                    "strategy": "loop",
+                    "reuse_count": 1,
+                    "image_ids": [image["image_id"] for image in new_images],
+                },
+            )
+            self.assertEqual(remapped.status_code, 200, remapped.text)
+            items = remapped.json()["items"]
+            self.assertEqual(
+                items[0]["inputs"]["image"]["external_ref"]["input_image_id"],
+                old_image["image_id"],
+            )
+            self.assertEqual(
+                [
+                    item["inputs"]["image"]["external_ref"]["input_image_id"]
+                    for item in items[1:]
+                ],
+                [image["image_id"] for image in new_images],
+            )
+
+            target_replace = client.put(
+                f"/api/new/projects/{project_id}/items/{target_item_ids[0]}/image",
+                json={"image_id": new_images[1]["image_id"]},
+            )
+            self.assertEqual(target_replace.status_code, 200, target_replace.text)
+            blocked_delete = client.delete(
+                f"/api/new/projects/{project_id}/images/{old_image['image_id']}"
+            )
+            self.assertEqual(blocked_delete.status_code, 409, blocked_delete.text)
+            self.assertIn("换图范围外", blocked_delete.json()["detail"])
+
+            refreshed = client.get(f"/api/new/projects/{project_id}").json()
+            self.assertTrue(
+                all(
+                    item["inputs"]["image_mapping_target"]
+                    for item in refreshed["items"][1:]
+                )
+            )
+            cleared = client.put(
+                f"/api/new/projects/{project_id}/image-mapping-scope",
+                json={"item_ids": []},
+            )
+            self.assertEqual(cleared.status_code, 200, cleared.text)
+            self.assertFalse(
+                any(
+                    item["inputs"]["image_mapping_target"]
+                    for item in cleared.json()["items"]
+                )
+            )
+
+    def test_reapplying_same_image_identity_preserves_existing_videos(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "重复映射保护",
+                    "items": [{"row_key": "1", "script_text": "第一条"}],
+                },
+            ).json()
+            project_id = project["project_id"]
+            item_id = project["items"][0]["item_id"]
+            image = client.post(
+                f"/api/new/projects/{project_id}/images?filename=person.png",
+                content=PNG_1X1 + b"same-identity",
+            ).json()
+            mapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={"strategy": "loop", "reuse_count": 1},
+            ).json()
+            first_image_asset_id = mapped["items"][0]["inputs"]["image"]["asset_id"]
+            base_path = self.settings.storage_root / "base.mp4"
+            base_path.write_bytes(b"base")
+            base = client.app.state.project_store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="base_video",
+                source_type="runninghub_single",
+                status="READY",
+                filename="1-base.mp4",
+                managed_path=str(base_path),
+                metadata={"input_image_asset_id": first_image_asset_id},
+                make_current=True,
+            )
+            video_path = self.settings.storage_root / "composition.mp4"
+            video_path.write_bytes(b"composition")
+            video = client.app.state.project_store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="composition_video",
+                source_type="jianying_export",
+                status="READY",
+                filename="1-composition.mp4",
+                managed_path=str(video_path),
+                metadata={"base_video_asset_id": base["asset_id"]},
+                make_current=True,
+            )
+
+            remapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={
+                    "strategy": "loop",
+                    "reuse_count": 1,
+                    "image_ids": [image["image_id"]],
+                },
+            )
+
+            self.assertEqual(remapped.status_code, 200, remapped.text)
+            item = remapped.json()["items"][0]
+            self.assertEqual(item["status"], "COMPOSITION_READY")
+            self.assertEqual(item["inputs"]["image"]["asset_id"], first_image_asset_id)
+            self.assertEqual(item["outputs"]["base_video"]["asset_id"], base["asset_id"])
+            self.assertEqual(
+                item["outputs"]["composition_video"]["asset_id"], video["asset_id"]
+            )
+
+    def test_paid_snapshot_image_cannot_be_deleted(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "付费图片快照",
+                    "items": [{"row_key": "1", "script_text": "第一条"}],
+                },
+            ).json()
+            project_id = project["project_id"]
+            image = client.post(
+                f"/api/new/projects/{project_id}/images?filename=paid.png",
+                content=PNG_1X1 + b"paid-snapshot",
+            ).json()
+            mapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={"strategy": "loop", "reuse_count": 1},
+            ).json()
+            item = mapped["items"][0]
+            client.app.state.project_store.create_operation(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item["item_id"],
+                operation_type="COMPOSITION_GENERATE",
+                idempotency_key="paid-image-snapshot",
+                payload={
+                    "remote_item_id": "remote-paid-image",
+                    # Historical installs may already have removed the exact
+                    # per-row asset record. The immutable content hash must
+                    # still protect the underlying project image.
+                    "input_image_asset_id": "historical-missing-image-asset",
+                    "input_image_sha256": item["inputs"]["image"]["metadata"]["sha256"],
+                },
+            )
+
+            removed = client.delete(
+                f"/api/new/projects/{project_id}/images/{image['image_id']}"
+            )
+
+            self.assertEqual(removed.status_code, 409, removed.text)
+            self.assertIn("付费画面任务冻结", removed.json()["detail"])
+
+    def test_active_row_outside_mapping_scope_does_not_block_target_rows(self) -> None:
+        login_patch, verify_patch = self._client_context()
+        with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={
+                    "name": "锁定运行行",
+                    "items": [
+                        {"row_key": "1", "script_text": "第一条"},
+                        {"row_key": "2", "script_text": "第二条"},
+                    ],
+                },
+            ).json()
+            project_id = project["project_id"]
+            old_image = client.post(
+                f"/api/new/projects/{project_id}/images?filename=old.png",
+                content=PNG_1X1 + b"old-active",
+            ).json()
+            mapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={"strategy": "loop", "reuse_count": 1},
+            ).json()
+            first_item_id = mapped["items"][0]["item_id"]
+            second_item_id = mapped["items"][1]["item_id"]
+            client.put(
+                f"/api/new/projects/{project_id}/image-mapping-scope",
+                json={"item_ids": [second_item_id]},
+            )
+            client.app.state.project_store.create_operation(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=first_item_id,
+                operation_type="AUDIO_GENERATE",
+                idempotency_key="locked-active-row",
+            )
+            new_image = client.post(
+                f"/api/new/projects/{project_id}/images?filename=new.png",
+                content=PNG_1X1 + b"new-active",
+            ).json()
+            remapped = client.put(
+                f"/api/new/projects/{project_id}/image-mapping",
+                json={
+                    "strategy": "loop",
+                    "reuse_count": 1,
+                    "image_ids": [new_image["image_id"]],
+                },
+            )
+            self.assertEqual(remapped.status_code, 200, remapped.text)
+            self.assertEqual(
+                remapped.json()["settings"]["image_mapping"]["image_ids"],
+                [new_image["image_id"]],
+            )
+            by_id = {item["item_id"]: item for item in remapped.json()["items"]}
+            self.assertEqual(
+                by_id[first_item_id]["inputs"]["image"]["external_ref"]["input_image_id"],
+                old_image["image_id"],
+            )
+            self.assertEqual(
+                by_id[second_item_id]["inputs"]["image"]["external_ref"]["input_image_id"],
+                new_image["image_id"],
+            )
+            self.assertTrue(remapped.json()["allowed_actions"]["apply_image_mapping"])
+
     def test_append_item_remains_available_after_existing_voice_generation_starts(self) -> None:
         login_patch, verify_patch = self._client_context()
         with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
@@ -562,7 +853,7 @@ class ProjectInputsApiTest(unittest.TestCase):
                 ["1", "2", "3"],
             )
 
-    def test_image_upload_deduplicates_same_name_or_same_content(self) -> None:
+    def test_each_selected_file_upload_creates_a_new_project_image(self) -> None:
         login_patch, verify_patch = self._client_context()
         with login_patch, verify_patch, TestClient(create_app(self.settings)) as client:
             self._login(client)
@@ -590,14 +881,12 @@ class ProjectInputsApiTest(unittest.TestCase):
             self.assertEqual(first.status_code, 201, first.text)
             self.assertEqual(same_name.status_code, 201, same_name.text)
             self.assertEqual(same_content.status_code, 201, same_content.text)
-            self.assertTrue(same_name.json()["deduplicated"])
-            self.assertEqual(same_name.json()["duplicate_reason"], "filename")
-            self.assertTrue(same_content.json()["deduplicated"])
-            self.assertEqual(same_content.json()["duplicate_reason"], "content")
-            self.assertEqual(first.json()["image_id"], same_name.json()["image_id"])
-            self.assertEqual(first.json()["image_id"], same_content.json()["image_id"])
+            self.assertFalse(same_name.json().get("deduplicated", False))
+            self.assertFalse(same_content.json().get("deduplicated", False))
+            self.assertNotEqual(first.json()["image_id"], same_name.json()["image_id"])
+            self.assertNotEqual(first.json()["image_id"], same_content.json()["image_id"])
             refreshed = client.get(f"/api/new/projects/{project_id}").json()
-            self.assertEqual(len(refreshed["input_images"]), 1)
+            self.assertEqual(len(refreshed["input_images"]), 3)
 
     def test_script_reimport_is_atomic_and_project_can_be_cleared(self) -> None:
         login_patch, verify_patch = self._client_context()

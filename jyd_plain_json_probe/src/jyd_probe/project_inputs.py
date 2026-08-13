@@ -13,7 +13,7 @@ MAX_SCRIPT_FILE_BYTES = 5 * 1024 * 1024
 MAX_SCRIPT_ROWS = 500
 MAX_XLSX_FILES = 250
 MAX_XLSX_UNCOMPRESSED_BYTES = 30 * 1024 * 1024
-MAX_PROJECT_IMAGE_BYTES = 20 * 1024 * 1024
+MAX_PROJECT_IMAGE_BYTES = 200 * 1024 * 1024
 
 _MAIN_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 _REL_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -160,7 +160,7 @@ def detect_project_image(content: bytes, filename: str) -> tuple[str, str]:
     if not content:
         raise ValueError("图片文件为空")
     if len(content) > MAX_PROJECT_IMAGE_BYTES:
-        raise ValueError("单张图片不能超过 20 MB")
+        raise ValueError("单张图片不能超过 200 MB")
     suffix = PurePosixPath(str(filename or "").replace("\\", "/")).suffix.lower()
     if content.startswith(b"\xff\xd8\xff") and content.endswith(b"\xff\xd9"):
         detected, content_type, allowed = ".jpg", "image/jpeg", {".jpg", ".jpeg"}

@@ -141,7 +141,19 @@ def test_catalog_analysis_review_and_revision_api() -> None:
                             "scale": 0.28,
                             "opacity": 1.0,
                             "start_us": 0,
-                            "duration_us": 1_800_000,
+                            "duration_us": 2_000_000,
+                            "timing_source": "minimax_raw_cue_phrase_span",
+                            "timing_mode": "sentence",
+                            "sentence_char_start": 0,
+                            "sentence_char_end": 8,
+                            "sentence_text": "每天吃一个鸡蛋",
+                            "phrase_char_start": 0,
+                            "phrase_char_end": 8,
+                            "phrase_text": "每天吃一个鸡蛋",
+                            "list_index": None,
+                            "list_size": None,
+                            "segment_boundary_us": None,
+                            "usage": "explicit",
                         }
                     ],
                 },
@@ -151,6 +163,44 @@ def test_catalog_analysis_review_and_revision_api() -> None:
             assert frozen["manual"] is True
             assert frozen["selection_mode"] == "manual"
             assert frozen["locked"] is True
+            assert frozen["timing_mode"] == "sentence"
+            assert frozen["sentence_text"] == "每天吃一个鸡蛋"
+            recipe = saved.json()["items"][0]["visual_analysis"]["recipe"]
+            assert recipe["timing_policy_version"] == "sentence-v1"
+            assert recipe["used_asset_ids"] == ["egg.boiled.01"]
+
+            video_asset = next(
+                asset for asset in catalog["assets"] if asset["media_type"] == "video"
+            )
+            saved_video = client.put(
+                f"/api/new/projects/{project['project_id']}/items/{item_id}/visual-overlays",
+                json={
+                    "revision": saved.json()["revision"],
+                    "overlays": [
+                        {
+                            "overlay_id": "vo-legacy-loop-video",
+                            "candidate_id": "legacy-video-candidate",
+                            "concept_id": video_asset["concept_ids"][0],
+                            "asset_id": video_asset["asset_id"],
+                            "enabled": True,
+                            "locked": True,
+                            "corner": "center",
+                            "scale": 1.0,
+                            "opacity": 1.0,
+                            "start_us": 0,
+                            "duration_us": 2_000_000,
+                            "source_start_us": 0,
+                            "mute": True,
+                            "loop": True,
+                            "fit": "cover",
+                        }
+                    ],
+                },
+            )
+            assert saved_video.status_code == 200, saved_video.text
+            frozen_video = saved_video.json()["items"][0]["visual_analysis"]["recipe"]["overlays"][0]
+            assert frozen_video["media_type"] == "video"
+            assert "loop" not in frozen_video
 
             conflict = client.put(
                 f"/api/new/projects/{project['project_id']}/items/{item_id}/visual-overlays",

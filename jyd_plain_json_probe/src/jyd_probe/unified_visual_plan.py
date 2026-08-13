@@ -8,6 +8,7 @@ import json
 from typing import Any, Mapping
 
 from .caption_alignment import alignment_matches
+from .project_video_source import project_segment_boundaries
 from .semantic_visuals import (
     DEFAULT_LIBRARY_ID,
     RECIPE_SCHEMA,
@@ -16,7 +17,6 @@ from .semantic_visuals import (
     map_visual_candidates_to_raw_cues,
     recall_semantic_visual_candidates,
     visual_candidate_context,
-    visual_overlay_conflicts,
 )
 
 
@@ -92,6 +92,7 @@ class UnifiedVisualInput:
     video_duration_us: int | None
     previous: dict[str, Any]
     asr_alignment: dict[str, Any] | None = None
+    segment_boundaries: list[dict[str, Any]] | None = None
 
 
 def prepare_unified_visual_input(
@@ -125,6 +126,7 @@ def prepare_unified_visual_input(
         ),
         previous=dict(item.get("visual_analysis") or {}),
         asr_alignment=(dict(alignment) if isinstance(alignment, Mapping) else None),
+        segment_boundaries=project_segment_boundaries(dict(item)),
     )
 
 
@@ -309,21 +311,15 @@ def build_local_visual_result(
         if selected_candidates
         else []
     )
+    locked = _locked_overlays(visual_input.previous, catalog)
     recipe = build_visual_recipe(
         catalog=catalog,
         mapped_candidates=mapped,
         decisions=decisions,
         media_policy="mixed",
-    )
-    locked = _locked_overlays(visual_input.previous, catalog)
-    automatic = []
-    for overlay in recipe["overlays"]:
-        if visual_overlay_conflicts(overlay, [*locked, *automatic]):
-            continue
-        automatic.append(overlay)
-    recipe["overlays"] = sorted(
-        [*locked, *automatic],
-        key=lambda item: (int(item.get("start_us") or 0), str(item.get("overlay_id") or "")),
+        locked_overlays=locked,
+        segment_boundaries=visual_input.segment_boundaries or [],
+        final_video_duration_us=visual_input.video_duration_us,
     )
     result = {
         "analysis_status": "SUCCESS",
@@ -345,12 +341,21 @@ def empty_visual_recipe(
     visual_input: UnifiedVisualInput,
     catalog: SemanticVisualCatalog,
 ) -> dict[str, Any]:
+    overlays = _locked_overlays(visual_input.previous, catalog)
     return {
         "schema": RECIPE_SCHEMA,
         "library_id": catalog.library_id or DEFAULT_LIBRARY_ID,
         "catalog_version": catalog.catalog_version,
         "media_policy": "mixed",
-        "overlays": _locked_overlays(visual_input.previous, catalog),
+        "timing_policy_version": "sentence-v1",
+        "used_asset_ids": sorted(
+            {
+                str(item.get("asset_id") or "")
+                for item in overlays
+                if item.get("enabled") is not False and str(item.get("asset_id") or "")
+            }
+        ),
+        "overlays": overlays,
     }
 
 

@@ -43,6 +43,91 @@ def _safe_error(error: object) -> dict[str, str]:
     return {"code": code, "summary": summary[:500]}
 
 
+def _is_visual_context_contract_rejection(error: BaseException) -> bool:
+    return (
+        isinstance(error, AuthCenterError)
+        and error.status_code == 400
+        and "visual_context" in str(error)
+        and "统一分析契约" in str(error)
+    )
+
+
+def _legacy_content_visual_context(
+    visual_context: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Build the safe subset accepted by the pre-enrichment cloud contract.
+
+    A rolling local/cloud upgrade must never reinterpret enrichment B-roll as
+    an explicit semantic hit.  Legacy requests therefore retain only explicit
+    anchors, remove the new ``usage`` field, and include just their concepts.
+    """
+
+    anchors: list[dict[str, Any]] = []
+    referenced_concepts: set[str] = set()
+    for raw in visual_context.get("anchors", []):
+        if not isinstance(raw, Mapping) or str(raw.get("usage") or "explicit") != "explicit":
+            continue
+        anchor = {str(key): value for key, value in raw.items() if key != "usage"}
+        allowed = anchor.get("allowed_concepts")
+        if not isinstance(allowed, list) or not allowed:
+            continue
+        referenced_concepts.update(str(value) for value in allowed)
+        anchors.append(anchor)
+    if not anchors:
+        return None
+    concepts = [
+        dict(raw)
+        for raw in visual_context.get("concepts", [])
+        if isinstance(raw, Mapping)
+        and str(raw.get("concept_id") or "") in referenced_concepts
+    ]
+    return {
+        "catalog_version": str(visual_context.get("catalog_version") or "none"),
+        "concepts": concepts,
+        "anchors": anchors,
+    }
+
+
+def _analyze_with_visual_context_compat(
+    client: AuthCenterClient,
+    token: str,
+    original_script: str,
+    *,
+    force_refresh: bool,
+    visual_context: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"force_refresh": force_refresh}
+    if visual_context is not None:
+        kwargs["visual_context"] = dict(visual_context)
+    try:
+        return client.analyze_workbench_content(token, original_script, **kwargs)
+    except AuthCenterError as exc:
+        if visual_context is None or not _is_visual_context_contract_rejection(exc):
+            raise
+
+    legacy_context = _legacy_content_visual_context(visual_context)
+    legacy_kwargs: dict[str, Any] = {"force_refresh": force_refresh}
+    if legacy_context is not None:
+        legacy_kwargs["visual_context"] = legacy_context
+    try:
+        result = client.analyze_workbench_content(
+            token, original_script, **legacy_kwargs
+        )
+        result["_workbench_visual_context_mode"] = (
+            "legacy_explicit" if legacy_context is not None else "content_only"
+        )
+        return result
+    except AuthCenterError as exc:
+        if legacy_context is None or not _is_visual_context_contract_rejection(exc):
+            raise
+
+    result = client.analyze_workbench_content(
+        token, original_script, force_refresh=force_refresh
+    )
+    result["_workbench_visual_context_mode"] = "content_only"
+    return result
+
+
 def _branch_error(payload: Mapping[str, Any], branch: str) -> dict[str, str] | None:
     errors = payload.get("errors")
     raw = errors.get(branch) if isinstance(errors, Mapping) else None
@@ -264,14 +349,18 @@ class ProjectContentAnalysisCoordinator:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {}
             for target in targets:
-                kwargs: dict[str, Any] = {"force_refresh": force_refresh}
-                if target.visual is not None and target.visual.visual_context["anchors"]:
-                    kwargs["visual_context"] = target.visual.visual_context
                 future = pool.submit(
-                    self.client.analyze_workbench_content,
+                    _analyze_with_visual_context_compat,
+                    self.client,
                     token,
                     target.original_script,
-                    **kwargs,
+                    force_refresh=force_refresh,
+                    visual_context=(
+                        target.visual.visual_context
+                        if target.visual is not None
+                        and target.visual.visual_context["anchors"]
+                        else None
+                    ),
                 )
                 futures[future] = target
             for future in as_completed(futures):
@@ -292,7 +381,14 @@ class ProjectContentAnalysisCoordinator:
                     )
                     if target.visual is not None and self.visual_catalog is not None:
                         visual = (
-                            validate_remote_visual_plan(
+                            {
+                                "analysis_status": "SUCCESS",
+                                "visual_plan": [],
+                                "error": None,
+                            }
+                            if remote.get("_workbench_visual_context_mode")
+                            == "content_only"
+                            else validate_remote_visual_plan(
                                 remote,
                                 candidate_request=target.visual.candidate_request,
                             )

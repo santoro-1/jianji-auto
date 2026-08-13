@@ -20,6 +20,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from jyd_probe.auth_center import AuthCenterError  # noqa: E402
 from jyd_probe.project_content_analysis import (  # noqa: E402
     ProjectContentAnalysisCoordinator,
+    _analyze_with_visual_context_compat,
+    _legacy_content_visual_context,
     _validated_remote_result,
 )
 from jyd_probe.project_store import ProjectStore  # noqa: E402
@@ -68,7 +70,7 @@ def _remote_result(
         ]
         if subtitle_status == "SUCCESS"
         else None,
-        "title": {"line_1": "减脂真相", "line_2": "坚持才是关键"}
+        "title": {"line_1": "减脂真相", "line_2": "坚持更关键"}
         if title_status == "SUCCESS"
         else None,
         "errors": {
@@ -89,13 +91,100 @@ def _remote_result(
     }
 
 
-def test_new_ai_title_rejects_more_than_eight_characters_on_line_two() -> None:
+def test_new_ai_title_rejects_more_than_five_characters_on_line_two() -> None:
     script = "测试脚本"
     payload = _remote_result(script)
     payload["title"] = {"line_1": "健康真相", "line_2": "一二三四五六七八九"}
 
-    with unittest.TestCase().assertRaisesRegex(ValueError, "AI 标题第二行最多 8 个字符"):
+    with unittest.TestCase().assertRaisesRegex(ValueError, "AI 标题第二行最多 5 个字符"):
         _validated_remote_result(payload, original_script=script)
+
+
+def test_visual_context_legacy_retry_keeps_only_explicit_anchors() -> None:
+    context = {
+        "catalog_version": "catalog-v3",
+        "concepts": [
+            {"concept_id": "food.egg", "description": "鸡蛋"},
+            {"concept_id": "health.sleep", "description": "睡眠"},
+        ],
+        "anchors": [
+            {
+                "anchor_id": "B2",
+                "char_start": 2,
+                "char_end": 4,
+                "text": "鸡蛋",
+                "context": "吃鸡蛋",
+                "usage": "explicit",
+                "allowed_concepts": ["food.egg"],
+            },
+            {
+                "anchor_id": "B5",
+                "char_start": 5,
+                "char_end": 7,
+                "text": "睡眠",
+                "context": "好睡眠",
+                "usage": "enrichment",
+                "allowed_concepts": ["health.sleep"],
+            },
+        ],
+    }
+
+    legacy = _legacy_content_visual_context(context)
+
+    assert legacy is not None
+    assert legacy["concepts"] == [{"concept_id": "food.egg", "description": "鸡蛋"}]
+    assert legacy["anchors"] == [
+        {
+            "anchor_id": "B2",
+            "char_start": 2,
+            "char_end": 4,
+            "text": "鸡蛋",
+            "context": "吃鸡蛋",
+            "allowed_concepts": ["food.egg"],
+        }
+    ]
+
+
+def test_visual_context_contract_400_retries_with_safe_legacy_shape() -> None:
+    calls: list[dict[str, object]] = []
+
+    class RollingUpgradeClient:
+        def analyze_workbench_content(self, _token, script, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                raise AuthCenterError(
+                    "visual_context 不符合统一分析契约", status_code=400
+                )
+            return _remote_result(script)
+
+    context = {
+        "catalog_version": "catalog-v3",
+        "concepts": [{"concept_id": "food.egg", "description": "鸡蛋"}],
+        "anchors": [
+            {
+                "anchor_id": "START",
+                "char_start": 0,
+                "char_end": 2,
+                "text": "鸡蛋",
+                "context": "鸡蛋",
+                "usage": "explicit",
+                "allowed_concepts": ["food.egg"],
+            }
+        ],
+    }
+
+    result = _analyze_with_visual_context_compat(
+        RollingUpgradeClient(),
+        "token",
+        "鸡蛋",
+        force_refresh=True,
+        visual_context=context,
+    )
+
+    assert len(calls) == 2
+    assert calls[0]["visual_context"] == context
+    assert "usage" not in calls[1]["visual_context"]["anchors"][0]
+    assert result["_workbench_visual_context_mode"] == "legacy_explicit"
 
 
 class ProjectContentAnalysisApiTest(unittest.TestCase):
@@ -200,13 +289,13 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertEqual(result["content_analysis_summary"]["counts"]["SUCCESS"], 12)
         self.assertEqual(result["content_analysis_summary"]["concurrency_limit"], 10)
         first = result["items"][0]
-        canonical_title = {"line_1": "减脂真相", "line_2": "坚持才是关键"}
+        canonical_title = {"line_1": "减脂真相", "line_2": "坚持更关键"}
         self.assertEqual(first["content_analysis"]["title"], canonical_title)
         self.assertEqual(first["settings"]["postprocess"]["title"], canonical_title)
         self.assertEqual(first["settings"]["postprocess"]["cover_title"], canonical_title)
         self.assertEqual(
             first["settings"]["postprocess"]["top_title"],
-            {"label": "减脂真相", "headline": "坚持才是关键"},
+            {"label": "减脂真相", "headline": "坚持更关键"},
         )
 
     def test_branches_and_project_items_fail_independently(self) -> None:
@@ -316,7 +405,7 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         ).analyze(self.user["user_id"], project["project_id"], "token")
 
         snapshot = analyzed["items"][0]["content_analysis"]
-        expected_title = {"line_1": "减脂真相", "line_2": "坚持才是关键"}
+        expected_title = {"line_1": "减脂真相", "line_2": "坚持更关键"}
         self.assertEqual(calls, 1)
         self.assertEqual(snapshot["title_analysis_status"], "SUCCESS")
         self.assertEqual(snapshot["title"], expected_title)

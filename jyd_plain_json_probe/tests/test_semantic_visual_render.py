@@ -219,8 +219,10 @@ def test_fixed_nameplate_is_full_length_directly_above_video_and_below_semantic(
                     "transform_y": -0.26,
                 }
             ]
-        }
+        },
+        timeline_duration_us=8_000_000,
     )[0]
+    assert nameplate.duration_us == 8_000_000
     assert nameplate.layer_order == 0
     assert semantic.layer_order == 10
 
@@ -277,9 +279,64 @@ def test_fixed_nameplate_recipe_uses_left_chest_preset() -> None:
     overlay = fixed_nameplate_overlay(library)
 
     assert overlay["corner"] == "center"
-    assert overlay["scale"] == 0.60
-    assert overlay["transform_x"] == -0.40
-    assert overlay["transform_y"] == -0.26
+    assert overlay["renderer"] == "sticker"
+    assert abs(overlay["scale"] - 0.8941348042237189) < 1e-12
+    assert overlay["rotation"] == -90.0
+    assert abs(overlay["transform_x"] - -0.22939889867171298) < 1e-12
+    assert abs(overlay["transform_y"] - -0.11377708978328174) < 1e-12
+
+
+def test_fixed_nameplate_renders_as_the_original_local_sticker() -> None:
+    library = (
+        Path(__file__).resolve().parents[1]
+        / "data"
+        / "libraries"
+        / "semantic_visual_library"
+    )
+    overlay = fixed_nameplate_overlay(library, "standing")
+    additions = _build_fixed_overlay_additions(
+        {"fixed_overlays": [overlay]},
+        timeline_duration_us=8_000_000,
+    )
+    assert len(additions) == 1
+    addition = additions[0]
+    assert addition.duration_us == 8_000_000
+    data = {
+        "duration": 8_000_000,
+        "canvas_config": {"width": 1080, "height": 1920},
+        "tracks": [
+            {"id": "video", "type": "video", "segments": [{"render_index": 0}]},
+            {"id": "caption", "type": "text", "segments": [{"render_index": 14_000}]},
+        ],
+        "materials": {"stickers": []},
+    }
+
+    changed = add_fullscreen_sticker_to_data(
+        data,
+        addition.sticker_json_path,
+        start_us=addition.start_us,
+        duration_us=addition.duration_us,
+        scale=addition.scale,
+        rotation=addition.rotation,
+        transform_x=addition.transform_x,
+        transform_y=addition.transform_y,
+        track_name=addition.track_name,
+        render_below_text=addition.render_below_text,
+    )
+
+    assert changed == 1
+    track = next(row for row in data["tracks"] if row.get("name") == "固定人名牌·站姿")
+    assert track["type"] == "sticker"
+    segment = track["segments"][0]
+    assert segment["clip"]["scale"]["x"] == overlay["scale"]
+    assert segment["clip"]["rotation"] == -90.0
+    assert segment["clip"]["transform"]["x"] == overlay["transform_x"]
+    assert segment["clip"]["transform"]["y"] == overlay["transform_y"]
+    material = next(
+        row for row in data["materials"]["stickers"] if row["id"] == segment["material_id"]
+    )
+    assert material["resource_id"] == "7533070364969078040"
+    assert material["path"].endswith("nameplate_standing\\resources\\sticker")
 
 
 def test_bottom_portrait_image_height_is_capped_at_thirty_percent() -> None:

@@ -125,9 +125,8 @@ class BatchEditorFrontendTest(unittest.TestCase):
         self.assertIn('[string]$DigitalHumanServerUrl = ""', build_script)
         self.assertIn("$ProcessorConfig.digital_human_server_url = $DigitalHumanServerUrl", build_script)
         self.assertIn("UpdateOnly excludes data/processor_config.json", build_script)
-        self.assertIn('"semantic_visual_library"', build_script)
-        self.assertIn("$SemanticVisualSource", build_script)
-        self.assertNotIn('ExcludeTopLevelNames = @("data")', build_script)
+        self.assertNotIn("$SemanticVisualSource", build_script)
+        self.assertIn("UpdateOnly package must not contain a data directory", build_script)
         self.assertIn("$ProcessorArguments.DigitalHumanServerUrl = $DigitalHumanServerUrl", wrapper)
         self.assertIn('-DigitalHumanServerUrl "https://video.lanyingjk01.com"', guide)
 

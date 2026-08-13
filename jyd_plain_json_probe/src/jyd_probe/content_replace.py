@@ -409,6 +409,8 @@ class StickerAddition:
     rotation: float = 0.0
     opacity: float = 1.0
     track_name: str = ""
+    transform_x: float | None = None
+    transform_y: float | None = None
     optional: bool = False
     inside_canvas: bool = False
     render_below_text: bool = False
@@ -442,7 +444,6 @@ class VideoOverlayAddition:
     duration_us: int
     source_start_us: int = 0
     mute: bool = True
-    loop: bool = False
     fit: str = "cover"
     corner: str = "center"
     scale: float = 1.0
@@ -1845,6 +1846,8 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
                 rotation=item.rotation,
                 opacity=item.opacity,
                 track_name=item.track_name,
+                transform_x=item.transform_x,
+                transform_y=item.transform_y,
                 inside_canvas=item.inside_canvas,
                 render_below_text=item.render_below_text,
             )
@@ -1884,7 +1887,6 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
                     duration_us=item.duration_us,
                     source_start_us=item.source_start_us,
                     mute=item.mute,
-                    loop=item.loop,
                     fit=item.fit,
                     corner=item.corner,
                     scale=item.scale,

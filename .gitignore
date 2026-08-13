@@ -40,3 +40,21 @@ jyd_plain_json_probe/web_storage/jobs/
 jyd_plain_json_probe/web_storage/outputs/
 jyd_plain_json_probe/web_storage/draft_imports/
 jyd_plain_json_probe/data/web_storage/
+
+# Runtime diagnostics and import reports
+jyd_plain_json_probe/data/logs/
+jyd_plain_json_probe/_draft_import_reports/
+jyd_plain_json_probe/.pytest_codex_*/
+
+# Public media payloads are synchronized as separately reviewed asset data.
+# Git keeps their manifests/catalogs and any already tracked legacy files, but
+# new binary payloads must not be swept into ordinary code commits.
+jyd_plain_json_probe/data/libraries/audio_library/files/
+jyd_plain_json_probe/data/libraries/audio_library/metadata/
+jyd_plain_json_probe/data/libraries/audio_library/files.zip
+jyd_plain_json_probe/data/libraries/semantic_visual_library/bundles/
+jyd_plain_json_probe/data/libraries/semantic_visual_library/videos/
+
+# Accidental pager help captures created at the repository root
+/on_probe*
+/tics*

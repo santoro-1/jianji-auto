@@ -12,6 +12,13 @@ import jieba
 import jieba.posseg as pseg
 from fontTools.ttLib import TTFont
 
+from .bgm_loudness import (
+    BGM_FALLBACK_VOLUME,
+    BGM_TARGET_GAP_DB,
+    BGM_STRONG_VOCAL_EXTRA_GAP_DB,
+    automatic_bgm_mix,
+    fallback_bgm_volume,
+)
 from .caption_alignment import (
     CaptionAlignmentError,
     alignment_matches,
@@ -59,7 +66,10 @@ CAPTION_MAX_LINES = 1
 CAPTION_TRANSFORM_Y = -850 / 1920
 CAPTION_BOTTOM_OFFSET_RATIO = 0.5 + CAPTION_TRANSFORM_Y / 2
 CAPTION_REFERENCE_FONT_SIZE = 14.0
-CAPTION_REFERENCE_MAX_EM = 13.0 * 11.0 / CAPTION_REFERENCE_FONT_SIZE
+# Jianying v8.9 width calibration: at size 15 and line_max_width=0.8, the
+# manually aligned 17-digit probe occupies 9.69 em.  Keep the renderer ratio
+# at 0.8 and convert that physical width to our size-14 reference space.
+CAPTION_REFERENCE_MAX_EM = 9.69 * 15.0 / CAPTION_REFERENCE_FONT_SIZE
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
@@ -72,13 +82,10 @@ TOP_TITLE_MAX_LABEL_CHARS = 5
 TOP_TITLE_MAX_HEADLINE_CHARS = 14
 COVER_TITLE_MAX_LINE_1_CHARS = 5
 COVER_TITLE_MAX_LINE_2_CHARS = 14
-GENERATED_TITLE_MAX_LINE_2_CHARS = 8
+GENERATED_TITLE_MAX_LINE_2_CHARS = 5
 COVER_FONT_IDENTITY = "resource_id:6807742980271641102"
 COVER_LINE_1_TRANSFORM_Y = -160 / 1920
 COVER_LINE_2_TRANSFORM_Y = -655 / 1920
-COVER_OVERLAY_TRANSFORM_Y = -420 / 1920
-COVER_OVERLAY_CENTER_RATIO = 0.5 - COVER_OVERLAY_TRANSFORM_Y / 2
-COVER_OVERLAY_HEIGHT_RATIO = 0.36
 COVER_LINE_1_FONT_SIZE = 30.0
 COVER_LINE_2_FONT_SIZE = 22.0
 COVER_LINE_1_COLOR = "#FADF4A"
@@ -202,7 +209,7 @@ def build_project_cover(
     )
     if not title["line_1"]:
         return None
-    image = item.get("inputs", {}).get("image")
+    image = resolve_project_cover_image(item)
     if not isinstance(image, dict) or not image.get("managed_path"):
         raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 缺少封面原图")
     image_path = Path(str(image["managed_path"])).expanduser().resolve()
@@ -213,8 +220,10 @@ def build_project_cover(
         raise ValueError("固定封面字体“思源粗宋”不可用")
     profile = layout_profile(postprocess.get("layout_profile", DEFAULT_LAYOUT_PROFILE))
     cover_style = profile["cover"]
-    overlay_top = COVER_OVERLAY_CENTER_RATIO - COVER_OVERLAY_HEIGHT_RATIO / 2
-    overlay_bottom = COVER_OVERLAY_CENTER_RATIO + COVER_OVERLAY_HEIGHT_RATIO / 2
+    overlay_y_ratio = float(cover_style["overlay_y_ratio"])
+    overlay_height_ratio = float(cover_style["overlay_height_ratio"])
+    overlay_top = overlay_y_ratio - overlay_height_ratio / 2
+    overlay_bottom = overlay_y_ratio + overlay_height_ratio / 2
     return {
         "enabled": True,
         "frame_source": "input_image",
@@ -256,12 +265,64 @@ def build_project_cover(
         "frame_offset_y": 0.0,
         "overlay_alpha": 0.5,
         "overlay_x_ratio": 0.5,
-        "overlay_y_ratio": COVER_OVERLAY_CENTER_RATIO,
+        "overlay_y_ratio": overlay_y_ratio,
         "overlay_width_ratio": 1.0,
-        "overlay_height_ratio": COVER_OVERLAY_HEIGHT_RATIO,
+        "overlay_height_ratio": overlay_height_ratio,
         "overlay_top_ratio": overlay_top,
         "overlay_bottom_ratio": overlay_bottom,
     }
+
+
+def resolve_project_cover_image(item: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve the portrait frozen into the current base video.
+
+    Current selections can change after a paid composition has finished.  The
+    base-video snapshot is authoritative for a cover; matching against asset
+    history lets an existing video be re-exported without regenerating it.
+    """
+
+    current = item.get("inputs", {}).get("image")
+    base_video = item.get("outputs", {}).get("base_video")
+    frozen_sha256 = ""
+    frozen_asset_id = ""
+    if isinstance(base_video, dict):
+        metadata = base_video.get("metadata")
+        external_ref = base_video.get("external_ref")
+        if isinstance(metadata, dict):
+            frozen_sha256 = str(metadata.get("input_image_sha256") or "").strip().lower()
+            frozen_asset_id = str(metadata.get("input_image_asset_id") or "").strip()
+        if not frozen_sha256 and isinstance(external_ref, dict):
+            frozen_sha256 = str(external_ref.get("image_sha256") or "").strip().lower()
+
+    candidates: list[dict[str, Any]] = []
+    if isinstance(current, dict):
+        candidates.append(current)
+    history = item.get("asset_history", {}).get("input_image", [])
+    if isinstance(history, list):
+        candidates.extend(candidate for candidate in history if isinstance(candidate, dict))
+
+    def usable(candidate: dict[str, Any]) -> bool:
+        path = str(candidate.get("managed_path") or "").strip()
+        return bool(path and Path(path).expanduser().resolve().is_file())
+
+    if frozen_sha256:
+        for candidate in candidates:
+            candidate_sha = str(
+                (candidate.get("metadata") or {}).get("sha256")
+                if isinstance(candidate.get("metadata"), dict)
+                else ""
+            ).strip().lower()
+            if candidate_sha == frozen_sha256 and usable(candidate):
+                return candidate
+        row = item.get("row_key") or item.get("item_id")
+        raise ValueError(
+            f"任务 {row} 找不到基础视频生成时绑定的人物原图，已停止生成可能配错的封面"
+        )
+    if frozen_asset_id:
+        for candidate in candidates:
+            if str(candidate.get("asset_id") or "") == frozen_asset_id and usable(candidate):
+                return candidate
+    return current if isinstance(current, dict) else None
 
 
 def build_top_title_texts(
@@ -356,6 +417,71 @@ def build_top_title_texts(
     ]
 
 
+def build_source_attribution_texts(
+    overlays: Iterable[dict[str, Any]],
+    *,
+    font: dict[str, Any] | None = None,
+    layout_profile_id: Any = DEFAULT_LAYOUT_PROFILE,
+) -> list[dict[str, Any]]:
+    """Build timed top-right source labels for attributed semantic visuals."""
+
+    intervals: list[tuple[int, int, str]] = []
+    for overlay in overlays:
+        if overlay.get("enabled") is False:
+            continue
+        text = str(overlay.get("attribution_text") or "").strip()
+        start_us = int(overlay.get("start_us") or 0)
+        duration_us = int(overlay.get("duration_us") or 0)
+        if not text or start_us < 0 or duration_us <= 0:
+            continue
+        intervals.append((start_us, start_us + duration_us, text))
+    intervals.sort(key=lambda item: (item[0], item[1], item[2]))
+
+    merged: list[list[Any]] = []
+    for start_us, end_us, text in intervals:
+        if merged and merged[-1][2] == text and start_us <= int(merged[-1][1]) + 100_000:
+            merged[-1][1] = max(int(merged[-1][1]), end_us)
+        else:
+            merged.append([start_us, end_us, text])
+
+    profile = layout_profile(layout_profile_id)
+    style = profile["disclaimer"]
+    font_fields = {
+        "font_id": str((font or {}).get("resource_id") or ""),
+        "font_path": str((font or {}).get("path") or ""),
+        "font_title": str((font or {}).get("name") or ""),
+    }
+    return [
+        {
+            "type": "add",
+            "scope": "top",
+            "text": text,
+            "track_name": f"右上素材来源标注·{index}",
+            "start_us": int(start_us),
+            "duration_us": int(end_us - start_us),
+            "relative_index": 954,
+            "transform_x": 0.72,
+            "transform_y": 0.90,
+            "scale": float(style["clip_scale"]),
+            "size": float(style["font_size"]),
+            "align": 2,
+            "auto_wrapping": False,
+            "line_max_width": 0.30,
+            "color": BOTTOM_DISCLAIMER_COLOR,
+            "stroke_color": "",
+            "stroke_width": 0.0,
+            "opacity": float(style["opacity"]),
+            "shadow_color": "#000000" if float(style["shadow_alpha"]) > 0 else "",
+            "shadow_alpha": float(style["shadow_alpha"]),
+            "shadow_distance": 5.0,
+            "shadow_angle": -45.0,
+            "shadow_smoothing": 0.45000001788139343,
+            **font_fields,
+        }
+        for index, (start_us, end_us, text) in enumerate(merged, start=1)
+    ]
+
+
 _PREFERRED_PHRASE_END_TERMS = (
     "世界冠军",
     "新中年女性",
@@ -445,7 +571,7 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
             (left_flag.startswith("n") or left_flag == "vn")
             and (right_flag.startswith("n") or right_flag == "vn")
         ):
-            penalties[boundary] = max(penalties.get(boundary, 0.0), 4.0)
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
         elif left_flag in {"a", "d"} and (
             right_flag.startswith("v") or right_flag.startswith("a")
         ):
@@ -466,7 +592,128 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
             # Verb + quantity constructions such as `做点活动` should not leave
             # the quantifier at the start of the following subtitle.
             penalties[boundary] = max(penalties.get(boundary, 0.0), 12.0)
+        elif left_flag.startswith("v") and right_flag.startswith(
+            ("n", "r", "m", "q")
+        ):
+            # Prefer keeping a predicate with its object or complement. This
+            # is a grammatical relationship, not a phrase dictionary:
+            # 吃鸡蛋、增加五斤、带壳 all follow the same rule.
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
+        elif left_flag.startswith("r") and right_flag.startswith("r"):
+            # Pronoun/reflexive compounds: 你自己、我们大家。
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
+        elif left_flag.startswith("p"):
+            # A preposition normally belongs to the phrase it introduces.
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
+        elif left_flag.startswith("c"):
+            # A conjunction normally belongs to the following coordination.
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
+        elif left_flag in {"d", "df", "zg"} and right_flag.startswith(
+            ("a", "v", "d", "m", "q", "n")
+        ):
+            penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
     return penalties
+
+
+def _dependency_break_offsets(text: str) -> set[int]:
+    """Return boundaries inside a local POS dependency, without a term list."""
+
+    tagged: list[tuple[str, str, int, int]] = []
+    cursor = 0
+    for token in _JIEBA_POS_TOKENIZER.cut(text, HMM=False):
+        word = str(token.word)
+        start = cursor
+        end = start + len(word)
+        tagged.append((word, str(token.flag), start, end))
+        cursor = end
+
+    dependencies: set[int] = set()
+    for index, (left, right) in enumerate(zip(tagged, tagged[1:])):
+        _left_word, left_flag, _left_start, boundary = left
+        right_word, right_flag, _right_start, _right_end = right
+        previous_flag = tagged[index - 1][1] if index > 0 else ""
+        left_nominal = left_flag.startswith("n") or left_flag == "vn"
+        right_nominal = right_flag.startswith("n") or right_flag == "vn"
+        if left_flag.startswith("v") and (
+            right_flag.startswith(("n", "r", "m", "q")) or right_flag == "vn"
+        ):
+            dependencies.add(boundary)
+        elif (
+            left_flag.startswith("v")
+            and right_flag.startswith("v")
+            and previous_flag in {"d", "df", "zg"}
+        ):
+            # Degree/state predicate + complement: 很有|帮助.  A general v-v
+            # boundary is not protected because serial predicates can be a
+            # perfectly good split (点心|坚持).
+            dependencies.add(boundary)
+        elif left_nominal and right_nominal:
+            dependencies.add(boundary)
+        elif left_flag.startswith("r") and right_flag.startswith("r"):
+            dependencies.add(boundary)
+        elif _left_word in {"的", "地", "得"} and right_flag.startswith(
+            ("a", "n", "r", "v")
+        ):
+            dependencies.add(boundary)
+        elif left_flag.startswith("m") and (
+            right_flag == "vn"
+            or right_word in {"能", "会", "可", "可以", "能够"}
+        ):
+            dependencies.add(boundary)
+        elif left_flag.startswith(("p", "c")):
+            dependencies.add(boundary)
+        elif left_flag in {"d", "df", "zg"} and right_flag.startswith(
+            ("a", "v", "d", "m", "q", "n")
+        ):
+            dependencies.add(boundary)
+        elif left_flag.startswith("a") and right_nominal:
+            dependencies.add(boundary)
+        elif left_flag.startswith("m") and right_flag.startswith(("a", "n", "q")):
+            dependencies.add(boundary)
+    return dependencies
+
+
+def _preferred_syntax_break_offsets(text: str) -> set[int]:
+    """Return grammatically complete phrase boundaries worth preferring.
+
+    These are structural break opportunities, not protected words.  In
+    particular, a relative modifier followed by a numeric noun phrase should
+    stay complete on the left: `蛋白质很高的|五种好食物`.
+    """
+
+    tagged: list[tuple[str, str, int, int]] = []
+    cursor = 0
+    for token in _JIEBA_POS_TOKENIZER.cut(text, HMM=False):
+        word = str(token.word)
+        start = cursor
+        end = start + len(word)
+        tagged.append((word, str(token.flag), start, end))
+        cursor = end
+
+    preferred: set[int] = set()
+    for left, right in zip(tagged, tagged[1:]):
+        left_word, left_flag, _left_start, boundary = left
+        right_word, right_flag, _right_start, right_end = right
+        if left_word in {"的", "地", "得"} and right_flag.startswith(("m", "q")):
+            preferred.add(boundary)
+        elif left_word == "的" and right_flag in {"d", "df", "zg"}:
+            # Completed nominalized phrase before a new adverbial predicate:
+            # 你喜欢的|就OK了。
+            preferred.add(boundary)
+        elif left_flag.startswith(("m", "q")) and right_flag.startswith("v"):
+            # Completed quantity/time phrase before a new predicate.
+            preferred.add(boundary)
+        elif (
+            left_flag.startswith("v")
+            and right_flag.startswith("v")
+            and right_end == len(text)
+            and len(right_word) >= 2
+        ):
+            # A complete final predicate is a better short tail than splitting
+            # the preceding predicate phrase.  This keeps `多上点心|坚持`
+            # without depending on the semantic model to suggest that boundary.
+            preferred.add(boundary)
+    return preferred
 
 
 class CaptionLayoutReviewRequired(ValueError):
@@ -587,12 +834,30 @@ def _unsafe_break_offsets(text: str) -> set[int]:
         following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
         if (
             left_flag in {"d", "df", "zg"}
-            and (right_flag.startswith("a") or right_flag.startswith("v"))
+            and (
+                right_flag.startswith("a")
+                or right_flag.startswith("v")
+                or right_flag.startswith("m")
+                or right_flag.startswith("q")
+            )
         ):
-            # Degree/modal modifiers belong with what follows: 很|高、不要|吃。
+            # Degree/modal/quantity modifiers belong with what follows:
+            # 很|高、不要|吃、更|多、至少|三个。
             unsafe_offsets.add(boundary)
-        elif left_flag.startswith("a") and right_flag.startswith("n"):
+        elif left_flag.startswith("a") and (
+            right_flag.startswith("n") or right_flag == "vn"
+        ):
             # Attribute + noun is one lexical phrase: 甜|蛋糕、软|面包。
+            unsafe_offsets.add(boundary)
+        elif (
+            (left_flag.startswith("n") or left_flag == "vn")
+            and (right_flag.startswith("n") or right_flag == "vn")
+        ):
+            # A nominal compound is an indivisible semantic label, not merely
+            # a preferred phrase: 体重|管理、生活饮食|管理。
+            unsafe_offsets.add(boundary)
+        elif left_flag.startswith("r") and right_flag.startswith("r"):
+            # Pronoun/reflexive compounds: 你|自己、我们|大家。
             unsafe_offsets.add(boundary)
         elif (
             left_flag.startswith("v")
@@ -604,11 +869,13 @@ def _unsafe_break_offsets(text: str) -> set[int]:
             # so `吃|甜蛋糕` remains a good legal break.
             unsafe_offsets.add(boundary)
         elif left_flag.startswith("m") and (
-            right_flag.startswith("a")
+            right_flag.startswith("m")
+            or right_flag.startswith("a")
             or right_flag.startswith("n")
             or right_flag.startswith("q")
         ):
-            # Numeric/quantified modifiers must not be stranded: 五种|好食物。
+            # Numeric/quantified modifiers must not be stranded:
+            # 五种|好食物、一点|投资、一年|多。
             unsafe_offsets.add(boundary)
     for term in _unbreakable_terms():
         cursor = 0
@@ -621,10 +888,9 @@ def _unsafe_break_offsets(text: str) -> set[int]:
     for match in _NUMBER_EXPRESSION.finditer(text):
         unsafe_offsets.update(range(match.start() + 1, match.end()))
     for boundary in range(1, len(text)):
-        # Structural particles may neither start nor end a rendered line.  The
-        # boundary value means "before text[boundary]"; checking both adjacent
-        # characters avoids the former off-by-one that incorrectly protected
-        # `，|管得` instead of `管|得`.
+        # Structural particles must not start a rendered line. The boundary
+        # value means "before text[boundary]"; protecting that exact offset
+        # avoids the former off-by-one that allowed `管|得`.
         if text[boundary] in _STRUCTURAL_PARTICLES:
             unsafe_offsets.add(boundary)
     return unsafe_offsets
@@ -768,9 +1034,10 @@ def _split_one_line(
     *,
     maximum_width_em: float,
     preferred_offsets: set[int] | None = None,
+    _strict_dependencies: bool = True,
 ) -> list[str]:
-    normalized, preferred_breaks = _caption_display_text(text)
-    preferred_breaks.update(preferred_offsets or set())
+    normalized, punctuation_breaks = _caption_display_text(text)
+    model_preferred_breaks = set(preferred_offsets or set())
     if not normalized:
         raise CaptionLayoutReviewRequired("字幕内容为空")
     if metrics.text_width_em(normalized) <= maximum_width_em:
@@ -790,7 +1057,9 @@ def _split_one_line(
             cursor = position + len(connector)
 
     protected_breaks = _unsafe_break_offsets(normalized)
+    dependency_breaks = _dependency_break_offsets(normalized)
     discouraged_breaks = _discouraged_break_offsets(normalized)
+    preferred_syntax_breaks = _preferred_syntax_break_offsets(normalized)
 
     preferred_term_ends: set[int] = set()
     for term in _PREFERRED_PHRASE_END_TERMS:
@@ -832,26 +1101,45 @@ def _split_one_line(
             # therefore mistake two words separated by an original comma or
             # enumeration comma for one protected phrase (for example
             # ``嘴馋、减不动`` -> ``嘴馋减不动``).  An original punctuation or
-            # model-preferred boundary is stronger evidence and must remain a
-            # legal line break.
+            # punctuation boundary is stronger evidence and must remain a
+            # legal line break. A model suggestion is only a soft preference;
+            # it must never override a local lexical/grammatical dependency.
             if (
                 end < length
                 and end in protected_breaks
-                and end not in preferred_breaks
+                and end not in punctuation_breaks
+            ):
+                continue
+            if (
+                _strict_dependencies
+                and end < length
+                and end in dependency_breaks
+                and end not in punctuation_breaks
             ):
                 continue
             core_length = len(chunk)
+            if length > 1 and core_length == 1:
+                # A one-character fragment is never a useful reflow result.
+                # Independent one-character source clauses bypass this split
+                # path because their whole text already fits above.
+                continue
             # Minimize the necessary caption count first. For plans with that
             # same count, compare only semantic and grammatical break quality;
             # unused width is deliberately absent from both values.
             candidate_count = caption_counts[start] + 1
             score = quality_scores[start]
-            if core_length < 4:
-                score += (4 - core_length) * 8.0
+            if core_length == 2:
+                score += 1.0
+            elif core_length == 3:
+                score += 0.25
             if end < length:
                 score += 0.25
-                if end in preferred_breaks:
+                if end in model_preferred_breaks:
                     score -= 2.5
+                elif end in punctuation_breaks:
+                    score -= 2.5
+                if end in preferred_syntax_breaks:
+                    score -= 2.0
                 score += discouraged_breaks.get(end, 0.0)
                 if end in connector_starts:
                     score -= 0.55
@@ -882,6 +1170,14 @@ def _split_one_line(
                 previous[end] = start
 
     if previous[length] is None:
+        if _strict_dependencies:
+            return _split_one_line(
+                text,
+                metrics,
+                maximum_width_em=maximum_width_em,
+                preferred_offsets=preferred_offsets,
+                _strict_dependencies=False,
+            )
         raise CaptionLayoutReviewRequired("字幕无法可靠拆成单行")
     chunks: list[str] = []
     cursor = length
@@ -1264,6 +1560,11 @@ class ProjectPostprocessCoordinator:
             for item in bgm_assets
             if item.get("identity") and item.get("available", True)
         }
+        self.music_profiles = {
+            str(profile.get("identity") or ""): profile
+            for profile in music_matcher.snapshot().get("profiles", [])
+            if profile.get("identity")
+        }
         self.music_selector = ProjectMusicSelector(music_matcher, self.bgm_assets)
         self.caption_aligner = caption_aligner
         self.require_precise_alignment = bool(require_precise_alignment)
@@ -1282,6 +1583,35 @@ class ProjectPostprocessCoordinator:
             )
         except SemanticVisualCatalogError:
             self.semantic_visual_catalog = None
+
+    def _automatic_bgm_mix(
+        self,
+        item: dict[str, Any],
+        bgm_identity: str,
+    ) -> dict[str, Any]:
+        if not bgm_identity:
+            return {}
+        profile = self.music_profiles.get(bgm_identity) or {}
+        strong_vocals = "strong_vocals" in set(profile.get("traits") or [])
+        audio = item.get("outputs", {}).get("audio")
+        bgm = self.bgm_assets.get(bgm_identity)
+        voice_path = str(audio.get("managed_path") or "") if isinstance(audio, dict) else ""
+        bgm_path = str(bgm.get("absolute_path") or "") if isinstance(bgm, dict) else ""
+        if not voice_path or not bgm_path:
+            return {
+                "algorithm": "speech-relative-lufs.v1",
+                "volume": fallback_bgm_volume(strong_vocals=strong_vocals),
+                "target_gap_db": BGM_TARGET_GAP_DB
+                + (BGM_STRONG_VOCAL_EXTRA_GAP_DB if strong_vocals else 0.0),
+                "strong_vocals": strong_vocals,
+                "fallback": True,
+                "reason": "人声或 BGM 文件路径不可用",
+            }
+        return automatic_bgm_mix(
+            voice_path,
+            bgm_path,
+            strong_vocals=strong_vocals,
+        )
 
     def start(
         self,
@@ -1376,6 +1706,7 @@ class ProjectPostprocessCoordinator:
                 music_selection = manual_music_selection(item, bgm_identity)
             if bgm_identity and bgm_identity not in self.bgm_assets:
                 raise ValueError(f"任务 {item['row_key']} 选择的 BGM 不可用")
+            bgm_mix = self._automatic_bgm_mix(item, bgm_identity)
             saved_postprocess = dict(item.get("settings", {}).get("postprocess") or {})
             profile_id = normalize_layout_profile(
                 config.get("layout_profile")
@@ -1401,6 +1732,7 @@ class ProjectPostprocessCoordinator:
                 "bgm_identity": bgm_identity,
                 "bgm_selection_mode": bgm_mode,
                 "music_selection": music_selection,
+                "bgm_mix": bgm_mix,
                 "top_title": top_title,
                 "cover_title": cover_title,
                 "layout_profile": profile_id,
@@ -1536,6 +1868,12 @@ class ProjectPostprocessCoordinator:
                 top_title=dict(selected.get("top_title") or {}),
                 cover_title=dict(selected.get("cover_title") or {}),
                 layout_profile=str(selected.get("layout_profile") or DEFAULT_LAYOUT_PROFILE),
+                automatic_bgm_volume=(
+                    float(selected.get("bgm_mix", {}).get("volume"))
+                    if selected.get("bgm_identity")
+                    else None
+                ),
+                bgm_loudness=dict(selected.get("bgm_mix") or {}),
             )
             updated_project = self.store.set_item_subtitles(
                 owner_user_id, project_id, item["item_id"], subtitles
@@ -1714,7 +2052,9 @@ class ProjectPostprocessCoordinator:
                         "target_start_us": 0,
                         "target_duration_us": 0,
                         "fit_to_video": True,
-                        "volume": 0.3,
+                        "volume": float(
+                            settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
+                        ),
                     }
                     ]
                     if bgm_identity
@@ -1723,10 +2063,11 @@ class ProjectPostprocessCoordinator:
             ],
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
-        job["visual_overlays"] = apply_layout_to_visual_overlays(
+        visual_overlays = apply_layout_to_visual_overlays(
             frozen_visual_overlays(item, library_root=self.semantic_visual_library_root),
             profile_id,
         )
+        job["visual_overlays"] = visual_overlays
         job["fixed_overlays"] = [
             fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
         ]
@@ -1735,6 +2076,9 @@ class ProjectPostprocessCoordinator:
                 settings.get("top_title"), font=font, layout_profile_id=profile_id
             ),
             *nameplate_texts(profile_id, font=font),
+            *build_source_attribution_texts(
+                visual_overlays, font=font, layout_profile_id=profile_id
+            ),
         ]
         if title_texts:
             job["texts"] = title_texts
@@ -1887,6 +2231,7 @@ class ProjectPostprocessCoordinator:
                 continue
             current = item.get("outputs", {}).get("composition_video")
             subtitles = dict(item.get("subtitles") or {})
+            settings = dict(item.get("settings", {}).get("postprocess") or {})
             subtitles["status"] = "RENDERED"
             subtitles["overflow_risk"] = False
             self.store.set_item_subtitles(
@@ -1911,7 +2256,9 @@ class ProjectPostprocessCoordinator:
                         .get("base_video", {})
                         .get("asset_id"),
                         "captions": "minimax_one_line",
-                        "bgm_volume": 0.3,
+                        "bgm_volume": float(
+                            settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
+                        ),
                     },
                     make_current=True,
                 )

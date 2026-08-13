@@ -165,17 +165,31 @@ POST   /api/new/projects/{project_id}/images?filename=画面.png
 GET    /api/new/projects/{project_id}/images/{image_id}
 DELETE /api/new/projects/{project_id}/images/{image_id}
 PUT    /api/new/projects/{project_id}/image-mapping
+PUT    /api/new/projects/{project_id}/image-mapping-scope
 PUT    /api/new/projects/{project_id}/items/{item_id}/image
 ```
 
-图片上传使用原始请求体，单张最大 20 MB，只接受内容与扩展名一致的 JPG、PNG、WEBP。
-同一项目内文件名相同（忽略英文大小写）或 SHA-256 内容相同的上传直接返回已有 `image_id`，
-并标记 `deduplicated: true`；不会重复写文件、增加图片池记录或推进项目修订。
+图片上传使用原始请求体，单张最大 200 MB，只接受内容与扩展名一致的 JPG、PNG、WEBP。
+文件选择器本次返回的每个文件都会创建新的项目图片记录和 `image_id`，不按文件名或 SHA-256
+跳过；同名、同内容或改名后的文件再次上传，也视为用户明确选择的本批新图片。SHA-256 仍用于
+后续任务输入快照校验，不用于项目图片上传判重。
+前端上传时若表格没有勾选行，会先以空 `item_ids` 清除可能残留的局部范围，再不传
+`image_ids` 执行原有全项目图片池映射；若存在勾选行，则以这些行覆盖范围，并只传本次上传
+返回的新 `image_ids`，因此旧图片池不会进入该局部批次。
+`image-mapping-scope` 接收 `{"item_ids":["脚本行 ID"]}`，用请求中的完整 ID 集合覆盖本次
+人物图换图范围；空数组清除范围。范围状态写入现有行级设置，刷新和工作台重启后继续生效，
+但不会冻结行的当前图片，也不阻止范围内单行换图。历史项目默认没有范围。
+
 `image-mapping` 由后端按图片上传顺序计算：`count` 表示每张图片连续复用 `reuse_count`
 行，脚本超出后从第一张继续；`loop` 表示每行依次取下一张并循环。最终映射保存为每条
 脚本的 `input_image` 素材版本，页面刷新只读取后端结果。单行替换创建新版本并切换当前
-图片，不覆盖旧版本。删除图片时，未在生成的使用行会按当前策略自动换到剩余图片；删除最后
-一张时清空这些行的当前图片并使后续画面结果失效。对应旧输入图片版本和本地文件一并清理。
+图片，不覆盖旧版本。换图范围非空时，批量映射只处理范围内行并从范围第 1 行重新计数；没有
+范围时处理全部行。请求可选传 `image_ids`，且这些 ID 必须属于当前项目，用于只将本次新上传
+的图片在目标范围内循环；成功后该 ID 集合保存在项目 `settings.image_mapping.image_ids`，页面
+刷新或切换 count/loop 时继续使用，不会退回整个旧图片池。存在换图范围时，仍被范围外脚本
+引用的图片不能删除，避免间接改写
+已经生成的前序行；其他删除继续按当前策略处理。删除最后一张时清空可处理行的当前图片并使
+后续画面结果失效。对应旧输入图片版本和本地文件一并清理。
 若图片仍被正在执行声音、画面、后期或变体任务的行使用，返回 `409`，待该行完成后再删除。
 
 ## 音色与声音生成（模块 3）
@@ -360,8 +374,15 @@ RunningHub 手动取消后的“生成视频”按取消时所处阶段创建新
 
 图片权限按脚本行隔离：某一行进入异步生成后只锁定该行，其他未运行的脚本行仍可上传新图
 并替换当前图片。上传未分配图片和删除未被任何脚本当前引用的图片不会改变运行中任务，
-因此允许继续操作；全项目重新映射仍要求所有脚本行均可编辑。4A 读取提交瞬间该行的当前
+因此允许继续操作；设置换图范围后，重新映射只要求范围内脚本行均可编辑，范围外的运行中或
+历史行自动保持原图；未设置范围时仍要求全部脚本行可编辑。4A 读取提交瞬间该行的当前
 图片，进入 `COMPOSITION_QUEUED` 后只锁定该行图片。
+
+图片映射按项目图片 ID 判断是否真实变化。对某行重复分配同一个图片 ID属于幂等操作，不创建
+新版本、不清空 `base_video` / `composition_video`，也不改变该行状态。4A 操作会冻结
+`input_image_asset_id` 与 `input_image_sha256`；后续失败阶段重试继承这份快照，若当前人物图哈希
+已不同则拒绝重试旧远程任务。任何被 `COMPOSITION_GENERATE` 快照引用的项目图片都不能删除，
+避免旧任务恢复、下载或再次导出时出现视频与封面人物不一致。
 
 ## 新版字幕与 BGM 接口（模块 4B）
 
@@ -405,7 +426,9 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `transform_y=-850/1920`（1080×1920 参考参数 Y=-850）。过长文本按真实字体 glyph advance 测量后，
 在原始 cue 时间范围内拆成连续字幕；原始 cues 不修改。缺字、字体损坏或无法满足安全
 宽度/最短显示时长时返回 `409`，并把该行字幕标记为 `REVIEW_REQUIRED`，不会静默提交
-溢出字幕。BGM 可不选；选择时使用音乐库 identity、音量 0.3，并适配视频时长。
+溢出字幕。BGM 可不选；选择时使用音乐库 identity，并适配视频时长。服务端用 FFmpeg 测量
+人声和曲目的综合响度，以音乐低于人声 14 dB 为目标自动计算 `bgm_volume`，限制在
+`0.08..0.25`，失败回退 `0.18`；该字段是服务端冻结结果，不接受客户端手工音量。
 
 `postprocess/generate` 成功后登记 `PREVIEW_READY` 配方并进入 `COMPOSITION_READY`；浏览器
 直接用内部 `base-video`、render cues、真实字体和 BGM 完整预览，不会创建
@@ -426,17 +449,21 @@ RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不�
 `账号5-鸡汤文-2-变体-001.mp4`。该规则在下载响应时动态生效，因此给旧项目回填四列表后，
 既有文件也会立即使用新名称；历史两列表继续返回原文件名。
 
-统一内容分析的 `title` 分支返回唯一 `{"line_1":"减脂真相","line_2":"坚持才是关键"}`：第一行
-最多 5 个字符，新 AI 标题第二行最多 8 个字符；历史手工/已保存标题读取时兼容到 14 个字符，
+统一内容分析的 `title` 分支返回唯一 `{"line_1":"减脂真相","line_2":"坚持更关键"}`：第一行
+最多 5 个字符，新 AI 标题第二行最多 5 个字符；历史手工/已保存标题读取时兼容到 14 个字符，
 均不得含空白或重复。工作台将其保存为 `postprocess.title`，只用于项目封面两行标题。
 正文视频顶部不再使用模型标题，而是始终渲染单行固定文案“世界冠军带你自律”：字号 19、
 1080×1920 参考 Y=1535、红色填充和白色描边，浏览器预览、普通导出与变体一致。
 `postprocess-settings` 仍兼容读取历史 `top_title` 字段，但该字段不再改变正文固定标题。标题或
 后处理设置变化时只取消当前成片指针并回到 `BASE_VIDEO_READY`；旧成片仍保留在素材历史，
 随后重新生成浏览器预览配方即可，不会自动再次导出。
+姿态或字幕样式等非音乐编辑可提交 `preserve_auto_bgm=true`；当当前设置和请求都为自动模式时，
+接口保留已解析的 BGM、选择快照和冻结响度。省略该字段时，`auto + 空 bgm_identity` 继续表示
+明确清空旧推荐、等待 4B 重新匹配。
 `cover_title={"line_1":"健康真相","line_2":"别再踩坑"}` 必须两行同时存在；第一行最多 5 字、
-新 AI 标题第二行最多 8 字且不含空白，历史已保存标题读取时兼容到 14 字。非空时普通导出和
-变体都使用当前输入图片生成固定 3 帧封面；
+新 AI 标题第二行最多 5 字且不含空白，历史已保存标题读取时兼容到 14 字。非空时普通导出和
+变体都按当前 `base_video` 保存的 `input_image_sha256` 从图片历史回溯原图并生成固定 3 帧封面；
+冻结图片缺失时返回冲突错误，不会用后来映射的当前图片静默生成错配封面；
 视觉参数不由接口传入。
 同理，脚本或音色修改会保留旧音频/视频但回到 `DRAFT`，图片修改会保留当前音频但回到
 `AUDIO_READY`。再次调用 `/audio/generate` 时，若没有待生成/失败行，则为全部已完成行
@@ -448,7 +475,7 @@ RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不�
 GET  /api/new/projects/{project_id}/items/{item_id}/current-video
 POST /api/new/projects/{project_id}/items/{item_id}/current-video?filename=人工粗剪.mp4
 GET  /api/new/projects/{project_id}/items/{item_id}/original-materials
-GET  /api/new/projects/{project_id}/videos/download
+GET  /api/new/projects/{project_id}/videos/download?item_ids={item_id_1},{item_id_2}
 ```
 
 `POST current-video` 使用视频文件原始二进制作为请求体，支持 MP4、MOV、AVI、MKV、WebM，
@@ -459,9 +486,10 @@ GET  /api/new/projects/{project_id}/videos/download
 但字幕绑定和状态改为 `INVALIDATED`。
 
 `GET /videos/download` 只打包项目中每一行当前的 `composition_video`，也就是生成变体前的
-普通成片，不包含任何 variant。必须所有脚本行都已有实际导出的当前成片；浏览器动态预览
+普通成片，不包含任何 variant。目标脚本行必须已有实际导出的当前成片；浏览器动态预览
 尚未导出时返回 `409`。工作台的一键下载会先顺序调用单行 `postprocess/export` 补齐这些
-文件，再请求 ZIP；ZIP 在响应结束后立即删除。
+文件，再请求 ZIP；ZIP 在响应结束后立即删除。可选的逗号分隔 `item_ids` 只打包指定项目行，
+其中任何 ID 不属于当前项目时返回 `422`；省略该参数时保持全项目下载。
 
 `original-materials` 不改变任何项目状态。只有一个 RunningHub 原始片段时直接返回 MP4；
 存在多个片段时按 `video_index` 排序，返回包含全部片段及 `片段顺序清单.json` 的一次性
@@ -1057,9 +1085,24 @@ Invoke-RestMethod `
   对当前行强制刷新统一内容分析；生产前端改用同一行的 `content-analysis/retry` 地址。
 - `PUT /api/new/projects/{project_id}/items/{item_id}/visual-overlays`：请求体为
   `revision`、可选 `catalog_version` 和 `overlays`。保存时验证项目修订、素材/概念、画内
-  安全区、时间、缩放、透明度、视频截取参数及统一不重叠约束，并冻结为人工配方。
+  安全区、时间、缩放、透明度、视频截取参数及统一不重叠约束，并冻结为人工配方。接口会保留
+  可选的 `timing_source/timing_mode`、句段字符范围与文本、`list_index/list_size`、
+  `segment_boundary_us` 和 `usage`，以便人工修改后仍可追溯自动编排来源。
 
 工作台主流程向数字人网站发送 `/api/workbench/content-analysis`，本地候选被压缩为
 `visual_context`；响应复用 `jyd.content-analysis.v1` 外包装并增加 `visual_plan`。旧的
 `jyd.visual-analysis.request.v1` / `jyd.visual-analysis.v1` 只作为迁移期兼容接口保留。
 任何一端都不信任模型返回的时间、本地路径或具体素材身份。
+
+新生成或人工保存的 recipe 仍使用 `jyd.semantic-visual-recipe.v2`，并可包含：
+
+```json
+{
+  "timing_policy_version": "sentence-v1",
+  "used_asset_ids": ["food.egg.boiled.image.01"],
+  "overlays": [{"timing_mode": "sentence", "segment_boundary_us": null}]
+}
+```
+
+`used_asset_ids` 是当前已启用素材的冻结快照；自动重算时仍以实际 overlays 和已启用手工锁定项
+重新建立集合。旧 recipe 缺少上述字段时继续按历史参数读取和导出。

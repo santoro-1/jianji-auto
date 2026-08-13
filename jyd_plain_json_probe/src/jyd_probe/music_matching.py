@@ -29,6 +29,7 @@ MUSIC_MATCHER_HARD_FILTERS_V1 = (
 RECENT_USE_PENALTY = 0.75
 MAX_RECENT_USE_PENALTY = 2.25
 RECENCY_CANDIDATE_SCORE_GAP = 4.0
+VOLUME_MANAGED_AVOID_TRAITS = frozenset({"strong_vocals"})
 
 SCENES = {
     "health_education", "nutrition_food", "weight_management",
@@ -414,6 +415,7 @@ class MusicProfileMatcher:
         filter_counts["excluded_identity"] = 0
         scored: list[_ScoredProfile] = []
         avoid_traits = set(intent["avoid_traits"])
+        hard_avoid_traits = avoid_traits - VOLUME_MANAGED_AVOID_TRAITS
 
         for profile in snapshot["profiles"]:
             identity = profile["identity"]
@@ -427,7 +429,7 @@ class MusicProfileMatcher:
             if not profile["rights_allowed"]:
                 filter_counts["rights_allowed"] += 1
                 continue
-            if avoid_traits.intersection(profile["traits"]):
+            if hard_avoid_traits.intersection(profile["traits"]):
                 filter_counts["forbidden_traits_absent"] += 1
                 continue
             if identity in excluded:
@@ -498,5 +500,8 @@ class MusicProfileMatcher:
             "rotation_candidate_count": len(rotation_candidates),
             "semantic_top_score": semantic_top_score,
             "rotation_score_gap": RECENCY_CANDIDATE_SCORE_GAP,
+            "volume_managed_traits": sorted(
+                avoid_traits.intersection(VOLUME_MANAGED_AVOID_TRAITS)
+            ),
             "filtered_counts": filter_counts,
         }

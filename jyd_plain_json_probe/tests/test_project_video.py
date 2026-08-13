@@ -210,6 +210,20 @@ class ProjectVideoApiTest(unittest.TestCase):
                         archive.read("2-composition.mp4"), b"old-composition"
                     )
 
+                selected_bundle = client.get(
+                    f"/api/new/projects/{project['project_id']}/videos/download",
+                    params={"item_ids": second_id},
+                )
+                self.assertEqual(selected_bundle.status_code, 200, selected_bundle.text)
+                with zipfile.ZipFile(BytesIO(selected_bundle.content)) as archive:
+                    self.assertEqual(archive.namelist(), ["2-composition.mp4"])
+
+                invalid_selection = client.get(
+                    f"/api/new/projects/{project['project_id']}/videos/download",
+                    params={"item_ids": "not-this-project"},
+                )
+                self.assertEqual(invalid_selection.status_code, 422)
+
 
 if __name__ == "__main__":
     unittest.main()

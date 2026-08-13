@@ -15,7 +15,10 @@ from .layout_profiles import nameplate_overlay
 
 CATALOG_SCHEMA_V1 = "jyd.semantic-visual-catalog.v1"
 CATALOG_SCHEMA_V2 = "jyd.semantic-visual-catalog.v2"
-CATALOG_SCHEMAS = frozenset({CATALOG_SCHEMA_V1, CATALOG_SCHEMA_V2})
+CATALOG_SCHEMA_V3 = "jyd.semantic-visual-catalog.v3"
+CATALOG_SCHEMAS = frozenset(
+    {CATALOG_SCHEMA_V1, CATALOG_SCHEMA_V2, CATALOG_SCHEMA_V3}
+)
 # Import-compatible alias for callers that still mean the legacy schema.
 CATALOG_SCHEMA = CATALOG_SCHEMA_V1
 CANDIDATE_SCHEMA = "jyd.semantic-visual-candidates.v1"
@@ -46,11 +49,73 @@ VISUAL_CORNERS = frozenset(
 )
 VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
 VISUAL_MAX_AUTO_PER_MINUTE = 24
-VISUAL_ENRICHMENT_MIN_GAP_US = 20_000_000
-VISUAL_ENRICHMENT_MAX_PER_MINUTE = 2
-VISUAL_ENRICHMENT_CHAR_INTERVAL = 100
-VISUAL_ENRICHMENT_MAX_ANCHORS = 6
+VISUAL_SENTENCE_MIN_DURATION_US = 2_000_000
+VISUAL_ENRICHMENT_MIN_GAP_US = 8_000_000
+VISUAL_ENRICHMENT_MAX_PER_MINUTE = 4
+VISUAL_ENRICHMENT_CHAR_INTERVAL = 50
+VISUAL_ENRICHMENT_MAX_ANCHORS = 12
+VISUAL_MAX_CONCEPTS_PER_ANCHOR = 8
+VISUAL_TIMING_POLICY_VERSION = "sentence-v1"
 VISUAL_ENRICHMENT_TAGS = frozenset({"空镜", "相关素材", "b-roll", "broll", "enrichment"})
+VISUAL_USAGE_MODES = frozenset(
+    {
+        "semantic_overlay",
+        "list_quick_cut",
+        "full_screen_broll",
+        "seam_broll",
+        "action_demo",
+        "knowledge_card",
+        "manual_only",
+    }
+)
+VISUAL_TRIGGER_BASES = frozenset(
+    {
+        "exact_subject",
+        "co_dominant_subject",
+        "complete_scene",
+        "category_collection",
+        "infographic",
+        "approved_exemplar",
+    }
+)
+VISUAL_ACTIONS = frozenset(
+    {
+        "pouring",
+        "drinking",
+        "washing",
+        "peeling",
+        "cutting",
+        "cooking",
+        "plating",
+        "mixing",
+        "serving",
+        "eating",
+        "walking",
+        "running",
+        "stretching",
+        "training",
+        "weighing",
+        "brewing",
+        "commuting",
+        "harvesting",
+        "reading",
+        "resting",
+        "soaking",
+        "working",
+    }
+)
+VISUAL_RIGHTS_STATUSES = frozenset(
+    {"cleared", "internal", "attributed", "unknown", "restricted"}
+)
+VISUAL_NETWORK_ATTRIBUTION_TEXT = "素材来源于网络"
+VISUAL_PERSON_STATUSES = frozenset(
+    {"none", "unidentifiable", "identifiable", "public_figure", "unknown"}
+)
+VISUAL_BRAND_STATUSES = frozenset({"none", "incidental", "prominent", "unknown"})
+VISUAL_HEALTH_CLAIM_STATUSES = frozenset(
+    {"none", "general_wellness", "specific_claim", "review_required", "unknown"}
+)
+VISUAL_PLATFORM_UI_STATUSES = frozenset({"none", "crop_edge", "embedded", "unknown"})
 VISUAL_IMAGE_DEFAULT_CORNER = "bottom_center"
 VISUAL_IMAGE_DEFAULT_SCALE = 0.56
 VISUAL_ACTION_VIDEO_DEFAULT_CORNER = "bottom_center"
@@ -353,6 +418,7 @@ def _normalize_v2_identity(
     *,
     asset_ids: set[str],
     concept_ids: set[str],
+    allow_empty_concepts: bool = False,
 ) -> tuple[str, list[str], str, str, list[str]]:
     asset_id = str(raw["asset_id"]).strip()
     name = str(raw["name"]).strip()
@@ -369,7 +435,7 @@ def _normalize_v2_identity(
         or asset_id in asset_ids
         or not name
         or not description
-        or not normalized_concept_ids
+        or (not normalized_concept_ids and not allow_empty_concepts)
         or any(not value or value not in concept_ids for value in normalized_concept_ids)
         or any(
             not isinstance(tag, str) or not tag or tag != tag.strip()
@@ -437,7 +503,11 @@ def _normalized_visual_defaults(
 
 
 def _apply_product_visual_layout(
-    defaults: Mapping[str, Any], *, media_type: str, tags: Iterable[str]
+    defaults: Mapping[str, Any],
+    *,
+    media_type: str,
+    tags: Iterable[str],
+    usage_modes: Iterable[str] = (),
 ) -> dict[str, Any]:
     """Keep automatic talking-head visuals on the accepted product layout.
 
@@ -453,12 +523,41 @@ def _apply_product_visual_layout(
             scale=VISUAL_IMAGE_DEFAULT_SCALE,
         )
         return normalized
-    enrichment = any(str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS for tag in tags)
+    enrichment = _is_enrichment_metadata(tags=tags, usage_modes=usage_modes)
     normalized.update(
         corner=(VISUAL_BROLL_DEFAULT_CORNER if enrichment else VISUAL_ACTION_VIDEO_DEFAULT_CORNER),
         scale=(VISUAL_BROLL_DEFAULT_SCALE if enrichment else VISUAL_ACTION_VIDEO_DEFAULT_SCALE),
     )
     return normalized
+
+
+def _is_enrichment_metadata(
+    *, tags: Iterable[str], usage_modes: Iterable[str] = ()
+) -> bool:
+    normalized_modes = {str(value).strip() for value in usage_modes}
+    if normalized_modes:
+        return bool(normalized_modes & {"full_screen_broll", "seam_broll"})
+    return any(str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS for tag in tags)
+
+
+def _is_enrichment_asset(asset: Mapping[str, Any]) -> bool:
+    return _is_enrichment_metadata(
+        tags=asset.get("tags", ()), usage_modes=asset.get("usage_modes", ())
+    )
+
+
+def _compatibility_concept_id(common: Mapping[str, Any]) -> str:
+    concept_ids = list(common.get("concept_ids", ()))
+    if concept_ids:
+        return str(concept_ids[0])
+    semantic_roles = common.get("semantic_roles", {})
+    if isinstance(semantic_roles, Mapping):
+        for role in ("depicts", "expresses", "related"):
+            values = semantic_roles.get(role, ())
+            if isinstance(values, Iterable) and not isinstance(values, (str, bytes)):
+                for value in values:
+                    return str(value)
+    raise SemanticVisualCatalogError("asset must retain at least one semantic relation")
 
 
 def _normalize_v2_image(
@@ -488,6 +587,7 @@ def _normalize_v2_image(
         _normalized_visual_defaults(defaults, video=False),
         media_type="image",
         tags=common["tags"],
+        usage_modes=common.get("usage_modes", ()),
     )
     asset_id = common["asset_id"]
     normalized = {
@@ -497,7 +597,7 @@ def _normalize_v2_image(
         "resource": {"bundle": bundle, "preview": preview},
         "defaults": normalized_defaults,
         # Compatibility aliases used by the current v1 recipe/web handlers.
-        "concept_id": common["concept_ids"][0],
+        "concept_id": _compatibility_concept_id(common),
         "bundle": bundle,
         "image": preview,
         "preview_url": f"/api/new/semantic-visuals/{asset_id}/preview",
@@ -553,13 +653,10 @@ def _normalize_v2_video(
         _normalized_visual_defaults(defaults, video=True),
         media_type="video",
         tags=common["tags"],
+        usage_modes=common.get("usage_modes", ()),
     )
-    if (
-        not normalized_defaults["loop"]
-        and normalized_defaults["source_start_us"] + normalized_defaults["duration_us"]
-        > source_duration_us
-    ):
-        raise SemanticVisualCatalogError("video default range exceeds source duration")
+    if normalized_defaults["source_start_us"] >= source_duration_us:
+        raise SemanticVisualCatalogError("video default source start exceeds source duration")
     normalized_resource: dict[str, Any] = {
         "video": video,
         "preview": preview,
@@ -584,7 +681,7 @@ def _normalize_v2_video(
         "renderer": "video_overlay",
         "resource": normalized_resource,
         "defaults": normalized_defaults,
-        "concept_id": common["concept_ids"][0],
+        "concept_id": _compatibility_concept_id(common),
         "preview_url": f"/api/new/semantic-visuals/{asset_id}/preview",
         "resource_path": str(video_path),
         "preview_path": str(preview_path),
@@ -667,6 +764,356 @@ def _load_semantic_visual_catalog_v2(
     )
 
 
+def _normalized_v3_string_list(
+    raw: object,
+    *,
+    field: str,
+    allowed: set[str] | frozenset[str] | None = None,
+    allow_empty: bool = True,
+) -> list[str]:
+    if not isinstance(raw, list) or any(
+        not isinstance(value, str) or not value or value != value.strip()
+        for value in raw
+    ):
+        raise SemanticVisualCatalogError(f"invalid catalog v3 {field}")
+    values = list(dict.fromkeys(raw))
+    if len(values) != len(raw) or (not allow_empty and not values):
+        raise SemanticVisualCatalogError(f"invalid catalog v3 {field}")
+    if allowed is not None and any(value not in allowed for value in values):
+        raise SemanticVisualCatalogError(f"invalid catalog v3 {field}")
+    return values
+
+
+def _normalize_v3_metadata(
+    raw: Mapping[str, Any], *, concept_ids: set[str]
+) -> dict[str, Any]:
+    semantic_roles = raw["semantic_roles"]
+    if not isinstance(semantic_roles, dict) or set(semantic_roles) != {
+        "depicts",
+        "expresses",
+        "related",
+    }:
+        raise SemanticVisualCatalogError("invalid catalog v3 semantic_roles")
+    roles = {
+        role: _normalized_v3_string_list(
+            semantic_roles[role],
+            field=f"semantic_roles.{role}",
+            allowed=concept_ids,
+        )
+        for role in ("depicts", "expresses", "related")
+    }
+    role_sets = [set(roles[role]) for role in ("depicts", "expresses", "related")]
+    if any(role_sets[left] & role_sets[right] for left in range(3) for right in range(left + 1, 3)):
+        raise SemanticVisualCatalogError("catalog v3 semantic roles must be disjoint")
+    auto_trigger_ids = _normalized_v3_string_list(
+        raw["auto_trigger_concept_ids"],
+        field="auto_trigger_concept_ids",
+        allowed=concept_ids,
+    )
+    if auto_trigger_ids != list(raw["concept_ids"]):
+        raise SemanticVisualCatalogError(
+            "catalog v3 concept_ids must equal auto_trigger_concept_ids"
+        )
+    direct_ids = set(roles["depicts"]) | set(roles["expresses"])
+    if not set(auto_trigger_ids).issubset(direct_ids):
+        raise SemanticVisualCatalogError(
+            "catalog v3 auto triggers must come from depicts or expresses"
+        )
+    if set(auto_trigger_ids) & set(roles["related"]):
+        raise SemanticVisualCatalogError("catalog v3 related concepts cannot auto trigger")
+
+    trigger_basis = raw["trigger_basis"]
+    if (
+        not isinstance(trigger_basis, dict)
+        or set(trigger_basis) != set(auto_trigger_ids)
+        or any(
+            not isinstance(value, str) or value not in VISUAL_TRIGGER_BASES
+            for value in trigger_basis.values()
+        )
+    ):
+        raise SemanticVisualCatalogError("invalid catalog v3 trigger_basis")
+    actions = _normalized_v3_string_list(
+        raw["visual_actions"], field="visual_actions", allowed=VISUAL_ACTIONS
+    )
+    usage_modes = _normalized_v3_string_list(
+        raw["usage_modes"],
+        field="usage_modes",
+        allowed=VISUAL_USAGE_MODES,
+        allow_empty=False,
+    )
+    if "manual_only" in usage_modes and usage_modes != ["manual_only"]:
+        raise SemanticVisualCatalogError("catalog v3 manual_only must be exclusive")
+
+    cleanliness_grade = str(raw["cleanliness_grade"]).strip()
+    rights_status = str(raw["rights_status"]).strip()
+    person_status = str(raw["person_status"]).strip()
+    brand_status = str(raw["brand_status"]).strip()
+    health_claim_status = str(raw["health_claim_status"]).strip()
+    platform_ui_status = str(raw["platform_ui_status"]).strip()
+    if cleanliness_grade not in {"A", "B", "C", "D"}:
+        raise SemanticVisualCatalogError("invalid catalog v3 cleanliness_grade")
+    if rights_status not in VISUAL_RIGHTS_STATUSES:
+        raise SemanticVisualCatalogError("invalid catalog v3 rights_status")
+    if person_status not in VISUAL_PERSON_STATUSES:
+        raise SemanticVisualCatalogError("invalid catalog v3 person_status")
+    if brand_status not in VISUAL_BRAND_STATUSES:
+        raise SemanticVisualCatalogError("invalid catalog v3 brand_status")
+    if health_claim_status not in VISUAL_HEALTH_CLAIM_STATUSES:
+        raise SemanticVisualCatalogError("invalid catalog v3 health_claim_status")
+    if platform_ui_status not in VISUAL_PLATFORM_UI_STATUSES:
+        raise SemanticVisualCatalogError("invalid catalog v3 platform_ui_status")
+
+    auto_eligible = raw["auto_eligible"]
+    requires_clip = raw["requires_clip"]
+    loop_allowed = raw["loop_allowed"]
+    if not all(isinstance(value, bool) for value in (auto_eligible, requires_clip, loop_allowed)):
+        raise SemanticVisualCatalogError("invalid catalog v3 eligibility flags")
+    if auto_eligible and (
+        not auto_trigger_ids
+        or requires_clip
+        or cleanliness_grade in {"C", "D"}
+        or "manual_only" in usage_modes
+    ):
+        raise SemanticVisualCatalogError("invalid catalog v3 auto eligibility")
+    if (
+        auto_eligible
+        and rights_status in {"unknown", "restricted"}
+        and set(usage_modes) & {"full_screen_broll", "seam_broll"}
+    ):
+        raise SemanticVisualCatalogError(
+            "catalog v3 unknown or restricted rights cannot auto full-screen"
+        )
+    if str(raw["media_type"]).strip() == "image" and (
+        loop_allowed or set(usage_modes) & {"full_screen_broll", "seam_broll"}
+    ):
+        raise SemanticVisualCatalogError("invalid catalog v3 image usage")
+    if "seam_broll" in usage_modes and str(raw["media_type"]).strip() != "video":
+        raise SemanticVisualCatalogError("catalog v3 seam_broll must be video")
+
+    return {
+        "semantic_roles": roles,
+        "auto_trigger_concept_ids": auto_trigger_ids,
+        "trigger_basis": dict(trigger_basis),
+        "visual_actions": actions,
+        "usage_modes": usage_modes,
+        "cleanliness_grade": cleanliness_grade,
+        "auto_eligible": auto_eligible,
+        "requires_clip": requires_clip,
+        "loop_allowed": loop_allowed,
+        "rights_status": rights_status,
+        "person_status": person_status,
+        "brand_status": brand_status,
+        "health_claim_status": health_claim_status,
+        "platform_ui_status": platform_ui_status,
+    }
+
+
+def _normalize_v3_video_taxonomy(
+    raw: object,
+    *,
+    linked_concepts: list[str],
+    concept_ids: set[str],
+    usage_modes: Iterable[str],
+) -> dict[str, Any]:
+    if not isinstance(raw, dict) or set(raw) != {
+        "l1_domain_ids",
+        "l2_category_ids",
+        "l3_exact_concept_ids",
+        "action_ids",
+        "scene_ids",
+        "fallback_concept_ids",
+        "fallback_policy",
+        "review_status",
+    }:
+        raise SemanticVisualCatalogError("invalid catalog v3 video_taxonomy")
+
+    def taxonomy_ids(field: str, prefix: str) -> list[str]:
+        values = _normalized_v3_string_list(raw[field], field=f"video_taxonomy.{field}")
+        if any(not value.startswith(prefix) for value in values):
+            raise SemanticVisualCatalogError(
+                f"invalid catalog v3 video_taxonomy.{field}"
+            )
+        return values
+
+    l1_ids = taxonomy_ids("l1_domain_ids", "l1.")
+    l2_ids = taxonomy_ids("l2_category_ids", "l2.")
+    exact_ids = _normalized_v3_string_list(
+        raw["l3_exact_concept_ids"],
+        field="video_taxonomy.l3_exact_concept_ids",
+        allowed=concept_ids,
+    )
+    action_ids = _normalized_v3_string_list(
+        raw["action_ids"], field="video_taxonomy.action_ids", allowed=VISUAL_ACTIONS
+    )
+    scene_ids = taxonomy_ids("scene_ids", "l2.scene.")
+    fallback_ids = _normalized_v3_string_list(
+        raw["fallback_concept_ids"],
+        field="video_taxonomy.fallback_concept_ids",
+        allowed=concept_ids,
+    )
+    if not l1_ids or not l2_ids or not exact_ids:
+        raise SemanticVisualCatalogError("catalog v3 video taxonomy levels are required")
+    if exact_ids != linked_concepts:
+        raise SemanticVisualCatalogError(
+            "catalog v3 video taxonomy exact concepts must equal concept_ids"
+        )
+    if not set(scene_ids).issubset(l2_ids):
+        raise SemanticVisualCatalogError(
+            "catalog v3 video taxonomy facets must be declared L2 categories"
+        )
+    if any(
+        value.startswith(("food.", "dish.", "drink.", "nutrition."))
+        or value == "meal.breakfast"
+        for value in fallback_ids
+    ):
+        raise SemanticVisualCatalogError(
+            "catalog v3 food/drink/nutrition category fallback is forbidden"
+        )
+    if "nutrition.protein" in fallback_ids:
+        raise SemanticVisualCatalogError("abstract nutrition fallback is forbidden")
+    if fallback_ids and not (
+        set(usage_modes) & {"full_screen_broll", "seam_broll"}
+    ):
+        raise SemanticVisualCatalogError(
+            "catalog v3 video fallback requires approved b-roll usage"
+        )
+    fallback_policy = str(raw["fallback_policy"]).strip()
+    review_status = str(raw["review_status"]).strip()
+    if fallback_policy != "video_only_explicit_whitelist" or not review_status:
+        raise SemanticVisualCatalogError("invalid catalog v3 video fallback approval")
+    return {
+        "l1_domain_ids": l1_ids,
+        "l2_category_ids": l2_ids,
+        "l3_exact_concept_ids": exact_ids,
+        "action_ids": action_ids,
+        "scene_ids": scene_ids,
+        "fallback_concept_ids": fallback_ids,
+        "fallback_policy": fallback_policy,
+        "review_status": review_status,
+    }
+
+
+def _load_semantic_visual_catalog_v3(
+    catalog_root: Path, payload: Mapping[str, Any]
+) -> SemanticVisualCatalog:
+    if set(payload) != {"schema", "library_id", "concepts", "assets"}:
+        raise SemanticVisualCatalogError("invalid semantic visual catalog v3 root")
+    library_id = str(payload["library_id"]).strip()
+    if not library_id:
+        raise SemanticVisualCatalogError("catalog library_id is required")
+    concepts, concept_ids = _normalize_v2_concepts(payload["concepts"])
+    raw_assets = payload["assets"]
+    if not isinstance(raw_assets, list):
+        raise SemanticVisualCatalogError("catalog assets must be an array")
+    expected_asset_fields = {
+        "asset_id",
+        "concept_ids",
+        "name",
+        "description",
+        "media_type",
+        "renderer",
+        "tags",
+        "resource",
+        "defaults",
+        "semantic_roles",
+        "auto_trigger_concept_ids",
+        "trigger_basis",
+        "visual_actions",
+        "usage_modes",
+        "cleanliness_grade",
+        "auto_eligible",
+        "requires_clip",
+        "loop_allowed",
+        "rights_status",
+        "person_status",
+        "brand_status",
+        "health_claim_status",
+        "platform_ui_status",
+    }
+    assets: list[dict[str, Any]] = []
+    asset_ids: set[str] = set()
+    version_paths: list[Path] = []
+    for raw in raw_assets:
+        if not isinstance(raw, dict) or frozenset(raw) not in {
+            frozenset(expected_asset_fields),
+            frozenset({*expected_asset_fields, "video_taxonomy"}),
+        }:
+            raise SemanticVisualCatalogError("invalid catalog v3 asset")
+        asset_id, linked_concepts, name, description, tags = _normalize_v2_identity(
+            raw,
+            asset_ids=asset_ids,
+            concept_ids=concept_ids,
+            allow_empty_concepts=True,
+        )
+        metadata = _normalize_v3_metadata(raw, concept_ids=concept_ids)
+        media_type = str(raw["media_type"]).strip()
+        video_taxonomy = None
+        if "video_taxonomy" in raw:
+            if media_type != "video":
+                raise SemanticVisualCatalogError(
+                    "catalog v3 image cannot declare video taxonomy"
+                )
+            video_taxonomy = _normalize_v3_video_taxonomy(
+                raw["video_taxonomy"],
+                linked_concepts=linked_concepts,
+                concept_ids=concept_ids,
+                usage_modes=metadata["usage_modes"],
+            )
+            if video_taxonomy["action_ids"] != metadata["visual_actions"]:
+                raise SemanticVisualCatalogError(
+                    "catalog v3 video taxonomy actions must equal visual_actions"
+                )
+        common = {
+            "asset_id": asset_id,
+            "concept_ids": linked_concepts,
+            "name": name,
+            "description": description,
+            "tags": tags,
+            **metadata,
+        }
+        if video_taxonomy is not None:
+            common["video_taxonomy"] = video_taxonomy
+        pair = (str(raw["media_type"]).strip(), str(raw["renderer"]).strip())
+        if pair == ("image", "jyd_sticker_bundle"):
+            asset, paths = _normalize_v2_image(
+                raw, catalog_root=catalog_root, common=common
+            )
+        elif pair == ("video", "video_overlay"):
+            asset, paths = _normalize_v2_video(
+                raw, catalog_root=catalog_root, common=common
+            )
+        else:
+            raise SemanticVisualCatalogError("unsupported media_type/renderer pair")
+        assets.append(asset)
+        version_paths.extend(paths)
+    available_concepts = {
+        concept_id
+        for asset in assets
+        for role_ids in asset["semantic_roles"].values()
+        for concept_id in role_ids
+    }
+    available_concepts.update(
+        concept_id
+        for asset in assets
+        for concept_id in asset.get("video_taxonomy", {}).get(
+            "fallback_concept_ids", ()
+        )
+    )
+    concepts = [item for item in concepts if item["concept_id"] in available_concepts]
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    version_digest = hashlib.sha256(canonical.encode("utf-8"))
+    for path in sorted(version_paths, key=lambda item: str(item).casefold()):
+        _update_file_hash(version_digest, path)
+    return SemanticVisualCatalog(
+        root=catalog_root,
+        schema=CATALOG_SCHEMA_V3,
+        library_id=library_id,
+        catalog_version="sha256:" + version_digest.hexdigest(),
+        concepts=tuple(concepts),
+        assets=tuple(assets),
+    )
+
+
 def load_semantic_visual_catalog(root: str | Path) -> SemanticVisualCatalog:
     catalog_root = Path(root).expanduser().resolve()
     manifest_path = catalog_root / "catalog.json"
@@ -680,7 +1127,9 @@ def load_semantic_visual_catalog(root: str | Path) -> SemanticVisualCatalog:
         if set(payload) != {"schema", "concepts", "assets"}:
             raise SemanticVisualCatalogError("invalid semantic visual catalog v1 root")
         return _with_unified_v1_assets(_load_semantic_visual_catalog_v1(catalog_root))
-    return _load_semantic_visual_catalog_v2(catalog_root, payload)
+    if payload["schema"] == CATALOG_SCHEMA_V2:
+        return _load_semantic_visual_catalog_v2(catalog_root, payload)
+    return _load_semantic_visual_catalog_v3(catalog_root, payload)
 
 
 def _alias_is_excluded_compound(
@@ -737,8 +1186,24 @@ def recall_semantic_visual_candidates(
 ) -> dict[str, Any]:
     """Recall longest, non-overlapping aliases with stable exact character spans."""
 
+    eligible_concept_ids = {
+        concept_id
+        for asset in catalog.assets
+        if asset.get("auto_eligible", True)
+        for concept_id in asset.get("concept_ids", ())
+    }
+    eligible_concept_ids.update(
+        concept_id
+        for asset in catalog.assets
+        if asset.get("auto_eligible", True) and asset.get("media_type") == "video"
+        for concept_id in asset.get("video_taxonomy", {}).get(
+            "fallback_concept_ids", ()
+        )
+    )
     alias_concepts: dict[str, list[dict[str, Any]]] = {}
     for concept in catalog.concepts:
+        if concept["concept_id"] not in eligible_concept_ids:
+            continue
         compact = {
             "concept_id": concept["concept_id"],
             "description": concept["description"],
@@ -791,9 +1256,17 @@ def recall_semantic_visual_candidates(
     enrichment_concept_ids = {
         concept_id
         for asset in catalog.assets
-        if any(str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS for tag in asset.get("tags", []))
+        if asset.get("auto_eligible", True) and _is_enrichment_asset(asset)
         for concept_id in asset.get("concept_ids", [])
     }
+    enrichment_concept_ids.update(
+        concept_id
+        for asset in catalog.assets
+        if asset.get("auto_eligible", True) and _is_enrichment_asset(asset)
+        for concept_id in asset.get("video_taxonomy", {}).get(
+            "fallback_concept_ids", ()
+        )
+    )
     concept_by_id = {str(item["concept_id"]): item for item in catalog.concepts}
     enrichment_allowed = [
         {
@@ -802,7 +1275,7 @@ def recall_semantic_visual_candidates(
         }
         for concept_id in sorted(enrichment_concept_ids)
         if concept_id in concept_by_id
-    ][:8]
+    ]
     occupied_starts = {int(item["char_start"]) for item in candidates}
     if enrichment_allowed and len(original_script) >= VISUAL_ENRICHMENT_CHAR_INTERVAL:
         for target in range(
@@ -834,13 +1307,27 @@ def recall_semantic_visual_candidates(
             if end <= start:
                 continue
             text = original_script[start:end]
+            enrichment_index = sum(
+                str(item.get("candidate_id") or "").startswith("ve_")
+                for item in candidates
+            )
+            allowed_count = min(
+                len(enrichment_allowed), VISUAL_MAX_CONCEPTS_PER_ANCHOR
+            )
+            offset = (
+                enrichment_index * VISUAL_MAX_CONCEPTS_PER_ANCHOR
+            ) % len(enrichment_allowed)
+            anchor_allowed = [
+                enrichment_allowed[(offset + index) % len(enrichment_allowed)]
+                for index in range(allowed_count)
+            ]
             identity = json.dumps(
                 [
                     script_sha256,
                     "enrichment",
                     start,
                     end,
-                    [item["concept_id"] for item in enrichment_allowed],
+                    [item["concept_id"] for item in anchor_allowed],
                 ],
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -851,7 +1338,7 @@ def recall_semantic_visual_candidates(
                     "text": text,
                     "char_start": start,
                     "char_end": end,
-                    "allowed_concepts": enrichment_allowed,
+                    "allowed_concepts": anchor_allowed,
                 }
             )
             occupied_starts.add(start)
@@ -976,6 +1463,11 @@ def map_visual_candidates_to_raw_cues(
             if keyword_precise_range is not None
             else ranges[end - 1][1]
         ) + offset_us
+        matched_start_us = (
+            keyword_precise_range[0]
+            if keyword_precise_range is not None
+            else ranges[start][0]
+        ) + offset_us
         duration_us = max(0, phrase_end_us - start_us)
         if video_duration_us is not None:
             duration_us = min(duration_us, max(0, int(video_duration_us) - start_us))
@@ -989,6 +1481,9 @@ def map_visual_candidates_to_raw_cues(
                 "start_us": start_us,
                 "duration_us": duration_us,
                 "matched_end_us": matched_end_us,
+                "matched_start_us": matched_start_us,
+                "keyword_start_us": matched_start_us,
+                "keyword_end_us": matched_end_us,
                 "video_duration_us": video_duration_us,
                 "phrase_char_start": phrase_start,
                 "phrase_char_end": phrase_end,
@@ -1013,23 +1508,63 @@ def _assets_for_media_policy(
     if media_policy not in MEDIA_POLICIES:
         raise ValueError("未知的语义视觉媒体策略")
     available = [
-        item for item in catalog.assets if concept_id in item["concept_ids"]
-    ]
-    enrichment_assets = [
         item
-        for item in available
-        if any(
-            str(tag).strip().lower() in VISUAL_ENRICHMENT_TAGS
-            for tag in item.get("tags", [])
-        )
+        for item in catalog.assets
+        if item.get("auto_eligible", True) and concept_id in item["concept_ids"]
     ]
-    if usage == "enrichment":
-        available = enrichment_assets
+    if catalog.schema == CATALOG_SCHEMA_V3:
+        allowed_modes = {
+            "explicit": {"semantic_overlay", "action_demo", "knowledge_card"},
+            "rapid_list": {"list_quick_cut"},
+            "enrichment": {"full_screen_broll"},
+            "seam_broll": {"seam_broll"},
+        }.get(usage, set())
+        available = [
+            item
+            for item in available
+            if set(item.get("usage_modes", ())) & allowed_modes
+        ]
+        if (
+            usage in {"explicit", "enrichment", "seam_broll"}
+            and media_policy != "image_only"
+            and (usage != "explicit" or not available)
+        ):
+            fallback_modes = (
+                {"full_screen_broll", "seam_broll"}
+                if usage == "seam_broll"
+                else {"full_screen_broll"}
+            )
+            fallback = [
+                item
+                for item in catalog.assets
+                if item.get("auto_eligible", True)
+                and item.get("media_type") == "video"
+                and concept_id
+                in item.get("video_taxonomy", {}).get("fallback_concept_ids", ())
+                and set(item.get("usage_modes", ())) & fallback_modes
+            ]
+            available.extend(
+                item
+                for item in fallback
+                if str(item.get("asset_id") or "")
+                not in {str(value.get("asset_id") or "") for value in available}
+            )
+    elif usage == "seam_broll":
+        available = [
+            item
+            for item in available
+            if item["media_type"] == "video" and _is_enrichment_asset(item)
+        ]
+    elif usage == "enrichment":
+        available = [item for item in available if _is_enrichment_asset(item)]
     else:
+        enrichment_assets = [item for item in available if _is_enrichment_asset(item)]
         explicit_assets = [item for item in available if item not in enrichment_assets]
         available = explicit_assets or available
     images = [item for item in available if item["media_type"] == "image"]
     videos = [item for item in available if item["media_type"] == "video"]
+    if usage == "seam_broll":
+        return [item for item in available if item["media_type"] == "video"]
     if media_policy == "image_only":
         return images
     if media_policy == "video_only":
@@ -1076,11 +1611,7 @@ def visual_overlay_conflicts(
         return True
     return bool(
         asset_id
-        and any(
-            str(item.get("asset_id") or "") == asset_id
-            and abs(start_us - int(item.get("start_us") or 0)) < 20_000_000
-            for item in active
-        )
+        and any(str(item.get("asset_id") or "") == asset_id for item in active)
     )
 
 
@@ -1098,33 +1629,271 @@ def validate_visual_occupancy(overlays: Iterable[Mapping[str, Any]]) -> None:
             raise ValueError("同一时间只能显示一个语义视觉素材")
 
 
+def _asset_runtime_available(asset: Mapping[str, Any]) -> bool:
+    path = Path(str(asset.get("resource_path") or ""))
+    if asset.get("media_type") == "image":
+        return path.is_dir() and (path / "sticker.json").is_file()
+    return path.is_file()
+
+
+def _sentence_key(candidate: Mapping[str, Any]) -> tuple[int, int]:
+    return (
+        int(candidate.get("phrase_char_start", candidate.get("char_start", 0)) or 0),
+        int(candidate.get("phrase_char_end", candidate.get("char_end", 0)) or 0),
+    )
+
+
+def _entry_priority(entry: Mapping[str, Any]) -> tuple[float, float, int]:
+    decision = entry["decision"]
+    candidate = entry["candidate"]
+    return (
+        -float(decision.get("importance", 0.0) or 0.0),
+        -float(decision.get("confidence", 0.0) or 0.0),
+        int(candidate.get("char_start", 0) or 0),
+    )
+
+
+def _is_rapid_list(entries: list[dict[str, Any]]) -> bool:
+    if len(entries) < 2:
+        return False
+    ordered = sorted(entries, key=lambda item: int(item["candidate"].get("char_start", 0)))
+    first = ordered[0]["candidate"]
+    phrase_start = int(first.get("phrase_char_start", first.get("char_start", 0)) or 0)
+    phrase_text = str(first.get("phrase_text") or "")
+    if not phrase_text:
+        return False
+    for previous, current in zip(ordered, ordered[1:]):
+        previous_end = int(previous["candidate"].get("char_end", 0)) - phrase_start
+        current_start = int(current["candidate"].get("char_start", 0)) - phrase_start
+        if "、" not in phrase_text[max(0, previous_end) : max(0, current_start)]:
+            return False
+    return True
+
+
+def _candidate_occurrence(
+    mapped: Mapping[str, Mapping[str, Any]], candidate: Mapping[str, Any], concept_id: str
+) -> int:
+    return sum(
+        1
+        for item in mapped.values()
+        if int(item.get("start_us", 0)) < int(candidate.get("start_us", 0))
+        and any(
+            concept.get("concept_id") == concept_id
+            for concept in item.get("allowed_concepts", [])
+            if isinstance(concept, Mapping)
+        )
+    )
+
+
+def _choose_unused_asset(
+    *,
+    catalog: SemanticVisualCatalog,
+    mapped: Mapping[str, Mapping[str, Any]],
+    candidate: Mapping[str, Any],
+    concept_id: str,
+    media_policy: str,
+    usage: str,
+    used_asset_ids: set[str],
+) -> dict[str, Any] | None:
+    assets = _assets_for_media_policy(catalog, concept_id, media_policy, usage=usage)
+    if not assets:
+        return None
+    occurrence = _candidate_occurrence(mapped, candidate, concept_id)
+    exact_assets = [asset for asset in assets if concept_id in asset.get("concept_ids", ())]
+    fallback_assets = [asset for asset in assets if asset not in exact_assets]
+    for pool in (exact_assets, fallback_assets):
+        if not pool:
+            continue
+        offset = occurrence % len(pool)
+        ordered = [*pool[offset:], *pool[:offset]]
+        chosen = next(
+            (
+                asset
+                for asset in ordered
+                if str(asset["asset_id"]) not in used_asset_ids
+                and _asset_runtime_available(asset)
+            ),
+            None,
+        )
+        if chosen is not None:
+            return chosen
+    return None
+
+
+def _target_sentence_range(
+    candidate: Mapping[str, Any],
+    *,
+    final_video_duration_us: int | None,
+    start_override_us: int | None = None,
+    minimum_duration_us: int = VISUAL_SENTENCE_MIN_DURATION_US,
+) -> tuple[int, int]:
+    start_us = int(
+        candidate.get("start_us", 0) if start_override_us is None else start_override_us
+    )
+    sentence_end_us = int(candidate.get("start_us", 0)) + int(
+        candidate.get("duration_us", 0)
+    )
+    end_us = max(sentence_end_us, start_us + max(0, minimum_duration_us))
+    if final_video_duration_us is not None:
+        end_us = min(end_us, int(final_video_duration_us))
+    return start_us, max(start_us, end_us)
+
+
+def _overlay_from_asset(
+    *,
+    candidate: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    asset: Mapping[str, Any],
+    start_us: int,
+    end_us: int,
+    timing_mode: str,
+    usage: str,
+    overlay_id: str | None = None,
+    list_index: int | None = None,
+    list_size: int | None = None,
+    segment_boundary_us: int | None = None,
+) -> dict[str, Any]:
+    defaults = asset["defaults"]
+    resource = asset["resource"]
+    media_type = str(asset["media_type"])
+    sentence_start, sentence_end = _sentence_key(candidate)
+    overlay = {
+        "overlay_id": overlay_id
+        or "vo_" + str(candidate["candidate_id"]).removeprefix("vc_"),
+        "candidate_id": candidate["candidate_id"],
+        "concept_id": str(decision.get("concept_id") or ""),
+        "asset_id": asset["asset_id"],
+        "asset_name": asset["name"],
+        "rights_status": str(asset.get("rights_status") or ""),
+        "attribution_text": (
+            VISUAL_NETWORK_ATTRIBUTION_TEXT
+            if asset.get("rights_status") == "attributed"
+            else ""
+        ),
+        "preview_url": asset["preview_url"],
+        "media_type": media_type,
+        "renderer": asset["renderer"],
+        "resource_path": resource["bundle"] if media_type == "image" else resource["video"],
+        "enabled": True,
+        "selection_mode": "auto",
+        "manual": False,
+        "locked": False,
+        "corner": defaults["corner"],
+        "scale": defaults["scale"],
+        "opacity": defaults["opacity"],
+        "start_us": int(start_us),
+        "duration_us": int(end_us - start_us),
+        "confidence": float(decision.get("confidence", 0.0) or 0.0),
+        "importance": float(decision.get("importance", 0.0) or 0.0),
+        "usage": usage,
+        "reason_code": decision.get("reason_code"),
+        "timing_source": str(
+            candidate.get("timing_source") or "minimax_raw_cue_phrase_span"
+        ),
+        "timing_mode": timing_mode,
+        "sentence_text": str(candidate.get("phrase_text") or candidate.get("text") or ""),
+        "sentence_char_start": sentence_start,
+        "sentence_char_end": sentence_end,
+        "phrase_text": str(candidate.get("phrase_text") or candidate.get("text") or ""),
+        "phrase_char_start": sentence_start,
+        "phrase_char_end": sentence_end,
+        "list_index": list_index,
+        "list_size": list_size,
+        "segment_boundary_us": segment_boundary_us,
+    }
+    if media_type == "video":
+        source_start_us = int(defaults["source_start_us"])
+        available_us = max(0, int(resource.get("duration_us") or 0) - source_start_us)
+        overlay["duration_us"] = min(int(overlay["duration_us"]), available_us)
+        overlay.update(
+            {
+                "source_start_us": source_start_us,
+                "mute": defaults["mute"],
+                "fit": defaults["fit"],
+            }
+        )
+    return overlay
+
+
+def _rapid_ranges(
+    entries: list[dict[str, Any]], start_us: int, end_us: int
+) -> list[tuple[int, int]]:
+    if not entries or end_us <= start_us:
+        return []
+    if end_us - start_us < len(entries):
+        return [
+            (
+                start_us + (end_us - start_us) * index // len(entries),
+                start_us + (end_us - start_us) * (index + 1) // len(entries),
+            )
+            for index in range(len(entries))
+        ]
+    centers = [
+        (
+            int(entry["candidate"].get("keyword_start_us", entry["candidate"].get("start_us", 0)))
+            + int(entry["candidate"].get("keyword_end_us", entry["candidate"].get("matched_end_us", 0)))
+        )
+        // 2
+        for entry in entries
+    ]
+    cuts = [start_us]
+    for index, (left, right) in enumerate(zip(centers, centers[1:]), start=1):
+        earliest = start_us + index
+        latest = end_us - (len(entries) - index)
+        cuts.append(max(earliest, cuts[-1] + 1, min(latest, (left + right) // 2)))
+    cuts.append(end_us)
+    return [(cuts[index], cuts[index + 1]) for index in range(len(entries))]
+
+
+def _group_conflicts(
+    overlays: list[dict[str, Any]], selected: list[dict[str, Any]]
+) -> bool:
+    staged: list[dict[str, Any]] = []
+    for overlay in overlays:
+        if overlay["duration_us"] <= 0 or visual_overlay_conflicts(
+            overlay, [*selected, *staged]
+        ):
+            return True
+        staged.append(overlay)
+    return False
+
+
 def build_visual_recipe(
     *,
     catalog: SemanticVisualCatalog,
     mapped_candidates: Iterable[Mapping[str, Any]],
     decisions: Iterable[Mapping[str, Any]],
     media_policy: str = "image_only",
+    locked_overlays: Iterable[Mapping[str, Any]] = (),
+    segment_boundaries: Iterable[Mapping[str, Any]] = (),
+    final_video_duration_us: int | None = None,
 ) -> dict[str, Any]:
-    """Apply confidence gates and density limits to create one frozen recipe."""
+    """Build one priority-ordered, sentence-timed, video-level deduplicated recipe."""
 
     mapped = {str(item["candidate_id"]): dict(item) for item in mapped_candidates}
-    selected: list[dict[str, Any]] = []
-    for decision in sorted(
-        decisions,
-        key=lambda item: (
-            1 if str(item.get("usage") or "explicit") == "enrichment" else 0,
-            -float(item.get("importance", 0.0) or 0.0),
-            -float(item.get("confidence", 0.0) or 0.0),
-            mapped.get(str(item.get("candidate_id")), {}).get("start_us", 0),
-        ),
-    ):
-        candidate = mapped.get(str(decision.get("candidate_id")))
-        if candidate is None:
-            continue
+    if final_video_duration_us is None:
+        durations = [
+            int(item["video_duration_us"])
+            for item in mapped.values()
+            if isinstance(item.get("video_duration_us"), int)
+            and int(item["video_duration_us"]) > 0
+        ]
+        final_video_duration_us = max(durations, default=None)
+    locked = [dict(item) for item in locked_overlays]
+    selected: list[dict[str, Any]] = [
+        item for item in locked if item.get("enabled") is not False
+    ]
+    used_asset_ids = {
+        str(item.get("asset_id") or "")
+        for item in selected
+        if str(item.get("asset_id") or "")
+    }
+    entries: list[dict[str, Any]] = []
+    for decision in decisions:
+        candidate = mapped.get(str(decision.get("candidate_id") or ""))
         confidence = float(decision.get("confidence", 0.0) or 0.0)
-        if decision.get("decision") != "SHOW" or confidence < 0.85:
+        if candidate is None or decision.get("decision") != "SHOW" or confidence < 0.85:
             continue
-        concept_id = str(decision.get("concept_id") or "")
         usage = str(
             decision.get("usage")
             or candidate.get("usage")
@@ -1134,99 +1903,226 @@ def build_visual_recipe(
                 else "explicit"
             )
         )
-        assets = _assets_for_media_policy(
-            catalog, concept_id, media_policy, usage=usage
-        )
-        if not assets:
+        entries.append({"candidate": candidate, "decision": dict(decision), "usage": usage})
+
+    explicit_groups: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    enrichment_entries: list[dict[str, Any]] = []
+    for entry in entries:
+        if entry["usage"] == "enrichment":
+            enrichment_entries.append(entry)
+        else:
+            explicit_groups.setdefault(_sentence_key(entry["candidate"]), []).append(entry)
+    for group in explicit_groups.values():
+        group.sort(key=lambda item: int(item["candidate"].get("char_start", 0)))
+
+    automatic: list[dict[str, Any]] = []
+    seam_group_keys: set[tuple[int, int]] = set()
+    for raw_boundary in sorted(
+        (item for item in segment_boundaries if isinstance(item, Mapping)),
+        key=lambda item: int(item.get("boundary_us") or 0),
+    ):
+        boundary_us = int(raw_boundary.get("boundary_us") or 0)
+        if boundary_us <= 0:
             continue
-        occurrence = sum(
-            1
-            for item in mapped.values()
-            if int(item.get("start_us", 0)) < int(candidate["start_us"])
-            and any(
-                concept.get("concept_id") == concept_id
-                for concept in item.get("allowed_concepts", [])
-                if isinstance(concept, Mapping)
-            )
+        candidates_after = [
+            (key, group)
+            for key, group in explicit_groups.items()
+            if key not in seam_group_keys
+            and int(group[0]["candidate"].get("start_us", 0))
+            + int(group[0]["candidate"].get("duration_us", 0))
+            > boundary_us
+            and int(group[0]["candidate"].get("start_us", 0)) >= boundary_us - 300_000
+        ]
+        if not candidates_after:
+            continue
+        key, group = min(
+            candidates_after,
+            key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
         )
-        asset = assets[occurrence % len(assets)]
-        start_us = int(candidate["start_us"])
-        duration_us = int(candidate["duration_us"])
-        defaults = asset["defaults"]
-        resource = asset["resource"]
-        media_type = asset["media_type"]
-        overlay = {
-            "overlay_id": "vo_" + str(candidate["candidate_id"]).removeprefix("vc_"),
-            "candidate_id": candidate["candidate_id"],
-            "concept_id": concept_id,
-            "asset_id": asset["asset_id"],
-            "asset_name": asset["name"],
-            "preview_url": asset["preview_url"],
-            "media_type": media_type,
-            "renderer": asset["renderer"],
-            "resource_path": (
-                resource["bundle"] if media_type == "image" else resource["video"]
-            ),
-            "enabled": True,
-            "selection_mode": "auto",
-            "manual": False,
-            "locked": False,
-            "corner": defaults["corner"],
-            "scale": defaults["scale"],
-            "opacity": defaults["opacity"],
-            "start_us": start_us,
-            "duration_us": duration_us,
-            "confidence": confidence,
-            "importance": float(decision.get("importance", 0.0) or 0.0),
-            "usage": usage,
-            "reason_code": decision.get("reason_code"),
-            "timing_source": str(
-                candidate.get("timing_source") or "minimax_raw_cue_phrase_span"
-            ),
-            "phrase_text": str(candidate.get("phrase_text") or candidate.get("text") or ""),
-            "phrase_char_start": int(
-                candidate.get("phrase_char_start", candidate.get("char_start", 0)) or 0
-            ),
-            "phrase_char_end": int(
-                candidate.get("phrase_char_end", candidate.get("char_end", 0)) or 0
-            ),
-        }
-        if media_type == "video":
-            overlay.update(
-                {
-                    "source_start_us": defaults["source_start_us"],
-                    "mute": defaults["mute"],
-                    "loop": defaults["loop"],
-                    "fit": defaults["fit"],
-                }
+        rapid = _is_rapid_list(group)
+        source_entries = group if rapid else [min(group, key=_entry_priority)]
+        provisional_used = set(used_asset_ids)
+        chosen: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for entry in source_entries:
+            concept_id = str(entry["decision"].get("concept_id") or "")
+            asset = _choose_unused_asset(
+                catalog=catalog,
+                mapped=mapped,
+                candidate=entry["candidate"],
+                concept_id=concept_id,
+                media_policy="video_only",
+                usage="seam_broll",
+                used_asset_ids=provisional_used,
             )
-        if usage == "enrichment":
-            previous_end_us = max(
-                (
-                    int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
-                    for item in selected
-                    if int(item.get("start_us") or 0) < start_us
+            if asset is None:
+                continue
+            provisional_used.add(str(asset["asset_id"]))
+            chosen.append((entry, asset))
+        if not chosen:
+            continue
+        first_candidate = chosen[0][0]["candidate"]
+        minimum = 0 if rapid and len(chosen) > 1 else VISUAL_SENTENCE_MIN_DURATION_US
+        start_us, end_us = _target_sentence_range(
+            first_candidate,
+            final_video_duration_us=final_video_duration_us,
+            start_override_us=boundary_us,
+            minimum_duration_us=minimum,
+        )
+        if end_us <= start_us:
+            continue
+        ranges = (
+            _rapid_ranges([entry for entry, _asset in chosen], start_us, end_us)
+            if rapid and len(chosen) > 1
+            else [(start_us, end_us)]
+        )
+        overlays = [
+            _overlay_from_asset(
+                candidate=entry["candidate"],
+                decision=entry["decision"],
+                asset=asset,
+                start_us=interval[0],
+                end_us=interval[1],
+                timing_mode="seam_broll",
+                usage="seam_broll",
+                overlay_id=(
+                    f"vo_seam_{boundary_us}_{entry['candidate']['candidate_id']}"
                 ),
-                default=0,
+                list_index=(index if len(chosen) > 1 else None),
+                list_size=(len(chosen) if len(chosen) > 1 else None),
+                segment_boundary_us=boundary_us,
             )
-            if start_us - previous_end_us < VISUAL_ENRICHMENT_MIN_GAP_US:
+            for index, ((entry, asset), interval) in enumerate(zip(chosen, ranges))
+        ]
+        if _group_conflicts(overlays, selected):
+            continue
+        automatic.extend(overlays)
+        selected.extend(overlays)
+        used_asset_ids.update(str(asset["asset_id"]) for _entry, asset in chosen)
+        seam_group_keys.add(key)
+
+    ordered_groups = sorted(
+        explicit_groups.items(),
+        key=lambda pair: (
+            min(_entry_priority(entry) for entry in pair[1]),
+            int(pair[1][0]["candidate"].get("start_us", 0)),
+        ),
+    )
+    for _key, group in ordered_groups:
+        rapid = _is_rapid_list(group)
+        source_entries = group if rapid else [min(group, key=_entry_priority)]
+        provisional_used = set(used_asset_ids)
+        chosen: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for entry in source_entries:
+            concept_id = str(entry["decision"].get("concept_id") or "")
+            asset = _choose_unused_asset(
+                catalog=catalog,
+                mapped=mapped,
+                candidate=entry["candidate"],
+                concept_id=concept_id,
+                media_policy=media_policy,
+                usage="rapid_list" if rapid else "explicit",
+                used_asset_ids=provisional_used,
+            )
+            if asset is None:
                 continue
-            if sum(
-                str(item.get("usage") or "") == "enrichment"
-                and abs(start_us - int(item.get("start_us") or 0)) < 60_000_000
+            provisional_used.add(str(asset["asset_id"]))
+            chosen.append((entry, asset))
+        if not chosen:
+            continue
+        first_candidate = chosen[0][0]["candidate"]
+        rapid = rapid and len(chosen) > 1
+        start_us, end_us = _target_sentence_range(
+            first_candidate,
+            final_video_duration_us=final_video_duration_us,
+            minimum_duration_us=0 if rapid else VISUAL_SENTENCE_MIN_DURATION_US,
+        )
+        ranges = (
+            _rapid_ranges([entry for entry, _asset in chosen], start_us, end_us)
+            if rapid
+            else [(start_us, end_us)]
+        )
+        if not rapid:
+            chosen = chosen[:1]
+        overlays = [
+            _overlay_from_asset(
+                candidate=entry["candidate"],
+                decision=entry["decision"],
+                asset=asset,
+                start_us=interval[0],
+                end_us=interval[1],
+                timing_mode="rapid_list" if rapid else "sentence",
+                usage=entry["usage"],
+                list_index=(index if rapid else None),
+                list_size=(len(chosen) if rapid else None),
+            )
+            for index, ((entry, asset), interval) in enumerate(zip(chosen, ranges))
+        ]
+        if _group_conflicts(overlays, selected):
+            continue
+        automatic.extend(overlays)
+        selected.extend(overlays)
+        used_asset_ids.update(str(asset["asset_id"]) for _entry, asset in chosen)
+
+    for entry in sorted(enrichment_entries, key=_entry_priority):
+        candidate = entry["candidate"]
+        start_us, end_us = _target_sentence_range(
+            candidate, final_video_duration_us=final_video_duration_us
+        )
+        previous_end_us = max(
+            (
+                int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
                 for item in selected
-            ) >= VISUAL_ENRICHMENT_MAX_PER_MINUTE:
-                continue
+                if int(item.get("start_us") or 0) < start_us
+            ),
+            default=0,
+        )
+        if start_us - previous_end_us < VISUAL_ENRICHMENT_MIN_GAP_US:
+            continue
+        if sum(
+            str(item.get("usage") or "") == "enrichment"
+            and abs(start_us - int(item.get("start_us") or 0)) < 60_000_000
+            for item in selected
+        ) >= VISUAL_ENRICHMENT_MAX_PER_MINUTE:
+            continue
+        concept_id = str(entry["decision"].get("concept_id") or "")
+        asset = _choose_unused_asset(
+            catalog=catalog,
+            mapped=mapped,
+            candidate=candidate,
+            concept_id=concept_id,
+            media_policy="video_only",
+            usage="enrichment",
+            used_asset_ids=used_asset_ids,
+        )
+        if asset is None:
+            continue
+        overlay = _overlay_from_asset(
+            candidate=candidate,
+            decision=entry["decision"],
+            asset=asset,
+            start_us=start_us,
+            end_us=end_us,
+            timing_mode="sentence",
+            usage="enrichment",
+        )
         if visual_overlay_conflicts(overlay, selected):
             continue
+        automatic.append(overlay)
         selected.append(overlay)
-    selected.sort(key=lambda item: (item["start_us"], item["overlay_id"]))
+        used_asset_ids.add(str(asset["asset_id"]))
+
+    overlays = sorted(
+        [*locked, *automatic],
+        key=lambda item: (int(item.get("start_us") or 0), str(item.get("overlay_id") or "")),
+    )
     return {
         "schema": RECIPE_SCHEMA,
         "library_id": catalog.library_id or DEFAULT_LIBRARY_ID,
         "catalog_version": catalog.catalog_version,
         "media_policy": media_policy,
-        "overlays": selected,
+        "timing_policy_version": VISUAL_TIMING_POLICY_VERSION,
+        "used_asset_ids": sorted(used_asset_ids),
+        "overlays": overlays,
     }
 
 
@@ -1271,6 +2167,12 @@ def frozen_visual_overlays(
                 overlay.update(
                     {
                         "asset_name": current_asset["name"],
+                        "rights_status": str(current_asset.get("rights_status") or ""),
+                        "attribution_text": (
+                            VISUAL_NETWORK_ATTRIBUTION_TEXT
+                            if current_asset.get("rights_status") == "attributed"
+                            else ""
+                        ),
                         "preview_url": current_asset["preview_url"],
                         "media_type": current_asset["media_type"],
                         "renderer": current_asset["renderer"],

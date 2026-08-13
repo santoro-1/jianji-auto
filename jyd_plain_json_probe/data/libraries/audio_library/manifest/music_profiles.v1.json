@@ -2,7 +2,7 @@
   "schema": "jyd.music_profiles.v1",
   "taxonomy_version": "music-taxonomy.v1",
   "matcher_version": "music-matcher.v1",
-  "profile_version": "2026-08-09.1",
+  "profile_version": "2026-08-12.1",
   "source": {
     "workbook": "AI剪辑音乐标签库_46首.xlsx",
     "workbook_sha256": "52770fb7a6e993a173b17d87a71ea68b8a7a8c787b0e90ef0b3fc16c739a278f",
@@ -137,7 +137,7 @@
       "auto_eligible": true,
       "rights_status": "operator_provided_unverified",
       "rights_allowed": true,
-      "enabled": true,
+      "enabled": false,
       "scenes": [
         "health_education",
         "general_knowledge",
@@ -501,7 +501,7 @@
       "auto_eligible": false,
       "rights_status": "operator_provided_unverified",
       "rights_allowed": true,
-      "enabled": true,
+      "enabled": false,
       "scenes": [
         "health_education",
         "general_knowledge",
@@ -757,7 +757,7 @@
       "auto_eligible": true,
       "rights_status": "operator_provided_unverified",
       "rights_allowed": true,
-      "enabled": true,
+      "enabled": false,
       "scenes": [
         "health_education",
         "general_knowledge",
@@ -960,7 +960,7 @@
       "auto_eligible": false,
       "rights_status": "operator_provided_unverified",
       "rights_allowed": true,
-      "enabled": true,
+      "enabled": false,
       "scenes": [
         "health_education",
         "general_knowledge",
@@ -1012,7 +1012,7 @@
       "auto_eligible": false,
       "rights_status": "operator_provided_unverified",
       "rights_allowed": true,
-      "enabled": true,
+      "enabled": false,
       "scenes": [
         "personal_growth",
         "emotional_story"
@@ -1571,7 +1571,7 @@
       "auto_eligible": false,
       "rights_status": "operator_provided_unverified",
       "rights_allowed": true,
-      "enabled": true,
+      "enabled": false,
       "scenes": [
         "health_education",
         "general_knowledge",
@@ -2375,6 +2375,108 @@
         "weight_checkin": 25
       },
       "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:7645200539881769012",
+      "source_bgm_id": "BGM-047",
+      "name": "裂缝中的阳光（止与初见 Remix）（剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "motivational_message",
+        "personal_story"
+      ],
+      "topics": [
+        "self_growth",
+        "motivation",
+        "emotional_wellbeing"
+      ],
+      "moods": [
+        "hopeful",
+        "inspiring"
+      ],
+      "valence": "positive",
+      "energy": 4,
+      "pace": "medium_fast",
+      "seriousness": 3,
+      "warmth": 3,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 4,
+      "loop_suitability": 3,
+      "traits": [
+        "strong_vocals",
+        "dramatic_drop"
+      ],
+      "style_tags": [
+        "励志流行 Remix"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 90,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 60
+      },
+      "source_confidence": "medium",
+      "source_confirmed": true
+    },
+    {
+      "identity": "music_id:6926801235057002497",
+      "source_bgm_id": "BGM-048",
+      "name": "还是分开 （剪辑版）",
+      "profile_review_status": "reviewed",
+      "auto_eligible": true,
+      "rights_status": "operator_provided_unverified",
+      "rights_allowed": true,
+      "enabled": true,
+      "scenes": [
+        "personal_growth",
+        "emotional_story"
+      ],
+      "content_formats": [
+        "personal_story"
+      ],
+      "topics": [
+        "emotional_wellbeing",
+        "self_growth"
+      ],
+      "moods": [
+        "emotional",
+        "nostalgic"
+      ],
+      "valence": "negative",
+      "energy": 2,
+      "pace": "medium_slow",
+      "seriousness": 4,
+      "warmth": 2,
+      "tension": 3,
+      "speech_interference": 5,
+      "vocal_profile": "vocal",
+      "opening_strength": 2,
+      "loop_suitability": 2,
+      "traits": [
+        "strong_vocals",
+        "excessive_sadness"
+      ],
+      "style_tags": [
+        "流行抒情剪辑版"
+      ],
+      "legacy_scene_scores": {
+        "chicken_soup_persona": 95,
+        "knowledge": 25,
+        "interview": 25,
+        "weight_checkin": 25
+      },
+      "source_confidence": "high",
       "source_confirmed": true
     }
   ]

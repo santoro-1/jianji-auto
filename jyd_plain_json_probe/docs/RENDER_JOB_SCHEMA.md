@@ -253,7 +253,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
 `type=bgm`、`fit_to_video=true` 且 `target_duration_us=0` 时，BGM 自动覆盖视频剩余时长；
 如果音乐本身更短，会在同一音乐轨道连续循环，并把最后一次循环裁切到视频结尾。
 普通 `type=add` 默认仍只播放一次；确实需要循环时可显式传 `loop_to_video=true`。
-`volume` 支持 `0.0` 到 `2.0`，网页默认 `0.3`。
+`volume` 支持 `0.0` 到 `2.0`。通用提交页未指定时使用页面默认值；数字人 4B 流程则保存
+响度分析得到的冻结音量，普通音乐范围为 `0.08..0.25`，强人声音乐范围为 `0.05..0.16`。
 
 通过 Web API 提交时，`media_path` 还可以替换成以下任意一种引用：
 
@@ -384,8 +385,9 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
       "scale": 1.0,
       "opacity": 1.0,
       "mute": true,
-      "loop": false,
-      "fit": "cover"
+      "fit": "cover",
+      "timing_mode": "seam_broll",
+      "segment_boundary_us": 15000000
     }
   ]
 }
@@ -394,7 +396,7 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 字段来自项目已冻结的 `jyd.semantic-visual-recipe.v2`，不是渲染时重新分析；v1 历史图片配方
 仍可兼容读取。图片 bundle 继续作为可搬迁、可校验的素材容器，渲染时读取
 `resources/sticker/singleImage.png`，写成 `type=photo` 的真实图片素材和独立视频轨道，而不是
-剪映贴纸轨道。视频写成原生 video material/segment，支持目标时间、源片截取、静音、循环、
+剪映贴纸轨道。视频写成原生 video material/segment，支持目标时间、源片截取、静音、
 `cover/contain`、位置、缩放和透明度。图片和视频使用同一占用表，随后一起应用封面时间偏移。
 两者均为 optional：素材缺失或单项写入失败会跳过该项，不改变语音、字幕、BGM、主视频、
 总时长或已有输出。
@@ -403,11 +405,17 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 `scale=0.615`，水平中心固定在画面中轴；高素材最多显示下方约 37%，允许底边适度裁出。
 `corner=center + scale>=0.95` 仍只表示全屏 B-roll。
 
-自动明确语义素材使用分句时间规则：关键词字符范围先向两侧扩展到最近的逗号、句号、问号、
-感叹号、分号、冒号或换行，`start_us` 取该分句实际发音开始，`duration_us` 到分句说完为止。
-有 FunASR 时使用真实字词时间，无 FunASR 时使用 MiniMax raw cue 字符插值。相邻分句不增加
-固定间隔，每 60 秒最多 24 条；同 concept 或同 asset 仍至少间隔 20 秒，任何图片/视频时间
-区间仍不得重叠。enrichment 的 20 秒空窗规则保持不变。
+自动明确语义素材使用 `sentence-v1` 分句时间规则：关键词字符范围先向两侧扩展到最近的逗号、
+句号、问号、感叹号、分号、冒号或换行，`start_us` 取该句段实际发音开始，`duration_us` 到
+句段说完为止；普通句不足 2 秒时延长到 2 秒，但不得越过成片末尾。顿号不切句，同句多个入选
+语义按关键词语音中心点在完整句段内速切，单项不做 2 秒保底。有 FunASR 时使用真实字词时间，
+无 FunASR 时使用 MiniMax raw cue 字符插值。
+
+冻结 recipe v2 可增加 `timing_policy_version`、`used_asset_ids`，overlay 可增加句段、列举和
+`segment_boundary_us` 元数据；旧 recipe 缺少字段时仍兼容。自动素材在成片级按 `asset_id`
+去重，同 concept 保留 20 秒密度冷却，任何图片/视频仍不得重叠。通用空镜至少间隔 8 秒且
+每分钟最多 4 条；接缝空镜、明确语义优先。若冻结视频目标区间长于源片可用区间，浏览器和
+渲染层都只播放从 `source_start_us` 起的剩余内容，随后提前结束，不循环或定格补齐。
 
 正文顶部固定文字由 `texts` 自动带入单行“世界冠军带你自律”，字号 19、
 `transform_y=1535/1920`、红色填充、白色描边，并持续整个正文；模型两行标题只用于封面。
@@ -415,20 +423,21 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 `opacity=0.5` 会写入剪映文字素材 `global_alpha`；浏览器预览使用同一 50% 透明度。
 
 项目 4B 和变体任务还会自动带入 `fixed_overlays`。当前固定项为“张雒人名牌”：
-正文时间 `start_us=0`、`duration_us=0`（解析为完整正文草稿时长），使用草稿
-`jyd_eab56dad6e7e` 的素材与高度基准。为避开人物右胸国旗/标识，当前统一缩小为
-`scale=0.60`，横向改为 `transform_x=-0.40`（左边缘与画面左边缘贴齐），并下移为
-`transform_y=-0.26`（中心约 Y=1210）；
+正文时间 `start_us=0`、`duration_us=0`（解析为完整正文草稿时长），由任务的
+`layout_profile` 选择站姿或坐姿规范。站姿使用原生贴纸缩放 `0.8941348042237189`，坐姿使用
+`1.08873624376896`，并分别冻结对应规范草稿的旋转、位置和三层文字参数；
 应用封面偏移后从正文第 1 帧开始，因此封面 3 帧不显示。统一层级从下到上为
-`主视频 < 固定人名牌 < 语义图片/小窗视频/全屏 B-roll < 字幕`。人名牌固定为主视频上方第一个
-视频轨道，任何后出现的语义贴图或视频都可通过层级自然覆盖，结束后无需显隐事件即可恢复。
-人名牌也使用 bundle 内 PNG 写成真实图片视频轨道，同样为
-optional，且不作为表格维度或大模型输入。
+`主视频 < 固定人名牌 < 语义图片/小窗视频/全屏 B-roll < 字幕`。任何后出现的语义贴图或视频
+都可通过层级自然覆盖，结束后无需显隐事件即可恢复。人名板使用 bundle 内完整本地资源写成
+剪映原生 sticker 轨道，同样为 optional，且不作为大模型输入。
 
 ### 项目固定封面
 
 新版项目的 `cover` 由工作台根据 `postprocess.cover_title` 自动构建，普通导出和变体共用同一
 对象。变体 API 不直接接收封面视觉参数。核心字段示例：
+
+封面样式同样根据 `layout_profile` 选择站姿/坐姿规范；封面文字关闭 `auto_wrapping`，不复用
+字幕的 80% 宽度约束，避免较长但仍符合字符上限的标题被拆成第三行。
 
 ```json
 {
@@ -444,8 +453,8 @@ optional，且不作为表格维度或大模型输入。
     "line_2_size": 22,
     "line_1_y": -0.08333333333333333,
     "line_2_y": -0.3411458333333333,
-    "overlay_y_ratio": 0.609375,
-    "overlay_height_ratio": 0.36
+    "overlay_y_ratio": 0.625,
+    "overlay_height_ratio": 0.26
   }
 }
 ```
@@ -453,3 +462,7 @@ optional，且不作为表格维度或大模型输入。
 `frame_source=input_image` 时，渲染器按实际 `canvas_config` 进行居中 cover 裁切，不读取视频帧。
 黑框以 50% 黑色直接合成到封面 JPEG；两行文字仍是独立可编辑文本轨道，并写入固定颜色、
 行间距和阴影参数。封面应用后，正文所有轨道统一后移 3 帧。
+
+项目语音条目使用 `fit_to_video=true`，渲染时以封面插入前的正文主视频时长裁切 MiniMax
+文件可能带有的编码尾巴；`duration_us=0` 的固定人名板等固定贴层也会在同一入口解析成该
+明确时长，因此不会由多出的几十毫秒语音尾部继续撑长草稿。

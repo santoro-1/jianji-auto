@@ -6,6 +6,7 @@ from jyd_probe.content_replace import _apply_text_material_overrides
 from jyd_probe.project_postprocess import (
     CAPTION_REFERENCE_MAX_EM,
     build_project_cover,
+    build_source_attribution_texts,
     build_top_title_texts,
     normalize_cover_title,
     normalize_top_title,
@@ -21,7 +22,7 @@ def test_top_title_is_optional_and_normalizes_whitespace() -> None:
         "label": "\u51cf\u8102 \u771f\u76f8",
         "headline": "\u575a\u6301 \u624d\u662f\u5173\u952e",
     }
-    assert CAPTION_REFERENCE_MAX_EM == pytest.approx(10.214285714285714)
+    assert CAPTION_REFERENCE_MAX_EM == pytest.approx(10.382142857142858)
 
 
 def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
@@ -29,18 +30,17 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
         {"line_1": "\u51cf\u8102\u771f\u76f8", "line_2": "\u575a\u6301\u624d\u662f\u5173\u952e"},
         font={"resource_id": "font-id", "path": "D:/font.ttf", "name": "Fixed"},
     )
-    assert [item["transform_y"] for item in texts] == [
-        1535 / 1920,
-        -1760 / 1920,
-    ]
+    assert [item["transform_y"] for item in texts] == pytest.approx(
+        [0.8155959933996199, -1760 / 1920]
+    )
     assert [item["size"] for item in texts] == [19.0, 6.0]
     assert [item["color"] for item in texts] == [
-        "#E53935",
+        "#FFF589",
         "#FFFFFF",
     ]
     assert texts[0]["text"] == "世界冠军带你自律"
-    assert texts[0]["stroke_color"] == "#FFFFFF"
-    assert texts[0]["stroke_width"] == 0.06
+    assert texts[0]["stroke_color"] == ""
+    assert texts[0]["stroke_width"] == 0.0
     assert [item["opacity"] for item in texts] == [1.0, 0.5]
     assert texts[-1]["text"] == (
         "非医疗保健科普：仅供参考，个人经验分享，不代表普遍性\n"
@@ -57,7 +57,7 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
     ]
     assert [item.line_max_width for item in additions] == [0.92, 0.92]
     assert [item.font_id for item in additions] == ["font-id", "font-id"]
-    assert [item.stroke_width for item in additions] == [0.06, 0.04]
+    assert [item.stroke_width for item in additions] == [0.0, 0.0]
     assert [item.opacity for item in additions] == [1.0, 0.5]
 
     material = {
@@ -74,6 +74,46 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
         opacity=0.5,
     )
     assert material["global_alpha"] == 0.5
+
+
+def test_network_source_label_reuses_disclaimer_style_and_overlay_timing() -> None:
+    texts = build_source_attribution_texts(
+        [
+            {
+                "enabled": True,
+                "attribution_text": "素材来源于网络",
+                "start_us": 1_000_000,
+                "duration_us": 2_000_000,
+            },
+            {
+                "enabled": True,
+                "attribution_text": "素材来源于网络",
+                "start_us": 3_050_000,
+                "duration_us": 1_000_000,
+            },
+            {
+                "enabled": False,
+                "attribution_text": "素材来源于网络",
+                "start_us": 5_000_000,
+                "duration_us": 1_000_000,
+            },
+        ],
+        font={"resource_id": "font-id", "path": "D:/font.ttf", "name": "Fixed"},
+    )
+
+    assert len(texts) == 1
+    source = texts[0]
+    assert source["text"] == "素材来源于网络"
+    assert source["start_us"] == 1_000_000
+    assert source["duration_us"] == 3_050_000
+    assert source["transform_x"] == pytest.approx(0.72)
+    assert source["transform_y"] == pytest.approx(0.90)
+    assert source["align"] == 2
+    assert source["size"] == 6.0
+    assert source["scale"] == 1.0
+    assert source["color"] == "#FFFFFF"
+    assert source["opacity"] == 0.5
+    assert source["font_id"] == "font-id"
 
 
 def test_top_title_rejects_multiline_overflow() -> None:
@@ -133,6 +173,13 @@ def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> Non
     assert cover["line_2_color"] == "#F5F6F0"
     assert cover["line_1_y"] == pytest.approx(-160 / 1920)
     assert cover["line_2_y"] == pytest.approx(-655 / 1920)
-    assert cover["overlay_y_ratio"] == pytest.approx(0.609375)
-    assert cover["line_1_shadow_alpha"] == 0.9
-    assert cover["line_2_shadow_alpha"] == 0.5
+    assert cover["overlay_y_ratio"] == pytest.approx(0.625)
+    assert cover["overlay_height_ratio"] == pytest.approx(0.26)
+    assert cover["overlay_top_ratio"] == pytest.approx(0.495)
+    assert cover["overlay_bottom_ratio"] == pytest.approx(0.755)
+    assert cover["text_scale"] == pytest.approx(1.1045453049181124)
+    assert cover["auto_wrapping"] is False
+    assert cover["line_1_shadow_alpha"] == 1.0
+    assert cover["line_2_shadow_alpha"] == 1.0
+    assert cover["line_1_shadow_smoothing"] == pytest.approx(0.45000001788139343)
+    assert cover["line_2_shadow_smoothing"] == pytest.approx(0.45000001788139343)

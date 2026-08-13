@@ -1,6 +1,6 @@
 {
   "schema": "jyd_probe.font_asset.v1",
-  "exported_at": "2026-07-14T01:04:07",
+  "exported_at": "2026-08-12T17:39:24",
   "identity": "sha256:23c4c2392431725af8a8cf23b8e355c181ead687a43e79e842c9ae1647b293b2",
   "name": "zh-hans",
   "resource_id": "",
@@ -8,7 +8,7 @@
   "checksum_sha256": "23c4c2392431725af8a8cf23b8e355c181ead687a43e79e842c9ae1647b293b2",
   "size_bytes": 10227544,
   "file": "files/zh-hans_23c4c2392431725af8a8cf23.ttf",
-  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\font_library\\files\\zh-hans_23c4c2392431725af8a8cf23.ttf",
+  "absolute_path": "D:\\工作内容\\轻盈健\\公寓\\jyd_plain_json_probe\\data\\libraries\\font_library\\files\\zh-hans_23c4c2392431725af8a8cf23.ttf",
   "metadata_file": "metadata/zh-hans_23c4c2392431725af8a8cf23.json",
   "sources": [
     {
@@ -41,6 +41,33 @@
           "material_collection": "texts",
           "material_index": 3,
           "material_id": "c1ce60b395d14369ad220a0773f083de",
+          "json_pointer": "/font_path"
+        }
+      ]
+    },
+    {
+      "label": "D:\\工作内容\\轻盈健\\数字人\\.codex_tmp\\draft_specs_20260812\\decrypted\\规范站_decrypted_20260812_164527_817713da",
+      "source_path": "C:\\Users\\san\\AppData\\Local\\JianyingPro\\Apps\\8.9.0.13361\\Resources\\Font\\SystemFont\\zh-hans.ttf",
+      "references": [
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 25,
+          "material_id": "85094ACF-B28D-4288-A39D-86FF8537D28B",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 26,
+          "material_id": "7A73E097-0288-41a4-AA5F-98C6B07F68E1",
+          "json_pointer": "/font_path"
+        },
+        {
+          "scope": "top",
+          "material_collection": "texts",
+          "material_index": 27,
+          "material_id": "66F6AC27-59F4-4b84-BF3C-6A37681A8C4C",
           "json_pointer": "/font_path"
         }
       ]

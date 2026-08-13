@@ -81,6 +81,21 @@ try {
         throw "Build output directory was not found: $DistDir"
     }
 
+    if ($UpdateOnly -and (Test-Path -LiteralPath $DataDir)) {
+        $ResolvedDistDir = [System.IO.Path]::GetFullPath($DistDir).TrimEnd('\')
+        $ResolvedDataDir = [System.IO.Path]::GetFullPath($DataDir)
+        $ExpectedDataPrefix = $ResolvedDistDir + '\'
+        if (-not $ResolvedDataDir.StartsWith(
+            $ExpectedDataPrefix,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            throw "Refusing to remove update build data outside dist directory: $ResolvedDataDir"
+        }
+        # A previous full build can leave data in the reusable dist directory.
+        # Code-only updates must never inherit or package that stale data.
+        Remove-Item -LiteralPath $ResolvedDataDir -Recurse -Force
+    }
+
     if (-not $UpdateOnly) {
         if (-not $AsrBundleRoot) {
             $AsrBundleRoot = Join-Path $ProjectRoot "vendor\asr_runtime"
@@ -155,29 +170,6 @@ try {
         }
         $ProcessorConfig | ConvertTo-Json | Set-Content -LiteralPath $ProcessorConfigPath -Encoding UTF8
     }
-    if ($UpdateOnly) {
-        $SemanticVisualSource = Join-Path $ProjectRoot "data\libraries\semantic_visual_library"
-        if (-not (Test-Path -LiteralPath $SemanticVisualSource -PathType Container)) {
-            throw "Official semantic visual library was not found: $SemanticVisualSource"
-        }
-        $MusicProfileSource = Join-Path $ProjectRoot "data\libraries\audio_library\manifest\music_profiles.v1.json"
-        if (-not (Test-Path -LiteralPath $MusicProfileSource -PathType Leaf)) {
-            throw "Official music profile manifest was not found: $MusicProfileSource"
-        }
-        New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
-        Copy-Item -LiteralPath $SemanticVisualSource -Destination $LibrariesDir -Recurse -Force
-        $MusicProfileDestination = Join-Path $LibrariesDir "audio_library\manifest"
-        New-Item -ItemType Directory -Path $MusicProfileDestination -Force | Out-Null
-        Copy-Item -LiteralPath $MusicProfileSource -Destination $MusicProfileDestination -Force
-        $LayoutFontSource = Join-Path $ProjectRoot "data\libraries\font_library\files\FZCuJinLJW_7086699209738424840.ttf"
-        if (-not (Test-Path -LiteralPath $LayoutFontSource -PathType Leaf)) {
-            throw "Standing/seated layout font was not found: $LayoutFontSource"
-        }
-        $LayoutFontDestination = Join-Path $LibrariesDir "font_library\files"
-        New-Item -ItemType Directory -Path $LayoutFontDestination -Force | Out-Null
-        Copy-Item -LiteralPath $LayoutFontSource -Destination $LayoutFontDestination -Force
-    }
-
     $ToolsDir = Join-Path $DistDir "tools"
     New-Item -ItemType Directory -Path $ToolsDir -Force | Out-Null
     Copy-Item -LiteralPath $Draftc -Destination (Join-Path $ToolsDir "jy-draftc.exe") -Force
@@ -194,6 +186,10 @@ try {
     }
     Copy-Item -LiteralPath $ReadmeSource -Destination (Join-Path $DistDir "README-PROCESSOR.md") -Force
     Copy-Item -LiteralPath $ReadmeSource -Destination (Join-Path $DistDir "START-HERE.txt") -Force
+
+    if ($UpdateOnly -and (Test-Path -LiteralPath $DataDir)) {
+        throw "UpdateOnly package must not contain a data directory: $DataDir"
+    }
 
     $ArchiveArguments = @{
         SourceDirectory = $DistDir

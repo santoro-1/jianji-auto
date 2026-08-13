@@ -2332,17 +2332,6 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         safe_name = _safe_filename(original_filename or f"image{detected_suffix}")
         digest = hashlib.sha256(content).hexdigest()
-        try:
-            duplicate = project_store.find_input_image_duplicate(
-                owner_user_id=user["user_id"],
-                project_id=project_id,
-                filename=safe_name,
-                sha256=digest,
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="项目不存在") from exc
-        if duplicate is not None:
-            return duplicate
         stem = Path(safe_name).stem[:120] or "image"
         stored_filename = f"{uuid.uuid4().hex}_{stem}{detected_suffix}"
         directory = settings.storage_root / "new_projects" / project_id / "input_images"
@@ -2404,15 +2393,38 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         user = current_project_user(request)
         try:
+            image_ids = payload.get("image_ids")
+            if image_ids is not None and not isinstance(image_ids, list):
+                raise ValueError("image_ids 必须是图片 ID 数组")
             return project_store.apply_image_strategy(
                 user["user_id"],
                 project_id,
                 strategy=str(payload.get("strategy") or ""),
                 reuse_count=int(payload.get("reuse_count") or 1),
+                image_ids=image_ids,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
         except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/image-mapping-scope")
+    def set_new_project_image_mapping_scope(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        item_ids = payload.get("item_ids")
+        if not isinstance(item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是脚本行 ID 数组")
+        try:
+            return project_store.set_image_mapping_scope(
+                user["user_id"],
+                project_id,
+                item_ids=item_ids,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
+        except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.put("/api/new/projects/{project_id}/items/{item_id}/image")
@@ -2606,6 +2618,18 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                         "opacity",
                         "start_us",
                         "duration_us",
+                        "timing_source",
+                        "timing_mode",
+                        "sentence_char_start",
+                        "sentence_char_end",
+                        "sentence_text",
+                        "phrase_char_start",
+                        "phrase_char_end",
+                        "phrase_text",
+                        "list_index",
+                        "list_size",
+                        "segment_boundary_us",
+                        "usage",
                     )
                 } | {
                     "asset_name": asset["name"],
@@ -2625,7 +2649,6 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                             raw.get("source_start_us", defaults["source_start_us"])
                         ),
                         "mute": raw.get("mute", defaults["mute"]) is not False,
-                        "loop": raw.get("loop", defaults["loop"]) is True,
                         "fit": str(raw.get("fit") or defaults["fit"]),
                     }
                 )
@@ -3654,6 +3677,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 cover_title=cover_title,
                 layout_profile=layout_profile_id,
                 force_invalidate=payload.get("force_retry") is True,
+                preserve_auto_bgm=payload.get("preserve_auto_bgm") is True,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目或脚本行不存在") from exc
@@ -3998,9 +4022,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     @app.get("/api/new/projects/{project_id}/videos/download")
     def download_new_project_current_videos(
-        project_id: str, request: Request
+        project_id: str, request: Request, item_ids: str = ""
     ) -> FileResponse:
-        """Download every pre-variant current video in one temporary ZIP."""
+        """Download selected, or every, pre-variant current video in one temporary ZIP."""
 
         user = current_project_user(request)
         try:
@@ -4010,6 +4034,17 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         items = list(project.get("items") or [])
         if not items:
             raise HTTPException(status_code=409, detail="当前项目没有可下载的视频")
+        requested_ids = {
+            value.strip() for value in str(item_ids or "").split(",") if value.strip()
+        }
+        if requested_ids:
+            existing_ids = {str(item.get("item_id") or "") for item in items}
+            unknown_ids = requested_ids - existing_ids
+            if unknown_ids:
+                raise HTTPException(status_code=422, detail="下载范围包含不属于当前项目的任务")
+            items = [
+                item for item in items if str(item.get("item_id") or "") in requested_ids
+            ]
         selected: list[tuple[Path, str]] = []
         for item in items:
             video = (item.get("outputs") or {}).get("composition_video")

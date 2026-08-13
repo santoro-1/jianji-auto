@@ -76,6 +76,8 @@ def add_fullscreen_sticker_to_data(
     rotation: float = 0.0,
     opacity: float = 1.0,
     track_name: str = "",
+    transform_x: float | None = None,
+    transform_y: float | None = None,
     inside_canvas: bool = False,
     render_below_text: bool = False,
 ) -> int:
@@ -164,8 +166,19 @@ def add_fullscreen_sticker_to_data(
                 canvas_width=canvas_width,
                 canvas_height=canvas_height,
             )
-    elif scale != 1.0 or rotation != 0.0:
-        _update_clip_transform(segment_copy, scale=scale, rotation=rotation)
+    elif (
+        scale != 1.0
+        or rotation != 0.0
+        or transform_x is not None
+        or transform_y is not None
+    ):
+        _update_clip_transform(
+            segment_copy,
+            x=transform_x,
+            y=transform_y,
+            scale=scale,
+            rotation=rotation,
+        )
     new_track = {
             "id": _new_id(),
             "is_default_name": True,

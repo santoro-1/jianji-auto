@@ -1409,7 +1409,10 @@ class ProjectStore:
         top_title: dict[str, str] | None = None,
         cover_title: dict[str, str] | None = None,
         layout_profile: str | None = None,
+        automatic_bgm_volume: float | None = None,
+        bgm_loudness: dict[str, Any] | None = None,
         force_invalidate: bool = False,
+        preserve_auto_bgm: bool = False,
     ) -> dict[str, Any]:
         """Save editable subtitle/BGM settings and invalidate only final rendering."""
 
@@ -1429,6 +1432,12 @@ class ProjectStore:
             raise ValueError("顶部固定标题必须是对象")
         if cover_title is not None and not isinstance(cover_title, dict):
             raise ValueError("封面标题必须是对象")
+        if automatic_bgm_volume is not None and not (
+            0.0 <= float(automatic_bgm_volume) <= 1.0
+        ):
+            raise ValueError("自动 BGM 音量必须在 0 到 1 之间")
+        if bgm_loudness is not None and not isinstance(bgm_loudness, dict):
+            raise ValueError("BGM 响度快照必须是对象")
         clean_layout_profile = (
             normalize_layout_profile(layout_profile)
             if layout_profile is not None
@@ -1441,14 +1450,31 @@ class ProjectStore:
                 raise ValueError("当前脚本行正在生成，请等待完成后再修改字幕或 BGM")
             settings = _object(item["settings_json"], {})
             requested = dict(settings.get("postprocess") or {})
+            previous_bgm = str(requested.get("bgm_identity") or "")
+            preserve_saved_auto_bgm = bool(
+                preserve_auto_bgm
+                and clean_bgm_mode == "auto"
+                and str(requested.get("bgm_selection_mode") or "").strip().lower()
+                == "auto"
+            )
+            effective_bgm = previous_bgm if preserve_saved_auto_bgm else clean_bgm
             requested.update(
                 {
                     "font_identity": clean_font,
-                    "bgm_identity": clean_bgm,
+                    "bgm_identity": effective_bgm,
                     "bgm_selection_mode": clean_bgm_mode,
                     "text_color": clean_color,
                 }
             )
+            if not effective_bgm:
+                requested.pop("bgm_volume", None)
+                requested.pop("bgm_loudness", None)
+            elif automatic_bgm_volume is not None:
+                requested["bgm_volume"] = round(float(automatic_bgm_volume), 4)
+                requested["bgm_loudness"] = dict(bgm_loudness or {})
+            elif effective_bgm != previous_bgm:
+                requested.pop("bgm_volume", None)
+                requested.pop("bgm_loudness", None)
             if clean_layout_profile is not None:
                 requested["layout_profile"] = clean_layout_profile
             if top_title is not None:
@@ -1468,11 +1494,15 @@ class ProjectStore:
                     "schema": "jyd.project-music-selection.v1",
                     "status": "MANUAL",
                     "selection_source": "manual",
-                    "bgm_identity": clean_bgm or None,
+                    "bgm_identity": effective_bgm or None,
                     "reason_code": (
-                        "USER_SELECTED" if clean_bgm else "USER_SELECTED_NONE"
+                        "USER_SELECTED" if effective_bgm else "USER_SELECTED_NONE"
                     ),
                 }
+            elif preserve_saved_auto_bgm and isinstance(
+                requested.get("music_selection"), dict
+            ):
+                pass
             else:
                 requested["music_selection"] = {
                     "schema": "jyd.project-music-selection.v1",
@@ -1974,44 +2004,6 @@ class ProjectStore:
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
-    def find_input_image_duplicate(
-        self,
-        *,
-        owner_user_id: str,
-        project_id: str,
-        filename: str,
-        sha256: str,
-    ) -> dict[str, Any] | None:
-        """Return an existing project image with the same name or content hash."""
-
-        clean_filename = str(filename or "").strip()[:255]
-        clean_sha256 = str(sha256 or "").strip().lower()
-        with self._connect() as connection:
-            self._owned_project(connection, owner_user_id, project_id)
-            row = connection.execute(
-                """
-                SELECT * FROM project_input_images
-                WHERE project_id=?
-                  AND (filename = ? COLLATE NOCASE OR lower(sha256)=?)
-                ORDER BY CASE WHEN filename = ? COLLATE NOCASE THEN 0 ELSE 1 END,
-                         position
-                LIMIT 1
-                """,
-                (project_id, clean_filename, clean_sha256, clean_filename),
-            ).fetchone()
-            if row is None:
-                return None
-            payload = self._input_image_payload(row)
-            same_name = str(row["filename"]).casefold() == clean_filename.casefold()
-            same_content = str(row["sha256"]).lower() == clean_sha256
-            payload["deduplicated"] = True
-            payload["duplicate_reason"] = (
-                "filename_and_content"
-                if same_name and same_content
-                else "filename" if same_name else "content"
-            )
-            return payload
-
     def register_input_image(
         self,
         *,
@@ -2104,11 +2096,55 @@ class ProjectStore:
                 (project_id,),
             ).fetchall()
             matching_asset_id_set = set(matching_asset_ids)
+            frozen_asset_ids: set[str] = set()
+            frozen_image_sha256s: set[str] = set()
+            operation_rows = connection.execute(
+                """
+                SELECT payload_json
+                FROM project_operations
+                WHERE project_id=? AND operation_type='COMPOSITION_GENERATE'
+                """,
+                (project_id,),
+            ).fetchall()
+            for operation_row in operation_rows:
+                frozen_asset_id = str(
+                    _object(operation_row["payload_json"], {}).get(
+                        "input_image_asset_id"
+                    )
+                    or ""
+                )
+                if frozen_asset_id:
+                    frozen_asset_ids.add(frozen_asset_id)
+                frozen_image_sha256 = str(
+                    _object(operation_row["payload_json"], {}).get(
+                        "input_image_sha256"
+                    )
+                    or ""
+                ).strip().lower()
+                if frozen_image_sha256:
+                    frozen_image_sha256s.add(frozen_image_sha256)
+            if (
+                matching_asset_id_set & frozen_asset_ids
+                or str(row["sha256"] or "").strip().lower()
+                in frozen_image_sha256s
+            ):
+                raise ValueError("图片已被付费画面任务冻结，不能删除")
             affected_items = [
                 item
                 for item in items
                 if str(item["current_image_asset_id"] or "") in matching_asset_id_set
             ]
+            mapping_scope_ids = {
+                str(item["item_id"])
+                for item in items
+                if _object(item["settings_json"], {}).get("image_mapping_target")
+                is True
+            }
+            if mapping_scope_ids and any(
+                str(item["item_id"]) not in mapping_scope_ids
+                for item in affected_items
+            ):
+                raise ValueError("图片仍被换图范围外的脚本使用，不能删除")
             if any(str(item["status"]) in ACTIVE_ITEM_STATUSES for item in affected_items):
                 raise ValueError("图片正被生成中的脚本使用，请等待该行完成后再删除")
 
@@ -2191,6 +2227,7 @@ class ProjectStore:
         *,
         strategy: str,
         reuse_count: int = 1,
+        image_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         clean_strategy = str(strategy or "").strip().lower()
         if clean_strategy not in {"count", "loop"}:
@@ -2200,19 +2237,44 @@ class ProjectStore:
             raise ValueError("每张图片复用次数必须在 1 到 100 之间")
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_user_id, project_id)
-            self._require_editable_images(connection, project_id)
-            images = connection.execute(
+            all_images = connection.execute(
                 "SELECT * FROM project_input_images WHERE project_id=? ORDER BY position",
                 (project_id,),
             ).fetchall()
-            if not images:
+            if not all_images:
                 raise ValueError("请先上传至少一张图片")
+            if image_ids is None:
+                images = all_images
+            else:
+                clean_image_ids = list(
+                    dict.fromkeys(str(value or "").strip() for value in image_ids)
+                )
+                if not clean_image_ids or any(not value for value in clean_image_ids):
+                    raise ValueError("本次重新分配至少需要一张有效图片")
+                images_by_id = {
+                    str(row["image_id"]): row for row in all_images
+                }
+                if any(image_id not in images_by_id for image_id in clean_image_ids):
+                    raise ValueError("本次重新分配包含不属于当前项目的图片")
+                images = [images_by_id[image_id] for image_id in clean_image_ids]
             items = connection.execute(
                 "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
                 (project_id,),
             ).fetchall()
+            scoped_items = [
+                item
+                for item in items
+                if _object(item["settings_json"], {}).get("image_mapping_target")
+                is True
+            ]
+            mapping_items = scoped_items or items
+            if any(
+                str(item["status"]) not in IMAGE_EDITABLE_ITEM_STATUSES
+                for item in mapping_items
+            ):
+                raise ValueError("换图范围内有画面任务正在生成，请等待完成后再重新分配")
             now = _now()
-            for index, item in enumerate(items):
+            for index, item in enumerate(mapping_items):
                 image_index = index % len(images)
                 if clean_strategy == "count":
                     image_index = (index // safe_count) % len(images)
@@ -2227,6 +2289,7 @@ class ProjectStore:
             settings["image_mapping"] = {
                 "strategy": clean_strategy,
                 "reuse_count": safe_count,
+                "image_ids": [str(image["image_id"]) for image in images],
             }
             connection.execute(
                 """
@@ -2237,6 +2300,45 @@ class ProjectStore:
                 (_json(settings), now, project_id),
             )
             self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_image_mapping_scope(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        item_ids: list[str],
+    ) -> dict[str, Any]:
+        clean_item_ids = list(
+            dict.fromkeys(str(value or "").strip() for value in item_ids)
+        )
+        if any(not value for value in clean_item_ids):
+            raise ValueError("换图范围包含无效脚本行 ID")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            existing_ids = {str(row["item_id"]) for row in rows}
+            if any(item_id not in existing_ids for item_id in clean_item_ids):
+                raise KeyError("项目脚本行不存在")
+            target_ids = set(clean_item_ids)
+            now = _now()
+            for row in rows:
+                settings = _object(row["settings_json"], {})
+                if str(row["item_id"]) in target_ids:
+                    settings["image_mapping_target"] = True
+                else:
+                    settings.pop("image_mapping_target", None)
+                connection.execute(
+                    "UPDATE project_items SET settings_json=?, updated_at=? WHERE item_id=?",
+                    (_json(settings), now, row["item_id"]),
+                )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
         return self.get_project(owner_user_id, project_id)
 
     def replace_item_image(
@@ -3488,14 +3590,14 @@ class ProjectStore:
                 source_start_us = raw.get("source_start_us")
                 if type(source_start_us) is not int or source_start_us < 0:
                     raise ValueError("语义视频素材起始时间无效")
-                if not isinstance(raw.get("mute"), bool) or not isinstance(raw.get("loop"), bool):
-                    raise ValueError("语义视频静音或循环参数无效")
+                if not isinstance(raw.get("mute"), bool):
+                    raise ValueError("语义视频静音参数无效")
                 if raw.get("fit") not in {"cover", "contain"}:
                     raise ValueError("语义视频填充方式无效")
             seen.add(overlay_id)
             normalized.append(
                 {
-                    **raw,
+                    **{key: value for key, value in raw.items() if key != "loop"},
                     "overlay_id": overlay_id,
                     "asset_id": asset_id,
                     "concept_id": concept_id,
@@ -3537,6 +3639,15 @@ class ProjectStore:
                 "library_id": clean_library_id,
                 "catalog_version": catalog_version,
                 "media_policy": media_policy,
+                "timing_policy_version": "sentence-v1",
+                "used_asset_ids": sorted(
+                    {
+                        str(item.get("asset_id") or "")
+                        for item in normalized
+                        if item.get("enabled") is not False
+                        and str(item.get("asset_id") or "")
+                    }
+                ),
                 "overlays": normalized,
             }
             snapshot["bound_audio_asset_id"] = item["current_audio_asset_id"]
@@ -3683,18 +3794,6 @@ class ProjectStore:
         if not rows or any(str(row["status"]) != "DRAFT" for row in rows):
             raise ValueError("项目已进入声音生成，不能修改脚本")
 
-    @staticmethod
-    def _require_editable_images(
-        connection: sqlite3.Connection, project_id: str
-    ) -> None:
-        rows = connection.execute(
-            "SELECT status FROM project_items WHERE project_id=?", (project_id,)
-        ).fetchall()
-        if not rows or any(
-            str(row["status"]) not in IMAGE_EDITABLE_ITEM_STATUSES for row in rows
-        ):
-            raise ValueError("画面任务已经启动，当前不能修改图片")
-
     def _assign_input_image(
         self,
         connection: sqlite3.Connection,
@@ -3713,6 +3812,27 @@ class ProjectStore:
             if current is not None and _object(
                 current["external_ref_json"], {}
             ).get("input_image_id") == image["image_id"]:
+                return
+        current_asset_id = str(item["current_image_asset_id"] or "")
+        if current_asset_id:
+            current_asset = connection.execute(
+                """
+                SELECT external_ref_json
+                FROM project_assets
+                WHERE asset_id=? AND item_id=? AND asset_type='input_image'
+                """,
+                (current_asset_id, item["item_id"]),
+            ).fetchone()
+            if (
+                current_asset is not None
+                and str(
+                    _object(current_asset["external_ref_json"], {}).get(
+                        "input_image_id"
+                    )
+                    or ""
+                )
+                == str(image["image_id"])
+            ):
                 return
         version = int(
             connection.execute(
@@ -3977,14 +4097,19 @@ class ProjectStore:
                 if asset["asset_type"] == "original_video_segment"
             ]
             subtitles = _object(row["subtitles_json"], _default_subtitles())
+            item_settings = _object(row["settings_json"], {})
             item_payload = {
                 "item_id": row["item_id"],
                 "row_key": row["row_key"],
                 "position": int(row["position"]),
                 "script_text": row["script_text"],
                 "status": row["status"],
-                "settings": _object(row["settings_json"], {}),
-                "inputs": {"image": current_image},
+                "settings": item_settings,
+                "inputs": {
+                    "image": current_image,
+                    "image_mapping_target": item_settings.get("image_mapping_target")
+                    is True,
+                },
                 "outputs": {
                     "audio": current_audio,
                     "base_video": current_base_video,
@@ -4095,6 +4220,7 @@ class ProjectStore:
             "edit_inputs": status == "DRAFT",
             "delete_item": not active and analysis_status != "PENDING",
             "replace_image": status in IMAGE_EDITABLE_ITEM_STATUSES,
+            "set_image_mapping_target": True,
             "edit_postprocess": not active,
             "generate_audio": not active,
             "retry_audio": status == "AUDIO_FAILED",
@@ -4185,6 +4311,12 @@ class ProjectStore:
     @staticmethod
     def _project_actions(project: dict[str, Any]) -> dict[str, bool]:
         items = project["items"]
+        scoped_items = [
+            item
+            for item in items
+            if item.get("inputs", {}).get("image_mapping_target") is True
+        ]
+        mapping_items = scoped_items or items
         return {
             "edit_inputs": bool(items)
             and all(item["allowed_actions"]["edit_inputs"] for item in items),
@@ -4199,12 +4331,14 @@ class ProjectStore:
                 item["allowed_actions"]["retry_visual_analysis"] for item in items
             ),
             # Adding an unassigned image, or deleting an unused one, cannot mutate
-            # another row's frozen input. Per-row replacement remains guarded by
-            # that row; bulk remapping still requires every row to be editable.
+            # another row's frozen input. When a mapping scope exists, only its
+            # rows participate in later bulk remapping.
             "manage_input_images": bool(items),
             "apply_image_mapping": bool(project.get("input_images"))
-            and bool(items)
-            and all(item["allowed_actions"]["replace_image"] for item in items),
+            and bool(mapping_items)
+            and all(
+                item["allowed_actions"]["replace_image"] for item in mapping_items
+            ),
             "generate_audio": bool(items)
             and all(item["allowed_actions"]["generate_audio"] for item in items),
             "retry_audio": any(

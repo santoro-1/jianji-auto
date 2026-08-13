@@ -11,7 +11,8 @@ data/libraries/semantic_visual_library/
 ```
 
 `catalog.json` 使用统一图片/视频协议；工作台启动时一次性读取并严格校验目录，
-因此修改素材库后必须重启 Processor。`fixed/nameplate_zhangluo` 不属于语义 catalog，作为
+因此修改素材库后必须重启 Processor。`fixed/nameplate_zhangluo` 不属于语义 catalog；当前固定图为
+`人名板4.png` 的受控副本，作为
 每条项目视频的固定人名牌从正文第 1 帧显示到结束，默认位于左侧胸口区域、宽度约占画面
 46%；封面 3 帧不显示，也不得引用桌面原始路径。
 
@@ -38,10 +39,12 @@ bundles/<新目录>/
   resources/sticker/singleImage.png
 ```
 
-`sticker.json` 当前作为 bundle 完整性与历史兼容元数据保留；语义贴图和固定人名牌实际渲染
-会把 `resources/sticker/singleImage.png` 写成剪映 `photo` 素材，放在独立视频轨道上，不再写成
-剪映贴纸素材。若 `sticker.json` 还引用其他资源，仍须连同整个目录一起复制。然后在
-`catalog.json` 的 `assets` 数组增加 catalog v2 项：
+普通语义贴图会把 `resources/sticker/singleImage.png` 写成剪映 `photo` 素材并放在独立视频
+轨道上。站姿/坐姿固定人名板是例外：它们使用本地 bundle 的 `sticker.json`、`config.json`、
+`heycanInfo.json`、`infoSticker.lua` 和 `singleImage.png` 写成剪映原生 `sticker` 轨道，以保持
+规范草稿的原始缩放语义。若 `sticker.json` 还引用其他资源，仍须连同整个目录一起复制。然后在
+`catalog.json` 的 `assets` 数组增加素材项。下面的 catalog v2 是旧库兼容格式；新入库和再次
+打标应使用后文 catalog v3 完整字段：
 
 ```json
 {
@@ -58,7 +61,7 @@ bundles/<新目录>/
   },
   "defaults": {
     "corner": "bottom_center",
-    "scale": 0.78,
+    "scale": 0.56,
     "opacity": 1.0,
     "duration_us": 1800000
   }
@@ -89,7 +92,7 @@ catalog v2 项示例：
   "description": "人物在户外持续跑步的动作画面",
   "media_type": "video",
   "renderer": "video_overlay",
-  "tags": ["运动动作", "动态", "可循环"],
+  "tags": ["运动动作", "动态"],
   "resource": {
     "video": "videos/<新目录>/video.mp4",
     "preview": "videos/<新目录>/poster.png",
@@ -112,6 +115,120 @@ catalog v2 项示例：
 }
 ```
 
+## catalog v3 语义与用途合同
+
+工作台同时兼容 catalog v1、v2 和 v3。v2 保持严格 9 字段校验，不允许把新字段直接追加到
+旧 schema；v3 在相同图片/视频资源字段上增加以下必填字段：
+
+```json
+{
+  "schema": "jyd.semantic-visual-catalog.v3",
+  "concept_ids": ["food.fish"],
+  "semantic_roles": {
+    "depicts": ["food.fish"],
+    "expresses": [],
+    "related": ["nutrition.protein"]
+  },
+  "auto_trigger_concept_ids": ["food.fish"],
+  "trigger_basis": {"food.fish": "exact_subject"},
+  "visual_actions": [],
+  "usage_modes": ["semantic_overlay", "list_quick_cut"],
+  "cleanliness_grade": "A",
+  "auto_eligible": true,
+  "requires_clip": false,
+  "loop_allowed": false,
+  "rights_status": "cleared",
+  "person_status": "none",
+  "brand_status": "none",
+  "health_claim_status": "none",
+  "platform_ui_status": "none"
+}
+```
+
+上例只展示 v3 新字段，仍须保留 v2 的 `asset_id/name/description/media_type/renderer/tags/resource/defaults`。
+强制约束如下：
+
+- `concept_ids` 必须与 `auto_trigger_concept_ids` 完全一致；不得由所有 depicts/expresses 自动求并集。
+- `auto_trigger_concept_ids` 必须来自 `depicts` 或 `expresses`，且每项都有合法 `trigger_basis`。
+- `related` 永不参与自动匹配；三种语义角色互斥。
+- `auto_eligible=false` 的素材不会产生内容分析候选，也不会被本地选材器选中。
+- `manual_only` 必须是唯一 usage mode，可以保留 depicts/related，并允许自动 concept 列表为空。
+- v3 只根据 `usage_modes` 判断全屏/接缝空镜；旧 `相关素材/b-roll/enrichment` tags 仅作为 v2 回退。
+- `rights_status=unknown/restricted` 的自动素材不得声明 `full_screen_broll` 或 `seam_broll`。
+- 图片不得声明全屏 B-roll 或接缝 B-roll；`seam_broll` 只能是视频。历史 `loop` / `loop_allowed`
+  字段仅用于 catalog v2/v3 结构兼容，当前产品不会循环任何语义视频。
+
+## 分级语义标签与图片/视频差异召回（本地已实现）
+
+> 状态：2026-08-13 已在本地工作台完成 catalog v3 分层迁移与调度回归，尚未部署生产环境。
+> 927 张图片不含 `video_taxonomy`，继续只按 L3 精确概念召回；451 条视频保存 L1/L2/L3、
+> 动作和场景元数据，其中 136 条视频通过显式白名单获得宽语义空镜回退资格。
+
+素材语义不能只使用一棵宽泛标签树。正式打标分为“内容层级”和“画面侧标签”两部分：
+
+```text
+内容层级
+L1 领域：食物 / 饮品 / 运动 / 日常活动 / 居家生活
+L2 类别：汤类 / 早餐 / 水果 / 轻活动 / 居家做饭 / 购物
+L3 精确：西兰花豆腐汤 / 白灼虾 / 骑自行车 / 倒牛奶
+
+独立画面侧标签
+动作：煮、盛、倒、切、散步、骑车、打球
+场景：厨房、餐桌、客厅、超市、公园、步道
+```
+
+L1 只用于管理、统计和人工筛选，永不直接产生自动素材。L2 是视频专用分类字段；只有映射到
+显式 `fallback_concept_ids` 的安全宽语义才可作为空镜回退，食物、菜品和饮品的 L2 只归档、不
+自动触发。L3 是图片和视频共同的精确命中层。动作、场景不是 L1-L3 的子级，一个视频可以同时具有
+“汤类 + 盛汤 + 厨房”三个事实标签。
+
+### 媒体触发规则
+
+| 媒体与用途 | L3 精确 | L2 类别回退 | L1 领域 | 动作/场景 |
+| --- | --- | --- | --- | --- |
+| 图片普通贴图 | 允许且必须优先 | 禁止 | 禁止 | 仅画面确实是动作示意图时精确命中 |
+| 图片列举速切 | 允许 | 禁止 | 禁止 | 不参与宽泛回退 |
+| 视频明确语义 | 优先 | 精确素材不存在时可回退 | 禁止 | 文案明确提到时允许 |
+| 视频普通空镜 | 优先 | 允许白名单回退 | 禁止 | 允许白名单回退 |
+| 视频接缝空镜 | 优先 | 允许白名单回退 | 禁止 | 允许白名单回退 |
+
+图片的“精确”是画面事实精确，不等于文件名必须逐字相同。比如西兰花豆腐汤图片可以审核
+“西兰花豆腐汤 / 西兰花汤 / 豆腐汤”等确实与画面一致的完整对象短语，但不能因为画面里有
+西兰花就响应“蔬菜”，也不能因为豆腐含蛋白质就响应“蛋白质”。同理，鱼、鸡蛋、肉类与
+`nutrition.protein` 只能是知识关联，不能建立自动父子回退；“蛋白质”只有蛋白质知识卡、
+成分示意等直接表达该抽象概念的素材才可自动命中。
+
+视频允许比图片宽，但必须是经过审核的“可代表性”回退。例如：
+
+- 文案“西兰花豆腐汤”只命中同菜品或同义完整对象的精确素材，不因“汤类”归档回退到其他汤。
+- 文案“喝点汤”只有存在直接登记为该宽语义的获准视频时才可命中，不从任意具体菜品向上推导。
+- 文案“饭后轻活动一下”可使用散步、逛超市等明确登记为轻活动代表的视频，不能回退到
+  跑步、深蹲、健身房高强度训练。
+- 文案“运动一下”不会仅凭 L1“运动”随机插入视频；缺少更具体的 L2、动作或场景时保留
+  数字人原画面。
+
+### 回退顺序与失败行为
+
+一次视频选材依次尝试：
+
+1. 同一语句或接缝对应语句中的 L3 精确概念；
+2. 文案明确出现的动作或场景概念；
+3. 该 L3/L2 关系中人工批准的 L2 视频回退白名单；
+4. 没有可用、未重复且用途相符的视频时，不插空镜，保留原始拼接或数字人口播画面。
+
+二级回退不得通过字符串前缀或任意祖先自动推导，必须由受控关系或素材自身获准的回退概念
+明确声明。素材仍受 `usage_modes`、版权、人物、品牌、健康声明、平台 UI、全视频
+`used_asset_ids` 和时间密度共同约束；层级命中不能绕过任何安全门槛。
+
+### 本地迁移验收结果
+
+- 所有自动图片只能从 L3 精确概念召回，抽样中不得出现抽象营养词命中具体食物图片。
+- 所有 L2 回退资产必须是视频，且明确获准 `full_screen_broll` 或 `seam_broll` 等对应用途。
+- 同一短语只有一个自动概念所有者；同义词归并后仍保留多个素材轮换，不复制概念。
+- 日常轻活动、备餐、办公、通勤、居家、城市、自然和常用运动具有可验证的视频回退池；汤类、
+  早餐、喝水等食物饮品只验证 L3 精确池，不开放 L2 同类替换。
+- 验收同时覆盖精确优先、二级命中、禁止跨类回退、无素材保留原拼接、全视频素材去重和单次播放。
+
 `corner=center + scale>=0.95` 作为全屏 B-roll：轨道位于固定人名牌上方、字幕下方，因此会
 自然遮住人名牌，不需要隐藏/恢复事件。其他位置作为小窗视频，位于固定人名牌下方。视频默认
 静音；动作 concept 在同时存在图片和视频时优先视频，无视频时回退图片。
@@ -121,14 +238,34 @@ catalog v2 项示例：
 `asset_id`，分别引用同一 `video.mp4` 的不同源区间和标签。只有源文件难以稳定 seek、解码异常
 或必须独立发布时，才另行物理切片。
 
-需要作为相关素材或空镜参与 20～30 秒视觉空窗补充时，必须在 `tags` 中显式加入 `空镜`、
-`相关素材`、`b-roll`、`broll` 或 `enrichment` 之一。没有这些标签的普通图片/动作素材只会按
-明确语义触发。明确语义触发在存在普通素材时不会误选 enrichment 专用素材；空窗补充则只从
-上述显式标签的素材中选择。enrichment 候选不会增加第二次模型调用，且每 60 秒最多采用 2 条。
+catalog v3 需要参与普通全屏空镜或拼接点空镜时，分别声明 `full_screen_broll` 或
+`seam_broll`；仅有知识相关关系时写入 `semantic_roles.related`，不得写空镜用途。catalog v2
+仍使用 `空镜`、`相关素材`、`b-roll`、`broll` 或 `enrichment` tags 作为兼容开关，但这些
+tags 在旧实现中的含义是“允许自动空窗”，不是 v3 的非自动 related。明确语义触发在存在普通
+素材时不会误选空镜专用素材；空窗候选不会增加第二次模型调用。
 
-当前默认库包含 37 个概念、40 个资产（38 张图片、2 条视频）。两条视频都从
-`D:\迅雷下载\贴图素材-巧如\贴图1\视频素材\腹部核心燃脂操` 复制进入受控库，原文件不修改，
-且未导入 `爆款动作.mp4`：
+## sentence-v1 自动编排合同
+
+- 普通句素材从关键词所在标点句段开头开始，到句段结束；不足 2 秒时延长到 2 秒，成片末尾
+  可以自然截短。
+- 顿号 `、` 不切句。同一句段至少两个入选项目时，按关键词语音中心顺序切分整个句段；每项
+  可以短于 2 秒。缺少素材的列举项被跳过后，其余项重新分配完整句段。
+- 每条最终成片的自动 overlays 按 `asset_id` 全局去重；已启用手工锁定项先登记，首选已用或
+  资源文件失效时继续尝试同概念下一个获准候选，全部用尽则跳过。
+- v3 用途严格隔离：`semantic_overlay/action_demo/knowledge_card` 用于普通句，
+  `list_quick_cut` 用于列举，`full_screen_broll` 用于通用空镜，`seam_broll` 用于数字人接缝。
+  v2 仅为兼容，继续用 enrichment tags 判断通用及接缝视频资格。
+- 通用空镜每 50 字生成一个候选锚点、单条最多 12 个；实际调度至少留 8 秒空窗，每分钟最多
+  4 条。为保持云端紧凑合同，每个锚点最多携带 8 个概念；连续锚点按稳定轮换分发全部获准
+  空镜概念，不再永久只取排序最前的 8 个。手工锁定、接缝、明确语义、通用空镜依次占位。
+- 视频目标区间超过源片可用区间时，只播放从 `source_start_us` 起的剩余内容并提前结束，
+  不循环也不定格；该资产仍不允许在同一成片的其他时间再次自动出现。
+
+当前本地审核库包含 921 个概念、1378 个资产；其中完整候选池逐条审核后新增 432 条视频与
+737 张图片，39 条视频保存逻辑裁剪区间，431 条视频具有接缝空镜用途。视频分层迁移后共 451
+条视频具备 `video_taxonomy`，其中 136 条具有显式宽语义回退白名单；927 张图片未增加 L1/L2
+字段。该状态仅应用于本地工作台，未部署生产。最初两条动作视频来自
+`D:\迅雷下载\贴图素材-巧如\贴图1\视频素材\腹部核心燃脂操`，且未导入 `爆款动作.mp4`：
 
 - `activity.aerobic.crotch_clap.video.01`：胯下击掌动作，源片从 0 秒取 4 秒，作为底部中轴小窗，
   供“胯下击掌/有氧操/燃脂操”等明确语义使用。
@@ -144,9 +281,26 @@ D:\Myanaconda\python.exe -m pytest -q -p no:cacheprovider tests\test_semantic_vi
 
 ## 从整个素材库停用或删除素材
 
-当前清单没有 `enabled` 字段。要阻止新项目继续选择某项素材，可从 `catalog.json` 的
-`assets` 数组移除对应项后重启工作台，但应继续保留原 bundle 目录。历史冻结配方保存了
-bundle 路径，提前删除物理目录会让旧项目缺图。
+catalog v2 没有 `enabled` 字段；要阻止新项目选择，只能从清单移除。catalog v3 可设置
+`auto_eligible=false` 并把 `usage_modes` 收紧为 `manual_only`，这样保留人工检索与历史追溯，
+但不产生自动候选。两种 schema 都应继续保留原 bundle 目录；历史冻结配方保存了 bundle
+路径，提前删除物理目录会让旧项目缺图。
+
+## v3 迁移与回滚
+
+迁移产物必须包含原 catalog 备份、v3 候选和 migration manifest。先运行只读校验：
+
+```powershell
+$env:PYTHONPATH='src'
+D:\Myanaconda\python.exe -m jyd_probe.semantic_visual_migration validate <migration-manifest.json>
+```
+
+人工补齐授权/人物/品牌/健康表达字段并确认候选后，把 manifest 的 `approval.status` 改为
+`approved`，同时填写非空 `approved_by` 和 `approved_at`，才可执行 `apply`。默认生成值为
+`pending`，工具会拒绝应用。工具还会核对正式 catalog、
+备份和候选的 SHA-256；任一文件在审计后变化就拒绝覆盖。需要恢复时执行 `rollback`，同样要求
+当前正式文件哈希仍等于 manifest 中记录的 v3 候选哈希。迁移使用同目录临时文件和原子替换，
+不会在校验失败时留下半写 catalog。未经人工审核，不得直接把自动生成候选应用到正式库。
 
 只有确认所有历史项目、历史版本和待执行任务都不再引用该 `asset_id` 后，才能物理删除
 bundle。当前 MVP 没有跨全部项目的安全清理界面，因此默认不执行物理删除；需要彻底清理时
@@ -157,10 +311,10 @@ bundle。当前 MVP 没有跨全部项目的安全清理界面，因此默认不
 - 路径必须位于语义素材库目录内，不能使用绝对路径或 `..` 越界。
 - 每个 bundle 必须存在，预览图片必须存在，且 bundle 根目录必须含 `sticker.json`。
 - 图片与小窗视频允许左上、右上、左下、右下、底部居中或居中。`bottom_center` 是口播默认：
-  横向与画面中轴对齐，动作视频约占 61.5% 画面宽度；较高的食物图约占 78% 宽度，最多
+  横向与画面中轴对齐，动作视频约占 61.5% 画面宽度；语义图片默认约占 56% 画面宽度，最多
   显示约 37% 画面高度，超出的底部允许裁出画面。浏览器与剪映使用同一换算。
 - `default_scale` 范围是 `0.05` 到 `2.0`；透明度范围是 `0` 到 `1`。
 - 视频文件、poster 和可选 metadata 必须都在素材库内；登记的时长、宽高、音轨必须来自实际探测。
-- 视频默认 `mute=true`，`fit` 只允许 `cover` 或 `contain`；非循环默认截取不能越过源视频结尾。
+- 视频默认 `mute=true`，`fit` 只允许 `cover` 或 `contain`；播放区间不能越过源视频结尾。
 - 目录内容变化会改变 `catalog_version`，下一次统一内容分析会使用新候选；已有计划不能误命中
   旧 catalog 缓存，人工锁定项不会被静默覆盖。

@@ -139,6 +139,7 @@ class AudioLoopTest(unittest.TestCase):
         self.assertTrue(bgm_additions[0].loop_to_target)
         self.assertEqual(bgm_additions[0].target_duration_us, 25_000_000)
         self.assertFalse(plain_additions[0].loop_to_target)
+        self.assertEqual(plain_additions[0].target_duration_us, 25_000_000)
 
 
 if __name__ == "__main__":

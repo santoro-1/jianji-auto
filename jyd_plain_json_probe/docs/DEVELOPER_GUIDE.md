@@ -415,6 +415,9 @@ data/template_library/<template_id>/
 - 费用确认显式显示当前“一控多/双池”。云端 `composition.execution_assignments` 的安全逐分段
   摘要在启动与每次轮询时复制到 `COMPOSITION_GENERATE.result`；表格据此显示实际账号，未预留
   阶段显示“待分配”。账号名称仅用于操作定位，Key、指纹、Base URL 和 App ID 不进入本地。
+- 账号清单中的 `account.balance` 是云端 `accountStatus` 缓存的安全摘要。前端只显示
+  `remain_coins` 和缓存新鲜度；缺失时显示“RH 币未知”，不得自行调用 RunningHub、推算余额，
+  也不得因为摘要未知而改变本次默认勾选。
 
 ## 8. API 与状态存储
 
@@ -434,7 +437,11 @@ data/template_library/<template_id>/
   采用追加语义，已有行进入生成后仍可新增独立草稿行，不得退化为整项目 `PUT inputs`。
 - `/api/new/script-imports/preview`：严格解析两列 `.xlsx`/`.csv` 脚本。
 - `/api/new/projects/{id}/images*`、`image-mapping`：项目图片池、逐行图片版本和后端分配策略；
-  上传按项目内同名或相同 SHA-256 幂等，删除已分配图片时对非运行行自动改用剩余图片。
+  文件选择器本次返回的每个文件都创建新的项目图片记录，不按文件名或 SHA-256 跳过；删除已
+  分配图片时对非运行行自动改用剩余图片。
+- `/api/new/projects/{id}/image-mapping-scope`：把选中脚本行保存为本次人物图换图范围，空数组
+  清除范围。范围保存于既有行级 `settings_json.image_mapping_target`，不升级 schema；范围非空时
+  批量映射只处理范围内行，且可用 `image_ids` 限制为刚上传的一组项目内部图片 ID。
 - `/api/new/voices*`、`/api/new/voice-creations*`：当前数字人账号的官方/自定义音色、试听和声音制作。
 - `/api/new/voices/{id}/activate`、`DELETE /api/new/voices/{id}`：显式激活或移除自定义音色卡。
 - `/api/new/projects/{id}/voice`：原子地把已保存音色设为项目默认值并应用到全部脚本行。
@@ -501,7 +508,10 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 切分统一保护数字与量词表达式，避免出现“十 / 年”“5 万 / 名”这类字幕断裂。
 普通 4B 立即把 `base_video`、render cues、字体和 BGM 登记为浏览器预览配方，不向
 `RenderJobQueue` 提交任务。固定参数为居中、画面宽度 `0.8`、`transform_y=-850/1920`
-（剪映 1080×1920 参考位置 Y=-850）、`DouyinSansBold` 14 号、默认白字、黑色 `0.06` 描边、BGM 音量 0.3。
+（剪映 1080×1920 参考位置 Y=-850）、`DouyinSansBold` 14 号、默认白字、黑色 `0.06` 描边。
+BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人声和曲目综合响度，目标
+为音乐低于人声 14 dB，线性音量限制在 `0.08..0.25`，失败回退 `0.18`。结果冻结到
+`postprocess.bgm_volume` / `bgm_loudness`，浏览器预览、普通导出和变体共用；不接受前端人工音量参数。
 浏览器直接读取同一冻结样式，不得为溢出字幕临时缩字；
 无法可靠排版时状态为 `REVIEW_REQUIRED`，不会静默显示溢出字幕。只有用户明确下载普通
 成片时才调用 `postprocess/export` 提交一次剪映任务。后续变体必须把基础/上传视频与已
@@ -516,7 +526,9 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 微秒剪映原生叠化，画面、权威语音、字幕、BGM 和封面共享同一绝对时间轴。
 
 项目封面属于 4B 后处理冻结配方，不属于模块 6。`postprocess.cover_title` 保存两行、每行最多
-5 字的文案；普通导出与所有变体统一调用 `build_project_cover()`，以当前上传人物图作为底图，
+5 字的文案；普通导出与所有变体统一调用 `build_project_cover()`。存在基础视频时按其冻结的
+`input_image_sha256` 从当前图和 `asset_history.input_image` 回溯原图作为底图，
+匹配原图缺失时拒绝生成可能错配的封面；没有冻结哈希的旧数据才使用当前上传人物图。
 固定 3 帧、思源粗宋和受控视觉参数。变体请求不能自定义封面。标题为空时不生成占位封面。
 浏览器动态预览在时间轴开头显示同一人物图、两行标题和固定视觉参数；“刷新动态预览”只
 重算浏览器配方，不伪装成 MP4 导出。标题或后处理设置使旧成片指针失效时，页面明确显示
@@ -533,6 +545,15 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 继续在相邻列直接选择。修改任一设置只把对应脚本行退回 `BASE_VIDEO_READY` 并保留
 `base_video`、付费任务和历史成片。前端用同一个 `POST /postprocess/generate` 仅提交该行
 `item_id`，即可重新派生字幕并刷新浏览器 BGM 预览；服务端只处理请求中明确列出的脚本行。
+批量工具栏的“刷新预览”复用同一契约：有勾选时使用选中行，否则使用当前批次全部
+`base_video` 已存在且不在运行中的行。前端先逐行以 `force_retry=true` 失效旧 4B 配方，再用
+一个 `/postprocess/generate` 请求提交明确的 `item_id` 列表，因此字幕断句、ASR 时间绑定、
+自动 BGM 选择和封面会按当前代码重算，但不会调用 MiniMax、RunningHub 或剪映导出。
+同一工具栏的“下载视频”把目标行 ID 编码为 `GET /videos/download?item_ids=id1,id2`。后端校验
+所有 ID 都属于当前项目并按项目行顺序打包；省略参数继续打包项目全部当前普通成片。
+姿态或字幕样式保存提交 `preserve_auto_bgm=true`。当新旧模式都是 `auto` 时，Store 保留当前
+`bgm_identity`、`music_selection`、`bgm_volume` 与 `bgm_loudness`，但仍使旧成片失效；批量刷新
+预览不提交该标志，因此会按当前算法重新选择和测量音乐。
 字幕效果卡固定显示“这是字幕预览”，不绑定脚本或 render cue。BGM 下拉框隐藏内部 `auto`
 哨兵：自动 Top1 成功时直接显示解析后的具体曲目，尚无解析结果时显示“无音乐”；提交时仍
 保留既有 `bgm_selection_mode=auto`。单行分析按钮在请求开始后立即切换为“AI 分析中”，成功
@@ -579,6 +600,11 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 可按显示序号、原 `row_key` 或数字范围快速建立选择。选中统一分析使用 `force_refresh=true`；
 选中声音通过 audio `item_ids`；选中画面通过 composition `item_ids`，已有 `base_video` 的行
 直接进入选中 4B 参数列表。图片、音频或执行条件不足的选中行会在提交付费请求前整体提示。
+表格选择还可把所选行锁定为本次人物图换图范围，例如将第 11-30 行设为目标后，前 10 行不再
+参与本批分配。人物图上传按当前表格选择分支：未勾选任何行时清除残留换图范围，继续按原有
+全项目图片池规则分配给全部可编辑行；勾选行时则先把当前所选行保存为精确换图范围，再为文件
+选择器返回的每个本地文件创建新图片，并只把这些新 `image_ids` 交给该范围的批量映射。后端从
+目标范围第 1 行重新计数并保存本批图片 ID，刷新或修改 count/loop 时不会混入此前图片池。
 
 `semantic_subtitles.py` 负责智能内容分析模块 6。工作台再次拒绝带大模型时间字段、未连续
 覆盖原文或语义属性非法的 `subtitle_units`；MiniMax cue 文本允许省略原文空格/换行，但
@@ -709,10 +735,10 @@ python -m pytest -q .\tests\test_visual_variant.py
 .\scripts\build\build_processor.ps1 -UpdateOnly -CompressionLevel Fastest
 ```
 
-`UpdateOnly` 只携带受控的官方 `data/libraries/semantic_visual_library` 和
-`data/libraries/audio_library/manifest/music_profiles.v1.json`，可同步语义贴图代码、官方
-贴图素材和音乐语义标签；它不会携带音乐文件、音频素材清单，也不会携带或删除目标机账户、
-任务、配置、个人素材库、其他公共素材库及 ASR 运行时。
+`UpdateOnly` 是纯程序更新包，只携带重新构建的 Processor、内嵌前端、工具和更新说明；
+构建脚本会清除复用 dist 中残留的 `data` 并在压缩前做硬断言。它不会携带或删除目标机的
+语义素材、音乐、字体、模板、账户、任务、配置、数据库、个人素材库或 ASR 运行时。
+公共素材首次交付使用完整包；素材增量应使用独立、可审核的素材包。
 
 完整 Processor 构建会复制 `data/libraries` 中受支持的公共素材和 `data/template_library`。运行实例后来采集的 `data/personal_libraries` 默认属于实例数据，交付前如需预装，必须显式复制并验证 manifest 和 bundle 都存在。
 
@@ -852,33 +878,62 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   `project_audio.py` 只重新执行本地字符时间映射和冻结配方，不再次调用 Ark。
 - 浏览器播放预览和 `project_postprocess.py` / `project_variants.py` 的 4B 冻结任务读取同一
   `mixed` 配方。`image_apply.py` 写入真实 photo 轨道，`video_overlay_apply.py` 写入原生 video
-  material/segment，支持源片截取、静音、循环、cover/contain；单项失败按 optional 跳过。
+  material/segment，支持源片截取、静音、cover/contain；单项失败按 optional 跳过。语义视频
+  始终只播放一次，源片不足目标区间时按剩余可用时长提前结束。
 - 自动贴图先把命中关键词扩展到它所在的标点分句（逗号、句号、问号、感叹号、分号、冒号
   或换行），再优先使用当前音频绑定的 FunASR 字词时间取得该分句的真实开始和结束；未完成
-  ASR 时使用 MiniMax raw cue 字符插值回退。素材在该分句开始时出现、说完时结束，不再使用
-  关键词前 300ms、开场 1.2 秒保护或固定 1.5～2.5 秒时长。相邻分句只要求时间不重叠，不再
-  强制额外开始间隔；每 60 秒最多 24 条，同 concept/asset 仍保持 20 秒去重。后处理得到精确
+  ASR 时使用 MiniMax raw cue 字符插值回退。普通素材在该分句开始时出现、说完时结束，短于
+  2 秒时延长到 2 秒，但不得越过成片末尾；不再使用关键词前 300ms、开场保护或固定短时长。
+  同句至少两个入选语义且相邻项目由顿号连接时，整个句段按关键词语音中心点顺序速切，单项
+  不做 2 秒保底。相邻分句只要求时间不重叠；每 60 秒全部自动视觉最多 24 条，同 concept 保留
+  20 秒密度冷却，同一 `asset_id` 改为整条成片最多自动使用一次。后处理得到精确
   ASR 后会只在本地重绑
   未锁定自动配方，不再次调用 Ark。未人工锁定的自动项在预览和渲染时
   刷新素材库当前默认资源、位置、缩放和透明度，人工/锁定项保持冻结值。
-- `semantic_visual_library/fixed/nameplate_zhangluo` 是每条视频自动携带的固定人名牌，不新增
-  表格列。渲染任务通过 `fixed_overlays` 在语义图之后写入“固定人名牌”轨道并覆盖完整时长；
-  当前受控 PNG 以草稿 `jyd_eab56dad6e7e` 的启用版为基准，固定参数为
-  `scale=0.60`、`transform_x=-0.40`（左边缘与画面贴齐）、`transform_y=-0.26`；
+- `semantic_visual_library/fixed/nameplate_standing` 和 `nameplate_seated` 是每条视频自动携带的
+  两套固定人名板。渲染任务通过 `fixed_overlays` 写入剪映原生贴纸轨道并覆盖完整正文时长；
+  站姿/坐姿的原始贴纸缩放、旋转、位置及三层文字参数由 `layout_profiles.py` 分别冻结，避免
+  透明方形 PNG 按照片缩放造成底板与文字错位。
+- 项目独立 MiniMax 语音统一带 `fit_to_video=true`；渲染入口按源草稿主视频时长同时裁切语音
+  和 `duration_us=0` 的固定贴层，不能再以音频文件的原生编码时长反向延长成片。
   字幕仍为最高层。`layer_order` 统一保证
   `下方图片/小窗视频 < 固定人名牌 < 全屏 B-roll < 字幕`；全屏 B-roll 自然覆盖人名牌，不生成
   隐藏和恢复状态。浏览器使用同一层级和鉴权视频内容接口。
 - 新版表格把“语义视觉”保持在 BGM、字幕的配置区域，并将“单条生成”移到最右侧；审核
   弹窗的“移除本行”只修改当前行配方，不删除素材库文件。全局图库新增、停用和物理删除
   保护规则见 `docs/SEMANTIC_VISUAL_LIBRARY.md`。
-- 只有 catalog 明确标记为空镜/相关素材的 asset 才产生 enrichment 锚点；锚点输入显式携带
+- catalog v3 严格按用途选材：普通句只接受 `semantic_overlay/action_demo/knowledge_card`，
+  顿号速切只接受 `list_quick_cut`，通用空镜只接受 `full_screen_broll`，拼接点只接受
+  `seam_broll`；v2 继续兼容 `空镜/相关素材/b-roll/enrichment` tags。v3 的
+  `semantic_roles.related` 是非自动关系，不能作为空镜开关。锚点输入显式携带
   `usage=enrichment` 和所在短语上下文，模型必须返回 priority 2 才允许自动使用，priority 0/1
-  只供审核。明确素材先调度，
-  MiniMax 实际时间轴连续空窗至少 20 秒后才允许补充，每 60 秒最多 2 条。明确触发优先选择
-  非 enrichment 资产，空窗补充只选择带标签资产，两者仍在一次模型调用内完成。
+  只供审核。拼接点空镜、明确素材先调度，MiniMax 实际时间轴连续空窗至少 8 秒后才允许补充，
+  每 60 秒最多 4 条；通用锚点每 50 字一个、单条最多 12 个。明确触发优先选择
+  非 enrichment 资产，空窗补充只选择获准用途的资产，两者仍在一次模型调用内完成。
+- `project_video_source.py` 从当前 `source_task_ids` 绑定的最新原始数字人分段读取边界和下一段
+  脚本；4B 在 ASR/raw cues 已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频
+  时从边界开始生成 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
+  保留。配方先登记手工锁定项，再按接缝、显式语义、通用空镜的顺序占位和更新
+  `used_asset_ids`。视频源短于冻结目标区间时，浏览器预览和渲染器都会让该 overlay 提前结束，
+  不循环也不定格补足。
+- 工作台加载器同时支持严格 catalog v2 和完整 catalog v3。v3 强制
+  `concept_ids == auto_trigger_concept_ids`，自动关系只能来自互斥的 depicts/expresses，且每项
+  必须给出 `trigger_basis`；`auto_eligible=false` 的概念不会进入模型候选或本地选材。未知或
+  受限授权的素材不得自动全屏。迁移使用 `semantic_visual_migration.py` 校验源库、备份和候选
+  SHA-256，并提供哈希保护的原子 apply/rollback；manifest 默认 `approval.status=pending`，只有
+  人工填写批准人、批准时间并改为 `approved` 后才能 apply。
 - 默认库现有 191 张图片和 19 条视频。首批人工审片素材按图片像素指纹和视频 SHA-256 去重；
   原有胯下击掌与 42.766341 秒腹部核心源片只合并概念/标签，没有重复复制。腹部核心源片仍
   通过 `source_start_us=12000000` 截取 5 秒全屏 B-roll，且未导入 `爆款动作.mp4`。
+- 完整候选池逐条审核并完成视频分层后的本地 catalog 现为 1378 个资产、921 个概念；新增审核
+  资产包含 432 条视频和 737 张图片。451 条视频保存 `video_taxonomy`，927 张图片不含该字段。
+- 以 `SEMANTIC_VISUAL_LIBRARY.md` 为权威合同：视频标签分 L1 领域、L2 类别、L3 精确，
+  并另存动作、场景事实。图片只能 L3 精确触发；L1 永不自动触发；视频先走 L3，缺少精确
+  视频时，普通空镜和接缝空镜才可使用人工批准的 L2、动作或场景回退。
+- L2 回退必须由显式白名单关系声明，禁止根据 concept ID 前缀或任意父概念自动扩散；
+  `nutrition.protein` 之类抽象营养概念不得回退成鱼、肉、鸡蛋等具体素材。没有合格视频时
+  保留数字人口播或原接缝。食物、菜品、饮品的 L2 仅用于视频归档，不做同类自动替换。本地
+  catalog、选择器与回归已更新，生产环境尚未部署。
 - 人工验收后的口播小窗统一使用 `bottom_center`：语义图片默认宽度 56%，动作视频默认宽度
   61.5%，水平中心为画面中轴。高素材最多显示下方约 37% 并允许底边裁出；全屏 B-roll 规则不变。
 - 本机需要自动操作剪映界面时，固定使用桌面“剪映专业版6.01破”对应的 6.0.1 独立程序，

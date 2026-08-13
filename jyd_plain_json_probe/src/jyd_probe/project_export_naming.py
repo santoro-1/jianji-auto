@@ -103,6 +103,12 @@ def composition_export_filename(
     )
 
 
+def composition_draft_name(item: Mapping[str, Any]) -> str:
+    """Use the user-facing composition export stem as the Jianying draft name."""
+
+    return Path(composition_export_filename(item)).stem
+
+
 def variant_export_filename(
     item: Mapping[str, Any],
     asset: Mapping[str, Any] | None = None,
@@ -132,6 +138,26 @@ def variant_export_filename(
         f"{project_item_export_stem(item)}-变体-{max(1, index):03d}"
         f"{_asset_suffix(asset, '.mp4')}"
     )
+
+
+def variant_draft_name(item: Mapping[str, Any], *, index: int) -> str:
+    """Use the user-facing variant export stem as the Jianying draft name."""
+
+    return Path(variant_export_filename(item, index=index)).stem
+
+
+def available_draft_name(draft_root: str | Path, preferred_name: str) -> str:
+    """Keep a readable export-based name without overwriting an existing draft."""
+
+    root = Path(draft_root).expanduser().resolve()
+    preferred = _safe_component(preferred_name, fallback="未命名草稿")
+    if not (root / preferred).exists():
+        return preferred
+    for duplicate_index in range(2, 1000):
+        candidate = f"{preferred}-{duplicate_index:02d}"
+        if not (root / candidate).exists():
+            return candidate
+    raise FileExistsError(f"剪映草稿同名副本过多: {preferred}")
 
 
 def segment_export_filename(

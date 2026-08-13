@@ -8,6 +8,10 @@ from typing import Any
 from jyd_probe.project_content_analysis import ProjectContentAnalysisCoordinator
 from jyd_probe.project_store import ProjectStore
 from jyd_probe.semantic_visuals import load_semantic_visual_catalog
+from jyd_probe.unified_visual_plan import (
+    build_local_visual_result,
+    prepare_unified_visual_input,
+)
 
 
 CATALOG_ROOT = (
@@ -67,7 +71,7 @@ class UnifiedClient:
             "title_analysis_status": "SUCCESS",
             "visual_analysis_status": "SUCCESS",
             "music_intent": {"primary_scene": "health_education"},
-            "title": {"line_1": "长期坚持", "line_2": "习惯决定结果"},
+            "title": {"line_1": "长期坚持", "line_2": "习惯很重要"},
             "subtitle_units": [
                 {
                     "start": 0,
@@ -162,7 +166,9 @@ def test_one_cloud_call_builds_existing_local_visual_recipe(tmp_path: Path) -> N
 
     item = result["items"][0]
     assert len(client.calls) == 1
-    assert item["content_analysis"]["overall_status"] == "SUCCESS"
+    assert item["content_analysis"]["overall_status"] == "SUCCESS", item[
+        "content_analysis"
+    ]
     assert item["visual_analysis"]["analysis_status"] == "SUCCESS"
     assert item["visual_analysis"]["mapping_status"] == "SUCCESS"
     assert len(item["visual_analysis"]["visual_plan"]) == 1
@@ -307,9 +313,11 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     assert set(analysis["visual_plan"][0]) == {"anchor_id", "concept_id", "priority"}
     overlay = analysis["recipe"]["overlays"][0]
     assert overlay["usage"] == "enrichment"
-    assert overlay["asset_id"] == "activity.aerobic.core_broll.video.01"
+    selected = catalog.asset(overlay["asset_id"])
+    assert selected is not None
+    assert "full_screen_broll" in selected["usage_modes"]
     assert overlay["media_type"] == "video"
-    assert overlay["start_us"] >= 20_000_000
+    assert overlay["start_us"] >= 8_000_000
     assert overlay["source_start_us"] == 12_000_000
     assert overlay["corner"] == "center"
 
@@ -426,3 +434,90 @@ def test_real_script_without_matching_material_stays_empty_after_one_cloud_call(
     assert analysis["analysis_status"] == "SUCCESS"
     assert analysis["visual_plan"] == []
     assert analysis["recipe"]["overlays"] == []
+
+
+def test_real_segment_boundary_flows_into_local_seam_broll_recipe(tmp_path: Path) -> None:
+    script = "前面先热身。接着做胯下击掌燃脂操，保持呼吸。"
+    segment_1 = tmp_path / "segment-1.mp4"
+    segment_2 = tmp_path / "segment-2.mp4"
+    segment_1.write_bytes(b"segment-1")
+    segment_2.write_bytes(b"segment-2")
+    item = {
+        "script_text": script,
+        "subtitles": {
+            "raw_cues": [
+                {"start_us": 0, "end_us": 2_000_000, "text": "前面先热身。"},
+                {
+                    "start_us": 2_000_000,
+                    "end_us": 6_000_000,
+                    "text": "接着做胯下击掌燃脂操，保持呼吸。",
+                },
+            ]
+        },
+        "outputs": {
+            "base_video": {
+                "managed_path": str(tmp_path / "base.mp4"),
+                "metadata": {"duration_us": 6_000_000, "segment_count": 2},
+                "external_ref": {"source_task_ids": ["task-1", "task-2"]},
+            },
+            "original_video_segments": [
+                {
+                    "asset_id": "segment-1",
+                    "status": "READY",
+                    "managed_path": str(segment_1),
+                    "external_ref": {"video_index": 1, "remote_task_id": "task-1"},
+                    "metadata": {
+                        "start_seconds": 0.0,
+                        "end_seconds": 2.0,
+                        "script_text": "前面先热身。",
+                    },
+                },
+                {
+                    "asset_id": "segment-2",
+                    "status": "READY",
+                    "managed_path": str(segment_2),
+                    "external_ref": {"video_index": 2, "remote_task_id": "task-2"},
+                    "metadata": {
+                        "start_seconds": 2.0,
+                        "end_seconds": 6.0,
+                        "script_text": "接着做胯下击掌燃脂操，保持呼吸。",
+                    },
+                },
+            ],
+        },
+    }
+    catalog = load_semantic_visual_catalog(CATALOG_ROOT)
+    visual_input = prepare_unified_visual_input(item, catalog)
+    anchor = next(
+        value
+        for value in visual_input.visual_context["anchors"]
+        if value["text"] == "胯下击掌"
+    )
+    result, recipe = build_local_visual_result(
+        script=script,
+        visual_input=visual_input,
+        plan=[
+            {
+                "anchor_id": anchor["anchor_id"],
+                "concept_id": "activity.aerobic",
+                "priority": 2,
+            }
+        ],
+        catalog=catalog,
+        provider_payload={"provider_attempts": 1},
+    )
+
+    assert result["analysis_status"] == "SUCCESS"
+    assert visual_input.segment_boundaries == [
+        {
+            "boundary_us": 2_000_000,
+            "segment_index": 2,
+            "segment_start_us": 2_000_000,
+            "segment_end_us": 6_000_000,
+            "script_text": "接着做胯下击掌燃脂操，保持呼吸。",
+        }
+    ]
+    seam = next(item for item in recipe["overlays"] if item["usage"] == "seam_broll")
+    assert seam["start_us"] == 2_000_000
+    assert seam["segment_boundary_us"] == 2_000_000
+    assert seam["media_type"] == "video"

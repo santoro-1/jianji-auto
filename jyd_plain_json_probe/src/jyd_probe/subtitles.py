@@ -283,12 +283,18 @@ def add_captions_to_draft(
     stroke_width: float | None = None,
     transform_x: float | None = None,
     transform_y: float | None = None,
+    clip_scale: float | None = None,
     line_max_width: float | None = None,
     single_line: bool = False,
     font_id: str = "",
     font_path: str = "",
     font_title: str = "",
     track_name: str = "自动字幕",
+    shadow_color: str = "",
+    shadow_alpha: float | None = None,
+    shadow_distance: float | None = None,
+    shadow_angle: float | None = None,
+    shadow_smoothing: float | None = None,
 ) -> Path:
     if not cues:
         raise ValueError("没有可导入的字幕")
@@ -317,6 +323,8 @@ def add_captions_to_draft(
             max_line_width=default_width,
         ),
         clip_settings=draft.ClipSettings(
+            scale_x=float(clip_scale if clip_scale is not None else 1.0),
+            scale_y=float(clip_scale if clip_scale is not None else 1.0),
             transform_x=float(transform_x or 0.0),
             transform_y=float(transform_y if transform_y is not None else -0.8),
         ),
@@ -337,6 +345,11 @@ def add_captions_to_draft(
         font_id=font_id,
         font_path=font_path,
         font_title=font_title,
+        shadow_color=shadow_color,
+        shadow_alpha=shadow_alpha,
+        shadow_distance=shadow_distance,
+        shadow_angle=shadow_angle,
+        shadow_smoothing=shadow_smoothing,
     )
     log(f"已导入自动字幕: track={actual_track_name!r}, cues={len(cues)}, srt={srt_path}")
     return srt_path

@@ -90,11 +90,67 @@ def build_project_speech_audio(item: dict[str, Any]) -> dict[str, Any]:
         "type": "add",
         "media_path": str(Path(str(audio["managed_path"])).resolve()),
         "target_start_us": 0,
-        # Keep the provider audio at its native duration. The video segments
-        # are independently aligned to the same approved cue boundaries.
+        # MiniMax files can contain a small encoder tail beyond the approved
+        # picture. Resolve this against the source draft timeline at render
+        # time instead of letting the native audio extend the composition.
         "target_duration_us": 0,
+        "fit_to_video": True,
         "volume": 1.0,
     }
+
+
+def project_segment_boundaries(item: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return current multi-segment speech boundaries for local visual planning."""
+
+    outputs = item.get("outputs", {})
+    base = outputs.get("base_video")
+    if not isinstance(base, dict):
+        return []
+    try:
+        expected = int(base.get("metadata", {}).get("segment_count") or 0)
+    except (TypeError, ValueError):
+        return []
+    if expected <= 1:
+        return []
+    segments = sorted(
+        _latest_segments_by_index(
+            _segments_bound_to_base_video(
+                base,
+                [
+                    asset
+                    for asset in outputs.get("original_video_segments", [])
+                    if isinstance(asset, dict)
+                    and asset.get("status") == "READY"
+                    and asset.get("managed_path")
+                ],
+            )
+        ),
+        key=_segment_index,
+    )
+    if len(segments) != expected or [_segment_index(asset) for asset in segments] != list(
+        range(1, expected + 1)
+    ):
+        return []
+    boundaries: list[dict[str, Any]] = []
+    for asset in segments[1:]:
+        metadata = asset.get("metadata", {})
+        try:
+            start_seconds = float(metadata.get("start_seconds"))
+            end_seconds = float(metadata.get("end_seconds"))
+        except (TypeError, ValueError):
+            return []
+        if start_seconds < 0 or end_seconds <= start_seconds:
+            return []
+        boundaries.append(
+            {
+                "boundary_us": round(start_seconds * 1_000_000),
+                "segment_index": _segment_index(asset),
+                "segment_start_us": round(start_seconds * 1_000_000),
+                "segment_end_us": round(end_seconds * 1_000_000),
+                "script_text": str(metadata.get("script_text") or ""),
+            }
+        )
+    return boundaries
 
 
 def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:

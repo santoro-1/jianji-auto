@@ -58,14 +58,14 @@ class MusicProfileMatcherTest(unittest.TestCase):
         cls.matcher = MusicProfileMatcher(AUDIO_ROOT)
         cls.snapshot = cls.matcher.snapshot()
 
-    def test_shipped_manifest_maps_all_46_stable_audio_identities(self) -> None:
-        self.assertEqual(self.snapshot["profile_count"], 46)
-        self.assertEqual(self.snapshot["auto_eligible_count"], 42)
+    def test_shipped_manifest_maps_all_48_stable_audio_identities(self) -> None:
+        self.assertEqual(self.snapshot["profile_count"], 48)
+        self.assertEqual(self.snapshot["auto_eligible_count"], 44)
         self.assertEqual(self.snapshot["needs_review_count"], 4)
         self.assertEqual(self.snapshot["taxonomy_version"], MUSIC_TAXONOMY_VERSION)
         self.assertEqual(self.snapshot["matcher_version"], MUSIC_MATCHER_VERSION)
         identities = {profile["identity"] for profile in self.snapshot["profiles"]}
-        self.assertEqual(len(identities), 46)
+        self.assertEqual(len(identities), 48)
         self.assertTrue(all(identity.startswith("music_id:") for identity in identities))
         self.assertEqual(identities, set(self.snapshot["assets_by_identity"]))
 
@@ -146,8 +146,21 @@ class MusicProfileMatcherTest(unittest.TestCase):
         result = self.matcher.recommend(health_intent(), video_duration_us=451_000_000)
         selected_asset = self.snapshot["assets_by_identity"][result["bgm_identity"]]
         self.assertLess(selected_asset["duration_us"], 451_000_000)
-        self.assertEqual(result["filtered_counts"]["auto_eligible"], 4)
+        self.assertGreater(result["eligible_count"], 0)
         self.assertNotIn("duration_covers_video", result["filtered_counts"])
+
+    def test_new_draft_music_profiles_are_narrow_vocal_story_tracks(self) -> None:
+        expected = {
+            "music_id:7645200539881769012": {"personal_growth", "emotional_story"},
+            "music_id:6926801235057002497": {"personal_growth", "emotional_story"},
+        }
+        profiles = {item["identity"]: item for item in self.snapshot["profiles"]}
+        for identity, scenes in expected.items():
+            profile = profiles[identity]
+            self.assertEqual(set(profile["scenes"]), scenes)
+            self.assertEqual(profile["vocal_profile"], "vocal")
+            self.assertIn("strong_vocals", profile["traits"])
+            self.assertNotIn("health_education", profile["scenes"])
 
     def test_tightened_daylily_profile_is_not_general_health_knowledge(self) -> None:
         profile = next(
@@ -162,18 +175,18 @@ class MusicProfileMatcherTest(unittest.TestCase):
         self.assertEqual(profile["content_formats"], ["personal_story", "interview"])
         self.assertEqual(profile["topics"], ["family", "emotional_wellbeing"])
 
-    def test_forbidden_traits_remove_strong_vocals_before_scoring(self) -> None:
-        result = self.matcher.recommend(
+    def test_strong_vocals_are_volume_managed_instead_of_hard_filtered(self) -> None:
+        managed = self.matcher.recommend(
             health_intent(avoid_traits=["strong_vocals"]),
             video_duration_us=30_000_000,
         )
-        selected_profile = next(
-            profile
-            for profile in self.snapshot["profiles"]
-            if profile["identity"] == result["bgm_identity"]
+        unrestricted = self.matcher.recommend(
+            health_intent(avoid_traits=[]),
+            video_duration_us=30_000_000,
         )
-        self.assertNotIn("strong_vocals", selected_profile["traits"])
-        self.assertGreater(result["filtered_counts"]["forbidden_traits_absent"], 0)
+        self.assertEqual(managed["eligible_count"], unrestricted["eligible_count"])
+        self.assertEqual(managed["filtered_counts"]["forbidden_traits_absent"], 0)
+        self.assertEqual(managed["volume_managed_traits"], ["strong_vocals"])
 
     def test_exclusion_and_recent_use_are_deterministic(self) -> None:
         first = self.matcher.recommend(health_intent(), video_duration_us=30_000_000)

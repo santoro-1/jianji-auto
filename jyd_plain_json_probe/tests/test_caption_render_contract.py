@@ -146,6 +146,7 @@ class CaptionRenderContractTest(unittest.TestCase):
         speech = build_project_speech_audio(item)
         self.assertEqual(speech["type"], "add")
         self.assertEqual(speech["media_path"], str(Path("D:/voice.mp3").resolve()))
+        self.assertTrue(speech["fit_to_video"])
         self.assertEqual(speech["volume"], 1.0)
 
     def test_multi_segment_source_ignores_historical_runninghub_segments(self) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 import json
 import shutil
@@ -7,10 +8,18 @@ import shutil
 import pytest
 
 from jyd_probe.semantic_subtitles import SemanticSubtitleMappingError
+from jyd_probe.semantic_visual_migration import (
+    SemanticVisualMigrationError,
+    apply_migration,
+    file_sha256,
+    rollback_migration,
+    validate_migration,
+)
 from jyd_probe.semantic_visuals import (
     _assets_for_media_policy,
     CATALOG_SCHEMA_V1,
     CATALOG_SCHEMA_V2,
+    CATALOG_SCHEMA_V3,
     RECIPE_SCHEMA_V2,
     build_visual_recipe,
     frozen_visual_overlays,
@@ -32,6 +41,7 @@ CATALOG_ROOT = (
 )
 
 
+@lru_cache(maxsize=1)
 def _catalog():
     return load_semantic_visual_catalog(CATALOG_ROOT)
 
@@ -121,17 +131,374 @@ def _write_v2_catalog(root: Path) -> Path:
     return manifest
 
 
+def _upgrade_test_catalog_to_v3(manifest: Path) -> dict:
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["schema"] = CATALOG_SCHEMA_V3
+    image, video = payload["assets"]
+    image.update(
+        {
+            "semantic_roles": {
+                "depicts": ["food.beef"],
+                "expresses": ["meal.breakfast"],
+                "related": [],
+            },
+            "auto_trigger_concept_ids": ["food.beef", "meal.breakfast"],
+            "trigger_basis": {
+                "food.beef": "exact_subject",
+                "meal.breakfast": "complete_scene",
+            },
+            "visual_actions": [],
+            "usage_modes": ["semantic_overlay", "list_quick_cut"],
+            "cleanliness_grade": "A",
+            "auto_eligible": True,
+            "requires_clip": False,
+            "loop_allowed": False,
+            "rights_status": "internal",
+            "person_status": "none",
+            "brand_status": "none",
+            "health_claim_status": "none",
+            "platform_ui_status": "none",
+        }
+    )
+    video.update(
+        {
+            "semantic_roles": {
+                "depicts": ["food.beef"],
+                "expresses": [],
+                "related": ["meal.breakfast"],
+            },
+            "auto_trigger_concept_ids": ["food.beef"],
+            "trigger_basis": {"food.beef": "exact_subject"},
+            "visual_actions": ["cooking"],
+            "usage_modes": ["full_screen_broll", "seam_broll"],
+            "cleanliness_grade": "A",
+            "auto_eligible": True,
+            "requires_clip": False,
+            "loop_allowed": True,
+            "rights_status": "cleared",
+            "person_status": "none",
+            "brand_status": "none",
+            "health_claim_status": "none",
+            "platform_ui_status": "none",
+        }
+    )
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+
+def _add_video_taxonomy_fixture(
+    manifest: Path, *, include_exact_light_activity: bool = False
+) -> dict:
+    payload = _upgrade_test_catalog_to_v3(manifest)
+    light_concept = {
+        "concept_id": "activity.light_daily",
+        "label": "日常轻活动",
+        "description": "步行或轻柔活动等低强度日常身体活动",
+        "aliases": ["日常轻活动", "轻活动"],
+    }
+    payload["concepts"].append(light_concept)
+    video = payload["assets"][1]
+    video["video_taxonomy"] = {
+        "l1_domain_ids": ["l1.food_drink", "l1.activity_wellness"],
+        "l2_category_ids": ["l2.food.meat_seafood", "l2.activity.light_daily"],
+        "l3_exact_concept_ids": ["food.beef"],
+        "action_ids": ["cooking"],
+        "scene_ids": [],
+        "fallback_concept_ids": ["activity.light_daily"],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "TEST_REVIEWED_V1",
+    }
+    if include_exact_light_activity:
+        exact_video = json.loads(json.dumps(video))
+        exact_video.update(
+            {
+                "asset_id": "light.activity.video.exact.01",
+                "concept_ids": ["activity.light_daily"],
+                "name": "日常步行精确视频",
+                "semantic_roles": {
+                    "depicts": ["activity.light_daily"],
+                    "expresses": [],
+                    "related": [],
+                },
+                "auto_trigger_concept_ids": ["activity.light_daily"],
+                "trigger_basis": {"activity.light_daily": "exact_subject"},
+                "visual_actions": ["walking"],
+                "video_taxonomy": {
+                    "l1_domain_ids": ["l1.activity_wellness"],
+                    "l2_category_ids": ["l2.activity.light_daily"],
+                    "l3_exact_concept_ids": ["activity.light_daily"],
+                    "action_ids": ["walking"],
+                    "scene_ids": [],
+                    "fallback_concept_ids": ["activity.light_daily"],
+                    "fallback_policy": "video_only_explicit_whitelist",
+                    "review_status": "TEST_REVIEWED_V1",
+                },
+            }
+        )
+        payload["assets"].append(exact_video)
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return payload
+
+
+def _write_test_migration(root: Path) -> Path:
+    catalog_path = _write_v2_catalog(root)
+    backup_path = root / "catalog.v2.backup.json"
+    backup_path.write_bytes(catalog_path.read_bytes())
+    candidate_path = root / "catalog.v3.candidate.json"
+    candidate_payload = _upgrade_test_catalog_to_v3(catalog_path)
+    candidate_path.write_text(
+        json.dumps(candidate_payload, ensure_ascii=False), encoding="utf-8"
+    )
+    catalog_path.write_bytes(backup_path.read_bytes())
+    manifest_path = root / "migration.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": "jyd.semantic-visual-catalog-migration.v1",
+                "source_catalog_path": str(catalog_path),
+                "source_catalog_schema": CATALOG_SCHEMA_V2,
+                "source_catalog_sha256": file_sha256(catalog_path),
+                "source_backup_path": str(backup_path),
+                "source_backup_sha256": file_sha256(backup_path),
+                "candidate_path": str(candidate_path),
+                "candidate_schema": CATALOG_SCHEMA_V3,
+                "candidate_sha256": file_sha256(candidate_path),
+                "asset_count": 2,
+                "approval": {
+                    "status": "approved",
+                    "approved_by": "test-reviewer",
+                    "approved_at": "2026-08-13T00:00:00+08:00",
+                },
+                "rollback": {
+                    "required_current_sha256": file_sha256(candidate_path),
+                },
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
+def _write_protein_boundary_catalog(root: Path, *, include_guide: bool) -> Path:
+    manifest = _write_v2_catalog(root)
+    payload = _upgrade_test_catalog_to_v3(manifest)
+    payload["concepts"] = [
+        {
+            "concept_id": "food.fish",
+            "label": "鱼",
+            "description": "画面直接出现的鱼类食物",
+            "aliases": ["鱼肉", "鱼"],
+        },
+        {
+            "concept_id": "nutrition.protein",
+            "label": "蛋白质",
+            "description": "明确的蛋白质集合或知识表达",
+            "aliases": ["优质蛋白", "蛋白质"],
+        },
+    ]
+    fish, guide = payload["assets"]
+    fish.update(
+        {
+            "asset_id": "fish.image.01",
+            "concept_ids": ["food.fish"],
+            "name": "清蒸鱼",
+            "description": "单独一盘清蒸鱼",
+            "semantic_roles": {
+                "depicts": ["food.fish"],
+                "expresses": [],
+                "related": ["nutrition.protein"],
+            },
+            "auto_trigger_concept_ids": ["food.fish"],
+            "trigger_basis": {"food.fish": "exact_subject"},
+        }
+    )
+    guide.update(
+        {
+            "asset_id": "protein.guide.video.01",
+            "concept_ids": ["nutrition.protein"],
+            "name": "蛋白质来源指南",
+            "description": "多种蛋白质来源的知识画面",
+            "semantic_roles": {
+                "depicts": [],
+                "expresses": ["nutrition.protein"],
+                "related": [],
+            },
+            "auto_trigger_concept_ids": ["nutrition.protein"],
+            "trigger_basis": {"nutrition.protein": "infographic"},
+            "visual_actions": [],
+            "usage_modes": ["knowledge_card"],
+            "loop_allowed": False,
+        }
+    )
+    if not include_guide:
+        payload["assets"] = [fish]
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    return manifest
+
+
 def test_catalog_contains_images_and_registered_activity_videos() -> None:
     catalog = _catalog()
 
-    assert catalog.schema == CATALOG_SCHEMA_V2
+    assert catalog.schema in {CATALOG_SCHEMA_V2, CATALOG_SCHEMA_V3}
     assert catalog.library_id == "jyd.semantic-visual-library.default"
-    assert len(catalog.concepts) == 37
-    assert len(catalog.assets) == 40
-    assert len([item for item in catalog.assets if item["media_type"] == "image"]) == 38
-    assert len([item for item in catalog.assets if item["media_type"] == "video"]) == 2
-    assert len([item for item in catalog.assets if item["concept_id"] == "food.egg"]) == 2
+    assert len(catalog.concepts) >= 37
+    assert len(catalog.assets) >= 40
+    assert len([item for item in catalog.assets if item["media_type"] == "image"]) >= 38
+    assert len([item for item in catalog.assets if item["media_type"] == "video"]) >= 2
+    assert len([item for item in catalog.assets if "food.egg" in item["concept_ids"]]) >= 2
     assert all(Path(item["image_path"]).is_file() for item in catalog.assets)
+
+    reviewed = [item for item in catalog.assets if item["asset_id"].startswith("review.")]
+    if not reviewed:
+        return
+
+    assert len(reviewed) == 1169
+    assert len([item for item in reviewed if item["media_type"] == "image"]) == 737
+    assert len([item for item in reviewed if item["media_type"] == "video"]) == 432
+    assert [
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "nutrition.protein", "mixed", usage="explicit"
+        )
+    ] == ["protein.food_guide.01"]
+    assert len(
+        _assets_for_media_policy(
+            catalog, "activity.light_daily", "mixed", usage="seam_broll"
+        )
+    ) == 14
+    light_activity = recall_semantic_visual_candidates(
+        "每天保持日常轻活动，比如散步或者八段锦。", catalog=catalog
+    )
+    assert {
+        concept["concept_id"]
+        for candidate in light_activity["candidates"]
+        for concept in candidate["allowed_concepts"]
+    } >= {
+        "activity.light_daily",
+        "activity.walking",
+    }
+    rapid_list = recall_semantic_visual_candidates(
+        "第一，早餐可以吃鸡蛋、玉米、红薯。", catalog=catalog
+    )
+    assert {
+        concept["concept_id"]
+        for candidate in rapid_list["candidates"]
+        for concept in candidate["allowed_concepts"]
+    } >= {
+        "meal.breakfast",
+        "food.egg",
+        "food.corn",
+        "food.sweet_potato",
+    }
+
+
+def test_v3_video_taxonomy_is_video_only_and_l2_fallback_is_controlled(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "video-taxonomy"
+    manifest = _write_v2_catalog(root)
+    _add_video_taxonomy_fixture(manifest)
+    catalog = load_semantic_visual_catalog(root)
+
+    image = catalog.asset("beef.image.01")
+    video = catalog.asset("beef.video.01")
+    assert image is not None and "video_taxonomy" not in image
+    assert video is not None
+    assert video["video_taxonomy"]["l1_domain_ids"] == [
+        "l1.food_drink",
+        "l1.activity_wellness",
+    ]
+    assert video["video_taxonomy"]["fallback_concept_ids"] == [
+        "activity.light_daily"
+    ]
+    assert _assets_for_media_policy(
+        catalog, "activity.light_daily", "image_only", usage="explicit"
+    ) == []
+    assert [
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "activity.light_daily", "mixed", usage="explicit"
+        )
+    ] == ["beef.video.01"]
+    assert [
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "activity.light_daily", "video_only", usage="seam_broll"
+        )
+    ] == ["beef.video.01"]
+
+
+def test_v3_exact_video_precedes_video_l2_fallback(tmp_path: Path) -> None:
+    root = tmp_path / "video-taxonomy-exact-first"
+    manifest = _write_v2_catalog(root)
+    _add_video_taxonomy_fixture(manifest, include_exact_light_activity=True)
+    catalog = load_semantic_visual_catalog(root)
+
+    assets = _assets_for_media_policy(
+        catalog, "activity.light_daily", "video_only", usage="seam_broll"
+    )
+    assert [item["asset_id"] for item in assets] == [
+        "light.activity.video.exact.01",
+        "beef.video.01",
+    ]
+    candidate = recall_semantic_visual_candidates("保持日常轻活动。", catalog)[
+        "candidates"
+    ][0]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[
+            {
+                **candidate,
+                "start_us": 2_000_000,
+                "duration_us": 3_000_000,
+                "phrase_char_start": 0,
+                "phrase_char_end": 9,
+                "phrase_text": "保持日常轻活动。",
+            }
+        ],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "activity.light_daily",
+                "priority": 1,
+                "confidence": 0.95,
+                "reason_code": "LITERAL_CONCRETE_OBJECT",
+            }
+        ],
+        media_policy="video_only",
+        segment_boundaries=[{"boundary_us": 2_000_000}],
+        final_video_duration_us=6_000_000,
+    )
+    assert recipe["overlays"][0]["asset_id"] == "light.activity.video.exact.01"
+    assert recipe["overlays"][0]["timing_mode"] == "seam_broll"
+
+
+def test_v3_video_taxonomy_rejects_image_or_food_category_fallback(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "invalid-video-taxonomy"
+    manifest = _write_v2_catalog(root)
+    payload = _add_video_taxonomy_fixture(manifest)
+    payload["assets"][0]["video_taxonomy"] = json.loads(
+        json.dumps(payload["assets"][1]["video_taxonomy"])
+    )
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(SemanticVisualCatalogError, match="image cannot declare"):
+        load_semantic_visual_catalog(root)
+
+    root_second = tmp_path / "invalid-food-fallback"
+    manifest_second = _write_v2_catalog(root_second)
+    payload = _add_video_taxonomy_fixture(manifest_second)
+    payload["assets"][1]["video_taxonomy"]["fallback_concept_ids"] = [
+        "food.beef"
+    ]
+    manifest_second.write_text(
+        json.dumps(payload, ensure_ascii=False), encoding="utf-8"
+    )
+    with pytest.raises(SemanticVisualCatalogError, match="food/drink/nutrition"):
+        load_semantic_visual_catalog(root_second)
 
 
 def test_generic_staple_food_does_not_recall_quality_carbohydrate() -> None:
@@ -153,13 +520,59 @@ def test_generic_staple_food_does_not_recall_quality_carbohydrate() -> None:
         == ("jyd_sticker_bundle" if item["media_type"] == "image" else "video_overlay")
         for item in catalog.assets
     )
-    assert all(item["concept_ids"] == [item["concept_id"]] for item in catalog.assets)
+    if catalog.schema == CATALOG_SCHEMA_V3:
+        assert all(
+            item["concept_ids"] == item["auto_trigger_concept_ids"]
+            for item in catalog.assets
+        )
+    else:
+        assert all(item["concept_ids"] == [item["concept_id"]] for item in catalog.assets)
     assert catalog.asset("protein.food_guide.01") is not None
     assert catalog.asset("fruit.platter.01") is not None
     assert catalog.asset("water.warm_glass.01") is not None
     assert catalog.asset("activity.walking.01") is not None
     assert catalog.asset("activity.aerobic.crotch_clap.video.01") is not None
     assert catalog.asset("activity.aerobic.core_broll.video.01") is not None
+
+
+def test_approved_v3_review_terms_stay_narrow_and_dish_specific() -> None:
+    catalog = _catalog()
+    if catalog.concept("dish.tofu_soup") is None:
+        pytest.skip("requires the separately distributed expanded local material catalog")
+
+    def allowed(script: str) -> set[str]:
+        return {
+            concept["concept_id"]
+            for candidate in recall_semantic_visual_candidates(script, catalog)["candidates"]
+            for concept in candidate["allowed_concepts"]
+        }
+
+    assert allowed("豆腐汤") == {"dish.tofu_soup"}
+    assert allowed("西兰花汤") == {"dish.broccoli_soup"}
+    assert allowed("冬瓜汤") == {"dish.winter_melon_soup"}
+    assert recall_semantic_visual_candidates("喝点汤", catalog)["candidates"] == []
+    assert allowed("紫薯") == {"food.purple_sweet_potato"}
+    assert allowed("红薯") == {"food.sweet_potato"}
+    assert allowed("小白菜") == {"food.bok_choy"}
+    assert allowed("油菜") == {"food.rapeseed_greens"}
+    assert allowed("麻团") == {"food.sesame_ball"}
+    assert allowed("消化不好") == {"health.digestion_problem"}
+    assert allowed("减脂餐") == {"meal.weight_loss"}
+
+    tofu_soup_ids = {
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "dish.tofu_soup", "mixed", usage="explicit"
+        )
+    }
+    plain_tofu_ids = {
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "food.tofu", "mixed", usage="explicit"
+        )
+    }
+    assert tofu_soup_ids
+    assert tofu_soup_ids.isdisjoint(plain_tofu_ids)
 
 
 def test_extended_food_and_activity_aliases_recall_specific_concepts() -> None:
@@ -240,6 +653,249 @@ def test_v2_catalog_version_changes_with_video_bytes(tmp_path: Path) -> None:
     assert load_semantic_visual_catalog(root).catalog_version != before
 
 
+def test_v3_catalog_loads_explicit_roles_and_uses_usage_modes_for_broll(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "catalog-v3"
+    manifest = _write_v2_catalog(root)
+    _upgrade_test_catalog_to_v3(manifest)
+
+    catalog = load_semantic_visual_catalog(root)
+
+    assert catalog.schema == CATALOG_SCHEMA_V3
+    image = catalog.asset("beef.image.01")
+    video = catalog.asset("beef.video.01")
+    assert image is not None
+    assert image["concept_ids"] == image["auto_trigger_concept_ids"]
+    assert image["semantic_roles"]["expresses"] == ["meal.breakfast"]
+    assert image["trigger_basis"]["meal.breakfast"] == "complete_scene"
+    assert video is not None
+    assert video["usage_modes"] == ["full_screen_broll", "seam_broll"]
+    assert video["defaults"]["corner"] == "center"
+    assert [
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "food.beef", "mixed", usage="enrichment"
+        )
+    ] == ["beef.video.01"]
+
+
+def test_v3_attributed_rights_allow_auto_broll_and_emit_source_label(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "catalog-v3-attributed"
+    manifest = _write_v2_catalog(root)
+    payload = _upgrade_test_catalog_to_v3(manifest)
+    for asset in payload["assets"]:
+        asset["rights_status"] = "attributed"
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    catalog = load_semantic_visual_catalog(root)
+    candidate = recall_semantic_visual_candidates("牛肉", catalog)["candidates"][0]
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[{**candidate, "start_us": 0, "duration_us": 3_000_000}],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "importance": 0.9,
+                "confidence": 0.95,
+                "reason_code": "LITERAL_CONCRETE_OBJECT",
+            }
+        ],
+        media_policy="image_only",
+    )
+
+    overlay = recipe["overlays"][0]
+    assert overlay["rights_status"] == "attributed"
+    assert overlay["attribution_text"] == "素材来源于网络"
+    assert [
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            catalog, "food.beef", "mixed", usage="explicit"
+        )
+    ] == ["beef.image.01"]
+
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["assets"][1]["usage_modes"] = ["seam_broll"]
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    seam_only = load_semantic_visual_catalog(root)
+    assert _assets_for_media_policy(
+        seam_only, "food.beef", "mixed", usage="enrichment"
+    ) == []
+    assert [
+        item["asset_id"]
+        for item in _assets_for_media_policy(
+            seam_only, "food.beef", "mixed", usage="seam_broll"
+        )
+    ] == ["beef.video.01"]
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda asset: asset.update(auto_trigger_concept_ids=[]),
+            "concept_ids must equal auto_trigger_concept_ids",
+        ),
+        (
+            lambda asset: asset.update(
+                semantic_roles={
+                    "depicts": [],
+                    "expresses": [],
+                    "related": ["food.beef", "meal.breakfast"],
+                }
+            ),
+            "auto triggers must come from depicts or expresses",
+        ),
+        (
+            lambda asset: asset.update(rights_status="unknown"),
+            "unknown or restricted rights cannot auto full-screen",
+        ),
+    ],
+)
+def test_v3_catalog_rejects_unsafe_or_inconsistent_auto_relations(
+    tmp_path: Path, mutate, message: str
+) -> None:
+    root = tmp_path / "catalog-v3-invalid"
+    manifest = _write_v2_catalog(root)
+    payload = _upgrade_test_catalog_to_v3(manifest)
+    mutate(payload["assets"][1])
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    with pytest.raises(SemanticVisualCatalogError, match=message):
+        load_semantic_visual_catalog(root)
+
+
+def test_v3_auto_eligible_false_asset_is_never_recalled_or_selected(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "catalog-v3-disabled"
+    manifest = _write_v2_catalog(root)
+    payload = _upgrade_test_catalog_to_v3(manifest)
+    for asset in payload["assets"]:
+        asset["auto_eligible"] = False
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    catalog = load_semantic_visual_catalog(root)
+
+    assert _assets_for_media_policy(catalog, "food.beef", "mixed") == []
+    assert _assets_for_media_policy(
+        catalog, "food.beef", "mixed", usage="enrichment"
+    ) == []
+    assert recall_semantic_visual_candidates("早餐吃牛肉", catalog)["candidates"] == []
+
+
+def test_v3_manual_only_asset_can_keep_roles_with_empty_auto_concepts(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "catalog-v3-manual-only"
+    manifest = _write_v2_catalog(root)
+    payload = _upgrade_test_catalog_to_v3(manifest)
+    manual = payload["assets"][0]
+    manual["concept_ids"] = []
+    manual["auto_trigger_concept_ids"] = []
+    manual["trigger_basis"] = {}
+    manual["usage_modes"] = ["manual_only"]
+    manual["auto_eligible"] = False
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+    catalog = load_semantic_visual_catalog(root)
+
+    asset = catalog.asset("beef.image.01")
+    assert asset is not None and asset["concept_ids"] == []
+    assert asset["semantic_roles"]["depicts"] == ["food.beef"]
+    assert catalog.concept("meal.breakfast") is not None
+
+
+def test_v3_migration_apply_and_rollback_are_hash_guarded(tmp_path: Path) -> None:
+    root = tmp_path / "catalog-migration"
+    manifest_path = _write_test_migration(root)
+    catalog_path = root / "catalog.json"
+
+    assert validate_migration(manifest_path)["asset_count"] == 2
+    apply_migration(manifest_path)
+    assert load_semantic_visual_catalog(root).schema == CATALOG_SCHEMA_V3
+    rollback_migration(manifest_path)
+    assert load_semantic_visual_catalog(root).schema == CATALOG_SCHEMA_V2
+
+
+def test_v3_migration_refuses_changed_source_and_candidate(tmp_path: Path) -> None:
+    root = tmp_path / "catalog-migration-guard"
+    manifest_path = _write_test_migration(root)
+    catalog_path = root / "catalog.json"
+    candidate_path = root / "catalog.v3.candidate.json"
+
+    catalog_path.write_bytes(catalog_path.read_bytes() + b"\n")
+    with pytest.raises(SemanticVisualMigrationError, match="current source catalog hash mismatch"):
+        apply_migration(manifest_path)
+
+    catalog_path.write_bytes((root / "catalog.v2.backup.json").read_bytes())
+    candidate_path.write_bytes(candidate_path.read_bytes() + b"\n")
+    with pytest.raises(SemanticVisualMigrationError, match="v3 candidate hash mismatch"):
+        validate_migration(manifest_path)
+
+
+def test_v3_migration_refuses_apply_without_explicit_approval(tmp_path: Path) -> None:
+    root = tmp_path / "catalog-migration-pending"
+    manifest_path = _write_test_migration(root)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["approval"] = {
+        "status": "pending",
+        "approved_by": None,
+        "approved_at": None,
+    }
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+
+    assert validate_migration(manifest_path)["approval"]["status"] == "pending"
+    with pytest.raises(SemanticVisualMigrationError, match="requires explicit"):
+        apply_migration(manifest_path)
+
+
+def test_v3_protein_concept_selects_guide_and_never_related_fish(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protein-boundary"
+    _write_protein_boundary_catalog(root, include_guide=True)
+    catalog = load_semantic_visual_catalog(root)
+
+    recalled = recall_semantic_visual_candidates("注意补充蛋白质", catalog)
+    assert [
+        concept["concept_id"]
+        for candidate in recalled["candidates"]
+        for concept in candidate["allowed_concepts"]
+    ] == ["nutrition.protein"]
+    assert [
+        asset["asset_id"]
+        for asset in _assets_for_media_policy(
+            catalog, "nutrition.protein", "mixed", usage="explicit"
+        )
+    ] == ["protein.guide.video.01"]
+    assert "fish.image.01" not in {
+        asset["asset_id"]
+        for asset in _assets_for_media_policy(
+            catalog, "nutrition.protein", "mixed", usage="explicit"
+        )
+    }
+
+
+def test_v3_protein_concept_is_not_recalled_when_only_related_fish_exists(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "protein-boundary-no-guide"
+    _write_protein_boundary_catalog(root, include_guide=False)
+    catalog = load_semantic_visual_catalog(root)
+
+    assert recall_semantic_visual_candidates("注意补充蛋白质", catalog)[
+        "candidates"
+    ] == []
+    assert _assets_for_media_policy(
+        catalog, "nutrition.protein", "mixed", usage="explicit"
+    ) == []
+
+
 def test_recipe_v2_can_freeze_and_resolve_one_video_overlay(tmp_path: Path) -> None:
     root = tmp_path / "catalog-v2"
     _write_v2_catalog(root)
@@ -312,10 +968,12 @@ def test_explicit_activity_uses_action_asset_and_enrichment_uses_only_tagged_bro
     )
 
     assert explicit[0]["asset_id"] == "activity.aerobic.crotch_clap.video.01"
-    assert all("broll" not in item["asset_id"] for item in explicit)
-    assert [item["asset_id"] for item in enrichment] == [
-        "activity.aerobic.core_broll.video.01"
-    ]
+    assert all(
+        set(item["usage_modes"])
+        & {"semantic_overlay", "action_demo", "knowledge_card"}
+        for item in explicit
+    )
+    assert all("full_screen_broll" in item["usage_modes"] for item in enrichment)
     assert explicit[0]["defaults"]["corner"] == "bottom_center"
     assert explicit[0]["defaults"]["scale"] == 0.615
     assert enrichment[0]["defaults"]["corner"] == "center"
@@ -350,8 +1008,17 @@ def test_shared_occupancy_rejects_overlap_and_applies_locked_spacing() -> None:
 
 def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None:
     catalog = _catalog()
+    target_index = next(
+        index for index, asset in enumerate(catalog.assets) if asset["media_type"] == "video"
+    )
+    target_concept = catalog.assets[target_index]["concept_ids"][0]
     tagged_assets = tuple(
-        {**asset, "tags": ["空镜"] if index == 0 else []}
+        {
+            **asset,
+            "usage_modes": (
+                ["full_screen_broll"] if index == target_index else ["manual_only"]
+            ),
+        }
         for index, asset in enumerate(catalog.assets)
     )
     tagged_catalog = SemanticVisualCatalog(
@@ -374,13 +1041,56 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
     assert enrichment
     assert len(enrichment) <= 6
     assert all(len(item["allowed_concepts"]) <= 8 for item in enrichment)
-    assert all(item["allowed_concepts"][0]["concept_id"] == "food.egg" for item in enrichment)
+    assert all(
+        item["allowed_concepts"][0]["concept_id"] == target_concept
+        for item in enrichment
+    )
 
 
-def test_enrichment_requires_twenty_second_drought_and_is_capped_per_minute() -> None:
+def test_enrichment_anchors_rotate_all_concepts_without_breaking_cloud_limit() -> None:
+    catalog = _catalog()
+    concept_ids = [str(item["concept_id"]) for item in catalog.concepts[:10]]
+    base_asset = dict(catalog.assets[0])
+    assets = tuple(
+        {
+            **base_asset,
+            "asset_id": f"enrichment.test.{index}",
+            "concept_ids": [concept_id],
+            "usage_modes": ["full_screen_broll"],
+            "auto_eligible": True,
+        }
+        for index, concept_id in enumerate(concept_ids)
+    )
+    tagged_catalog = SemanticVisualCatalog(
+        root=catalog.root,
+        schema=catalog.schema,
+        library_id=catalog.library_id,
+        catalog_version=catalog.catalog_version,
+        concepts=catalog.concepts,
+        assets=assets,
+    )
+    script = "这是一段不直接命中素材名称的健康生活说明。" * 20
+
+    enrichment = [
+        item
+        for item in recall_semantic_visual_candidates(script, tagged_catalog)["candidates"]
+        if str(item["candidate_id"]).startswith("ve_")
+    ]
+    offered = {
+        str(concept["concept_id"])
+        for anchor in enrichment
+        for concept in anchor["allowed_concepts"]
+    }
+
+    assert len(enrichment) >= 2
+    assert all(len(item["allowed_concepts"]) <= 8 for item in enrichment)
+    assert offered == set(concept_ids)
+
+
+def test_enrichment_uses_video_level_asset_deduplication() -> None:
     catalog = _catalog()
     candidates = recall_semantic_visual_candidates(
-        "燃脂操核心燃脂胯下击掌", catalog
+        "跑步、散步、跳绳", catalog
     )["candidates"]
     mapped = [
         {
@@ -413,16 +1123,19 @@ def test_enrichment_requires_twenty_second_drought_and_is_capped_per_minute() ->
         media_policy="mixed",
     )
 
-    assert [item["start_us"] for item in recipe["overlays"]] == [20_000_000, 45_000_000]
+    assert [item["start_us"] for item in recipe["overlays"]] == [
+        20_000_000,
+        45_000_000,
+        70_000_000,
+    ]
+    selected_asset_ids = [item["asset_id"] for item in recipe["overlays"]]
+    assert len(selected_asset_ids) == len(set(selected_asset_ids))
+    assert recipe["used_asset_ids"] == sorted(selected_asset_ids)
     assert all(item["usage"] == "enrichment" for item in recipe["overlays"])
-    assert all(
-        item["asset_id"] == "activity.aerobic.core_broll.video.01"
-        for item in recipe["overlays"]
-    )
 
     too_early = build_visual_recipe(
         catalog=catalog,
-        mapped_candidates=[{**mapped[0], "start_us": 19_999_999}],
+        mapped_candidates=[{**mapped[0], "start_us": 7_999_999}],
         decisions=[decisions[0]],
         media_policy="mixed",
     )
@@ -469,18 +1182,16 @@ def test_untouched_auto_recipe_refreshes_current_asset_layout_and_resource() -> 
 
 def test_catalog_rejects_path_escape_and_duplicate_asset_id(tmp_path: Path) -> None:
     root = tmp_path / "catalog"
-    shutil.copytree(CATALOG_ROOT, root)
+    root.mkdir()
     manifest_path = root / "catalog.json"
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload = json.loads((CATALOG_ROOT / "catalog.json").read_text(encoding="utf-8"))
     payload["assets"][0]["resource"]["bundle"] = "../outside"
     (tmp_path / "outside").mkdir()
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     with pytest.raises(SemanticVisualCatalogError):
         load_semantic_visual_catalog(root)
 
-    shutil.rmtree(root)
-    shutil.copytree(CATALOG_ROOT, root)
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload = json.loads((CATALOG_ROOT / "catalog.json").read_text(encoding="utf-8"))
     payload["assets"][1]["asset_id"] = payload["assets"][0]["asset_id"]
     manifest_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     with pytest.raises(SemanticVisualCatalogError):
@@ -489,7 +1200,7 @@ def test_catalog_rejects_path_escape_and_duplicate_asset_id(tmp_path: Path) -> N
 
 def test_catalog_version_changes_when_image_bytes_change(tmp_path: Path) -> None:
     root = tmp_path / "catalog"
-    shutil.copytree(CATALOG_ROOT, root)
+    _write_v2_catalog(root)
     before = load_semantic_visual_catalog(root).catalog_version
     image_path = Path(load_semantic_visual_catalog(root).assets[0]["image_path"])
     image_path.write_bytes(image_path.read_bytes() + b"catalog-version-test")
@@ -674,7 +1385,7 @@ def test_recipe_conflict_prefers_importance_then_confidence() -> None:
     ]
 
 
-def test_distinct_food_images_can_form_a_short_rapid_sequence() -> None:
+def test_punctuation_free_manual_candidates_use_the_two_second_sentence_floor() -> None:
     catalog = _catalog()
     script = "牛肉鸡蛋豆腐苹果西红柿黄瓜杏仁"
     candidates = recall_semantic_visual_candidates(script, catalog)["candidates"]
@@ -705,7 +1416,7 @@ def test_distinct_food_images_can_form_a_short_rapid_sequence() -> None:
 
     assert len(candidates) >= 6
     assert len(recipe["overlays"]) == len(candidates)
-    assert all(item["duration_us"] == 1_500_000 for item in recipe["overlays"])
+    assert all(item["duration_us"] == 2_000_000 for item in recipe["overlays"])
     assert all(
         current["start_us"] - previous["start_us"] == 2_000_000
         for previous, current in zip(recipe["overlays"], recipe["overlays"][1:])
@@ -764,7 +1475,317 @@ def test_recipe_keeps_a_short_first_phrase_without_opening_delay() -> None:
 
     assert len(recipe["overlays"]) == 1
     assert recipe["overlays"][0]["start_us"] == 0
-    assert recipe["overlays"][0]["duration_us"] == 1_800_000
+    assert recipe["overlays"][0]["duration_us"] == 2_000_000
+
+
+def test_rapid_list_covers_the_whole_sentence_and_cuts_in_speech_order() -> None:
+    catalog = _catalog()
+    script = "早餐可以吃鸡蛋、玉米、红薯。"
+    candidates = [
+        item
+        for item in recall_semantic_visual_candidates(script, catalog)["candidates"]
+        if item["text"] in {"鸡蛋", "玉米", "红薯"}
+    ]
+    mapped = map_visual_candidates_to_raw_cues(
+        script,
+        candidates,
+        [{"start_us": 0, "end_us": 3_000_000, "text": script}],
+        video_duration_us=3_000_000,
+    )
+    decisions = [
+        {
+            "candidate_id": item["candidate_id"],
+            "decision": "SHOW",
+            "concept_id": item["allowed_concepts"][0]["concept_id"],
+            "importance": 1.0,
+            "confidence": 1.0,
+        }
+        for item in candidates
+    ]
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=mapped,
+        decisions=decisions,
+        media_policy="mixed",
+    )
+
+    overlays = recipe["overlays"]
+    assert len(overlays) == 3
+    assert [item["timing_mode"] for item in overlays] == ["rapid_list"] * 3
+    assert [item["list_index"] for item in overlays] == [0, 1, 2]
+    assert overlays[0]["start_us"] == mapped[0]["start_us"]
+    assert overlays[-1]["start_us"] + overlays[-1]["duration_us"] == (
+        mapped[0]["start_us"] + mapped[0]["duration_us"]
+    )
+    assert all(
+        previous["start_us"] + previous["duration_us"] == current["start_us"]
+        for previous, current in zip(overlays, overlays[1:])
+    )
+    assert all(item["duration_us"] < 2_000_000 for item in overlays)
+    assert len(recipe["used_asset_ids"]) == 3
+
+
+def test_rapid_list_keeps_positive_contiguous_ranges_when_keyword_times_collapse() -> None:
+    catalog = _catalog()
+    script = "早餐可以吃鸡蛋、玉米、红薯。"
+    candidates = [
+        item
+        for item in recall_semantic_visual_candidates(script, catalog)["candidates"]
+        if item["text"] in {"鸡蛋", "玉米", "红薯"}
+    ]
+    mapped = map_visual_candidates_to_raw_cues(
+        script,
+        candidates,
+        [{"start_us": 0, "end_us": 3_000_000, "text": script}],
+        video_duration_us=3_000_000,
+    )
+    mapped = [
+        {**item, "keyword_start_us": 1_500_000, "keyword_end_us": 1_500_000}
+        for item in mapped
+    ]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=mapped,
+        decisions=[
+            {
+                "candidate_id": item["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": item["allowed_concepts"][0]["concept_id"],
+                "importance": 1.0,
+                "confidence": 1.0,
+            }
+            for item in candidates
+        ],
+        media_policy="mixed",
+    )
+
+    overlays = recipe["overlays"]
+    assert len(overlays) == 3
+    assert all(item["duration_us"] > 0 for item in overlays)
+    assert all(
+        previous["start_us"] + previous["duration_us"] == current["start_us"]
+        for previous, current in zip(overlays, overlays[1:])
+    )
+
+
+def test_short_normal_sentence_is_clamped_to_final_video_end() -> None:
+    catalog = _catalog()
+    candidate = recall_semantic_visual_candidates("鸡蛋。", catalog)["candidates"][0]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[
+            {
+                **candidate,
+                "start_us": 1_500_000,
+                "duration_us": 300_000,
+                "video_duration_us": 2_400_000,
+            }
+        ],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.egg",
+                "confidence": 1.0,
+            }
+        ],
+    )
+
+    overlay = recipe["overlays"][0]
+    assert overlay["start_us"] == 1_500_000
+    assert overlay["duration_us"] == 900_000
+    assert overlay["timing_mode"] == "sentence"
+
+
+def test_locked_asset_is_reserved_and_selector_falls_back_to_next_media(
+    tmp_path: Path,
+) -> None:
+    _write_v2_catalog(tmp_path)
+    catalog = load_semantic_visual_catalog(tmp_path)
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+    locked = {
+        "overlay_id": "manual-beef-image",
+        "asset_id": "beef.image.01",
+        "concept_id": "food.beef",
+        "enabled": True,
+        "manual": True,
+        "locked": True,
+        "start_us": 30_000_000,
+        "duration_us": 2_000_000,
+    }
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[
+            {
+                **candidate,
+                "start_us": 0,
+                "duration_us": 2_000_000,
+                "video_duration_us": 40_000_000,
+            }
+        ],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="mixed",
+        locked_overlays=[locked],
+    )
+
+    automatic = next(item for item in recipe["overlays"] if item.get("manual") is False)
+    assert automatic["asset_id"] == "beef.video.01"
+    assert recipe["used_asset_ids"] == ["beef.image.01", "beef.video.01"]
+
+
+def test_missing_first_asset_falls_back_to_the_next_candidate(tmp_path: Path) -> None:
+    _write_v2_catalog(tmp_path)
+    catalog = load_semantic_visual_catalog(tmp_path)
+    shutil.rmtree(tmp_path / "bundles" / "beef_image_01")
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[{**candidate, "start_us": 0, "duration_us": 2_000_000}],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="mixed",
+    )
+
+    assert recipe["overlays"][0]["asset_id"] == "beef.video.01"
+
+
+def test_all_concept_assets_already_used_skips_automatic_overlay(tmp_path: Path) -> None:
+    _write_v2_catalog(tmp_path)
+    catalog = load_semantic_visual_catalog(tmp_path)
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+    locked = [
+        {
+            "overlay_id": f"manual-{asset_id}",
+            "asset_id": asset_id,
+            "concept_id": "food.beef",
+            "enabled": True,
+            "manual": True,
+            "locked": True,
+            "start_us": start_us,
+            "duration_us": 2_000_000,
+        }
+        for asset_id, start_us in (
+            ("beef.image.01", 30_000_000),
+            ("beef.video.01", 34_000_000),
+        )
+    ]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[
+            {
+                **candidate,
+                "start_us": 0,
+                "duration_us": 2_000_000,
+                "video_duration_us": 40_000_000,
+            }
+        ],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="mixed",
+        locked_overlays=locked,
+    )
+
+    assert all(item.get("manual") is True for item in recipe["overlays"])
+    assert recipe["used_asset_ids"] == ["beef.image.01", "beef.video.01"]
+
+
+def test_video_overlay_is_clipped_when_sentence_exceeds_source(tmp_path: Path) -> None:
+    _write_v2_catalog(tmp_path)
+    catalog = load_semantic_visual_catalog(tmp_path)
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[{**candidate, "start_us": 0, "duration_us": 8_000_000}],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="video_only",
+    )
+
+    assert recipe["overlays"][0]["duration_us"] == 6_200_000
+    assert "loop" not in recipe["overlays"][0]
+
+
+def test_segment_boundary_uses_corresponding_unused_seam_broll(tmp_path: Path) -> None:
+    manifest = _write_v2_catalog(tmp_path)
+    _upgrade_test_catalog_to_v3(manifest)
+    catalog = load_semantic_visual_catalog(tmp_path)
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[
+            {
+                **candidate,
+                "start_us": 1_000_000,
+                "duration_us": 800_000,
+                "video_duration_us": 5_000_000,
+            }
+        ],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="mixed",
+        segment_boundaries=[{"boundary_us": 1_000_000, "script_text": "牛肉。"}],
+    )
+
+    seam = next(item for item in recipe["overlays"] if item["timing_mode"] == "seam_broll")
+    assert seam["asset_id"] == "beef.video.01"
+    assert seam["start_us"] == 1_000_000
+    assert seam["duration_us"] == 2_000_000
+    assert seam["segment_boundary_us"] == 1_000_000
+
+
+def test_segment_boundary_without_approved_broll_keeps_normal_recipe(tmp_path: Path) -> None:
+    _write_v2_catalog(tmp_path)
+    catalog = load_semantic_visual_catalog(tmp_path)
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[{**candidate, "start_us": 1_000_000, "duration_us": 1_000_000}],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="mixed",
+        segment_boundaries=[{"boundary_us": 1_000_000}],
+    )
+
+    assert all(item["timing_mode"] != "seam_broll" for item in recipe["overlays"])
 
 
 def test_low_confidence_show_is_not_auto_enabled() -> None:

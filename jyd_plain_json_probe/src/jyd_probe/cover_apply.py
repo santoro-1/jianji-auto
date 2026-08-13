@@ -44,6 +44,8 @@ class CoverConfig:
     font_title: str = ""
     letter_spacing: int = 0
     line_spacing: int = 6
+    auto_wrapping: bool = False
+    max_line_width: float = 0.86
     line_1_shadow_color: str = "#000000"
     line_1_shadow_alpha: float = 0.9
     line_1_shadow_smoothing: float = 0.15
@@ -189,8 +191,8 @@ def add_cover_tracks(
                     align=1,
                     letter_spacing=config.letter_spacing,
                     line_spacing=config.line_spacing,
-                    auto_wrapping=True,
-                    max_line_width=0.86,
+                    auto_wrapping=config.auto_wrapping,
+                    max_line_width=config.max_line_width,
                 ),
                 clip_settings=draft.ClipSettings(
                     scale_x=config.text_scale,
@@ -337,6 +339,8 @@ def _validate_config(config: CoverConfig) -> None:
     for size in (config.line_1_size, config.line_2_size):
         if size <= 0 or size > 100:
             raise ValueError("Cover text sizes must be greater than 0 and no more than 100")
+    if not 0.01 <= config.max_line_width <= 1.0:
+        raise ValueError("Cover text maximum width must be between 0.01 and 1")
     for alpha in (config.line_1_shadow_alpha, config.line_2_shadow_alpha):
         if not 0.0 <= alpha <= 1.0:
             raise ValueError("Cover shadow alpha must be between 0 and 1")
