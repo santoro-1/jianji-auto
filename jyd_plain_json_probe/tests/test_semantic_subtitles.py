@@ -318,6 +318,95 @@ def test_local_reflow_preserves_task_11_phrase_without_model_boundary() -> None:
     ]
 
 
+def test_task_20_semantic_answer_boundary_is_kept_even_when_text_fits() -> None:
+    script = "最好的保护神洋葱，"
+    units = _units(
+        [
+            ("最好的保护神", "phrase", "none", "prefer"),
+            ("洋葱，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 2_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [str(cue["text"]) for cue in render_cues] == ["最好的保护神", "洋葱"]
+
+
+@pytest.mark.parametrize(
+    ("script", "parts", "expected"),
+    [
+        (
+            "最简单的补钙方式晒太阳，",
+            [
+                ("最简单的补钙方式", "phrase", "none", "prefer"),
+                ("晒太阳，", "phrase", "none", "prefer"),
+            ],
+            ["最简单的补钙方式", "晒太阳"],
+        ),
+        (
+            "最简单的排毒法揉肚子，",
+            [("最简单的排毒法揉肚子，", "phrase", "none", "prefer")],
+            ["最简单的排毒法", "揉肚子"],
+        ),
+        (
+            "最重要的方法是睡眠，",
+            [("最重要的方法是睡眠，", "phrase", "none", "prefer")],
+            ["最重要的方法是", "睡眠"],
+        ),
+    ],
+)
+def test_task_20_answer_phrases_follow_semantics_not_short_tail_balance(
+    script: str,
+    parts: list[tuple[str, str, str, str]],
+    expected: list[str],
+) -> None:
+    raw_cues = [{"start_us": 0, "end_us": 2_400_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, _units(parts), raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [str(cue["text"]) for cue in render_cues] == expected
+
+
+@pytest.mark.parametrize(
+    ("script", "expected"),
+    [
+        (
+            "世界上公认的十大免费最好的医生，",
+            ["世界上公认的", "十大免费最好的医生"],
+        ),
+        ("第十个睁一只眼闭一只眼，", ["第十个", "睁一只眼闭一只眼"]),
+    ],
+)
+def test_task_30_uses_complete_modifier_and_numbered_item_beats(
+    script: str,
+    expected: list[str],
+) -> None:
+    raw_cues = [{"start_us": 0, "end_us": 3_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, _units([(script, "phrase", "none", "prefer")]), raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [str(cue["text"]) for cue in render_cues] == expected
+
+
 def test_local_reflow_overrides_model_break_inside_locative_relative() -> None:
     script = "存款和好看才是你疲惫生活中的一副重要的解药，"
     units = _units(

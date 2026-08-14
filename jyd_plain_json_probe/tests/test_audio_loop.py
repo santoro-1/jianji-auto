@@ -42,6 +42,11 @@ class FakeDraft:
             self.target_timerange = target_timerange
             self.source_timerange = source_timerange
             self.volume = volume
+            self.fade = None
+
+        def add_fade(self, in_duration, out_duration):
+            self.fade = (in_duration, out_duration)
+            return self
 
 
 class FakeScript:
@@ -54,6 +59,13 @@ class FakeScript:
 
     def add_segment(self, segment, track_name) -> None:
         self.segments.append((segment, track_name))
+
+
+class LongAudioFakeDraft(FakeDraft):
+    class AudioMaterial(FakeDraft.AudioMaterial):
+        def __init__(self, path: str) -> None:
+            super().__init__(path)
+            self.duration = 120_000_000
 
 
 class AudioLoopTest(unittest.TestCase):
@@ -109,6 +121,72 @@ class AudioLoopTest(unittest.TestCase):
         self.assertEqual(len(script.segments), 1)
         self.assertEqual(script.segments[0][0].target_timerange.duration, 10_000_000)
 
+    def test_bgm_is_laid_backwards_from_natural_end_with_crossfades(self) -> None:
+        script = FakeScript()
+        changed = add_audio_track_segment(
+            FakeDraft,
+            script,
+            SimpleNamespace(
+                add_audio_path=str(Path(__file__)),
+                audio_source_start_us=-1,
+                audio_source_duration_us=0,
+                audio_target_start_us=0,
+                audio_target_duration_us=25_000_000,
+                audio_volume=0.3,
+                audio_loop_to_target=True,
+                audio_align_to_end=True,
+                audio_crossfade_us=200_000,
+            ),
+        )
+
+        self.assertTrue(changed)
+        self.assertEqual(
+            [
+                (
+                    segment.target_timerange.start,
+                    segment.target_timerange.duration,
+                    segment.source_timerange.start,
+                )
+                for segment, _ in script.segments
+            ],
+            [
+                (0, 5_400_000, 4_600_000),
+                (5_200_000, 10_000_000, 0),
+                (15_000_000, 10_000_000, 0),
+            ],
+        )
+        self.assertEqual(
+            [segment.fade for segment, _ in script.segments],
+            [(0, 200_000), (200_000, 200_000), (200_000, 0)],
+        )
+        self.assertEqual(len({track_name for _, track_name in script.segments}), 2)
+
+    def test_long_bgm_uses_its_suffix_and_ends_at_source_end(self) -> None:
+        script = FakeScript()
+        add_audio_track_segment(
+            LongAudioFakeDraft,
+            script,
+            SimpleNamespace(
+                add_audio_path=str(Path(__file__)),
+                audio_source_start_us=-1,
+                audio_source_duration_us=0,
+                audio_target_start_us=0,
+                audio_target_duration_us=60_000_000,
+                audio_volume=0.3,
+                audio_loop_to_target=True,
+                audio_align_to_end=True,
+                audio_crossfade_us=200_000,
+            ),
+        )
+
+        self.assertEqual(len(script.segments), 1)
+        segment = script.segments[0][0]
+        self.assertEqual(segment.target_timerange.start, 0)
+        self.assertEqual(segment.target_timerange.duration, 60_000_000)
+        self.assertEqual(segment.source_timerange.start, 60_000_000)
+        self.assertEqual(segment.source_timerange.duration, 60_000_000)
+        self.assertIsNone(segment.fade)
+
     def test_render_job_defaults_only_fitted_bgm_to_loop(self) -> None:
         media_path = str(Path(__file__).resolve())
         _, _, bgm_additions = _build_audio_replacements(
@@ -138,8 +216,29 @@ class AudioLoopTest(unittest.TestCase):
 
         self.assertTrue(bgm_additions[0].loop_to_target)
         self.assertEqual(bgm_additions[0].target_duration_us, 25_000_000)
+        self.assertFalse(bgm_additions[0].align_to_end)
         self.assertFalse(plain_additions[0].loop_to_target)
         self.assertEqual(plain_additions[0].target_duration_us, 25_000_000)
+
+    def test_render_job_accepts_backtimed_bgm_contract(self) -> None:
+        _, _, additions = _build_audio_replacements(
+            {
+                "audios": [
+                    {
+                        "type": "bgm",
+                        "media_path": str(Path(__file__).resolve()),
+                        "fit_to_video": True,
+                        "align_to_end": True,
+                        "crossfade_us": 200_000,
+                    }
+                ]
+            },
+            timeline_duration_us=60_000_000,
+        )
+
+        self.assertTrue(additions[0].loop_to_target)
+        self.assertTrue(additions[0].align_to_end)
+        self.assertEqual(additions[0].crossfade_us, 200_000)
 
 
 if __name__ == "__main__":

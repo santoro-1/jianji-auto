@@ -380,7 +380,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("const playbackDurationUs = sourceDurationUs > 0", workspace)
         self.assertNotIn("(sourceTime - sourceStart) % sourceDuration", workspace)
 
-        self.assertIn("previewBgmAudio.volume = 0.18", workspace)
+        self.assertIn("buildBacktimedPreviewBgmPlan", workspace)
+        self.assertIn("PREVIEW_BGM_CROSSFADE_SECONDS = 0.2", workspace)
+        self.assertIn("previewBgmBaseVolume = 0.18", workspace)
         self.assertIn("script?.postprocessSettings?.bgm_volume", workspace)
         self.assertIn("/postprocess/export", workspace)
         self.assertIn("重新导出带封面 MP4", workspace)

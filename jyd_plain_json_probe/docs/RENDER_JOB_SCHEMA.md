@@ -241,17 +241,22 @@ jyd_plain_json_probe/data/template_library/demo_template/
 
 ```json
 {
-  "type": "add",
+  "type": "bgm",
   "media_path": "D:/素材/bgm.mp3",
   "target_start_us": 0,
   "target_duration_us": 0,
   "fit_to_video": true,
+  "align_to_end": true,
+  "crossfade_us": 200000,
   "volume": 0.3
 }
 ```
 
 `type=bgm`、`fit_to_video=true` 且 `target_duration_us=0` 时，BGM 自动覆盖视频剩余时长；
-如果音乐本身更短，会在同一音乐轨道连续循环，并把最后一次循环裁切到视频结尾。
+默认兼容行为仍从音乐开头正向循环并裁切最后一轮。新版 4B/变体另传 `align_to_end=true`：
+渲染器从视频结尾向前铺设，音乐长于视频时取曲目末尾等长区间；音乐短于视频时最后一轮完整
+播放到曲目自然结尾，最早一轮允许只取曲目尾部。`crossfade_us` 控制相邻轮次的交叉衔接，
+4B/变体固定为 `200000`；实现使用两条交替音轨，最后一轮不淡出。
 普通 `type=add` 默认仍只播放一次；确实需要循环时可显式传 `loop_to_video=true`。
 `volume` 支持 `0.0` 到 `2.0`。通用提交页未指定时使用页面默认值；数字人 4B 流程则保存
 响度分析得到的冻结音量，普通音乐范围为 `0.08..0.25`，强人声音乐范围为 `0.05..0.16`。

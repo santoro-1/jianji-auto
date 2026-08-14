@@ -376,6 +376,8 @@ class AudioAddition:
     target_duration_us: int = 0
     volume: float = 1.0
     loop_to_target: bool = False
+    align_to_end: bool = False
+    crossfade_us: int = 0
 
 
 @dataclass(frozen=True)
@@ -659,6 +661,9 @@ def _apply_top_level_changes(
                     audio_target_start_us=item.target_start_us,
                     audio_target_duration_us=item.target_duration_us,
                     audio_volume=item.volume,
+                    audio_loop_to_target=item.loop_to_target,
+                    audio_align_to_end=item.align_to_end,
+                    audio_crossfade_us=item.crossfade_us,
                 ),
             )
         )

@@ -1016,13 +1016,77 @@ def add_audio_track_segment(draft: Any, script: Any, args: argparse.Namespace) -
         target_duration = available_duration
         source_timerange = draft.Timerange(source_start, available_duration)
 
-    track_name = f"probe_audio_{uuid.uuid4().hex[:8]}"
-    append_track_compat(draft, script, draft.TrackType.audio, track_name)
     loop_duration = available_duration
     if source_timerange is not None:
         loop_duration = min(loop_duration, int(source_timerange.duration))
     if loop_duration <= 0:
         raise RuntimeError("音频循环片段时长必须大于 0")
+
+    align_to_end = bool(getattr(args, "audio_align_to_end", False))
+    crossfade_us = max(0, int(getattr(args, "audio_crossfade_us", 0) or 0))
+    if align_to_end and loop_to_target and target_duration > 0:
+        # Lay complete musical phrases backwards from the video end.  When the
+        # song is shorter than the video, the first timeline piece is the song's
+        # suffix and the last piece is always a complete 0..end playback.
+        crossfade_us = min(crossfade_us, loop_duration // 4)
+        stride = max(1, loop_duration - crossfade_us)
+        relative_start = target_duration - loop_duration
+        planned: list[tuple[int, int, int]] = []
+        while True:
+            trimmed_source = max(0, -relative_start)
+            segment_start = max(0, relative_start)
+            segment_duration = loop_duration - trimmed_source
+            if segment_duration > 0:
+                planned.append(
+                    (
+                        target_start + segment_start,
+                        source_start + trimmed_source,
+                        segment_duration,
+                    )
+                )
+            if relative_start <= 0:
+                break
+            relative_start -= stride
+        planned.sort(key=lambda item: item[0])
+
+        track_names = [
+            f"probe_audio_{uuid.uuid4().hex[:8]}_a",
+            f"probe_audio_{uuid.uuid4().hex[:8]}_b",
+        ]
+        for track_name in track_names[: 2 if len(planned) > 1 else 1]:
+            append_track_compat(draft, script, draft.TrackType.audio, track_name)
+        for index, (segment_start, segment_source_start, segment_duration) in enumerate(planned):
+            audio_segment = draft.AudioSegment(
+                material,
+                draft.Timerange(segment_start, segment_duration),
+                source_timerange=draft.Timerange(
+                    segment_source_start,
+                    segment_duration,
+                ),
+                volume=float(getattr(args, "audio_volume", 1.0)),
+            )
+            fade_in = (
+                min(crossfade_us, segment_duration // 2)
+                if index > 0
+                else 0
+            )
+            fade_out = (
+                min(crossfade_us, segment_duration // 2)
+                if index < len(planned) - 1
+                else 0
+            )
+            if (fade_in or fade_out) and hasattr(audio_segment, "add_fade"):
+                audio_segment.add_fade(fade_in, fade_out)
+            script.add_segment(audio_segment, track_names[index % len(track_names)])
+        log(
+            "已从自然结尾反向铺设 BGM: "
+            f"target_start={target_start}, target_duration={target_duration}, "
+            f"crossfade_us={crossfade_us}, segment_count={len(planned)}"
+        )
+        return True
+
+    track_name = f"probe_audio_{uuid.uuid4().hex[:8]}"
+    append_track_compat(draft, script, draft.TrackType.audio, track_name)
 
     segment_count = 0
     elapsed = 0

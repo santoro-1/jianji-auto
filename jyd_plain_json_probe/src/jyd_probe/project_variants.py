@@ -12,6 +12,7 @@ from .project_results import ProjectResultLibrary
 from .project_store import ProjectStore
 from .project_video_source import build_project_speech_audio, build_project_video_source
 from .project_postprocess import (
+    BGM_CROSSFADE_US,
     CAPTION_REFERENCE_FONT_SIZE,
     CAPTION_STROKE_COLOR,
     CAPTION_STROKE_WIDTH,
@@ -914,6 +915,8 @@ class ProjectVariantCoordinator:
                     "target_start_us": 0,
                     "target_duration_us": 0,
                     "fit_to_video": True,
+                    "align_to_end": True,
+                    "crossfade_us": BGM_CROSSFADE_US,
                     "volume": float(saved_bgm_volume or BGM_FALLBACK_VOLUME),
                 }
             )

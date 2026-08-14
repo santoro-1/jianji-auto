@@ -72,6 +72,7 @@ CAPTION_REFERENCE_FONT_SIZE = 14.0
 CAPTION_REFERENCE_MAX_EM = 9.69 * 15.0 / CAPTION_REFERENCE_FONT_SIZE
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
+BGM_CROSSFADE_US = 200_000
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
 FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
 FIXED_VIDEO_TITLE_FONT_SIZE = 19.0
@@ -526,6 +527,23 @@ _QUANTITY_TAIL = re.compile(r"[0-9０-９零〇一二两三四五六七八九十
 _COUNTING_TAIL = re.compile(
     r"[0-9０-９零〇一二两三四五六七八九十百千万亿几多]+(?:个|名|位|只|条|份|组|家|本|张|件|辆|台)$"
 )
+_ORDINAL_ITEM_PREFIX = re.compile(
+    r"^第[0-9０-９零〇一二两三四五六七八九十百千万几多]+个"
+)
+_ANSWER_PROMPT_SUFFIXES = (
+    "营养素",
+    "保护神",
+    "方式",
+    "方法",
+    "医生",
+    "食物",
+    "动作",
+    "习惯",
+    "运动",
+    "方",
+    "法",
+    "菜",
+)
 _RELATIVE_PREFIXES = ("能", "能够", "可", "可以", "会", "要", "应该")
 _BAD_LINE_ENDINGS = (
     "就",
@@ -552,6 +570,12 @@ _JIEBA_TOKENIZER = jieba.Tokenizer()
 _JIEBA_POS_TOKENIZER = pseg.POSTokenizer(_JIEBA_TOKENIZER)
 
 
+def _is_nominal_flag(flag: str) -> bool:
+    """Treat Jieba abbreviations as nominal heads when scoring boundaries."""
+
+    return str(flag or "").startswith("n") or str(flag or "") in {"vn", "j"}
+
+
 def _discouraged_break_offsets(text: str) -> dict[int, float]:
     """Score grammatical token boundaries that are legal but usually unnatural."""
 
@@ -568,10 +592,7 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
         _left_word, left_flag, _left_start, boundary = left
         right_word, right_flag, _right_start, _right_end = right
         following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
-        if (
-            (left_flag.startswith("n") or left_flag == "vn")
-            and (right_flag.startswith("n") or right_flag == "vn")
-        ):
+        if _is_nominal_flag(left_flag) and _is_nominal_flag(right_flag):
             penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
         elif left_flag in {"a", "d"} and (
             right_flag.startswith("v") or right_flag.startswith("a")
@@ -593,8 +614,8 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
             # Verb + quantity constructions such as `做点活动` should not leave
             # the quantifier at the start of the following subtitle.
             penalties[boundary] = max(penalties.get(boundary, 0.0), 12.0)
-        elif left_flag.startswith("v") and right_flag.startswith(
-            ("n", "r", "m", "q")
+        elif left_flag.startswith("v") and (
+            _is_nominal_flag(right_flag) or right_flag.startswith(("r", "m", "q"))
         ):
             # Prefer keeping a predicate with its object or complement. This
             # is a grammatical relationship, not a phrase dictionary:
@@ -633,10 +654,10 @@ def _dependency_break_offsets(text: str) -> set[int]:
         _left_word, left_flag, _left_start, boundary = left
         right_word, right_flag, _right_start, _right_end = right
         previous_flag = tagged[index - 1][1] if index > 0 else ""
-        left_nominal = left_flag.startswith("n") or left_flag == "vn"
-        right_nominal = right_flag.startswith("n") or right_flag == "vn"
+        left_nominal = _is_nominal_flag(left_flag)
+        right_nominal = _is_nominal_flag(right_flag)
         if left_flag.startswith("v") and (
-            right_flag.startswith(("n", "r", "m", "q")) or right_flag == "vn"
+            right_nominal or right_flag.startswith(("r", "m", "q"))
         ):
             dependencies.add(boundary)
         elif (
@@ -695,7 +716,9 @@ def _preferred_syntax_break_offsets(text: str) -> set[int]:
     for left, right in zip(tagged, tagged[1:]):
         left_word, left_flag, _left_start, boundary = left
         right_word, right_flag, _right_start, right_end = right
-        if left_word in {"的", "地", "得"} and right_flag.startswith(("m", "q")):
+        if left_word in {"的", "地", "得"} and (
+            right_flag.startswith(("m", "q")) or right_flag == "j"
+        ):
             preferred.add(boundary)
         elif left_word == "的" and right_flag in {"d", "df", "zg"}:
             # Completed nominalized phrase before a new adverbial predicate:
@@ -715,6 +738,66 @@ def _preferred_syntax_break_offsets(text: str) -> set[int]:
             # without depending on the semantic model to suggest that boundary.
             preferred.add(boundary)
     return preferred
+
+
+def _strong_semantic_break_offsets(
+    text: str,
+    model_preferred_breaks: set[int],
+) -> set[int]:
+    """Return high-confidence prompt/answer or numbered-item boundaries.
+
+    Ordinary model ``prefer`` boundaries remain layout hints: old analyses can
+    contain useful but optional beats such as ``世界冠军|张雒``.  Only the
+    structures below are strong enough to create an extra caption even when
+    the complete text fits the width limit.
+    """
+
+    length = len(text)
+
+    def usable(boundary: int) -> bool:
+        return 2 <= boundary <= length - 2
+
+    ordinal = _ORDINAL_ITEM_PREFIX.match(text)
+    if ordinal is not None and length - ordinal.end() >= 5:
+        return {ordinal.end()}
+
+    # An explicit copula is the unambiguous end of the prompt.  Resolve it
+    # before suffix matching so `最重要的方法是|睡眠` never becomes
+    # `最重要的方法|是|睡眠`.
+    for match in re.finditer("是", text):
+        boundary = match.end()
+        if text[:boundary].startswith("最") and usable(boundary):
+            return {boundary}
+
+    model_answers: set[int] = set()
+    for boundary in model_preferred_breaks:
+        left = text[:boundary]
+        right = text[boundary:]
+        if (
+            (left.startswith("最") or "第一好" in left)
+            and left.endswith(_ANSWER_PROMPT_SUFFIXES)
+            and len(right) >= 2
+        ):
+            model_answers.add(boundary)
+    if model_answers:
+        return {min(model_answers)}
+
+    # Local fallback for a missing model boundary.  This intentionally applies
+    # only to superlative/list prompts and their generic category head; it does
+    # not turn every noun-to-noun boundary into a forced split.
+    if text.startswith("最") and "的" in text:
+        local_answers: set[int] = set()
+        for suffix in _ANSWER_PROMPT_SUFFIXES:
+            cursor = text.find(suffix, text.find("的") + 1)
+            while cursor >= 0:
+                boundary = cursor + len(suffix)
+                if usable(boundary):
+                    local_answers.add(boundary)
+                cursor = text.find(suffix, cursor + 1)
+        if local_answers:
+            return {min(local_answers)}
+
+    return set()
 
 
 class CaptionLayoutReviewRequired(ValueError):
@@ -814,70 +897,20 @@ def _unbreakable_terms() -> tuple[str, ...]:
 
 
 def _unsafe_break_offsets(text: str) -> set[int]:
-    """Return character boundaries that would split a lexical or numeric unit."""
+    """Return hard lexical boundaries that layout must never cross.
+
+    Cross-token POS relationships are intentionally handled by
+    ``_dependency_break_offsets`` as graded grammatical evidence.  Treating
+    every adjacent noun token as one hard word made valid predicate/answer
+    boundaries impossible (for example ``补钙方式|晒太阳``), after which the
+    old all-or-nothing fallback discarded every grammatical safeguard.
+    """
 
     unsafe_offsets: set[int] = set()
     for token, start, end in _JIEBA_TOKENIZER.tokenize(text, mode="default", HMM=False):
         if len(token) <= 1 or token.isspace():
             continue
         unsafe_offsets.update(range(int(start) + 1, int(end)))
-    tagged: list[tuple[str, str, int, int]] = []
-    cursor = 0
-    for token in _JIEBA_POS_TOKENIZER.cut(text, HMM=False):
-        word = str(token.word)
-        start = cursor
-        end = start + len(word)
-        tagged.append((word, str(token.flag), start, end))
-        cursor = end
-    for index, (left, right) in enumerate(zip(tagged, tagged[1:])):
-        _left_word, left_flag, _left_start, boundary = left
-        _right_word, right_flag, _right_start, _right_end = right
-        following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
-        if (
-            left_flag in {"d", "df", "zg"}
-            and (
-                right_flag.startswith("a")
-                or right_flag.startswith("v")
-                or right_flag.startswith("m")
-                or right_flag.startswith("q")
-            )
-        ):
-            # Degree/modal/quantity modifiers belong with what follows:
-            # 很|高、不要|吃、更|多、至少|三个。
-            unsafe_offsets.add(boundary)
-        elif left_flag.startswith("a") and (
-            right_flag.startswith("n") or right_flag == "vn"
-        ):
-            # Attribute + noun is one lexical phrase: 甜|蛋糕、软|面包。
-            unsafe_offsets.add(boundary)
-        elif (
-            (left_flag.startswith("n") or left_flag == "vn")
-            and (right_flag.startswith("n") or right_flag == "vn")
-        ):
-            # A nominal compound is an indivisible semantic label, not merely
-            # a preferred phrase: 体重|管理、生活饮食|管理。
-            unsafe_offsets.add(boundary)
-        elif left_flag.startswith("r") and right_flag.startswith("r"):
-            # Pronoun/reflexive compounds: 你|自己、我们|大家。
-            unsafe_offsets.add(boundary)
-        elif (
-            left_flag.startswith("v")
-            and right_flag.startswith("a")
-            and not following_flag.startswith("n")
-        ):
-            # Predicate/state complements belong together: 呼吸|急促。
-            # An adjective followed by a noun instead begins an object phrase,
-            # so `吃|甜蛋糕` remains a good legal break.
-            unsafe_offsets.add(boundary)
-        elif left_flag.startswith("m") and (
-            right_flag.startswith("m")
-            or right_flag.startswith("a")
-            or right_flag.startswith("n")
-            or right_flag.startswith("q")
-        ):
-            # Numeric/quantified modifiers must not be stranded:
-            # 五种|好食物、一点|投资、一年|多。
-            unsafe_offsets.add(boundary)
     for term in _unbreakable_terms():
         cursor = 0
         while True:
@@ -1045,8 +1078,7 @@ def _split_one_line(
     model_preferred_breaks = set(preferred_offsets or set())
     if not normalized:
         raise CaptionLayoutReviewRequired("字幕内容为空")
-    if metrics.text_width_em(normalized) <= maximum_width_em:
-        return [normalized]
+    full_width = metrics.text_width_em(normalized)
 
     connector_starts: set[int] = set()
     connector_ends: set[int] = set()
@@ -1065,6 +1097,36 @@ def _split_one_line(
     dependency_breaks = _dependency_break_offsets(normalized)
     discouraged_breaks = _discouraged_break_offsets(normalized)
     preferred_syntax_breaks = _preferred_syntax_break_offsets(normalized)
+    strong_semantic_breaks = (
+        _strong_semantic_break_offsets(normalized, model_preferred_breaks)
+        - protected_breaks
+    )
+    if strong_semantic_breaks:
+        chunks: list[str] = []
+        start = 0
+        for boundary in sorted(strong_semantic_breaks):
+            part = normalized[start:boundary]
+            if part:
+                chunks.extend(
+                    _split_one_line(
+                        part,
+                        metrics,
+                        maximum_width_em=maximum_width_em,
+                    )
+                )
+            start = boundary
+        tail = normalized[start:]
+        if tail:
+            chunks.extend(
+                _split_one_line(
+                    tail,
+                    metrics,
+                    maximum_width_em=maximum_width_em,
+                )
+            )
+        return chunks
+    if full_width <= maximum_width_em:
+        return [normalized]
 
     preferred_term_ends: set[int] = set()
     for term in _PREFERRED_PHRASE_END_TERMS:
@@ -1115,11 +1177,14 @@ def _split_one_line(
                 and end not in punctuation_breaks
             ):
                 continue
-            if (
-                _strict_dependencies
-                and end < length
+            dependency_violation = bool(
+                end < length
                 and end in dependency_breaks
                 and end not in punctuation_breaks
+            )
+            if (
+                _strict_dependencies
+                and dependency_violation
             ):
                 continue
             core_length = len(chunk)
@@ -1139,6 +1204,11 @@ def _split_one_line(
                 score += 0.25
             if end < length:
                 score += 0.25
+                if dependency_violation:
+                    # If every strict grammatical plan is over-wide, relax only
+                    # the necessary relationship and retain its full cost.  The
+                    # former retry discarded all dependency information at once.
+                    score += 8.0
                 if end in model_preferred_breaks:
                     score -= 2.5
                 elif end in punctuation_breaks:
@@ -1166,6 +1236,10 @@ def _split_one_line(
                     score += 4.0
             if start > 0 and chunk.startswith(_ORPHAN_PARTICLES):
                 score += 10.0
+            # Once hard semantic beats have been handled above, keep the
+            # necessary caption count minimal and use grammar only to choose
+            # among plans with that count.  This prevents optional model beats
+            # from producing fragments such as `第一|脂肪...`.
             if (candidate_count, score) < (
                 caption_counts[end],
                 quality_scores[end],
@@ -1323,7 +1397,10 @@ def _layout_semantic_groups(
         for group in clause[:-1]:
             part, _part_breaks = _caption_display_text(str(group.get("text") or ""))
             display_cursor += len(part)
-            if str(group.get("break_after") or "allow") == "prefer":
+            if (
+                str(group.get("break_after") or "allow") == "prefer"
+                and part not in _RIGHT_BINDING_CLAUSES
+            ):
                 preferred_offsets.add(display_cursor)
         start_us = int(clause[0].get("start_us") or 0)
         end_us = int(clause[-1].get("end_us") or 0)
@@ -2057,6 +2134,8 @@ class ProjectPostprocessCoordinator:
                         "target_start_us": 0,
                         "target_duration_us": 0,
                         "fit_to_video": True,
+                        "align_to_end": True,
+                        "crossfade_us": BGM_CROSSFADE_US,
                         "volume": float(
                             settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
                         ),

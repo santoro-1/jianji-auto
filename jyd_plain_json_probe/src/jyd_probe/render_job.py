@@ -840,6 +840,13 @@ def _build_audio_replacements(
                             default=(mode == "bgm" and fit_to_video),
                         )
                     ),
+                    align_to_end=_as_bool(
+                        _value(item, "align_to_end", "align_end_to_video", default=False)
+                    ),
+                    crossfade_us=max(
+                        0,
+                        int(_value(item, "crossfade_us", default=0)),
+                    ),
                 )
             )
         elif mode == "replace-segment":

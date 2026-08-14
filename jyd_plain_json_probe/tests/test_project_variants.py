@@ -298,6 +298,8 @@ class ProjectVariantTest(unittest.TestCase):
                 str((self.root / "audio-1.mp3").resolve()),
             )
             self.assertEqual(job["audios"][1]["library_identity"], "bgm-1")
+            self.assertTrue(job["audios"][1]["align_to_end"])
+            self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)
             self.assertEqual(
                 [text["text"] for text in job["texts"]],
                 [
