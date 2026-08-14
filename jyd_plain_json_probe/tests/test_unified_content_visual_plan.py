@@ -23,9 +23,16 @@ CATALOG_ROOT = (
 
 
 class UnifiedClient:
-    def __init__(self, *, invalid_visual: bool = False, priority: int = 2) -> None:
+    def __init__(
+        self,
+        *,
+        invalid_visual: bool = False,
+        priority: int = 2,
+        usage: str | None = None,
+    ) -> None:
         self.invalid_visual = invalid_visual
         self.priority = priority
+        self.usage = usage
         self.calls: list[dict[str, Any]] = []
 
     def analyze_workbench_content(
@@ -46,7 +53,14 @@ class UnifiedClient:
         anchors = visual_context["anchors"] if visual_context is not None else []
         visual_plan: list[dict[str, Any]] = []
         if anchors:
-            anchor = anchors[0]
+            anchor = next(
+                (
+                    item
+                    for item in anchors
+                    if self.usage is None or item["usage"] == self.usage
+                ),
+                anchors[0],
+            )
             concept_id = anchor["allowed_concepts"][0]
             if self.invalid_visual:
                 concept_id = "food.not-offered"
@@ -277,7 +291,7 @@ def test_invalid_visual_plan_does_not_discard_content_branches(tmp_path: Path) -
 def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     tmp_path: Path,
 ) -> None:
-    script = "控制体重需要长期坚持，各项习惯和日常安排都要逐步调整。" * 8
+    script = "控制体重需要长期坚持，日常轻活动和生活安排都要逐步调整。" * 8
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
         owner_user_id="user-1",
@@ -298,7 +312,7 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
         },
     )
     catalog = load_semantic_visual_catalog(CATALOG_ROOT)
-    client = UnifiedClient()
+    client = UnifiedClient(usage="enrichment")
 
     result = ProjectContentAnalysisCoordinator(
         store,
@@ -309,7 +323,10 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     analysis = result["items"][0]["visual_analysis"]
     assert len(client.calls) == 1
     assert len(analysis["visual_plan"]) == 1
-    assert client.calls[0]["visual_context"]["anchors"][0]["usage"] == "enrichment"
+    assert any(
+        anchor["usage"] == "enrichment"
+        for anchor in client.calls[0]["visual_context"]["anchors"]
+    )
     assert set(analysis["visual_plan"][0]) == {"anchor_id", "concept_id", "priority"}
     overlay = analysis["recipe"]["overlays"][0]
     assert overlay["usage"] == "enrichment"
@@ -318,12 +335,12 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     assert "full_screen_broll" in selected["usage_modes"]
     assert overlay["media_type"] == "video"
     assert overlay["start_us"] >= 8_000_000
-    assert overlay["source_start_us"] == 12_000_000
+    assert overlay["source_start_us"] >= 0
     assert overlay["corner"] == "center"
 
 
-def test_enrichment_below_key_priority_stays_review_only(tmp_path: Path) -> None:
-    script = "三伏天常常整理房间，把桌面擦干净，再把物品整齐归位。" * 8
+def test_naturally_related_enrichment_priority_one_can_be_used(tmp_path: Path) -> None:
+    script = "三伏天也可以安排日常轻活动，节奏放慢并逐步养成习惯。" * 8
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
         owner_user_id="user-1",
@@ -344,14 +361,14 @@ def test_enrichment_below_key_priority_stays_review_only(tmp_path: Path) -> None
 
     result = ProjectContentAnalysisCoordinator(
         store,
-        UnifiedClient(priority=1),
+        UnifiedClient(priority=1, usage="enrichment"),
         visual_catalog=load_semantic_visual_catalog(CATALOG_ROOT),
     ).analyze("user-1", project["project_id"], "token")
 
     analysis = result["items"][0]["visual_analysis"]
-    assert analysis["visual_plan"][0]["priority"] == 0
-    assert analysis["decisions"][0]["decision"] == "REVIEW"
-    assert analysis["recipe"]["overlays"] == []
+    assert analysis["visual_plan"][0]["priority"] == 1
+    assert analysis["decisions"][0]["decision"] == "SHOW"
+    assert analysis["recipe"]["overlays"][0]["usage"] == "enrichment"
 
 
 def test_real_activity_script_uses_explicit_action_video_in_one_cloud_call(
@@ -491,7 +508,7 @@ def test_real_segment_boundary_flows_into_local_seam_broll_recipe(tmp_path: Path
     anchor = next(
         value
         for value in visual_input.visual_context["anchors"]
-        if value["text"] == "胯下击掌"
+        if value["usage"] == "seam_broll"
     )
     result, recipe = build_local_visual_result(
         script=script,

@@ -21,7 +21,7 @@ from jyd_probe.project_postprocess import resolve_project_cover_image  # noqa: E
 
 class AutomaticBgmLoudnessTest(unittest.TestCase):
     def test_volume_is_relative_to_voice_and_bounded(self) -> None:
-        self.assertAlmostEqual(volume_from_loudness(-16.0, -14.0), 0.1585, places=4)
+        self.assertAlmostEqual(volume_from_loudness(-16.0, -14.0), 0.2239, places=4)
         self.assertEqual(volume_from_loudness(-16.0, -40.0), 0.25)
         self.assertEqual(volume_from_loudness(-16.0, 0.0), 0.08)
 
@@ -30,7 +30,7 @@ class AutomaticBgmLoudnessTest(unittest.TestCase):
         measure.side_effect = [-16.0, -14.0]
         mix = automatic_bgm_mix("voice.mp3", "bgm.mp3")
         self.assertEqual(mix["algorithm"], "speech-relative-lufs.v1")
-        self.assertEqual(mix["volume"], 0.1585)
+        self.assertEqual(mix["volume"], 0.2239)
         self.assertFalse(mix["fallback"])
 
     @patch("jyd_probe.bgm_loudness.measure_integrated_lufs", side_effect=ValueError("bad audio"))
@@ -43,10 +43,10 @@ class AutomaticBgmLoudnessTest(unittest.TestCase):
     def test_strong_vocals_get_four_more_db_of_narration_headroom(self, measure) -> None:
         measure.side_effect = [-16.0, -14.0]
         mix = automatic_bgm_mix("voice.mp3", "bgm.mp3", strong_vocals=True)
-        self.assertEqual(mix["target_gap_db"], 18.0)
-        self.assertEqual(mix["volume"], 0.1)
+        self.assertEqual(mix["target_gap_db"], 15.0)
+        self.assertEqual(mix["volume"], 0.1413)
         self.assertTrue(mix["strong_vocals"])
-        self.assertLess(mix["volume"], 0.1585)
+        self.assertLess(mix["volume"], 0.2239)
 
     def test_strong_vocal_fallback_is_lower_than_normal_fallback(self) -> None:
         self.assertEqual(fallback_bgm_volume(strong_vocals=True), 0.1136)

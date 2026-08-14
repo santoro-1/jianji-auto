@@ -510,7 +510,8 @@ glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续�
 `RenderJobQueue` 提交任务。固定参数为居中、画面宽度 `0.8`、`transform_y=-850/1920`
 （剪映 1080×1920 参考位置 Y=-850）、`DouyinSansBold` 14 号、默认白字、黑色 `0.06` 描边。
 BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人声和曲目综合响度，目标
-为音乐低于人声 14 dB，线性音量限制在 `0.08..0.25`，失败回退 `0.18`。结果冻结到
+为普通音乐低于人声 11 dB、强人声音乐低于人声 15 dB；两者线性音量分别限制在
+`0.08..0.25`、`0.05..0.16`，失败分别回退 `0.18`、`0.1136`。结果冻结到
 `postprocess.bgm_volume` / `bgm_loudness`，浏览器预览、普通导出和变体共用；不接受前端人工音量参数。
 浏览器直接读取同一冻结样式，不得为溢出字幕临时缩字；
 无法可靠排版时状态为 `REVIEW_REQUIRED`，不会静默显示溢出字幕。只有用户明确下载普通
@@ -906,13 +907,16 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   顿号速切只接受 `list_quick_cut`，通用空镜只接受 `full_screen_broll`，拼接点只接受
   `seam_broll`；v2 继续兼容 `空镜/相关素材/b-roll/enrichment` tags。v3 的
   `semantic_roles.related` 是非自动关系，不能作为空镜开关。锚点输入显式携带
-  `usage=enrichment` 和所在短语上下文，模型必须返回 priority 2 才允许自动使用，priority 0/1
-  只供审核。拼接点空镜、明确素材先调度，MiniMax 实际时间轴连续空窗至少 8 秒后才允许补充，
-  每 60 秒最多 4 条；通用锚点每 50 字一个、单条最多 12 个。明确触发优先选择
+  `usage=enrichment/seam_broll` 和所在短语上下文；直接强相关返回 priority 2，同场景、动作或
+  类别下自然且不误导的宽相关允许 priority 1 自动使用，priority 0 只供审核。通用空镜由
+  `VISUAL_BROLL_TARGET_INTERVAL_SECONDS=15` 控制约每 15 秒一次的目标尝试；
+  本地在目标点附近只提交确有获准素材支撑的相关短句，实际时间轴仍至少留 8 秒空窗。该值是
+  尝试间隔而非配额，匹配不到即保留数字人口播。明确触发优先选择
   非 enrichment 资产，空窗补充只选择获准用途的资产，两者仍在一次模型调用内完成。
 - `project_video_source.py` 从当前 `source_task_ids` 绑定的最新原始数字人分段读取边界和下一段
-  脚本；4B 在 ASR/raw cues 已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频
-  时从边界开始生成 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
+  脚本；连接处以独立 `seam_broll` 候选参与同一次内容分析，不计入 15 秒周期。4B 在 ASR/raw cues
+  已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频
+  时从边界开始生成最长 5 秒的 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
   保留。配方先登记手工锁定项，再按接缝、显式语义、通用空镜的顺序占位和更新
   `used_asset_ids`。视频源短于冻结目标区间时，浏览器预览和渲染器都会让该 overlay 提前结束，
   不循环也不定格补足。

@@ -15,7 +15,7 @@ from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
-BGM_TARGET_GAP_DB = 14.0
+BGM_TARGET_GAP_DB = 11.0
 BGM_MIN_VOLUME = 0.08
 BGM_MAX_VOLUME = 0.25
 BGM_FALLBACK_VOLUME = 0.18

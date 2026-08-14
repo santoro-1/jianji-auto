@@ -100,12 +100,21 @@ def prepare_unified_visual_input(
     catalog: SemanticVisualCatalog,
 ) -> UnifiedVisualInput:
     script = str(item.get("script_text") or "")
-    candidate_request = recall_semantic_visual_candidates(script, catalog)
     base_video = (item.get("outputs") or {}).get("base_video") or {}
     audio = (item.get("outputs") or {}).get("audio") or {}
     subtitles = item.get("subtitles") or {}
     metadata = base_video.get("metadata") if isinstance(base_video, Mapping) else {}
     duration = metadata.get("duration_us") if isinstance(metadata, Mapping) else None
+    video_duration_us = (
+        int(duration) if isinstance(duration, int) and duration > 0 else None
+    )
+    segment_boundaries = project_segment_boundaries(dict(item))
+    candidate_request = recall_semantic_visual_candidates(
+        script,
+        catalog,
+        video_duration_us=video_duration_us,
+        segment_boundaries=segment_boundaries,
+    )
     alignment = subtitles.get("asr_alignment") if isinstance(subtitles, Mapping) else None
     if not (
         isinstance(audio, Mapping)
@@ -121,12 +130,10 @@ def prepare_unified_visual_input(
         candidate_request=candidate_request,
         visual_context=build_content_visual_context(candidate_request),
         raw_cues=list(subtitles.get("raw_cues") or []),
-        video_duration_us=(
-            int(duration) if isinstance(duration, int) and duration > 0 else None
-        ),
+        video_duration_us=video_duration_us,
         previous=dict(item.get("visual_analysis") or {}),
         asr_alignment=(dict(alignment) if isinstance(alignment, Mapping) else None),
-        segment_boundaries=project_segment_boundaries(dict(item)),
+        segment_boundaries=segment_boundaries,
     )
 
 
@@ -196,22 +203,11 @@ def validate_remote_visual_plan(
         if isinstance(priority, bool) or not isinstance(priority, int) or priority not in {0, 1, 2}:
             raise ValueError("数字人网站返回了无效的视觉优先级")
         seen.add(anchor_id)
-        usage = str(
-            candidate.get("usage")
-            or (
-                "enrichment"
-                if str(candidate.get("candidate_id") or "").startswith("ve_")
-                else "explicit"
-            )
-        )
-        # Enrichment is optional by definition.  Only a key visual (priority 2)
-        # may enter an automatic recipe; weaker selections stay review-only.
-        normalized_priority = 0 if usage == "enrichment" and priority < 2 else priority
         plan.append(
             {
                 "anchor_id": anchor_id,
                 "concept_id": concept_id,
-                "priority": normalized_priority,
+                "priority": priority,
             }
         )
     return {"analysis_status": "SUCCESS", "visual_plan": plan, "error": None}
@@ -237,10 +233,13 @@ def _compatibility_decisions(
                 "decision": "REVIEW" if priority == 0 else "SHOW",
                 "concept_id": item["concept_id"],
                 "priority": priority,
-                "usage": (
-                    "enrichment"
-                    if str(candidate.get("candidate_id") or "").startswith("ve_")
-                    else "explicit"
+                "usage": str(
+                    candidate.get("usage")
+                    or (
+                        "enrichment"
+                        if str(candidate.get("candidate_id") or "").startswith("ve_")
+                        else "explicit"
+                    )
                 ),
                 "importance": {0: 0.4, 1: 0.75, 2: 1.0}[priority],
                 "confidence": 1.0,

@@ -51,10 +51,13 @@ VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
 VISUAL_MAX_AUTO_PER_MINUTE = 24
 VISUAL_SENTENCE_MIN_DURATION_US = 2_000_000
 VISUAL_ENRICHMENT_MIN_GAP_US = 8_000_000
-VISUAL_ENRICHMENT_MAX_PER_MINUTE = 4
-VISUAL_ENRICHMENT_CHAR_INTERVAL = 50
-VISUAL_ENRICHMENT_MAX_ANCHORS = 12
+VISUAL_SEAM_BROLL_MAX_DURATION_US = 5_000_000
+# Edit this one value to tune how often ordinary B-roll is attempted. It is a
+# target cadence, not a quota: a slot is omitted when its context has no
+# relevant, locally available concept.
+VISUAL_BROLL_TARGET_INTERVAL_SECONDS = 15
 VISUAL_MAX_CONCEPTS_PER_ANCHOR = 8
+_VISUAL_ESTIMATED_SPEECH_CHARS_PER_SECOND = 3.5
 VISUAL_TIMING_POLICY_VERSION = "sentence-v1"
 VISUAL_ENRICHMENT_TAGS = frozenset({"空镜", "相关素材", "b-roll", "broll", "enrichment"})
 VISUAL_USAGE_MODES = frozenset(
@@ -1180,11 +1183,125 @@ def visual_phrase_char_range(script: str, *, start: int, end: int) -> tuple[int,
     return left, right
 
 
+def _broll_concept_ids(
+    catalog: SemanticVisualCatalog, *, usage: str
+) -> set[str]:
+    """Return concepts backed by an automatic asset for one B-roll usage."""
+
+    concept_ids: set[str] = set()
+    required_mode = "seam_broll" if usage == "seam_broll" else "full_screen_broll"
+    for asset in catalog.assets:
+        if not asset.get("auto_eligible", True) or asset.get("media_type") != "video":
+            continue
+        if catalog.schema == CATALOG_SCHEMA_V3:
+            if required_mode not in set(asset.get("usage_modes", ())):
+                continue
+        elif not _is_enrichment_asset(asset):
+            continue
+        concept_ids.update(str(value) for value in asset.get("concept_ids", ()))
+        concept_ids.update(
+            str(value)
+            for value in asset.get("video_taxonomy", {}).get(
+                "fallback_concept_ids", ()
+            )
+        )
+    return concept_ids
+
+
+def _contextual_broll_concepts(
+    matches: Iterable[tuple[int, int, str, list[dict[str, Any]]]],
+    *,
+    start: int,
+    end: int,
+    eligible_concept_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Keep only locally recalled concepts that genuinely occur in the context."""
+
+    allowed: dict[str, dict[str, Any]] = {}
+    for match_start, match_end, _alias, match_allowed in matches:
+        if match_start >= end or match_end <= start:
+            continue
+        for concept in match_allowed:
+            concept_id = str(concept.get("concept_id") or "")
+            if concept_id in eligible_concept_ids:
+                allowed.setdefault(concept_id, dict(concept))
+    return [
+        allowed[concept_id]
+        for concept_id in sorted(allowed)[:VISUAL_MAX_CONCEPTS_PER_ANCHOR]
+    ]
+
+
+def _available_anchor_start(
+    script: str, *, start: int, end: int, occupied_starts: set[int]
+) -> int | None:
+    for index in range(max(0, start), min(len(script), end)):
+        if (
+            index not in occupied_starts
+            and not script[index].isspace()
+            and script[index] not in VISUAL_PHRASE_BOUNDARIES
+        ):
+            return index
+    return None
+
+
+def _append_broll_candidate(
+    candidates: list[dict[str, Any]],
+    *,
+    original_script: str,
+    script_sha256: str,
+    prefix: str,
+    usage: str,
+    phrase_start: int,
+    phrase_end: int,
+    allowed_concepts: list[dict[str, Any]],
+    occupied_starts: set[int],
+    metadata: Mapping[str, Any],
+) -> bool:
+    anchor_start = _available_anchor_start(
+        original_script,
+        start=phrase_start,
+        end=phrase_end,
+        occupied_starts=occupied_starts,
+    )
+    if anchor_start is None or not allowed_concepts:
+        return False
+    identity = json.dumps(
+        [
+            script_sha256,
+            usage,
+            anchor_start,
+            phrase_end,
+            [item["concept_id"] for item in allowed_concepts],
+            dict(metadata),
+        ],
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    candidates.append(
+        {
+            "candidate_id": prefix
+            + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
+            "text": original_script[anchor_start:phrase_end],
+            "char_start": anchor_start,
+            "char_end": phrase_end,
+            "allowed_concepts": allowed_concepts,
+            "usage": usage,
+            **dict(metadata),
+        }
+    )
+    occupied_starts.add(anchor_start)
+    return True
+
+
 def recall_semantic_visual_candidates(
     original_script: str,
     catalog: SemanticVisualCatalog,
+    *,
+    video_duration_us: int | None = None,
+    segment_boundaries: Iterable[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
-    """Recall longest, non-overlapping aliases with stable exact character spans."""
+    """Recall explicit anchors plus relevant periodic and seam B-roll attempts."""
 
     eligible_concept_ids = {
         concept_id
@@ -1253,95 +1370,141 @@ def recall_semantic_visual_candidates(
             }
         )
 
-    enrichment_concept_ids = {
-        concept_id
-        for asset in catalog.assets
-        if asset.get("auto_eligible", True) and _is_enrichment_asset(asset)
-        for concept_id in asset.get("concept_ids", [])
-    }
-    enrichment_concept_ids.update(
-        concept_id
-        for asset in catalog.assets
-        if asset.get("auto_eligible", True) and _is_enrichment_asset(asset)
-        for concept_id in asset.get("video_taxonomy", {}).get(
-            "fallback_concept_ids", ()
+    occupied_starts = {int(item["char_start"]) for item in candidates}
+    periodic_concept_ids = _broll_concept_ids(catalog, usage="enrichment")
+    interval_us = VISUAL_BROLL_TARGET_INTERVAL_SECONDS * 1_000_000
+    planning_duration_us = (
+        video_duration_us
+        if isinstance(video_duration_us, int) and video_duration_us > 0
+        else round(
+            len(original_script)
+            / _VISUAL_ESTIMATED_SPEECH_CHARS_PER_SECOND
+            * 1_000_000
         )
     )
-    concept_by_id = {str(item["concept_id"]): item for item in catalog.concepts}
-    enrichment_allowed = [
-        {
-            "concept_id": concept_id,
-            "description": str(concept_by_id[concept_id]["description"]),
-        }
-        for concept_id in sorted(enrichment_concept_ids)
-        if concept_id in concept_by_id
-    ]
-    occupied_starts = {int(item["char_start"]) for item in candidates}
-    if enrichment_allowed and len(original_script) >= VISUAL_ENRICHMENT_CHAR_INTERVAL:
-        for target in range(
-            VISUAL_ENRICHMENT_CHAR_INTERVAL,
-            len(original_script),
-            VISUAL_ENRICHMENT_CHAR_INTERVAL,
-        ):
-            if sum(
-                str(item.get("candidate_id") or "").startswith("ve_")
-                for item in candidates
-            ) >= VISUAL_ENRICHMENT_MAX_ANCHORS:
-                break
-            start = target
-            while start < len(original_script) and original_script[start - 1] not in VISUAL_PHRASE_BOUNDARIES:
-                start += 1
-            while start < len(original_script) and (
-                original_script[start].isspace() or original_script[start] in VISUAL_PHRASE_BOUNDARIES
-            ):
-                start += 1
-            if start >= len(original_script) or start in occupied_starts:
-                continue
-            end = start
-            while (
-                end < len(original_script)
-                and end - start < 40
-                and original_script[end] not in VISUAL_PHRASE_BOUNDARIES
-            ):
-                end += 1
-            if end <= start:
-                continue
-            text = original_script[start:end]
-            enrichment_index = sum(
-                str(item.get("candidate_id") or "").startswith("ve_")
-                for item in candidates
+    if (
+        original_script
+        and planning_duration_us > interval_us
+        and periodic_concept_ids
+    ):
+        periodic_phrase_ranges: set[tuple[int, int]] = set()
+        target_window_chars = max(
+            20,
+            round(
+                len(original_script)
+                * interval_us
+                / planning_duration_us
+                / 2
+            ),
+        )
+        for target_us in range(interval_us, planning_duration_us, interval_us):
+            target_char = min(
+                len(original_script) - 1,
+                max(0, round(len(original_script) * target_us / planning_duration_us)),
             )
-            allowed_count = min(
-                len(enrichment_allowed), VISUAL_MAX_CONCEPTS_PER_ANCHOR
-            )
-            offset = (
-                enrichment_index * VISUAL_MAX_CONCEPTS_PER_ANCHOR
-            ) % len(enrichment_allowed)
-            anchor_allowed = [
-                enrichment_allowed[(offset + index) % len(enrichment_allowed)]
-                for index in range(allowed_count)
+            nearby_matches = [
+                match
+                for match in matches
+                if abs(((match[0] + match[1]) // 2) - target_char)
+                <= target_window_chars
+                and any(
+                    str(concept.get("concept_id") or "") in periodic_concept_ids
+                    for concept in match[3]
+                )
             ]
-            identity = json.dumps(
-                [
-                    script_sha256,
-                    "enrichment",
-                    start,
-                    end,
-                    [item["concept_id"] for item in anchor_allowed],
-                ],
-                ensure_ascii=False,
-                separators=(",", ":"),
+            if not nearby_matches:
+                continue
+            nearest = min(
+                nearby_matches,
+                key=lambda match: (
+                    abs(((match[0] + match[1]) // 2) - target_char),
+                    match[0],
+                ),
             )
-            candidates.append(
-                {
-                    "candidate_id": "ve_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
-                    "text": text,
-                    "char_start": start,
-                    "char_end": end,
-                    "allowed_concepts": anchor_allowed,
-                }
+            phrase_start, phrase_end = visual_phrase_char_range(
+                original_script, start=nearest[0], end=nearest[1]
             )
-            occupied_starts.add(start)
+            if (phrase_start, phrase_end) in periodic_phrase_ranges:
+                continue
+            allowed = _contextual_broll_concepts(
+                matches,
+                start=phrase_start,
+                end=phrase_end,
+                eligible_concept_ids=periodic_concept_ids,
+            )
+            if _append_broll_candidate(
+                candidates,
+                original_script=original_script,
+                script_sha256=script_sha256,
+                prefix="ve_",
+                usage="enrichment",
+                phrase_start=phrase_start,
+                phrase_end=phrase_end,
+                allowed_concepts=allowed,
+                occupied_starts=occupied_starts,
+                metadata={"target_start_us": target_us},
+            ):
+                periodic_phrase_ranges.add((phrase_start, phrase_end))
+
+    seam_concept_ids = _broll_concept_ids(catalog, usage="seam_broll")
+    expected_denominator = max(1, planning_duration_us)
+    for boundary in sorted(
+        (item for item in segment_boundaries if isinstance(item, Mapping)),
+        key=lambda item: int(item.get("boundary_us") or 0),
+    ):
+        boundary_us = int(boundary.get("boundary_us") or 0)
+        segment_script = str(boundary.get("script_text") or "").strip()
+        if boundary_us <= 0 or not segment_script or not seam_concept_ids:
+            continue
+        occurrences: list[int] = []
+        cursor = 0
+        while True:
+            found = original_script.find(segment_script, cursor)
+            if found < 0:
+                break
+            occurrences.append(found)
+            cursor = found + 1
+        if not occurrences:
+            continue
+        expected_char = round(len(original_script) * boundary_us / expected_denominator)
+        segment_start = min(occurrences, key=lambda value: abs(value - expected_char))
+        context_end = min(
+            len(original_script), segment_start + min(len(segment_script), 80)
+        )
+        seam_matches = [
+            match
+            for match in matches
+            if match[0] < context_end
+            and match[1] > segment_start
+            and any(
+                str(concept.get("concept_id") or "") in seam_concept_ids
+                for concept in match[3]
+            )
+        ]
+        if not seam_matches:
+            continue
+        nearest = min(seam_matches, key=lambda match: (match[0], match[1]))
+        phrase_start, phrase_end = visual_phrase_char_range(
+            original_script, start=nearest[0], end=nearest[1]
+        )
+        allowed = _contextual_broll_concepts(
+            matches,
+            start=phrase_start,
+            end=phrase_end,
+            eligible_concept_ids=seam_concept_ids,
+        )
+        _append_broll_candidate(
+            candidates,
+            original_script=original_script,
+            script_sha256=script_sha256,
+            prefix="vs_",
+            usage="seam_broll",
+            phrase_start=phrase_start,
+            phrase_end=phrase_end,
+            allowed_concepts=allowed,
+            occupied_starts=occupied_starts,
+            metadata={"segment_boundary_us": boundary_us},
+        )
     candidates.sort(key=lambda item: (int(item["char_start"]), int(item["char_end"])))
     return {
         "schema_version": "jyd.visual-analysis.request.v1",
@@ -1907,9 +2070,12 @@ def build_visual_recipe(
 
     explicit_groups: dict[tuple[int, int], list[dict[str, Any]]] = {}
     enrichment_entries: list[dict[str, Any]] = []
+    seam_entries: list[dict[str, Any]] = []
     for entry in entries:
         if entry["usage"] == "enrichment":
             enrichment_entries.append(entry)
+        elif entry["usage"] == "seam_broll":
+            seam_entries.append(entry)
         else:
             explicit_groups.setdefault(_sentence_key(entry["candidate"]), []).append(entry)
     for group in explicit_groups.values():
@@ -1924,21 +2090,34 @@ def build_visual_recipe(
         boundary_us = int(raw_boundary.get("boundary_us") or 0)
         if boundary_us <= 0:
             continue
-        candidates_after = [
-            (key, group)
-            for key, group in explicit_groups.items()
-            if key not in seam_group_keys
-            and int(group[0]["candidate"].get("start_us", 0))
-            + int(group[0]["candidate"].get("duration_us", 0))
-            > boundary_us
-            and int(group[0]["candidate"].get("start_us", 0)) >= boundary_us - 300_000
+        matching_seam = [
+            entry
+            for entry in seam_entries
+            if int(entry["candidate"].get("segment_boundary_us") or 0)
+            == boundary_us
         ]
-        if not candidates_after:
-            continue
-        key, group = min(
-            candidates_after,
-            key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
-        )
+        key: tuple[int, int] | None = None
+        if matching_seam:
+            group = matching_seam
+        else:
+            # Compatibility fallback for plans created before dedicated seam
+            # candidates existed.
+            candidates_after = [
+                (candidate_key, candidate_group)
+                for candidate_key, candidate_group in explicit_groups.items()
+                if candidate_key not in seam_group_keys
+                and int(candidate_group[0]["candidate"].get("start_us", 0))
+                + int(candidate_group[0]["candidate"].get("duration_us", 0))
+                > boundary_us
+                and int(candidate_group[0]["candidate"].get("start_us", 0))
+                >= boundary_us - 300_000
+            ]
+            if not candidates_after:
+                continue
+            key, group = min(
+                candidates_after,
+                key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
+            )
         rapid = _is_rapid_list(group)
         source_entries = group if rapid else [min(group, key=_entry_priority)]
         provisional_used = set(used_asset_ids)
@@ -1968,6 +2147,7 @@ def build_visual_recipe(
             start_override_us=boundary_us,
             minimum_duration_us=minimum,
         )
+        end_us = min(end_us, start_us + VISUAL_SEAM_BROLL_MAX_DURATION_US)
         if end_us <= start_us:
             continue
         ranges = (
@@ -1998,7 +2178,8 @@ def build_visual_recipe(
         automatic.extend(overlays)
         selected.extend(overlays)
         used_asset_ids.update(str(asset["asset_id"]) for _entry, asset in chosen)
-        seam_group_keys.add(key)
+        if key is not None:
+            seam_group_keys.add(key)
 
     ordered_groups = sorted(
         explicit_groups.items(),
@@ -2077,12 +2258,6 @@ def build_visual_recipe(
             default=0,
         )
         if start_us - previous_end_us < VISUAL_ENRICHMENT_MIN_GAP_US:
-            continue
-        if sum(
-            str(item.get("usage") or "") == "enrichment"
-            and abs(start_us - int(item.get("start_us") or 0)) < 60_000_000
-            for item in selected
-        ) >= VISUAL_ENRICHMENT_MAX_PER_MINUTE:
             continue
         concept_id = str(entry["decision"].get("concept_id") or "")
         asset = _choose_unused_asset(

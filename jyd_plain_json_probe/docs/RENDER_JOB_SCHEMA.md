@@ -413,8 +413,9 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 
 冻结 recipe v2 可增加 `timing_policy_version`、`used_asset_ids`，overlay 可增加句段、列举和
 `segment_boundary_us` 元数据；旧 recipe 缺少字段时仍兼容。自动素材在成片级按 `asset_id`
-去重，同 concept 保留 20 秒密度冷却，任何图片/视频仍不得重叠。通用空镜至少间隔 8 秒且
-每分钟最多 4 条；接缝空镜、明确语义优先。若冻结视频目标区间长于源片可用区间，浏览器和
+去重，同 concept 保留 20 秒密度冷却，任何图片/视频仍不得重叠。通用空镜按
+`VISUAL_BROLL_TARGET_INTERVAL_SECONDS=15` 约每 15 秒尝试且实际至少间隔 8 秒；接缝空镜按
+下一段语境独立尝试，接缝空镜、明确语义优先。若冻结视频目标区间长于源片可用区间，浏览器和
 渲染层都只播放从 `source_start_us` 起的剩余内容，随后提前结束，不循环或定格补齐。
 
 正文顶部固定文字由 `texts` 自动带入单行“世界冠军带你自律”，字号 19、

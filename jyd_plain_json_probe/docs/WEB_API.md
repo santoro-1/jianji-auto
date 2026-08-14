@@ -427,8 +427,9 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 在原始 cue 时间范围内拆成连续字幕；原始 cues 不修改。缺字、字体损坏或无法满足安全
 宽度/最短显示时长时返回 `409`，并把该行字幕标记为 `REVIEW_REQUIRED`，不会静默提交
 溢出字幕。BGM 可不选；选择时使用音乐库 identity，并适配视频时长。服务端用 FFmpeg 测量
-人声和曲目的综合响度，以音乐低于人声 14 dB 为目标自动计算 `bgm_volume`，限制在
-`0.08..0.25`，失败回退 `0.18`；该字段是服务端冻结结果，不接受客户端手工音量。
+人声和曲目的综合响度：普通音乐以低于人声 11 dB 为目标自动计算 `bgm_volume`，限制在
+`0.08..0.25`、失败回退 `0.18`；强人声音乐以低于人声 15 dB 为目标，限制在
+`0.05..0.16`、失败回退 `0.1136`。该字段是服务端冻结结果，不接受客户端手工音量。
 
 `postprocess/generate` 成功后登记 `PREVIEW_READY` 配方并进入 `COMPOSITION_READY`；浏览器
 直接用内部 `base-video`、render cues、真实字体和 BGM 完整预览，不会创建

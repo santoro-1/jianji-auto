@@ -1012,6 +1012,11 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
         index for index, asset in enumerate(catalog.assets) if asset["media_type"] == "video"
     )
     target_concept = catalog.assets[target_index]["concept_ids"][0]
+    target_alias = next(
+        concept["aliases"][0]
+        for concept in catalog.concepts
+        if concept["concept_id"] == target_concept
+    )
     tagged_assets = tuple(
         {
             **asset,
@@ -1029,9 +1034,11 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
         concepts=catalog.concepts,
         assets=tagged_assets,
     )
-    script = "这是健康知识讲解，需要结合实际生活理解。" * 8
+    script = f"这段先说明背景，然后安排{target_alias}帮助理解。" * 12
 
-    recalled = recall_semantic_visual_candidates(script, tagged_catalog)
+    recalled = recall_semantic_visual_candidates(
+        script, tagged_catalog, video_duration_us=60_000_000
+    )
     enrichment = [
         item
         for item in recalled["candidates"]
@@ -1039,7 +1046,11 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
     ]
 
     assert enrichment
-    assert len(enrichment) <= 6
+    assert {item["target_start_us"] for item in enrichment} <= {
+        15_000_000,
+        30_000_000,
+        45_000_000,
+    }
     assert all(len(item["allowed_concepts"]) <= 8 for item in enrichment)
     assert all(
         item["allowed_concepts"][0]["concept_id"] == target_concept
@@ -1047,7 +1058,7 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
     )
 
 
-def test_enrichment_anchors_rotate_all_concepts_without_breaking_cloud_limit() -> None:
+def test_enrichment_never_offers_unrelated_rotating_concepts() -> None:
     catalog = _catalog()
     concept_ids = [str(item["concept_id"]) for item in catalog.concepts[:10]]
     base_asset = dict(catalog.assets[0])
@@ -1073,18 +1084,13 @@ def test_enrichment_anchors_rotate_all_concepts_without_breaking_cloud_limit() -
 
     enrichment = [
         item
-        for item in recall_semantic_visual_candidates(script, tagged_catalog)["candidates"]
+        for item in recall_semantic_visual_candidates(
+            script, tagged_catalog, video_duration_us=90_000_000
+        )["candidates"]
         if str(item["candidate_id"]).startswith("ve_")
     ]
-    offered = {
-        str(concept["concept_id"])
-        for anchor in enrichment
-        for concept in anchor["allowed_concepts"]
-    }
 
-    assert len(enrichment) >= 2
-    assert all(len(item["allowed_concepts"]) <= 8 for item in enrichment)
-    assert offered == set(concept_ids)
+    assert enrichment == []
 
 
 def test_enrichment_uses_video_level_asset_deduplication() -> None:
