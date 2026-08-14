@@ -1012,6 +1012,12 @@ def _build_visual_video_additions(
                 start_us=int(_value(item, "start_us", default=0)),
                 duration_us=int(_value(item, "duration_us", default=1_800_000)),
                 source_start_us=int(_value(item, "source_start_us", default=0)),
+                source_duration_us=int(
+                    _value(item, "source_duration_us", default=0)
+                ),
+                loop_to_target=_as_bool(
+                    _value(item, "loop_to_target", default=False)
+                ),
                 mute=_as_bool(_value(item, "mute", default=True)),
                 fit=str(_value(item, "fit", default="cover")),
                 corner=corner,

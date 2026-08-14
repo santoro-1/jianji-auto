@@ -57,6 +57,28 @@ VISUAL_SEAM_BROLL_MAX_DURATION_US = 5_000_000
 # relevant, locally available concept.
 VISUAL_BROLL_TARGET_INTERVAL_SECONDS = 15
 VISUAL_MAX_CONCEPTS_PER_ANCHOR = 8
+EDITORIAL_BROLL_POOL_IDS = (
+    "editorial.home_daily",
+    "editorial.meal_daily",
+    "editorial.leisure_daily",
+    "editorial.family_life",
+    "editorial.mood_atmosphere",
+)
+_EDITORIAL_BROLL_POOLS_BY_ARTICLE_TYPE = {
+    "鸡汤文": (
+        "editorial.home_daily",
+        "editorial.leisure_daily",
+        "editorial.family_life",
+        "editorial.mood_atmosphere",
+    ),
+    "干货类": (
+        "editorial.home_daily",
+        "editorial.meal_daily",
+        "editorial.leisure_daily",
+        "editorial.mood_atmosphere",
+    ),
+    "带人设介绍的干货类": EDITORIAL_BROLL_POOL_IDS,
+}
 _VISUAL_ESTIMATED_SPEECH_CHARS_PER_SECOND = 3.5
 VISUAL_TIMING_POLICY_VERSION = "sentence-v1"
 VISUAL_ENRICHMENT_TAGS = frozenset({"空镜", "相关素材", "b-roll", "broll", "enrichment"})
@@ -1231,6 +1253,66 @@ def _contextual_broll_concepts(
     ]
 
 
+def editorial_broll_pool_ids(article_type: str | None) -> tuple[str, ...]:
+    """Return the editorial B-roll pools allowed for one script category."""
+
+    normalized = str(article_type or "").strip()
+    if "带人设" in normalized and "干货" in normalized:
+        return _EDITORIAL_BROLL_POOLS_BY_ARTICLE_TYPE["带人设介绍的干货类"]
+    if "鸡汤" in normalized:
+        return _EDITORIAL_BROLL_POOLS_BY_ARTICLE_TYPE["鸡汤文"]
+    if "干货" in normalized:
+        return _EDITORIAL_BROLL_POOLS_BY_ARTICLE_TYPE["干货类"]
+    return EDITORIAL_BROLL_POOL_IDS
+
+
+def _editorial_broll_concepts(
+    catalog: SemanticVisualCatalog,
+    *,
+    usage: str,
+    article_type: str | None,
+) -> list[dict[str, Any]]:
+    backed = _broll_concept_ids(catalog, usage=usage)
+    allowed_ids = set(editorial_broll_pool_ids(article_type)) & backed
+    return [
+        {
+            "concept_id": str(concept["concept_id"]),
+            "description": str(concept["description"]),
+        }
+        for concept in catalog.concepts
+        if str(concept.get("concept_id") or "") in allowed_ids
+    ]
+
+
+def _merge_broll_concepts(
+    contextual: Iterable[Mapping[str, Any]],
+    editorial: Iterable[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    for concept in (*tuple(contextual), *tuple(editorial)):
+        concept_id = str(concept.get("concept_id") or "")
+        if concept_id:
+            merged.setdefault(concept_id, dict(concept))
+    return list(merged.values())[:VISUAL_MAX_CONCEPTS_PER_ANCHOR]
+
+
+def _phrase_range_near_char(script: str, target: int) -> tuple[int, int] | None:
+    if not script:
+        return None
+    target = min(len(script) - 1, max(0, target))
+    probes = [target]
+    for offset in range(1, len(script)):
+        if target + offset < len(script):
+            probes.append(target + offset)
+        if target - offset >= 0:
+            probes.append(target - offset)
+    for probe in probes:
+        if script[probe].isspace() or script[probe] in VISUAL_PHRASE_BOUNDARIES:
+            continue
+        return visual_phrase_char_range(script, start=probe, end=probe + 1)
+    return None
+
+
 def _available_anchor_start(
     script: str, *, start: int, end: int, occupied_starts: set[int]
 ) -> int | None:
@@ -1300,6 +1382,7 @@ def recall_semantic_visual_candidates(
     *,
     video_duration_us: int | None = None,
     segment_boundaries: Iterable[Mapping[str, Any]] = (),
+    article_type: str | None = None,
 ) -> dict[str, Any]:
     """Recall explicit anchors plus relevant periodic and seam B-roll attempts."""
 
@@ -1372,6 +1455,9 @@ def recall_semantic_visual_candidates(
 
     occupied_starts = {int(item["char_start"]) for item in candidates}
     periodic_concept_ids = _broll_concept_ids(catalog, usage="enrichment")
+    periodic_editorial = _editorial_broll_concepts(
+        catalog, usage="enrichment", article_type=article_type
+    )
     interval_us = VISUAL_BROLL_TARGET_INTERVAL_SECONDS * 1_000_000
     planning_duration_us = (
         video_duration_us
@@ -1412,26 +1498,36 @@ def recall_semantic_visual_candidates(
                     for concept in match[3]
                 )
             ]
-            if not nearby_matches:
+            nearest = (
+                min(
+                    nearby_matches,
+                    key=lambda match: (
+                        abs(((match[0] + match[1]) // 2) - target_char),
+                        match[0],
+                    ),
+                )
+                if nearby_matches
+                else None
+            )
+            phrase_range = (
+                visual_phrase_char_range(
+                    original_script, start=nearest[0], end=nearest[1]
+                )
+                if nearest is not None
+                else _phrase_range_near_char(original_script, target_char)
+            )
+            if phrase_range is None:
                 continue
-            nearest = min(
-                nearby_matches,
-                key=lambda match: (
-                    abs(((match[0] + match[1]) // 2) - target_char),
-                    match[0],
-                ),
-            )
-            phrase_start, phrase_end = visual_phrase_char_range(
-                original_script, start=nearest[0], end=nearest[1]
-            )
+            phrase_start, phrase_end = phrase_range
             if (phrase_start, phrase_end) in periodic_phrase_ranges:
                 continue
-            allowed = _contextual_broll_concepts(
+            contextual = _contextual_broll_concepts(
                 matches,
                 start=phrase_start,
                 end=phrase_end,
                 eligible_concept_ids=periodic_concept_ids,
             )
+            allowed = _merge_broll_concepts(contextual, periodic_editorial)
             if _append_broll_candidate(
                 candidates,
                 original_script=original_script,
@@ -1447,6 +1543,9 @@ def recall_semantic_visual_candidates(
                 periodic_phrase_ranges.add((phrase_start, phrase_end))
 
     seam_concept_ids = _broll_concept_ids(catalog, usage="seam_broll")
+    seam_editorial = _editorial_broll_concepts(
+        catalog, usage="seam_broll", article_type=article_type
+    )
     expected_denominator = max(1, planning_duration_us)
     for boundary in sorted(
         (item for item in segment_boundaries if isinstance(item, Mapping)),
@@ -1481,18 +1580,28 @@ def recall_semantic_visual_candidates(
                 for concept in match[3]
             )
         ]
-        if not seam_matches:
-            continue
-        nearest = min(seam_matches, key=lambda match: (match[0], match[1]))
-        phrase_start, phrase_end = visual_phrase_char_range(
-            original_script, start=nearest[0], end=nearest[1]
+        nearest = (
+            min(seam_matches, key=lambda match: (match[0], match[1]))
+            if seam_matches
+            else None
         )
-        allowed = _contextual_broll_concepts(
+        phrase_range = (
+            visual_phrase_char_range(
+                original_script, start=nearest[0], end=nearest[1]
+            )
+            if nearest is not None
+            else _phrase_range_near_char(original_script, segment_start)
+        )
+        if phrase_range is None:
+            continue
+        phrase_start, phrase_end = phrase_range
+        contextual = _contextual_broll_concepts(
             matches,
             start=phrase_start,
             end=phrase_end,
             eligible_concept_ids=seam_concept_ids,
         )
+        allowed = _merge_broll_concepts(contextual, seam_editorial)
         _append_broll_candidate(
             candidates,
             original_script=original_script,
@@ -1967,10 +2076,17 @@ def _overlay_from_asset(
     if media_type == "video":
         source_start_us = int(defaults["source_start_us"])
         available_us = max(0, int(resource.get("duration_us") or 0) - source_start_us)
-        overlay["duration_us"] = min(int(overlay["duration_us"]), available_us)
+        source_duration_us = min(int(defaults["duration_us"]), available_us)
+        loop_to_target = bool(defaults.get("loop")) and bool(
+            asset.get("loop_allowed", defaults.get("loop"))
+        )
+        if not loop_to_target:
+            overlay["duration_us"] = min(int(overlay["duration_us"]), source_duration_us)
         overlay.update(
             {
                 "source_start_us": source_start_us,
+                "source_duration_us": source_duration_us,
+                "loop_to_target": loop_to_target,
                 "mute": defaults["mute"],
                 "fit": defaults["fit"],
             }
@@ -2339,6 +2455,7 @@ def frozen_visual_overlays(
             if current_asset is not None:
                 defaults = current_asset["defaults"]
                 resource = current_asset["resource"]
+                media_type = current_asset["media_type"]
                 overlay.update(
                     {
                         "asset_name": current_asset["name"],
@@ -2361,6 +2478,28 @@ def frozen_visual_overlays(
                         "opacity": defaults["opacity"],
                     }
                 )
+                if media_type == "video":
+                    source_start_us = int(defaults["source_start_us"])
+                    available_us = max(
+                        0, int(resource.get("duration_us") or 0) - source_start_us
+                    )
+                    source_duration_us = min(int(defaults["duration_us"]), available_us)
+                    loop_to_target = bool(defaults.get("loop")) and bool(
+                        current_asset.get("loop_allowed", defaults.get("loop"))
+                    )
+                    overlay.update(
+                        {
+                            "source_start_us": source_start_us,
+                            "source_duration_us": source_duration_us,
+                            "loop_to_target": loop_to_target,
+                            "mute": defaults["mute"],
+                            "fit": defaults["fit"],
+                        }
+                    )
+                    if not loop_to_target:
+                        overlay["duration_us"] = min(
+                            int(overlay.get("duration_us") or 0), source_duration_us
+                        )
         if schema == RECIPE_SCHEMA_V2 and resolved_root is not None:
             try:
                 _relative, resource_path = _safe_relative_child(

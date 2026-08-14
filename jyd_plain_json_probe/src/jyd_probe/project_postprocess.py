@@ -98,6 +98,7 @@ _SOFT_SENTENCE_BREAKS = set("，,、：:")
 _CLAUSE_BREAKS = set("，,：:。.！？!?；;…")
 _ORPHAN_PARTICLES = tuple("的地得呢啊了吧吗")
 _STRUCTURAL_PARTICLES = frozenset("的地得")
+_BOUND_RELATIVE_SUFFIXES = ("类的", "中的", "里的", "内的", "上的", "下的")
 _RIGHT_BINDING_CLAUSES = frozenset(
     {
         "第一",
@@ -892,6 +893,10 @@ def _unsafe_break_offsets(text: str) -> set[int]:
         # value means "before text[boundary]"; protecting that exact offset
         # avoids the former off-by-one that allowed `管|得`.
         if text[boundary] in _STRUCTURAL_PARTICLES:
+            unsafe_offsets.add(boundary)
+        if any(text.startswith(suffix, boundary) for suffix in _BOUND_RELATIVE_SUFFIXES):
+            # Category and locative relative suffixes belong with the phrase on
+            # their left: 快餐|类的、疲惫生活|中的 are invalid caption starts.
             unsafe_offsets.add(boundary)
     return unsafe_offsets
 

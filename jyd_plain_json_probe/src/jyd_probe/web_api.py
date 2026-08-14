@@ -2648,6 +2648,15 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                         "source_start_us": int(
                             raw.get("source_start_us", defaults["source_start_us"])
                         ),
+                        "source_duration_us": int(
+                            raw.get("source_duration_us", defaults["duration_us"])
+                        ),
+                        "loop_to_target": raw.get(
+                            "loop_to_target",
+                            bool(defaults["loop"])
+                            and bool(asset.get("loop_allowed", defaults["loop"])),
+                        )
+                        is not False,
                         "mute": raw.get("mute", defaults["mute"]) is not False,
                         "fit": str(raw.get("fit") or defaults["fit"]),
                     }

@@ -7677,6 +7677,98 @@
         "身材变化",
         "裤子变松"
       ]
+    },
+    {
+      "concept_id": "editorial.home_daily",
+      "label": "居家日常空镜池",
+      "description": "适合作为居家生活、日常习惯和普通生活叙事陪衬的室内或家庭空间空镜；不表示具体行为或功效证据。",
+      "aliases": [
+        "居家日常空镜池"
+      ]
+    },
+    {
+      "concept_id": "editorial.meal_daily",
+      "label": "三餐饮食空镜池",
+      "description": "适合作为三餐、买菜、备餐、做饭和吃饭等生活语境陪衬的空镜；不得用来证明营养成分或健康功效。",
+      "aliases": [
+        "三餐饮食空镜池"
+      ]
+    },
+    {
+      "concept_id": "editorial.leisure_daily",
+      "label": "休闲生活空镜池",
+      "description": "适合作为散步、公园、逛市场、休息和轻松日常等生活语境陪衬的空镜；不替代具体运动动作。",
+      "aliases": [
+        "休闲生活空镜池"
+      ]
+    },
+    {
+      "concept_id": "editorial.family_life",
+      "label": "家庭亲情空镜池",
+      "description": "适合作为家庭陪伴、亲子、共同用餐和家人相处等亲情语境陪衬的空镜。",
+      "aliases": [
+        "家庭亲情空镜池"
+      ]
+    },
+    {
+      "concept_id": "editorial.mood_atmosphere",
+      "label": "状态氛围空镜池",
+      "description": "适合作为坚持、时间变化、平静、希望或叙事转折陪衬的自然光影、风景和状态空镜；不表达具体事实。",
+      "aliases": [
+        "状态氛围空镜池"
+      ]
+    },
+    {
+      "concept_id": "scene.family_life",
+      "label": "家庭亲子生活",
+      "description": "明确展示家人、亲子或一家人共同活动的生活场景。",
+      "aliases": [
+        "家庭生活",
+        "亲子时光",
+        "一家人",
+        "亲子陪伴"
+      ]
+    },
+    {
+      "concept_id": "scene.home_sunlight",
+      "label": "阳光居家场景",
+      "description": "阳光照进客厅、卧室、餐厅或其他居家空间的画面。",
+      "aliases": [
+        "阳光洒进家里",
+        "阳光照进家里",
+        "阳光洒进房间",
+        "阳光居家"
+      ]
+    },
+    {
+      "concept_id": "object.clock_calendar",
+      "label": "时钟日历",
+      "description": "明确展示时钟走动、日历翻页或时间流逝意象。",
+      "aliases": [
+        "时钟",
+        "钟表",
+        "日历翻页",
+        "日历"
+      ]
+    },
+    {
+      "concept_id": "dish.fishball_greens_soup",
+      "label": "鱼丸青菜汤",
+      "description": "明确展示鱼丸与青菜搭配的汤品。",
+      "aliases": [
+        "鱼丸青菜汤",
+        "青菜鱼丸汤",
+        "鱼丸汤"
+      ]
+    },
+    {
+      "concept_id": "dish.chive_scrambled_egg",
+      "label": "韭黄炒鸡蛋",
+      "description": "明确展示韭黄炒鸡蛋。",
+      "aliases": [
+        "韭黄炒鸡蛋",
+        "韭黄鸡蛋"
+      ]
     }
   ],
   "assets": [
@@ -9984,7 +10076,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.light_daily"
+          "activity.light_daily",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "BASELINE_COMPAT_REVIEWED_V1"
@@ -10585,7 +10678,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.light_daily"
+          "activity.light_daily",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "BASELINE_COMPAT_REVIEWED_V1"
@@ -20520,7 +20614,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -21571,7 +21667,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -21986,7 +22083,8 @@
         "action_ids": [],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -22661,7 +22759,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0042_video_93e2eea161/video.mp4",
@@ -22677,7 +22776,7 @@
         "scale": 1.0,
         "opacity": 1.0,
         "duration_us": 5000000,
-        "source_start_us": 0,
+        "source_start_us": 600000,
         "mute": true,
         "loop": true,
         "fit": "cover"
@@ -22708,7 +22807,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.daily_life_scene"
@@ -22724,7 +22823,8 @@
           "l2.scene.weather_season"
         ],
         "fallback_concept_ids": [
-          "scene.weather_season"
+          "scene.weather_season",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -23850,7 +23950,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -26354,7 +26456,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0111_video_fb02d5d0c2/video.mp4",
@@ -26404,7 +26507,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.daily_life_scene"
@@ -26421,7 +26524,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -27804,7 +27908,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0140_video_15b5a0e7df/video.mp4",
@@ -27853,7 +27958,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness"
@@ -27869,7 +27974,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.light_daily"
+          "activity.light_daily",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -28050,7 +28156,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0144_video_64dc59739c/video.mp4",
@@ -28066,7 +28173,7 @@
         "scale": 1.0,
         "opacity": 1.0,
         "duration_us": 5000000,
-        "source_start_us": 0,
+        "source_start_us": 800000,
         "mute": true,
         "loop": true,
         "fit": "cover"
@@ -28097,7 +28204,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.daily_life_scene",
@@ -28115,7 +28222,8 @@
           "l2.scene.market_public"
         ],
         "fallback_concept_ids": [
-          "scene.market_public"
+          "scene.market_public",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -29481,7 +29589,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -30846,7 +30956,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -33591,7 +33703,8 @@
           "l2.scene.weather_season"
         ],
         "fallback_concept_ids": [
-          "scene.weather_season"
+          "scene.weather_season",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -36995,7 +37108,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0280_video_946f759f1a/video.mp4",
@@ -37011,7 +37125,7 @@
         "scale": 1.0,
         "opacity": 1.0,
         "duration_us": 5000000,
-        "source_start_us": 0,
+        "source_start_us": 800000,
         "mute": true,
         "loop": true,
         "fit": "cover"
@@ -37042,7 +37156,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.daily_life_scene",
@@ -37060,7 +37174,8 @@
           "l2.scene.market_public"
         ],
         "fallback_concept_ids": [
-          "scene.market_public"
+          "scene.market_public",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -39244,7 +39359,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0317_video_e79db70509/video.mp4",
@@ -39260,7 +39376,7 @@
         "scale": 1.0,
         "opacity": 1.0,
         "duration_us": 5000000,
-        "source_start_us": 0,
+        "source_start_us": 700000,
         "mute": true,
         "loop": true,
         "fit": "cover"
@@ -39293,7 +39409,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness",
@@ -39311,7 +39427,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -39400,7 +39517,9 @@
           "l2.scene.dining"
         ],
         "fallback_concept_ids": [
-          "scene.dining"
+          "scene.dining",
+          "editorial.meal_daily",
+          "editorial.family_life"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -39487,7 +39606,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -41262,7 +41382,8 @@
           "l2.scene.dining"
         ],
         "fallback_concept_ids": [
-          "scene.dining"
+          "scene.dining",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -41992,7 +42113,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -42725,7 +42847,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -42889,7 +43013,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -42974,7 +43100,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -43294,7 +43421,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -44108,7 +44237,8 @@
         "action_ids": [],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "meal.light_meal"
+          "meal.light_meal",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -45027,7 +45157,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -45604,7 +45735,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -47709,7 +47841,8 @@
         "人工逐条审片",
         "网络素材",
         "窄语义",
-        "视频"
+        "视频",
+        "自动空镜仅使用干净源窗口"
       ],
       "resource": {
         "video": "videos/review_u0453_video_b4c6a6dcb6/video.mp4",
@@ -47756,7 +47889,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "none",
+      "platform_ui_status": "embedded",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.food_drink"
@@ -47770,7 +47903,9 @@
         ],
         "action_ids": [],
         "scene_ids": [],
-        "fallback_concept_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
       }
@@ -48502,7 +48637,8 @@
           "l2.scene.dining"
         ],
         "fallback_concept_ids": [
-          "scene.dining"
+          "scene.dining",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -48752,7 +48888,8 @@
         ],
         "fallback_concept_ids": [
           "scene.emotion_atmosphere",
-          "scene.home"
+          "scene.home",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -48925,7 +49062,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49007,7 +49145,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49089,7 +49228,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49261,7 +49401,8 @@
         ],
         "fallback_concept_ids": [
           "scene.city_night",
-          "scene.emotion_atmosphere"
+          "scene.emotion_atmosphere",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49351,7 +49492,8 @@
         ],
         "fallback_concept_ids": [
           "scene.nature",
-          "scene.weather_season"
+          "scene.weather_season",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49523,7 +49665,8 @@
           "l2.scene.traditional"
         ],
         "fallback_concept_ids": [
-          "scene.traditional"
+          "scene.traditional",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49700,7 +49843,8 @@
           "l2.scene.traditional"
         ],
         "fallback_concept_ids": [
-          "scene.traditional"
+          "scene.traditional",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49790,7 +49934,8 @@
         ],
         "fallback_concept_ids": [
           "scene.nature",
-          "scene.weather_season"
+          "scene.weather_season",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49872,7 +50017,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -49954,7 +50100,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50041,7 +50188,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50130,7 +50278,8 @@
         ],
         "fallback_concept_ids": [
           "activity.light_daily",
-          "scene.city_night"
+          "scene.city_night",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50219,7 +50368,9 @@
         ],
         "fallback_concept_ids": [
           "activity.self_care",
-          "scene.nature"
+          "scene.nature",
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50301,7 +50452,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50564,7 +50716,8 @@
           "l2.scene.nature"
         ],
         "fallback_concept_ids": [
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50745,7 +50898,8 @@
         ],
         "fallback_concept_ids": [
           "activity.light_daily",
-          "scene.urban"
+          "scene.urban",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -50924,7 +51078,8 @@
         ],
         "fallback_concept_ids": [
           "scene.emotion_atmosphere",
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -51017,7 +51172,8 @@
         "fallback_concept_ids": [
           "scene.market_public",
           "scene.social",
-          "scene.urban"
+          "scene.urban",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -51794,7 +51950,8 @@
         ],
         "fallback_concept_ids": [
           "scene.city_night",
-          "scene.emotion_atmosphere"
+          "scene.emotion_atmosphere",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -51968,7 +52125,9 @@
         "fallback_concept_ids": [
           "activity.light_daily",
           "scene.city_night",
-          "scene.emotion_atmosphere"
+          "scene.emotion_atmosphere",
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -52057,7 +52216,10 @@
         ],
         "fallback_concept_ids": [
           "activity.self_care",
-          "scene.home"
+          "scene.home",
+          "editorial.home_daily",
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -52142,7 +52304,8 @@
         ],
         "fallback_concept_ids": [
           "activity.self_care",
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -52227,7 +52390,8 @@
         ],
         "fallback_concept_ids": [
           "scene.nature",
-          "scene.urban"
+          "scene.urban",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -52853,7 +53017,8 @@
         ],
         "fallback_concept_ids": [
           "scene.emotion_atmosphere",
-          "scene.home"
+          "scene.home",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -53198,7 +53363,9 @@
         ],
         "fallback_concept_ids": [
           "activity.light_daily",
-          "scene.social"
+          "scene.social",
+          "editorial.leisure_daily",
+          "editorial.family_life"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -53548,7 +53715,8 @@
         ],
         "fallback_concept_ids": [
           "scene.city_night",
-          "scene.market_public"
+          "scene.market_public",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -54051,7 +54219,8 @@
         ],
         "fallback_concept_ids": [
           "activity.light_daily",
-          "scene.city_night"
+          "scene.city_night",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -54144,7 +54313,9 @@
         "fallback_concept_ids": [
           "activity.self_care",
           "activity.work_study",
-          "scene.home"
+          "scene.home",
+          "editorial.home_daily",
+          "editorial.leisure_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -54470,7 +54641,8 @@
         ],
         "scene_ids": [],
         "fallback_concept_ids": [
-          "activity.food_preparation"
+          "activity.food_preparation",
+          "editorial.meal_daily"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -54557,7 +54729,8 @@
           "l2.scene.traditional"
         ],
         "fallback_concept_ids": [
-          "scene.traditional"
+          "scene.traditional",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -54732,7 +54905,10 @@
         ],
         "fallback_concept_ids": [
           "activity.self_care",
-          "scene.home"
+          "scene.home",
+          "editorial.home_daily",
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -54822,7 +54998,9 @@
         ],
         "fallback_concept_ids": [
           "scene.home",
-          "scene.traditional"
+          "scene.traditional",
+          "editorial.home_daily",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -55506,7 +55684,8 @@
         ],
         "fallback_concept_ids": [
           "activity.self_care",
-          "scene.nature"
+          "scene.nature",
+          "editorial.mood_atmosphere"
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_V1"
@@ -94701,6 +94880,2923 @@
       "brand_status": "none",
       "health_claim_status": "none",
       "platform_ui_status": "none"
+    },
+    {
+      "asset_id": "broll.20260814.001.video.0acd36aeb5",
+      "concept_ids": [
+        "dish.fishball_greens_soup",
+        "dish.chive_scrambled_egg",
+        "food.egg"
+      ],
+      "name": "鱼丸青菜汤与韭黄炒鸡蛋",
+      "description": "展示鱼丸青菜汤和韭黄炒鸡蛋制作",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_001_video_0acd36aeb5/video.mp4",
+        "preview": "videos/broll_20260814_001_video_0acd36aeb5/poster.png",
+        "metadata": "videos/broll_20260814_001_video_0acd36aeb5/metadata.json",
+        "duration_us": 38775873,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.fishball_greens_soup",
+          "dish.chive_scrambled_egg",
+          "food.egg"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.fishball_greens_soup",
+        "dish.chive_scrambled_egg",
+        "food.egg"
+      ],
+      "trigger_basis": {
+        "dish.fishball_greens_soup": "complete_scene",
+        "dish.chive_scrambled_egg": "complete_scene",
+        "food.egg": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unidentifiable",
+      "brand_status": "none",
+      "health_claim_status": "general_wellness",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup",
+          "l2.dish.prepared",
+          "l2.food.egg"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.fishball_greens_soup",
+          "dish.chive_scrambled_egg",
+          "food.egg"
+        ],
+        "action_ids": [
+          "cooking"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.002.video.338572afcd",
+      "concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "name": "午后阳光客厅",
+      "description": "展示午后阳光照进客厅的居家空间",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_002_video_338572afcd/video.mp4",
+        "preview": "videos/broll_20260814_002_video_338572afcd/poster.png",
+        "metadata": "videos/broll_20260814_002_video_338572afcd/metadata.json",
+        "duration_us": 13743991,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "trigger_basis": {
+        "scene.home_sunlight": "complete_scene",
+        "scene.home": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.003.video.9ccdc2d20a",
+      "concept_ids": [
+        "scene.vegetable_market",
+        "food.vegetable"
+      ],
+      "name": "超市买菜",
+      "description": "展示超市果蔬区域和日常采购",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_003_video_9ccdc2d20a/video.mp4",
+        "preview": "videos/broll_20260814_003_video_9ccdc2d20a/poster.png",
+        "metadata": "videos/broll_20260814_003_video_9ccdc2d20a/metadata.json",
+        "duration_us": 11300000,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.vegetable_market",
+          "food.vegetable"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.vegetable_market",
+        "food.vegetable"
+      ],
+      "trigger_basis": {
+        "scene.vegetable_market": "complete_scene",
+        "food.vegetable": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "incidental",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.market_public",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.vegetable_market",
+          "food.vegetable"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.market_public"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily",
+          "editorial.leisure_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.004.video.1f0accdd4e",
+      "concept_ids": [
+        "activity.home_cooking",
+        "meal.feast"
+      ],
+      "name": "家常餐食制作",
+      "description": "连续展示居家烹饪和家常餐食",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_004_video_1f0accdd4e/video.mp4",
+        "preview": "videos/broll_20260814_004_video_1f0accdd4e/poster.png",
+        "metadata": "videos/broll_20260814_004_video_1f0accdd4e/metadata.json",
+        "duration_us": 33833333,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.home_cooking",
+          "meal.feast"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.home_cooking",
+        "meal.feast"
+      ],
+      "trigger_basis": {
+        "activity.home_cooking": "complete_scene",
+        "meal.feast": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "serving"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.food_prep",
+          "l2.meal.general",
+          "l2.scene.dining"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.home_cooking",
+          "meal.feast"
+        ],
+        "action_ids": [
+          "cooking",
+          "serving"
+        ],
+        "scene_ids": [
+          "l2.scene.dining"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.005.video.9ce0f69dfd",
+      "concept_ids": [
+        "scene.family_life"
+      ],
+      "name": "亲子陪伴",
+      "description": "展示亲子陪伴和家庭相处画面",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_005_video_9ce0f69dfd/video.mp4",
+        "preview": "videos/broll_20260814_005_video_9ce0f69dfd/poster.png",
+        "metadata": "videos/broll_20260814_005_video_9ce0f69dfd/metadata.json",
+        "duration_us": 15866667,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.social"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.social"
+        ],
+        "fallback_concept_ids": [
+          "editorial.family_life",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.006.video.8f8d41c188",
+      "concept_ids": [
+        "activity.home_cooking",
+        "meal.feast",
+        "scene.social"
+      ],
+      "name": "居家聚餐做饭",
+      "description": "展示居家做饭和朋友聚餐",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_006_video_8f8d41c188/video.mp4",
+        "preview": "videos/broll_20260814_006_video_8f8d41c188/poster.png",
+        "metadata": "videos/broll_20260814_006_video_8f8d41c188/metadata.json",
+        "duration_us": 28800000,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.home_cooking",
+          "meal.feast",
+          "scene.social"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.home_cooking",
+        "meal.feast",
+        "scene.social"
+      ],
+      "trigger_basis": {
+        "activity.home_cooking": "complete_scene",
+        "meal.feast": "complete_scene",
+        "scene.social": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "serving",
+        "eating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.food_prep",
+          "l2.meal.general",
+          "l2.scene.dining",
+          "l2.scene.social"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.home_cooking",
+          "meal.feast",
+          "scene.social"
+        ],
+        "action_ids": [
+          "cooking",
+          "serving",
+          "eating"
+        ],
+        "scene_ids": [
+          "l2.scene.dining",
+          "l2.scene.social"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.007.video.44eb958edc",
+      "concept_ids": [
+        "scene.vegetable_market",
+        "food.vegetable"
+      ],
+      "name": "超市蔬菜采购",
+      "description": "连续展示超市蔬菜陈列和买菜过程",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_007_video_44eb958edc/video.mp4",
+        "preview": "videos/broll_20260814_007_video_44eb958edc/poster.png",
+        "metadata": "videos/broll_20260814_007_video_44eb958edc/metadata.json",
+        "duration_us": 43700000,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.vegetable_market",
+          "food.vegetable"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.vegetable_market",
+        "food.vegetable"
+      ],
+      "trigger_basis": {
+        "scene.vegetable_market": "complete_scene",
+        "food.vegetable": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "incidental",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.market_public",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.vegetable_market",
+          "food.vegetable"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.market_public"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily",
+          "editorial.leisure_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.008.video.8eb6e12155",
+      "concept_ids": [
+        "scene.family_life",
+        "activity.walking"
+      ],
+      "name": "三口之家公园散步",
+      "description": "展示一家三口牵手在公园散步",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_008_video_8eb6e12155/video.mp4",
+        "preview": "videos/broll_20260814_008_video_8eb6e12155/poster.png",
+        "metadata": "videos/broll_20260814_008_video_8eb6e12155/metadata.json",
+        "duration_us": 10266667,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life",
+          "activity.walking"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life",
+        "activity.walking"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene",
+        "activity.walking": "complete_scene"
+      },
+      "visual_actions": [
+        "walking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.scene.social",
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life",
+          "activity.walking"
+        ],
+        "action_ids": [
+          "walking"
+        ],
+        "scene_ids": [
+          "l2.scene.social",
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.family_life",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.009.video.c860960caf",
+      "concept_ids": [
+        "activity.reading",
+        "scene.home"
+      ],
+      "name": "窗边阅读休息",
+      "description": "展示人物在明亮窗边阅读和休息",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_009_video_c860960caf/video.mp4",
+        "preview": "videos/broll_20260814_009_video_c860960caf/poster.png",
+        "metadata": "videos/broll_20260814_009_video_c860960caf/metadata.json",
+        "duration_us": 29000000,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.reading",
+          "scene.home"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.reading",
+        "scene.home"
+      ],
+      "trigger_basis": {
+        "activity.reading": "complete_scene",
+        "scene.home": "complete_scene"
+      },
+      "visual_actions": [
+        "reading",
+        "resting"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.self_care",
+          "l2.activity.work_study",
+          "l2.scene.home"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.reading",
+          "scene.home"
+        ],
+        "action_ids": [
+          "reading",
+          "resting"
+        ],
+        "scene_ids": [
+          "l2.scene.home"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.010.video.8f97e06d2a",
+      "concept_ids": [
+        "scene.family_life",
+        "scene.nature"
+      ],
+      "name": "亲子户外陪伴",
+      "description": "展示亲子在户外风景中的陪伴画面",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_010_video_8f97e06d2a/video.mp4",
+        "preview": "videos/broll_20260814_010_video_8f97e06d2a/poster.png",
+        "metadata": "videos/broll_20260814_010_video_8f97e06d2a/metadata.json",
+        "duration_us": 12300000,
+        "width": 1920,
+        "height": 1080,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life",
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life",
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene",
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.social",
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life",
+          "scene.nature"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.social",
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "editorial.family_life",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.011.video.bdefbd9a26",
+      "concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "name": "阳光居家小屋",
+      "description": "展示阳光照进温暖居家空间",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_011_video_bdefbd9a26/video.mp4",
+        "preview": "videos/broll_20260814_011_video_bdefbd9a26/poster.png",
+        "metadata": "videos/broll_20260814_011_video_bdefbd9a26/metadata.json",
+        "duration_us": 14022993,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "trigger_basis": {
+        "scene.home_sunlight": "complete_scene",
+        "scene.home": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.012.video.40af9611e5",
+      "concept_ids": [
+        "meal.light_meal",
+        "food.vegetable"
+      ],
+      "name": "素食家常餐",
+      "description": "展示清淡素食餐的制作和用餐",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_012_video_40af9611e5/video.mp4",
+        "preview": "videos/broll_20260814_012_video_40af9611e5/poster.png",
+        "metadata": "videos/broll_20260814_012_video_40af9611e5/metadata.json",
+        "duration_us": 46949002,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "meal.light_meal",
+          "food.vegetable"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "meal.light_meal",
+        "food.vegetable"
+      ],
+      "trigger_basis": {
+        "meal.light_meal": "complete_scene",
+        "food.vegetable": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "eating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "general_wellness",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.meal.light",
+          "l2.meal.general",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "meal.light_meal",
+          "food.vegetable"
+        ],
+        "action_ids": [
+          "cooking",
+          "eating"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.013.video.fafbfa4e9c",
+      "concept_ids": [
+        "scene.vegetable_market",
+        "food.vegetable"
+      ],
+      "name": "超市蔬菜陈列",
+      "description": "展示超市内多种新鲜蔬菜陈列",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_013_video_fafbfa4e9c/video.mp4",
+        "preview": "videos/broll_20260814_013_video_fafbfa4e9c/poster.png",
+        "metadata": "videos/broll_20260814_013_video_fafbfa4e9c/metadata.json",
+        "duration_us": 24800000,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.vegetable_market",
+          "food.vegetable"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.vegetable_market",
+        "food.vegetable"
+      ],
+      "trigger_basis": {
+        "scene.vegetable_market": "complete_scene",
+        "food.vegetable": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "incidental",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.market_public",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.vegetable_market",
+          "food.vegetable"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.market_public"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily",
+          "editorial.leisure_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.014.video.dab4b0523a",
+      "concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "name": "阳光居家房间",
+      "description": "展示阳光下的卧室和居家空间",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_014_video_dab4b0523a/video.mp4",
+        "preview": "videos/broll_20260814_014_video_dab4b0523a/poster.png",
+        "metadata": "videos/broll_20260814_014_video_dab4b0523a/metadata.json",
+        "duration_us": 12467664,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "trigger_basis": {
+        "scene.home_sunlight": "complete_scene",
+        "scene.home": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.015.video.0ccc0a9053",
+      "concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "name": "绿荫小路散步",
+      "description": "展示人物沿绿色林荫小路慢走",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_015_video_0ccc0a9053/video.mp4",
+        "preview": "videos/broll_20260814_015_video_0ccc0a9053/poster.png",
+        "metadata": "videos/broll_20260814_015_video_0ccc0a9053/metadata.json",
+        "duration_us": 11840000,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "activity.walking": "complete_scene",
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [
+        "walking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "action_ids": [
+          "walking"
+        ],
+        "scene_ids": [
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.016.video.99a7da3604",
+      "concept_ids": [
+        "meal.breakfast"
+      ],
+      "name": "日常早餐餐桌",
+      "description": "展示早餐餐桌和早餐食物",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_016_video_99a7da3604/video.mp4",
+        "preview": "videos/broll_20260814_016_video_99a7da3604/poster.png",
+        "metadata": "videos/broll_20260814_016_video_99a7da3604/metadata.json",
+        "duration_us": 11233333,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "meal.breakfast"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "meal.breakfast"
+      ],
+      "trigger_basis": {
+        "meal.breakfast": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.meal.breakfast",
+          "l2.meal.general",
+          "l2.scene.dining"
+        ],
+        "l3_exact_concept_ids": [
+          "meal.breakfast"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.dining"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.017.video.ab8e7a8cd1",
+      "concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "name": "湖边慢走休息",
+      "description": "展示中年女性在湖边慢走和休息",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_017_video_ab8e7a8cd1/video.mp4",
+        "preview": "videos/broll_20260814_017_video_ab8e7a8cd1/poster.png",
+        "metadata": "videos/broll_20260814_017_video_ab8e7a8cd1/metadata.json",
+        "duration_us": 19100000,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "activity.walking": "complete_scene",
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [
+        "walking",
+        "resting"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.activity.self_care",
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "action_ids": [
+          "walking",
+          "resting"
+        ],
+        "scene_ids": [
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.018.video.bd046fca01",
+      "concept_ids": [
+        "scene.family_life",
+        "meal.feast",
+        "food.fish",
+        "food.shrimp"
+      ],
+      "name": "亲子家常晚餐",
+      "description": "展示亲子晚餐制作和家常菜",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_018_video_bd046fca01/video.mp4",
+        "preview": "videos/broll_20260814_018_video_bd046fca01/poster.png",
+        "metadata": "videos/broll_20260814_018_video_bd046fca01/metadata.json",
+        "duration_us": 102233333,
+        "width": 1920,
+        "height": 1080,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life",
+          "meal.feast",
+          "food.fish",
+          "food.shrimp"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life",
+        "meal.feast",
+        "food.fish",
+        "food.shrimp"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene",
+        "meal.feast": "complete_scene",
+        "food.fish": "complete_scene",
+        "food.shrimp": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "serving"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.social",
+          "l2.meal.general",
+          "l2.activity.food_prep",
+          "l2.food.meat_seafood"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life",
+          "meal.feast",
+          "food.fish",
+          "food.shrimp"
+        ],
+        "action_ids": [
+          "cooking",
+          "serving"
+        ],
+        "scene_ids": [
+          "l2.scene.social"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily",
+          "editorial.family_life"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.019.video.b4dadfa57c",
+      "concept_ids": [
+        "scene.home"
+      ],
+      "name": "冬日居家卧室",
+      "description": "展示冬日暖色卧室和居家氛围",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_019_video_b4dadfa57c/video.mp4",
+        "preview": "videos/broll_20260814_019_video_b4dadfa57c/poster.png",
+        "metadata": "videos/broll_20260814_019_video_b4dadfa57c/metadata.json",
+        "duration_us": 25076009,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.home"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.home"
+      ],
+      "trigger_basis": {
+        "scene.home": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.home"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.020.video.76b9484a07",
+      "concept_ids": [
+        "scene.family_life",
+        "meal.feast"
+      ],
+      "name": "家庭餐食制作低清重复版",
+      "description": "与同批高清家庭餐食视频内容重复，保留仅供人工使用",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_020_video_76b9484a07/video.mp4",
+        "preview": "videos/broll_20260814_020_video_76b9484a07/poster.png",
+        "metadata": "videos/broll_20260814_020_video_76b9484a07/metadata.json",
+        "duration_us": 27165896,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": false,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life",
+          "meal.feast"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life",
+        "meal.feast"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene",
+        "meal.feast": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "serving"
+      ],
+      "usage_modes": [
+        "manual_only"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": false,
+      "requires_clip": false,
+      "loop_allowed": false,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.social",
+          "l2.meal.general",
+          "l2.activity.food_prep"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life",
+          "meal.feast"
+        ],
+        "action_ids": [
+          "cooking",
+          "serving"
+        ],
+        "scene_ids": [
+          "l2.scene.social"
+        ],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.021.video.fd64795cf2",
+      "concept_ids": [
+        "scene.family_life",
+        "meal.feast"
+      ],
+      "name": "丰盛家庭餐",
+      "description": "连续展示家庭餐食制作和多人用餐",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_021_video_fd64795cf2/video.mp4",
+        "preview": "videos/broll_20260814_021_video_fd64795cf2/poster.png",
+        "metadata": "videos/broll_20260814_021_video_fd64795cf2/metadata.json",
+        "duration_us": 165133333,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life",
+          "meal.feast"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life",
+        "meal.feast"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene",
+        "meal.feast": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "serving",
+        "eating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "general_wellness",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.social",
+          "l2.meal.general",
+          "l2.activity.food_prep",
+          "l2.scene.dining"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life",
+          "meal.feast"
+        ],
+        "action_ids": [
+          "cooking",
+          "serving",
+          "eating"
+        ],
+        "scene_ids": [
+          "l2.scene.social",
+          "l2.scene.dining"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily",
+          "editorial.family_life"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.022.video.c13fbc4be6",
+      "concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "name": "湖畔慢走",
+      "description": "展示人物沿湖边缓慢行走",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_022_video_c13fbc4be6/video.mp4",
+        "preview": "videos/broll_20260814_022_video_c13fbc4be6/poster.png",
+        "metadata": "videos/broll_20260814_022_video_c13fbc4be6/metadata.json",
+        "duration_us": 12733333,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "activity.walking": "complete_scene",
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [
+        "walking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "action_ids": [
+          "walking"
+        ],
+        "scene_ids": [
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.023.video.da1f317463",
+      "concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "name": "清晨阳光居家",
+      "description": "展示清晨阳光照进居家空间",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_023_video_da1f317463/video.mp4",
+        "preview": "videos/broll_20260814_023_video_da1f317463/poster.png",
+        "metadata": "videos/broll_20260814_023_video_da1f317463/metadata.json",
+        "duration_us": 27766667,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.home_sunlight",
+        "scene.home"
+      ],
+      "trigger_basis": {
+        "scene.home_sunlight": "complete_scene",
+        "scene.home": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.home_sunlight",
+          "scene.home"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.home",
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "editorial.home_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.024.video.356d72e27c",
+      "concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "name": "湖边夕阳独处",
+      "description": "展示人物在湖边夕阳中慢走看风景",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_024_video_356d72e27c/video.mp4",
+        "preview": "videos/broll_20260814_024_video_356d72e27c/poster.png",
+        "metadata": "videos/broll_20260814_024_video_356d72e27c/metadata.json",
+        "duration_us": 10865011,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.walking",
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "activity.walking": "complete_scene",
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [
+        "walking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.scene.nature",
+          "l2.scene.emotion"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.walking",
+          "scene.nature"
+        ],
+        "action_ids": [
+          "walking"
+        ],
+        "scene_ids": [
+          "l2.scene.nature",
+          "l2.scene.emotion"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.025.video.01f2c12dc8",
+      "concept_ids": [
+        "scene.family_life",
+        "meal.feast"
+      ],
+      "name": "家庭餐食制作",
+      "description": "展示家庭餐食制作和温暖用餐场景",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_025_video_01f2c12dc8/video.mp4",
+        "preview": "videos/broll_20260814_025_video_01f2c12dc8/poster.png",
+        "metadata": "videos/broll_20260814_025_video_01f2c12dc8/metadata.json",
+        "duration_us": 27165896,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.family_life",
+          "meal.feast"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.family_life",
+        "meal.feast"
+      ],
+      "trigger_basis": {
+        "scene.family_life": "complete_scene",
+        "meal.feast": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "serving",
+        "eating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.social",
+          "l2.meal.general",
+          "l2.activity.food_prep",
+          "l2.scene.dining"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.family_life",
+          "meal.feast"
+        ],
+        "action_ids": [
+          "cooking",
+          "serving",
+          "eating"
+        ],
+        "scene_ids": [
+          "l2.scene.social",
+          "l2.scene.dining"
+        ],
+        "fallback_concept_ids": [
+          "editorial.meal_daily",
+          "editorial.family_life"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.026.video.e74d4bb115",
+      "concept_ids": [
+        "meal.light_meal"
+      ],
+      "name": "一日三餐餐盘",
+      "description": "展示一日三餐搭配和餐盘准备",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_026_video_e74d4bb115/video.mp4",
+        "preview": "videos/broll_20260814_026_video_e74d4bb115/poster.png",
+        "metadata": "videos/broll_20260814_026_video_e74d4bb115/metadata.json",
+        "duration_us": 16233333,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "meal.light_meal"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "meal.light_meal"
+      ],
+      "trigger_basis": {
+        "meal.light_meal": "complete_scene"
+      },
+      "visual_actions": [
+        "plating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "specific_claim",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.meal.light",
+          "l2.meal.general",
+          "l2.activity.food_prep"
+        ],
+        "l3_exact_concept_ids": [
+          "meal.light_meal"
+        ],
+        "action_ids": [
+          "plating"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.027.video.641540f862",
+      "concept_ids": [
+        "object.clock_calendar"
+      ],
+      "name": "时钟日历翻页",
+      "description": "展示时钟走动和日历翻页的时间意象",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_027_video_641540f862/video.mp4",
+        "preview": "videos/broll_20260814_027_video_641540f862/poster.png",
+        "metadata": "videos/broll_20260814_027_video_641540f862/metadata.json",
+        "duration_us": 16045011,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "object.clock_calendar"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "object.clock_calendar"
+      ],
+      "trigger_basis": {
+        "object.clock_calendar": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.object.daily",
+          "l2.scene.emotion"
+        ],
+        "l3_exact_concept_ids": [
+          "object.clock_calendar"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.emotion"
+        ],
+        "fallback_concept_ids": [
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.028.video.a5042c7218",
+      "concept_ids": [
+        "scene.nature"
+      ],
+      "name": "清晨公园林荫路",
+      "description": "展示清晨阳光下的公园林荫小路",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_028_video_a5042c7218/video.mp4",
+        "preview": "videos/broll_20260814_028_video_a5042c7218/poster.png",
+        "metadata": "videos/broll_20260814_028_video_a5042c7218/metadata.json",
+        "duration_us": 12533333,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.nature",
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.nature"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.nature",
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.029.video.68731f13cd",
+      "concept_ids": [
+        "food.shrimp",
+        "food.whole_grain",
+        "food.egg",
+        "meal.light_meal"
+      ],
+      "name": "虾仁粗粮能量碗",
+      "description": "展示虾仁、粗粮饭和鸡蛋餐碗制作",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_029_video_68731f13cd/video.mp4",
+        "preview": "videos/broll_20260814_029_video_68731f13cd/poster.png",
+        "metadata": "videos/broll_20260814_029_video_68731f13cd/metadata.json",
+        "duration_us": 117500000,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.shrimp",
+          "food.whole_grain",
+          "food.egg",
+          "meal.light_meal"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.shrimp",
+        "food.whole_grain",
+        "food.egg",
+        "meal.light_meal"
+      ],
+      "trigger_basis": {
+        "food.shrimp": "complete_scene",
+        "food.whole_grain": "complete_scene",
+        "food.egg": "complete_scene",
+        "meal.light_meal": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "plating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "general_wellness",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.food.meat_seafood",
+          "l2.food.staple",
+          "l2.food.egg",
+          "l2.meal.light"
+        ],
+        "l3_exact_concept_ids": [
+          "food.shrimp",
+          "food.whole_grain",
+          "food.egg",
+          "meal.light_meal"
+        ],
+        "action_ids": [
+          "cooking",
+          "plating"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.030.video.950659256f",
+      "concept_ids": [
+        "drink.tea",
+        "scene.nature"
+      ],
+      "name": "自然环境喝茶休息",
+      "description": "展示人物在自然环境中喝茶休息",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_030_video_950659256f/video.mp4",
+        "preview": "videos/broll_20260814_030_video_950659256f/poster.png",
+        "metadata": "videos/broll_20260814_030_video_950659256f/metadata.json",
+        "duration_us": 27733333,
+        "width": 1080,
+        "height": 1920,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "drink.tea",
+          "scene.nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "drink.tea",
+        "scene.nature"
+      ],
+      "trigger_basis": {
+        "drink.tea": "complete_scene",
+        "scene.nature": "complete_scene"
+      },
+      "visual_actions": [
+        "drinking",
+        "resting"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "identifiable",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.drink.tea",
+          "l2.activity.self_care",
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "drink.tea",
+          "scene.nature"
+        ],
+        "action_ids": [
+          "drinking",
+          "resting"
+        ],
+        "scene_ids": [
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "editorial.leisure_daily",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "broll.20260814.031.video.80eb4148e8",
+      "concept_ids": [
+        "food.shrimp",
+        "food.beef",
+        "food.egg",
+        "food.quinoa"
+      ],
+      "name": "虾仁牛肉滑蛋藜麦饭",
+      "description": "第一视角制作虾仁、牛肉、鸡蛋和藜麦餐",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "空镜专用",
+        "视频"
+      ],
+      "resource": {
+        "video": "videos/broll_20260814_031_video_80eb4148e8/video.mp4",
+        "preview": "videos/broll_20260814_031_video_80eb4148e8/poster.png",
+        "metadata": "videos/broll_20260814_031_video_80eb4148e8/metadata.json",
+        "duration_us": 69000000,
+        "width": 720,
+        "height": 1280,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.shrimp",
+          "food.beef",
+          "food.egg",
+          "food.quinoa"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.shrimp",
+        "food.beef",
+        "food.egg",
+        "food.quinoa"
+      ],
+      "trigger_basis": {
+        "food.shrimp": "complete_scene",
+        "food.beef": "complete_scene",
+        "food.egg": "complete_scene",
+        "food.quinoa": "complete_scene"
+      },
+      "visual_actions": [
+        "cooking",
+        "plating"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "B",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "general_wellness",
+      "platform_ui_status": "embedded",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.food.meat_seafood",
+          "l2.food.egg",
+          "l2.food.staple",
+          "l2.activity.food_prep"
+        ],
+        "l3_exact_concept_ids": [
+          "food.shrimp",
+          "food.beef",
+          "food.egg",
+          "food.quinoa"
+        ],
+        "action_ids": [
+          "cooking",
+          "plating"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
     }
   ]
 }

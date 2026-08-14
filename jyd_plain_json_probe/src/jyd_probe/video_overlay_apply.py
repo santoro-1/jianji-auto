@@ -49,6 +49,8 @@ def add_video_overlay_to_data(
     start_us: int,
     duration_us: int,
     source_start_us: int = 0,
+    source_duration_us: int = 0,
+    loop_to_target: bool = False,
     mute: bool = True,
     fit: str = "cover",
     corner: str = "center",
@@ -80,9 +82,13 @@ def add_video_overlay_to_data(
     available_duration = material_duration - source_start_us
     if available_duration <= 0:
         raise ValueError("语义视频截取起点超出素材时长")
-    # Visual footage plays at most once. A short source ends naturally instead
-    # of repeating or holding its final frame to fill the semantic window.
-    target_duration = min(requested_duration, available_duration)
+    clip_duration = min(
+        available_duration,
+        source_duration_us if source_duration_us > 0 else available_duration,
+    )
+    if clip_duration <= 0:
+        raise ValueError("语义视频有效源片段时长无效")
+    target_duration = requested_duration if loop_to_target else min(requested_duration, clip_duration)
     canvas_width, canvas_height = _canvas_dimensions(data)
     transform_x, transform_y, resolved_scale = _video_transform(
         corner=corner,
@@ -94,22 +100,31 @@ def add_video_overlay_to_data(
         canvas_height=canvas_height,
     )
     layer = _render_index_below_text(data) if render_below_text else _max_layer(data) + 1
-    segment_instance = draft.VideoSegment(
-        material_instance,
-        draft.Timerange(start_us, target_duration),
-        source_timerange=draft.Timerange(source_start_us, target_duration),
-        volume=0.0 if mute else 1.0,
-        clip_settings=draft.ClipSettings(
-            alpha=float(opacity),
-            scale_x=resolved_scale,
-            scale_y=resolved_scale,
-            transform_x=transform_x,
-            transform_y=transform_y,
-        ),
-    )
-    segment = segment_instance.export_json()
-    segment["track_render_index"] = layer
-    segments = [segment]
+    segments = []
+    segment_instances = []
+    cursor = 0
+    while cursor < target_duration:
+        current_duration = min(clip_duration, target_duration - cursor)
+        segment_instance = draft.VideoSegment(
+            material_instance,
+            draft.Timerange(start_us + cursor, current_duration),
+            source_timerange=draft.Timerange(source_start_us, current_duration),
+            volume=0.0 if mute else 1.0,
+            clip_settings=draft.ClipSettings(
+                alpha=float(opacity),
+                scale_x=resolved_scale,
+                scale_y=resolved_scale,
+                transform_x=transform_x,
+                transform_y=transform_y,
+            ),
+        )
+        segment = segment_instance.export_json()
+        segment["track_render_index"] = layer
+        segments.append(segment)
+        segment_instances.append(segment_instance)
+        cursor += current_duration
+        if not loop_to_target:
+            break
 
     material = material_instance.export_json()
     material["path"] = str(path)
@@ -122,7 +137,7 @@ def add_video_overlay_to_data(
     if not isinstance(videos, list) or not isinstance(speeds, list):
         raise RuntimeError("草稿视频或变速素材集合无效")
     videos.append(material)
-    speeds.append(segment_instance.speed.export_json())
+    speeds.extend(item.speed.export_json() for item in segment_instances)
     track = {
         "id": _new_id(),
         "is_default_name": False,

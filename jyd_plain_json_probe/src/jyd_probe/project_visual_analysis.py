@@ -194,7 +194,18 @@ class ProjectVisualAnalysisCoordinator:
             if not item.get("allowed_actions", {}).get("analyze_visuals", False):
                 raise ValueError(f"任务 {item.get('row_key')} 正在生成或分析，请稍后重试")
             script = str(item["script_text"])
-            candidate_request = recall_semantic_visual_candidates(script, self.catalog)
+            settings = item.get("settings") if isinstance(item.get("settings"), Mapping) else {}
+            source_metadata = (
+                settings.get("source_metadata") if isinstance(settings, Mapping) else {}
+            )
+            article_type = (
+                str(source_metadata.get("article_type") or "")
+                if isinstance(source_metadata, Mapping)
+                else ""
+            )
+            candidate_request = recall_semantic_visual_candidates(
+                script, self.catalog, article_type=article_type
+            )
             previous = dict(item.get("visual_analysis") or {})
             if (
                 not force_refresh

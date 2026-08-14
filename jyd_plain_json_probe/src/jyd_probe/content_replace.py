@@ -443,6 +443,8 @@ class VideoOverlayAddition:
     start_us: int
     duration_us: int
     source_start_us: int = 0
+    source_duration_us: int = 0
+    loop_to_target: bool = False
     mute: bool = True
     fit: str = "cover"
     corner: str = "center"
@@ -1886,6 +1888,8 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
                     start_us=item.start_us,
                     duration_us=item.duration_us,
                     source_start_us=item.source_start_us,
+                    source_duration_us=item.source_duration_us,
+                    loop_to_target=item.loop_to_target,
                     mute=item.mute,
                     fit=item.fit,
                     corner=item.corner,

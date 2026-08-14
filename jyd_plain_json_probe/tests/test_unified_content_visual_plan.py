@@ -538,3 +538,24 @@ def test_real_segment_boundary_flows_into_local_seam_broll_recipe(tmp_path: Path
     assert seam["start_us"] == 2_000_000
     assert seam["segment_boundary_us"] == 2_000_000
     assert seam["media_type"] == "video"
+
+
+def test_unified_visual_input_limits_editorial_pools_by_article_type() -> None:
+    item = {
+        "script_text": "长期改变来自每天做得到的小选择。" * 12,
+        "settings": {"source_metadata": {"article_type": "鸡汤文"}},
+        "outputs": {"base_video": {"metadata": {"duration_us": 60_000_000}}},
+    }
+    visual_input = prepare_unified_visual_input(
+        item, load_semantic_visual_catalog(CATALOG_ROOT)
+    )
+    offered = {
+        concept_id
+        for anchor in visual_input.visual_context["anchors"]
+        if anchor["usage"] == "enrichment"
+        for concept_id in anchor["allowed_concepts"]
+        if concept_id.startswith("editorial.")
+    }
+
+    assert "editorial.family_life" in offered
+    assert "editorial.meal_daily" not in offered

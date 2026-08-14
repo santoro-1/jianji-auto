@@ -46,6 +46,44 @@ def _catalog():
     return load_semantic_visual_catalog(CATALOG_ROOT)
 
 
+def _catalog_with_editorial_broll() -> SemanticVisualCatalog:
+    catalog = _catalog()
+    pool_ids = (
+        "editorial.home_daily",
+        "editorial.meal_daily",
+        "editorial.leisure_daily",
+        "editorial.family_life",
+        "editorial.mood_atmosphere",
+    )
+    concepts = tuple(catalog.concepts) + tuple(
+        {
+            "concept_id": concept_id,
+            "label": concept_id,
+            "description": f"测试空镜池 {concept_id}",
+            "aliases": [concept_id],
+        }
+        for concept_id in pool_ids
+    )
+    base_video = next(
+        asset
+        for asset in catalog.assets
+        if asset.get("media_type") == "video"
+        and "full_screen_broll" in set(asset.get("usage_modes", ()))
+        and "seam_broll" in set(asset.get("usage_modes", ()))
+    )
+    video = json.loads(json.dumps(base_video))
+    video["asset_id"] = "editorial.test.video.01"
+    video.setdefault("video_taxonomy", {})["fallback_concept_ids"] = list(pool_ids)
+    return SemanticVisualCatalog(
+        root=catalog.root,
+        schema=catalog.schema,
+        library_id=catalog.library_id,
+        catalog_version="editorial-test",
+        concepts=concepts,
+        assets=(video,),
+    )
+
+
 def _write_v2_catalog(root: Path) -> Path:
     bundle = root / "bundles" / "beef_image_01"
     shutil.copytree(CATALOG_ROOT / "bundles" / "egg_boiled", bundle)
@@ -1093,6 +1131,64 @@ def test_enrichment_never_offers_unrelated_rotating_concepts() -> None:
     assert enrichment == []
 
 
+@pytest.mark.parametrize(
+    ("article_type", "included", "excluded"),
+    [
+        ("鸡汤文", "editorial.family_life", "editorial.meal_daily"),
+        ("干货类", "editorial.meal_daily", "editorial.family_life"),
+        ("带人设介绍的干货类", "editorial.family_life", None),
+    ],
+)
+def test_editorial_broll_pools_are_limited_by_article_type(
+    article_type: str, included: str, excluded: str | None
+) -> None:
+    script = "真正长期能坚持的改变，往往来自每天都做得到的小选择。" * 8
+    candidates = recall_semantic_visual_candidates(
+        script,
+        _catalog_with_editorial_broll(),
+        video_duration_us=60_000_000,
+        article_type=article_type,
+    )["candidates"]
+    enrichment = [item for item in candidates if item.get("usage") == "enrichment"]
+
+    assert enrichment
+    offered = {
+        concept["concept_id"]
+        for item in enrichment
+        for concept in item["allowed_concepts"]
+    }
+    assert included in offered
+    if excluded is not None:
+        assert excluded not in offered
+
+
+def test_editorial_pool_can_create_seam_candidate_without_literal_alias() -> None:
+    script = "先把前面的道理说清楚。接下来聊聊怎样把改变放进普通生活。"
+    candidate = next(
+        item
+        for item in recall_semantic_visual_candidates(
+            script,
+            _catalog_with_editorial_broll(),
+            video_duration_us=12_000_000,
+            segment_boundaries=[
+                {"boundary_us": 5_000_000, "script_text": "接下来聊聊怎样把改变放进普通生活。"}
+            ],
+            article_type="鸡汤文",
+        )["candidates"]
+        if item.get("usage") == "seam_broll"
+    )
+
+    assert candidate["text"].startswith("接下来")
+    assert {
+        concept["concept_id"] for concept in candidate["allowed_concepts"]
+    } == {
+        "editorial.home_daily",
+        "editorial.leisure_daily",
+        "editorial.family_life",
+        "editorial.mood_atmosphere",
+    }
+
+
 def test_enrichment_uses_video_level_asset_deduplication() -> None:
     catalog = _catalog()
     candidates = recall_semantic_visual_candidates(
@@ -1734,8 +1830,38 @@ def test_video_overlay_is_clipped_when_sentence_exceeds_source(tmp_path: Path) -
         media_policy="video_only",
     )
 
-    assert recipe["overlays"][0]["duration_us"] == 6_200_000
-    assert "loop" not in recipe["overlays"][0]
+    overlay = recipe["overlays"][0]
+    assert overlay["duration_us"] == 3_000_000
+    assert overlay["source_duration_us"] == 3_000_000
+    assert overlay["loop_to_target"] is False
+
+
+def test_video_overlay_loops_only_catalog_default_window_when_allowed(tmp_path: Path) -> None:
+    manifest = _write_v2_catalog(tmp_path)
+    payload = json.loads(manifest.read_text(encoding="utf-8"))
+    payload["assets"][1]["defaults"]["loop"] = True
+    manifest.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    catalog = load_semantic_visual_catalog(tmp_path)
+    candidate = recall_semantic_visual_candidates("牛肉。", catalog)["candidates"][0]
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[{**candidate, "start_us": 0, "duration_us": 8_000_000}],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.beef",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="video_only",
+    )
+
+    overlay = recipe["overlays"][0]
+    assert overlay["duration_us"] == 8_000_000
+    assert overlay["source_duration_us"] == 3_000_000
+    assert overlay["loop_to_target"] is True
 
 
 def test_segment_boundary_uses_corresponding_unused_seam_broll(tmp_path: Path) -> None:

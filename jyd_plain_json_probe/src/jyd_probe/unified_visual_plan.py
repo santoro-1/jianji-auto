@@ -109,11 +109,21 @@ def prepare_unified_visual_input(
         int(duration) if isinstance(duration, int) and duration > 0 else None
     )
     segment_boundaries = project_segment_boundaries(dict(item))
+    settings = item.get("settings") if isinstance(item.get("settings"), Mapping) else {}
+    source_metadata = (
+        settings.get("source_metadata") if isinstance(settings, Mapping) else {}
+    )
+    article_type = (
+        str(source_metadata.get("article_type") or "")
+        if isinstance(source_metadata, Mapping)
+        else ""
+    )
     candidate_request = recall_semantic_visual_candidates(
         script,
         catalog,
         video_duration_us=video_duration_us,
         segment_boundaries=segment_boundaries,
+        article_type=article_type,
     )
     alignment = subtitles.get("asr_alignment") if isinstance(subtitles, Mapping) else None
     if not (

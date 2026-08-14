@@ -155,6 +155,43 @@ def test_native_video_overlay_ends_at_remaining_source_duration(
     }
 
 
+def test_native_video_overlay_loops_only_the_approved_source_window(
+    tmp_path: Path,
+) -> None:
+    video = tmp_path / "short.mp4"
+    video.write_bytes(b"test")
+    data = {
+        "duration": 6_000_000,
+        "canvas_config": {"width": 1080, "height": 1920},
+        "materials": {"videos": [], "speeds": []},
+        "tracks": [{"type": "video", "segments": [{"render_index": 0}]}],
+    }
+
+    changed = add_video_overlay_to_data(
+        _Draft(),
+        data,
+        video,
+        start_us=0,
+        duration_us=5_000_000,
+        source_start_us=500_000,
+        source_duration_us=1_000_000,
+        loop_to_target=True,
+    )
+
+    assert changed == 5
+    track = next(item for item in data["tracks"] if item.get("name") == "语义前景视频")
+    assert [item["target_timerange"]["duration"] for item in track["segments"]] == [
+        1_000_000,
+        1_000_000,
+        1_000_000,
+        1_000_000,
+        1_000_000,
+    ]
+    assert {item["source_timerange"]["start"] for item in track["segments"]} == {
+        500_000
+    }
+
+
 def test_bottom_center_action_window_matches_manually_accepted_layout() -> None:
     x, y, resolved_scale = _video_transform(
         corner="bottom_center",
@@ -188,7 +225,8 @@ def test_render_builder_places_window_video_below_nameplate_and_broll_above() ->
                     "video_path": "broll.mp4",
                     "start_us": 8_000_000,
                     "duration_us": 3_000_000,
-                    "loop": True,
+                    "source_duration_us": 1_500_000,
+                    "loop_to_target": True,
                     "corner": "center",
                     "scale": 1.0,
                 },
@@ -200,7 +238,8 @@ def test_render_builder_places_window_video_below_nameplate_and_broll_above() ->
         ("语义前景视频", 10),
         ("全屏 B-roll", 30),
     ]
-    assert all(not hasattr(item, "loop") for item in additions)
+    assert additions[1].source_duration_us == 1_500_000
+    assert additions[1].loop_to_target is True
 
 
 def test_visual_layer_order_is_image_or_window_then_nameplate_then_broll(tmp_path: Path) -> None:

@@ -318,6 +318,63 @@ def test_local_reflow_preserves_task_11_phrase_without_model_boundary() -> None:
     ]
 
 
+def test_local_reflow_overrides_model_break_inside_locative_relative() -> None:
+    script = "存款和好看才是你疲惫生活中的一副重要的解药，"
+    units = _units(
+        [
+            ("存款和好看才是你疲惫生活", "phrase", "none", "prefer"),
+            ("中的一副重要的解药，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    joined = "|".join(texts)
+    assert mapping["status"] == "SUCCESS"
+    assert "疲惫生活|中的" not in joined
+    assert "疲惫生活中的|一副重要的解药" in joined
+
+
+def test_local_reflow_overrides_model_break_before_category_suffix() -> None:
+    script = (
+        "第二，早餐不要吃快餐类的，盐多油多。"
+        "第三，早餐不要吃蛋糕类的，饼干类的，糖多油多。"
+    )
+    units = _units(
+        [
+            ("第二，", "phrase", "none", "prefer"),
+            ("早餐不要吃快餐", "phrase", "none", "prefer"),
+            ("类的，", "phrase", "none", "prefer"),
+            ("盐多油多。", "phrase", "none", "prefer"),
+            ("第三，", "phrase", "none", "prefer"),
+            ("早餐不要吃蛋糕", "phrase", "none", "prefer"),
+            ("类的，", "phrase", "none", "prefer"),
+            ("饼干类的，", "phrase", "none", "prefer"),
+            ("糖多油多。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 8_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(script, units, raw_cues),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    joined = "|".join(str(cue["text"]) for cue in render_cues)
+    assert mapping["status"] == "SUCCESS"
+    assert "快餐|类的" not in joined
+    assert "蛋糕|类的" not in joined
+
+
 def test_local_reflow_keeps_predicate_object_dependency_without_term_lists() -> None:
     script = "坚持吃一个带壳煮鸡蛋，"
     units = _units([(script, "phrase", "none", "prefer")])
