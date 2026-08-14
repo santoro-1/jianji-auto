@@ -140,6 +140,60 @@ def test_cover_title_requires_two_compact_lines() -> None:
     )["line_2"] == "一二三四五六七八九十一二三四"
 
 
+def test_cover_title_naturally_rewrites_weight_management_risk_words() -> None:
+    assert normalize_cover_title(
+        {"line_1": "减肥最好", "line_2": "瘦了5斤"}
+    ) == {
+        "line_1": "控重更好",
+        "line_2": "体重变化",
+    }
+    assert normalize_cover_title(
+        {"line_1": "脂肪肚腩", "line_2": "掉秤真快"}
+    ) == {
+        "line_1": "体脂腰腹",
+        "line_2": "变轻真快",
+    }
+    assert normalize_cover_title(
+        {"line_1": "健康享瘦", "line_2": "健康瘦久"}
+    ) == {
+        "line_1": "健康享轻盈",
+        "line_2": "体重稳定",
+    }
+    assert normalize_cover_title(
+        {"line_1": "轻松变瘦", "line_2": "瘦得更快"}
+    ) == {
+        "line_1": "轻松变轻盈",
+        "line_2": "体重变轻",
+    }
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        {"line_1": "祖传秘方", "line_2": "根治疾病"},
+        {"line_1": "记得吃药", "line_2": "立刻见效"},
+        {"line_1": "加微信", "line_2": "进群咨询"},
+        {"line_1": "暴富秘笈", "line_2": "稳赚不赔"},
+        {"line_1": "暴力血腥", "line_2": "未成年吸毒"},
+        {"line_1": "私域引流", "line_2": "扫码进群"},
+    ],
+)
+def test_cover_title_hard_risk_uses_neutral_fallback(title: dict[str, str]) -> None:
+    assert normalize_cover_title(title) == {
+        "line_1": "生活提醒",
+        "line_2": "理性看待",
+    }
+
+
+def test_cover_title_does_not_rewrite_non_superlative_zui_words() -> None:
+    assert normalize_cover_title(
+        {"line_1": "最近状态", "line_2": "最后提醒"}
+    ) == {
+        "line_1": "最近状态",
+        "line_2": "最后提醒",
+    }
+
+
 def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> None:
     image = tmp_path / "person.png"
     image.write_bytes(b"image")
@@ -183,3 +237,33 @@ def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> Non
     assert cover["line_2_shadow_alpha"] == 1.0
     assert cover["line_1_shadow_smoothing"] == pytest.approx(0.45000001788139343)
     assert cover["line_2_shadow_smoothing"] == pytest.approx(0.45000001788139343)
+
+
+def test_project_cover_sanitizes_historical_saved_risk_title(tmp_path) -> None:
+    image = tmp_path / "person.png"
+    image.write_bytes(b"image")
+    font = tmp_path / "SourceHanSerifCN-Heavy.otf"
+    font.write_bytes(b"font")
+
+    cover = build_project_cover(
+        {
+            "row_key": "1",
+            "inputs": {"image": {"managed_path": str(image)}},
+            "settings": {
+                "postprocess": {
+                    "cover_title": {"line_1": "祖传秘方", "line_2": "加微信咨询"}
+                }
+            },
+        },
+        fonts={
+            "resource_id:6807742980271641102": {
+                "resource_id": "6807742980271641102",
+                "name": "SourceHanSerifCN-Heavy",
+                "path": str(font),
+            }
+        },
+    )
+
+    assert cover is not None
+    assert cover["text_line_1"] == "生活提醒"
+    assert cover["text_line_2"] == "理性看待"

@@ -144,6 +144,172 @@ BOTTOM_DISCLAIMER_TRANSFORM_Y = -1760 / 1920
 BOTTOM_DISCLAIMER_COLOR = "#FFFFFF"
 BOTTOM_DISCLAIMER_OPACITY = 0.5
 
+_COVER_TITLE_SAFE_FALLBACK = {"line_1": "生活提醒", "line_2": "理性看待"}
+_COVER_TITLE_HARD_RISK_FRAGMENTS = (
+    # 法律、公共安全、歧视与低俗伤害。
+    "颠覆政权",
+    "国家秘密",
+    "民族仇恨",
+    "民族歧视",
+    "邪教",
+    "色情",
+    "性暗示",
+    "情趣用品",
+    "赌博",
+    "毒品",
+    "暴力",
+    "血腥",
+    "惊悚",
+    "残忍",
+    "恐怖袭击",
+    "教唆犯罪",
+    "侮辱",
+    "辱骂",
+    "歧视",
+    "造谣",
+    "自杀",
+    "自残",
+    "凶杀",
+    "枪击",
+    "刺伤",
+    "拷打",
+    "尸体",
+    "斗殴",
+    "虐待",
+    "体罚",
+    "性侵",
+    "校园欺凌",
+    "家暴",
+    "未成年抽烟",
+    "未成年喝酒",
+    "未成年吸毒",
+    "婚外恋",
+    "婚闹",
+    "童养媳",
+    # 伪科学、绝对化医疗、危险操作与药物营销。
+    "祖传秘方",
+    "包治百病",
+    "神药",
+    "根治",
+    "治愈",
+    "治好",
+    "治疗",
+    "治癌",
+    "抗癌",
+    "排毒",
+    "偏方",
+    "食物相克",
+    "以形补形",
+    "药",
+    "医生",
+    "诊断",
+    "处方",
+    "疗效",
+    "穴位",
+    "刮痧",
+    "拔罐",
+    "艾灸",
+    "针灸",
+    "放血",
+    "正骨",
+    "注射",
+    "肿瘤",
+    "癌症",
+    "百分百",
+    "100%",
+    "绝对有效",
+    "一定有效",
+    "保证有效",
+    "立刻见效",
+    # 平台安全、隐私与私域引流。
+    "钓鱼网站",
+    "恶意程序",
+    "病毒代码",
+    "微信号",
+    "加微信",
+    "私信我",
+    "身份证",
+    "手机号",
+    "住址",
+    "联系电话",
+    "联系方式",
+    "公众号",
+    "二维码",
+    "私域",
+    "扫码",
+    "进群",
+    "加群",
+    # 虚构煽动和不切实际收益承诺。
+    "卖惨",
+    "风水",
+    "运势",
+    "暴富",
+    "包赚",
+    "稳赚",
+)
+_COVER_TITLE_NATURAL_REPLACEMENTS = (
+    ("健康瘦久", "体重稳定"),
+    ("瘦得更快", "体重变轻"),
+    ("瘦得很快", "体重变轻"),
+    ("瘦得快", "体重变轻"),
+    ("瘦不下来", "体重难降"),
+    ("瘦不了", "体重难降"),
+    ("瘦下来", "变轻盈"),
+    ("享瘦", "享轻盈"),
+    ("变瘦", "变轻盈"),
+    ("减肥", "控重"),
+    ("瘦身", "塑形"),
+    ("掉秤", "变轻"),
+    ("脂肪", "体脂"),
+    ("肚腩", "腰腹"),
+    ("唯一", "关键"),
+)
+_COVER_TITLE_CONTACT_PATTERN = re.compile(
+    r"(?:1[3-9][0-9]{9}|(?:微信|V信|v信|vx|VX|电话号码|电话号|手机号|联系我|联系我们|私信))"
+)
+_COVER_TITLE_WEIGHT_PATTERN = re.compile(
+    r"[0-9０-９零〇一二两三四五六七八九十百千万几多]+斤"
+)
+_COVER_TITLE_SUPERLATIVE_PATTERN = re.compile(r"最(?!近|后|终|初)")
+_COVER_TITLE_ABSOLUTE_FIRST_PATTERN = re.compile(
+    r"第一(?!个|步|点|条|种|组)"
+)
+
+
+def _sanitize_cover_title_lines(line_1: str, line_2: str) -> dict[str, str]:
+    """Return a naturally compliant cover title or a neutral safe fallback.
+
+    This is an output safety gate, not a moderation-evasion substitution.  A
+    hard-risk title is replaced as a whole; lower-risk weight-management words
+    are rewritten into ordinary neutral language.
+    """
+
+    combined = f"{line_1}\n{line_2}"
+    if _COVER_TITLE_CONTACT_PATTERN.search(combined) or any(
+        fragment in combined for fragment in _COVER_TITLE_HARD_RISK_FRAGMENTS
+    ):
+        return dict(_COVER_TITLE_SAFE_FALLBACK)
+
+    def rewrite(text: str) -> str:
+        if _COVER_TITLE_WEIGHT_PATTERN.search(text):
+            return "体重变化"
+        for source, replacement in _COVER_TITLE_NATURAL_REPLACEMENTS:
+            text = text.replace(source, replacement)
+        text = _COVER_TITLE_SUPERLATIVE_PATTERN.sub("更", text)
+        text = _COVER_TITLE_ABSOLUTE_FIRST_PATTERN.sub("重要", text)
+        return "体重变化" if "瘦" in text else text
+
+    safe = {"line_1": rewrite(line_1), "line_2": rewrite(line_2)}
+    if (
+        not safe["line_1"]
+        or not safe["line_2"]
+        or safe["line_1"] == safe["line_2"]
+        or len(safe["line_1"]) > COVER_TITLE_MAX_LINE_1_CHARS
+        or len(safe["line_2"]) > COVER_TITLE_MAX_LINE_2_CHARS
+    ):
+        return dict(_COVER_TITLE_SAFE_FALLBACK)
+    return safe
+
 def normalize_top_title(value: Any) -> dict[str, str]:
     """Normalize the optional two-line fixed top title contract."""
 
@@ -184,17 +350,29 @@ def normalize_cover_title(value: Any) -> dict[str, str]:
     line_2 = clean("line_2", "hook", "headline", "title")
     if bool(line_1) != bool(line_2):
         raise ValueError("封面标题必须同时提供两行")
-    for index, (text, limit) in enumerate(
-        (
-            (line_1, COVER_TITLE_MAX_LINE_1_CHARS),
-            (line_2, COVER_TITLE_MAX_LINE_2_CHARS),
-        ),
-        start=1,
-    ):
-        if len(text) > limit:
-            raise ValueError(
-                f"封面第 {index} 行最多 {limit} 个字符"
-            )
+
+    def validate_lengths(first: str, second: str) -> None:
+        for index, (text, limit) in enumerate(
+            (
+                (first, COVER_TITLE_MAX_LINE_1_CHARS),
+                (second, COVER_TITLE_MAX_LINE_2_CHARS),
+            ),
+            start=1,
+        ):
+            if len(text) > limit:
+                raise ValueError(
+                    f"封面第 {index} 行最多 {limit} 个字符"
+                )
+
+    # Preserve the existing public contract: malformed/overlong input remains
+    # an explicit validation error. Safety rewriting applies only after the
+    # caller has supplied a structurally valid title.
+    validate_lengths(line_1, line_2)
+    if line_1 and line_2:
+        safe_title = _sanitize_cover_title_lines(line_1, line_2)
+        line_1 = safe_title["line_1"]
+        line_2 = safe_title["line_2"]
+        validate_lengths(line_1, line_2)
     return {"line_1": line_1, "line_2": line_2}
 
 
