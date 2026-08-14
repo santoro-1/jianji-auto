@@ -291,6 +291,8 @@ class NewFrontendTest(unittest.TestCase):
         )
         self.assertIn("/api/new/voices", workspace)
         self.assertIn('id="voice-speed-slider"', workspace)
+        self.assertIn('min="0.5" max="2" step="0.01"', workspace)
+        self.assertNotIn('id="voice-speed-slider" type="range" min="0.5" max="2" step="0.05"', workspace)
         self.assertIn('data-voice-speed="0.8"', workspace)
         self.assertIn('data-voice-speed="0.9"', workspace)
         self.assertIn("function saveVoiceSpeed(rawSpeed)", workspace)

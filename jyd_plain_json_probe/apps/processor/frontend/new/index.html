@@ -701,7 +701,7 @@
                             </div>
                             <span id="voice-speed-value" class="text-xs font-bold text-brand-accent tabular-nums">1.00×</span>
                         </div>
-                        <input id="voice-speed-slider" type="range" min="0.5" max="2" step="0.05" value="1"
+                        <input id="voice-speed-slider" type="range" min="0.5" max="2" step="0.01" value="1"
                             class="w-full mt-2 accent-cyan-400" oninput="previewVoiceSpeed(this.value)" onchange="saveVoiceSpeed(this.value)">
                         <div class="grid grid-cols-3 gap-2 mt-2">
                             <button type="button" data-voice-speed="0.8" onclick="saveVoiceSpeed(0.8)" class="voice-speed-preset rounded-lg border border-slate-700/80 py-1 text-[10px] text-gray-300 hover:border-brand-primary/70">0.8× 慢速</button>
