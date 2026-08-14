@@ -119,6 +119,8 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn('id="delete-current-project-toolbar"', html)
         self.assertIn("deleteCurrentProjectBatch", html)
         self.assertIn('id="article-type-filter"', html)
+        self.assertIn(".article-type-select option", html)
+        self.assertIn("color-scheme: dark", html)
         self.assertIn("applyArticleTypeFilter", html)
         self.assertIn("filteredProjectItems", html)
         self.assertIn("可直接全选后设置语速或生成声音", html)

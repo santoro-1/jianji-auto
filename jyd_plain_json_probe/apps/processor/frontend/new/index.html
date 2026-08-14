@@ -57,6 +57,16 @@
         input[type="number"] {
             -moz-appearance: textfield;
         }
+        .article-type-select {
+            width: 8rem;
+            color-scheme: dark;
+            background-color: #0f172a;
+            color: #e5e7eb;
+        }
+        .article-type-select option {
+            background-color: #0f172a;
+            color: #e5e7eb;
+        }
         .glass-panel {
             background: rgba(15, 23, 42, 0.45);
             backdrop-filter: blur(12px);
@@ -830,9 +840,9 @@
 
                     <div id="batch-selection-toolbar" class="hidden px-5 py-3 border-b border-white/5 bg-indigo-950/20 flex flex-wrap items-center gap-2">
                         <span id="selected-row-count" class="text-[10px] font-bold text-indigo-200">已选 0 条</span>
-                        <label class="flex items-center rounded-lg border border-indigo-400/25 bg-slate-950/80 px-2 py-1 text-[10px] text-indigo-100">
+                        <label class="flex items-center gap-1.5 rounded-lg border border-indigo-400/25 bg-slate-950/80 py-1 pl-2 pr-1 text-[10px] text-indigo-100">
                             <span class="mr-1.5 whitespace-nowrap">文章类型</span>
-                            <select id="article-type-filter" onchange="applyArticleTypeFilter(this.value)" class="max-w-40 bg-transparent text-[10px] text-white focus:outline-none">
+                            <select id="article-type-filter" onchange="applyArticleTypeFilter(this.value)" class="article-type-select rounded-md border border-slate-700 px-2 py-1 text-[10px] focus:border-brand-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
                                 <option value="">全部类型</option>
                             </select>
                         </label>
