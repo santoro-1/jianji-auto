@@ -2304,14 +2304,37 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def delete_new_project(project_id: str, request: Request) -> dict[str, Any]:
         user = current_project_user(request)
         try:
-            paths = project_store.delete_project(user["user_id"], project_id)
+            cleanup = project_store.delete_project(user["user_id"], project_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-        for path in paths:
-            _unlink_if_exists(Path(path))
-        return {"ok": True, "project_id": project_id}
+        deleted_file_count = 0
+        for path in cleanup["files"]:
+            target = Path(path)
+            if is_managed_project_file(target):
+                _unlink_if_exists(target)
+                deleted_file_count += 1
+
+        result_root = project_result_library.root.resolve()
+        deleted_directory_count = 0
+        for path in cleanup["directories"]:
+            target = Path(path).resolve()
+            try:
+                relative = target.relative_to(result_root)
+            except ValueError:
+                continue
+            if len(relative.parts) != 2 or not relative.parts[1].isdigit():
+                continue
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+                deleted_directory_count += 1
+        return {
+            "ok": True,
+            "project_id": project_id,
+            "deleted_file_count": deleted_file_count,
+            "deleted_directory_count": deleted_directory_count,
+        }
 
     @app.post("/api/new/projects/{project_id}/images", status_code=201)
     async def upload_new_project_image(

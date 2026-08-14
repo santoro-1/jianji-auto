@@ -120,6 +120,92 @@ class ProjectApiTest(unittest.TestCase):
                 self.assertEqual(hidden.status_code, 404)
                 self.assertEqual(client.get("/api/new/projects").json()["total"], 0)
 
+    def test_delete_finished_project_cleans_only_managed_batch_artifacts(self) -> None:
+        user = {"user_id": "user-1", "username": "tester-1", "enabled": True}
+
+        def verify(_client, _token):
+            return user
+
+        with patch("jyd_probe.auth_center.AuthCenterClient.verify", new=verify):
+            app = create_app(self.settings)
+            with TestClient(app) as client:
+                self._login(client, user)
+                project = client.post(
+                    "/api/new/projects",
+                    json={"name": "可删除完成批次", "items": [{"row_key": "1", "script_text": "测试脚本"}]},
+                ).json()
+                project_id = project["project_id"]
+                item_id = project["items"][0]["item_id"]
+                store = app.state.project_store
+                store.create_operation(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=item_id,
+                    operation_type="AUDIO_GENERATE",
+                    idempotency_key="finished-project-delete",
+                )
+                blocked = client.delete(f"/api/new/projects/{project_id}")
+                self.assertEqual(blocked.status_code, 409, blocked.text)
+                self.assertIn("正在生成", blocked.json()["detail"])
+                store.transition_audio_operation(
+                    user["user_id"],
+                    project_id,
+                    item_id,
+                    status="FAILED",
+                    item_status="AUDIO_FAILED",
+                    error_code="TEST_FINISHED",
+                    error_message="测试完成态",
+                )
+
+                audio_path = self.settings.storage_root / "new_projects" / project_id / "audio" / "voice.mp3"
+                audio_path.parent.mkdir(parents=True, exist_ok=True)
+                audio_path.write_bytes(b"audio")
+                store.add_asset(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=item_id,
+                    asset_type="audio",
+                    source_type="minimax",
+                    status="READY",
+                    filename=audio_path.name,
+                    managed_path=str(audio_path),
+                    make_current=True,
+                )
+
+                result_batch = store.allocate_result_batch(
+                    user["user_id"],
+                    project_id,
+                    export_root=app.state.project_result_library.root,
+                    operation_type="VARIANT_GENERATE",
+                )
+                result_directory = Path(result_batch["export_path"])
+                result_directory.mkdir(parents=True)
+                (result_directory / "result.mp4").write_bytes(b"video")
+                store.update_result_batch(
+                    user["user_id"], result_batch["result_batch_id"], status="SUCCEEDED"
+                )
+
+                outside_batch = store.allocate_result_batch(
+                    user["user_id"],
+                    project_id,
+                    export_root=self.root / "outside-result-root",
+                    operation_type="VARIANT_GENERATE",
+                )
+                outside_directory = Path(outside_batch["export_path"])
+                outside_directory.mkdir(parents=True)
+                (outside_directory / "must-remain.txt").write_text("safe", encoding="utf-8")
+                store.update_result_batch(
+                    user["user_id"], outside_batch["result_batch_id"], status="SUCCEEDED"
+                )
+
+                deleted = client.delete(f"/api/new/projects/{project_id}")
+                self.assertEqual(deleted.status_code, 200, deleted.text)
+                self.assertEqual(deleted.json()["deleted_directory_count"], 1)
+                self.assertFalse(audio_path.exists())
+                self.assertFalse(result_directory.exists())
+                self.assertTrue(outside_directory.is_dir())
+                self.assertEqual(client.get(f"/api/new/projects/{project_id}").status_code, 404)
+
     def test_project_diagnostics_are_owned_redacted_and_project_scoped(self) -> None:
         first_user = {"user_id": "diag-1", "username": "tester-1", "enabled": True}
         second_user = {"user_id": "diag-2", "username": "tester-2", "enabled": True}

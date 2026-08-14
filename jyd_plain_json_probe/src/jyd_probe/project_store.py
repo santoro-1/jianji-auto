@@ -2471,24 +2471,72 @@ class ProjectStore:
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
-    def delete_project(self, owner_user_id: str, project_id: str) -> list[str]:
+    def delete_project(
+        self, owner_user_id: str, project_id: str
+    ) -> dict[str, list[str]]:
+        """Delete one inactive batch and return its unreferenced local artifacts."""
+
+        cleanup_files: set[str] = set()
+        cleanup_directories: set[str] = set()
         with self._transaction() as connection:
             self._owned_project(connection, owner_user_id, project_id)
-            has_items = connection.execute(
-                "SELECT 1 FROM project_items WHERE project_id=? LIMIT 1",
+            item_rows = connection.execute(
+                """
+                SELECT status, content_analysis_json, visual_analysis_json
+                FROM project_items WHERE project_id=?
+                """,
+                (project_id,),
+            ).fetchall()
+            for item in item_rows:
+                if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                    raise ValueError("当前批次仍有任务正在生成，请等待完成后再删除")
+                content_analysis = _object(item["content_analysis_json"], {})
+                visual_analysis = _object(item["visual_analysis_json"], {})
+                if str(content_analysis.get("overall_status") or "") == "PENDING":
+                    raise ValueError("当前批次仍在进行内容分析，请等待完成后再删除")
+                if str(visual_analysis.get("analysis_status") or "") == "PENDING":
+                    raise ValueError("当前批次仍在进行语义视觉分析，请等待完成后再删除")
+
+            active_operation = connection.execute(
+                """
+                SELECT 1 FROM project_operations
+                WHERE project_id=? AND status IN ('PENDING', 'RUNNING')
+                LIMIT 1
+                """,
                 (project_id,),
             ).fetchone()
-            if has_items is not None:
-                self._require_editable_inputs(connection, project_id)
-            paths = [
+            if active_operation is not None:
+                raise ValueError("当前批次仍有异步操作，请等待完成后再删除")
+            active_result_batch = connection.execute(
+                """
+                SELECT 1 FROM project_result_batches
+                WHERE project_id=? AND status IN ('ALLOCATED', 'RUNNING')
+                LIMIT 1
+                """,
+                (project_id,),
+            ).fetchone()
+            if active_result_batch is not None:
+                raise ValueError("当前批次仍在导出成果，请等待完成后再删除")
+
+            cleanup_files.update(
+                str(row["managed_path"])
+                for row in connection.execute(
+                    """
+                    SELECT managed_path FROM project_assets
+                    WHERE project_id=? AND managed_path IS NOT NULL AND managed_path!=''
+                    """,
+                    (project_id,),
+                ).fetchall()
+            )
+            cleanup_files.update(
                 str(row["managed_path"])
                 for row in connection.execute(
                     "SELECT managed_path FROM project_input_images WHERE project_id=?",
                     (project_id,),
                 ).fetchall()
                 if row["managed_path"]
-            ]
-            paths.extend(
+            )
+            cleanup_files.update(
                 str(row["managed_path"])
                 for row in connection.execute(
                     "SELECT managed_path FROM project_script_sources WHERE project_id=?",
@@ -2496,8 +2544,49 @@ class ProjectStore:
                 ).fetchall()
                 if row["managed_path"]
             )
+            cleanup_directories.update(
+                str(row["export_path"])
+                for row in connection.execute(
+                    "SELECT export_path FROM project_result_batches WHERE project_id=?",
+                    (project_id,),
+                ).fetchall()
+                if row["export_path"]
+            )
             connection.execute("DELETE FROM projects WHERE project_id=?", (project_id,))
-            return paths
+
+            referenced_files: set[str] = set()
+            for path in cleanup_files:
+                if connection.execute(
+                    "SELECT 1 FROM project_assets WHERE managed_path=? LIMIT 1", (path,)
+                ).fetchone() is not None:
+                    referenced_files.add(path)
+                    continue
+                if connection.execute(
+                    "SELECT 1 FROM project_input_images WHERE managed_path=? LIMIT 1",
+                    (path,),
+                ).fetchone() is not None:
+                    referenced_files.add(path)
+                    continue
+                if connection.execute(
+                    "SELECT 1 FROM project_script_sources WHERE managed_path=? LIMIT 1",
+                    (path,),
+                ).fetchone() is not None:
+                    referenced_files.add(path)
+            cleanup_files.difference_update(referenced_files)
+
+            cleanup_directories = {
+                path
+                for path in cleanup_directories
+                if connection.execute(
+                    "SELECT 1 FROM project_result_batches WHERE export_path=? LIMIT 1",
+                    (path,),
+                ).fetchone()
+                is None
+            }
+        return {
+            "files": sorted(cleanup_files),
+            "directories": sorted(cleanup_directories),
+        }
 
     def add_script_source(
         self,

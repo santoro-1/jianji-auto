@@ -605,6 +605,13 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 任务 ID 和批内重复项，再统一追加 `DRAFT` 行并沿用当前图片映射策略；任何一行失败时全部
 回滚。追加表格不执行模型、MiniMax、RunningHub 或剪映操作。
 
+配置表的文章类型筛选直接读取 `settings.source_metadata.article_type`，不复制分类字段；切换
+筛选会清空旧勾选，表头全选、序号快速选择、刷新预览和下载视频都只作用于当前可见类型。
+`DELETE /api/new/projects/{project_id}` 允许删除没有运行中操作的草稿、失败或完成批次，事务内
+级联删除项目记录，并返回不再被其他项目引用的受管文件和成果目录候选。Web 层再次校验文件
+必须位于工作台存储根目录，成果目录必须严格位于“成果根/日期/数字批次号”，才执行物理删除；
+云端数字人任务和既有第三方费用不受影响。
+
 表格的选择状态只保存在当前浏览器内存，并使用不可见的 `item_id` 调用现有子集接口；界面
 可按显示序号、原 `row_key` 或数字范围快速建立选择。选中统一分析使用 `force_refresh=true`；
 选中声音通过 audio `item_ids`；选中画面通过 composition `item_ids`，已有 `base_video` 的行

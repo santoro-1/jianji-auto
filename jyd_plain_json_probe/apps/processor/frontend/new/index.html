@@ -601,9 +601,14 @@
                     <div class="mb-4 rounded-xl border border-slate-800/80 bg-slate-950/40 p-3">
                         <div class="flex items-center justify-between gap-2 mb-2">
                             <label for="project-selector" class="text-[10px] font-bold text-gray-300">当前批次 / 项目</label>
-                            <button type="button" onclick="beginNewProjectBatch()" class="text-[10px] font-semibold text-brand-accent hover:text-white">
-                                <i class="fa-solid fa-plus mr-1"></i>新建批次
-                            </button>
+                            <div class="flex items-center gap-3">
+                                <button id="delete-current-project-sidebar" type="button" onclick="deleteCurrentProjectBatch()" class="hidden text-[10px] font-semibold text-rose-400 hover:text-rose-300">
+                                    <i class="fa-solid fa-trash-can mr-1"></i>删除批次
+                                </button>
+                                <button type="button" onclick="beginNewProjectBatch()" class="text-[10px] font-semibold text-brand-accent hover:text-white">
+                                    <i class="fa-solid fa-plus mr-1"></i>新建批次
+                                </button>
+                            </div>
                         </div>
                         <select id="project-selector" onchange="switchWorkspaceProject(this.value)" class="w-full rounded-lg border border-slate-700/80 bg-slate-950 px-2.5 py-2 text-[11px] text-gray-200 focus:border-brand-primary focus:outline-none">
                             <option value="">新批次（等待导入脚本）</option>
@@ -809,6 +814,9 @@
                             <select id="project-selector-toolbar" onchange="switchWorkspaceProject(this.value)" title="切换当前批次；不会删除其他批次" class="max-w-[280px] rounded-lg border border-brand-primary/30 bg-slate-950/90 px-2.5 py-1.5 text-[10px] font-semibold text-brand-accent focus:border-brand-accent focus:outline-none">
                                 <option value="">新批次（等待导入脚本）</option>
                             </select>
+                            <button id="delete-current-project-toolbar" type="button" onclick="deleteCurrentProjectBatch()" title="删除当前批次及其本地素材" class="hidden rounded-lg border border-rose-500/30 bg-rose-500/5 px-2.5 py-1.5 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/10 hover:text-white">
+                                <i class="fa-solid fa-trash-can mr-1"></i>删除批次
+                            </button>
                             <div class="table-flow-legend" aria-label="表头类型说明">
                                 <span class="table-flow-legend-item"><i class="table-flow-legend-dot input" aria-hidden="true"></i>输入 / 操作</span>
                                 <span class="table-flow-legend-item"><i class="table-flow-legend-dot output" aria-hidden="true"></i>生成结果</span>
@@ -822,6 +830,12 @@
 
                     <div id="batch-selection-toolbar" class="hidden px-5 py-3 border-b border-white/5 bg-indigo-950/20 flex flex-wrap items-center gap-2">
                         <span id="selected-row-count" class="text-[10px] font-bold text-indigo-200">已选 0 条</span>
+                        <label class="flex items-center rounded-lg border border-indigo-400/25 bg-slate-950/80 px-2 py-1 text-[10px] text-indigo-100">
+                            <span class="mr-1.5 whitespace-nowrap">文章类型</span>
+                            <select id="article-type-filter" onchange="applyArticleTypeFilter(this.value)" class="max-w-40 bg-transparent text-[10px] text-white focus:outline-none">
+                                <option value="">全部类型</option>
+                            </select>
+                        </label>
                         <div class="flex items-center rounded-lg border border-slate-700/80 bg-slate-950/80 px-2 py-1">
                             <input id="quick-select-task-ids" type="text" placeholder="序号/任务ID：3,5,8-12" class="w-40 bg-transparent text-[10px] text-white placeholder:text-slate-600 focus:outline-none" onkeydown="if(event.key === 'Enter') applyQuickTaskSelection()">
                             <button type="button" onclick="applyQuickTaskSelection()" class="text-[10px] text-brand-accent hover:text-white">选择</button>
@@ -964,6 +978,7 @@
         let currentMappingImageIds = [];
         let scriptImportMode = 'create';
         const selectedProjectItemIds = new Set();
+        let activeArticleTypeFilter = '';
         let selectedDefaultVoiceIndex = 0; // Index of voicePresets
         let currentStrategy = 'count'; // 'count' or 'loop'
         let currentStrategyCountVal = 1; // Count per image
@@ -1475,6 +1490,33 @@
             ].includes(item.status));
         }
 
+        function projectHasPendingWork(project) {
+            if (!project) return false;
+            if (projectHasActiveItems(project)) return true;
+            if ((project.items || []).some((item) =>
+                item.content_analysis?.overall_status === 'PENDING'
+                || item.visual_analysis?.analysis_status === 'PENDING'
+            )) return true;
+            if ((project.operations || []).some((operation) => ['PENDING', 'RUNNING'].includes(operation.status))) return true;
+            return (project.result_batches || []).some((batch) => ['ALLOCATED', 'RUNNING'].includes(batch.status));
+        }
+
+        function syncProjectDeleteControls() {
+            const visible = Boolean(activeProject?.project_id);
+            const blocked = visible && projectHasPendingWork(activeProject);
+            ['delete-current-project-sidebar', 'delete-current-project-toolbar'].forEach((buttonId) => {
+                const button = document.getElementById(buttonId);
+                if (!button) return;
+                button.classList.toggle('hidden', !visible);
+                button.disabled = blocked;
+                button.classList.toggle('cursor-not-allowed', blocked);
+                button.classList.toggle('opacity-40', blocked);
+                button.title = blocked
+                    ? '当前批次仍有任务正在生成或分析，完成后才能删除'
+                    : '删除当前批次及其本地声音、视频、图片和成果文件';
+            });
+        }
+
         function renderProjectSelector(selectedProjectId = activeProject?.project_id || '') {
             const options = ['<option value="">新批次（等待导入脚本）</option>'];
             availableProjects.forEach((project) => {
@@ -1488,6 +1530,7 @@
                 selector.innerHTML = options.join('');
                 selector.value = selectedProjectId || '';
             });
+            syncProjectDeleteControls();
         }
 
         function updateProjectQuery(projectId = '') {
@@ -1514,6 +1557,7 @@
             uploadedImages = [];
             currentMappingImageIds = [];
             selectedProjectItemIds.clear();
+            activeArticleTypeFilter = '';
             globalVariantConfig = null;
             variantDirtyItemIds.clear();
             pendingSingleCompositionItemIds.clear();
@@ -1554,6 +1598,37 @@
             }
         }
 
+        async function deleteCurrentProjectBatch() {
+            const project = activeProject;
+            if (!project?.project_id) return;
+            if (projectHasPendingWork(project)) {
+                showToast('暂时不能删除批次', '当前仍有任务正在生成或分析，请等待完成后再删除。', 'warning');
+                return;
+            }
+            const itemCount = Array.isArray(project.items) ? project.items.length : 0;
+            openConfirmModal({
+                title: `删除批次 ${project.project_no || ''}？`,
+                message: `将永久删除“${project.name || project.project_no}”的 ${itemCount} 条任务，以及工作台保存的图片、声音、视频、字幕、变体和成果目录。已经产生的第三方费用不会撤销，云端数字人任务不受影响。`,
+                confirmText: '永久删除批次',
+                onConfirm: async () => {
+                    try {
+                        await workspaceApi(`/api/new/projects/${project.project_id}`, { method: 'DELETE' });
+                        availableProjects = availableProjects.filter((item) => item.project_id !== project.project_id);
+                        resetWorkspaceForNewBatch({ notify: false });
+                        await refreshProjectListing('');
+                        showToast('批次已删除', `${project.project_no || project.name} 及其本地素材已清理。`, 'success');
+                    } catch (error) {
+                        showToast('批次删除失败', error.message, 'warning');
+                        try {
+                            syncProjectInputs(await workspaceApi(`/api/new/projects/${project.project_id}`));
+                        } catch (_) {
+                            await refreshProjectListing('');
+                        }
+                    }
+                }
+            });
+        }
+
         function beginScriptImport(mode = 'create') {
             if (['append', 'metadata'].includes(mode) && !activeProject?.project_id) {
                 showToast('请先选择现有批次', mode === 'metadata' ? '分类回填需要先选择已经保存的批次。' : '新批次请直接导入表格；追加需要一个已保存项目。', 'warning');
@@ -1564,7 +1639,12 @@
         }
 
         function syncProjectInputs(project, { renderTable = true } = {}) {
+            const projectChanged = activeProject?.project_id !== project?.project_id;
             activeProject = project;
+            if (projectChanged) {
+                activeArticleTypeFilter = '';
+                selectedProjectItemIds.clear();
+            }
             renderProjectActivity();
             const savedFinalPhase = sessionStorage.getItem(`final-generation-phase:${project?.project_id || ''}`);
             if (savedFinalPhase === 'composition' || savedFinalPhase === 'postprocess') {
@@ -1827,6 +1907,10 @@
 
         function clearParsedData() {
             if (!activeProject) return;
+            if (!activeProject.allowed_actions?.edit_inputs) {
+                showToast('不能按草稿清除', '该批次已经进入生成流程；如需永久删除，请使用批次选择器旁的“删除批次”。', 'warning');
+                return;
+            }
             openConfirmModal({
                 title: '清除当前草稿项目？',
                 message: '这会删除当前尚未进入生成流程的脚本和上传图片。',
@@ -2159,28 +2243,89 @@
                 && (!sourceAssetId || (frozenSourceIds.size === 1 && frozenSourceIds.has(sourceAssetId)));
         }
 
+        function articleTypeOf(item) {
+            return String(item?.sourceMetadata?.article_type || '').trim() || '未分类';
+        }
+
+        function filteredProjectItems() {
+            if (!activeArticleTypeFilter) return uploadedScripts;
+            return uploadedScripts.filter((item) => articleTypeOf(item) === activeArticleTypeFilter);
+        }
+
+        function renderArticleTypeFilter() {
+            const select = document.getElementById('article-type-filter');
+            if (!select) return;
+            const articleTypes = [...new Set(uploadedScripts.map(articleTypeOf))]
+                .sort((left, right) => left.localeCompare(right, 'zh-CN'));
+            if (activeArticleTypeFilter && !articleTypes.includes(activeArticleTypeFilter)) {
+                activeArticleTypeFilter = '';
+            }
+            select.innerHTML = [
+                '<option value="">全部类型</option>',
+                ...articleTypes.map((articleType) => `<option value="${escapeHtml(articleType)}">${escapeHtml(articleType)}</option>`)
+            ].join('');
+            select.value = activeArticleTypeFilter;
+            select.disabled = uploadedScripts.length === 0;
+        }
+
+        function applyArticleTypeVisibility() {
+            const visibleIds = new Set(filteredProjectItems().map((item) => item.id));
+            document.querySelectorAll('#synthesis-table-body .table-data-row').forEach((row) => {
+                row.classList.toggle('hidden', !visibleIds.has(row.getAttribute('data-id')));
+            });
+            const visibleItems = filteredProjectItems();
+            const visibleCharacters = visibleItems.reduce(
+                (total, script) => total + Array.from(String(script.text || '')).length,
+                0
+            );
+            const badge = document.getElementById('table-row-count-badge');
+            if (badge) {
+                badge.textContent = activeArticleTypeFilter
+                    ? `显示 ${visibleItems.length}/${uploadedScripts.length} 行 · ${activeArticleTypeFilter} · ${visibleCharacters.toLocaleString('zh-CN')} 字`
+                    : `共 ${uploadedScripts.length} 行数据 · 脚本总字数 ${visibleCharacters.toLocaleString('zh-CN')}`;
+            }
+        }
+
+        function applyArticleTypeFilter(articleType) {
+            activeArticleTypeFilter = String(articleType || '').trim();
+            selectedProjectItemIds.clear();
+            applyArticleTypeVisibility();
+            refreshRowSelectionControls();
+            const visibleCount = filteredProjectItems().length;
+            showToast(
+                activeArticleTypeFilter ? '文章类型筛选已应用' : '已显示全部文章类型',
+                activeArticleTypeFilter ? `${activeArticleTypeFilter}：共 ${visibleCount} 条，可直接全选后设置语速或生成声音。` : `当前批次共 ${visibleCount} 条。`,
+                'success'
+            );
+        }
+
         function selectedProjectItems() {
-            return uploadedScripts.filter((item) => selectedProjectItemIds.has(item.id));
+            return filteredProjectItems().filter((item) => selectedProjectItemIds.has(item.id));
         }
 
         function refreshRowSelectionControls() {
             const selectedCount = selectedProjectItems().length;
+            const visibleItems = filteredProjectItems();
             const toolbar = document.getElementById('batch-selection-toolbar');
             const count = document.getElementById('selected-row-count');
             const selectAll = document.getElementById('select-all-project-items');
             const refreshPreviews = document.getElementById('btn-refresh-previews');
             const downloadVideos = document.getElementById('btn-download-selected-videos');
             if (toolbar) toolbar.classList.toggle('hidden', uploadedScripts.length === 0);
-            if (count) count.textContent = `已选 ${selectedCount} 条`;
+            if (count) count.textContent = activeArticleTypeFilter
+                ? `已选 ${selectedCount} 条 · 当前类型 ${visibleItems.length} 条`
+                : `已选 ${selectedCount} 条`;
             if (selectAll) {
-                selectAll.checked = uploadedScripts.length > 0 && selectedCount === uploadedScripts.length;
-                selectAll.indeterminate = selectedCount > 0 && selectedCount < uploadedScripts.length;
+                selectAll.checked = visibleItems.length > 0 && selectedCount === visibleItems.length;
+                selectAll.indeterminate = selectedCount > 0 && selectedCount < visibleItems.length;
+                selectAll.disabled = visibleItems.length === 0;
+                selectAll.setAttribute('aria-label', activeArticleTypeFilter ? `全选${activeArticleTypeFilter}任务` : '全选脚本行');
             }
             document.querySelectorAll('.row-select-checkbox').forEach((checkbox) => {
                 checkbox.checked = selectedProjectItemIds.has(checkbox.value);
             });
             if (refreshPreviews) {
-                const candidates = selectedCount ? selectedProjectItems() : uploadedScripts;
+                const candidates = selectedCount ? selectedProjectItems() : filteredProjectItems();
                 const refreshableCount = candidates.filter((item) =>
                     Boolean(item.baseVideo) && Boolean(item.allowedActions?.edit_postprocess)
                 ).length;
@@ -2193,7 +2338,7 @@
                     : `未勾选任务：刷新全部 ${refreshableCount} 条已有数字人画面的任务`;
             }
             if (downloadVideos) {
-                const candidates = selectedCount ? selectedProjectItems() : uploadedScripts;
+                const candidates = selectedCount ? selectedProjectItems() : filteredProjectItems();
                 const downloadableCount = candidates.filter((item) =>
                     document.querySelector(`.table-data-row[data-id="${CSS.escape(item.id)}"]`)?.getAttribute('data-video-status') === 'ready'
                 ).length;
@@ -2216,7 +2361,7 @@
         }
 
         function toggleSelectAllRows(checked) {
-            uploadedScripts.forEach((item) => {
+            filteredProjectItems().forEach((item) => {
                 if (checked) selectedProjectItemIds.add(item.id);
                 else selectedProjectItemIds.delete(item.id);
             });
@@ -2294,14 +2439,14 @@
                 if (range) {
                     const start = Math.min(Number(range[1]), Number(range[2]));
                     const end = Math.max(Number(range[1]), Number(range[2]));
-                    uploadedScripts.forEach((item) => {
+                    filteredProjectItems().forEach((item) => {
                         const display = Number(item.displayIndex);
                         const rowKey = /^\d+$/.test(String(item.rowKey)) ? Number(item.rowKey) : NaN;
                         if ((display >= start && display <= end) || (rowKey >= start && rowKey <= end)) selected.add(item.id);
                     });
                     return;
                 }
-                uploadedScripts.forEach((item) => {
+                filteredProjectItems().forEach((item) => {
                     if (String(item.displayIndex) === token || String(item.rowKey) === token) selected.add(item.id);
                 });
             });
@@ -2319,6 +2464,7 @@
             // Clear old rows
             const oldRows = tbody.querySelectorAll('.table-data-row');
             oldRows.forEach(row => row.remove());
+            renderArticleTypeFilter();
 
             if (uploadedScripts.length === 0) {
                 emptyEl.classList.remove('hidden');
@@ -2326,6 +2472,7 @@
                 btnCompose.disabled = true;
                 btnCompose.className = "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
                 document.getElementById('table-row-count-badge').textContent = `共 0 行数据 · 脚本总字数 0`;
+                applyArticleTypeVisibility();
                 refreshRowSelectionControls();
                 refreshVariantActionAvailability();
                 return;
@@ -2344,6 +2491,7 @@
                 const tr = document.createElement('tr');
                 tr.className = "table-data-row group hover:bg-slate-900/30 transition-colors";
                 tr.setAttribute('data-id', script.id);
+                tr.setAttribute('data-article-type', articleTypeOf(script));
                 
                 // Audio generation status inside the row: 'wait' / 'loading' / 'ready'
                 const voiceStatus = script.voiceStatus === 'AUDIO_READY'
@@ -2674,6 +2822,7 @@
                 }
             });
 
+            applyArticleTypeVisibility();
             refreshRowSelectionControls();
             applyImageMappingToTable();
             refreshAudioStageActions();
@@ -4215,8 +4364,11 @@
         }
 
         function downloadSelectedProjectVideos() {
-            const selectedIds = [...selectedProjectItemIds];
-            void downloadProjectVideos(selectedIds.length ? selectedIds : null);
+            const selected = selectedProjectItems();
+            const targets = selected.length ? selected : filteredProjectItems();
+            void downloadProjectVideos(
+                activeArticleTypeFilter || selected.length ? targets.map((item) => item.id) : null
+            );
         }
 
         async function downloadProjectVideos(itemIds = null) {
@@ -4758,7 +4910,7 @@
         async function refreshBatchPostprocessPreviews() {
             if (!activeProject || isRefreshingBatchPreviews) return;
             const selected = selectedProjectItems();
-            const candidates = selected.length ? selected : uploadedScripts;
+            const candidates = selected.length ? selected : filteredProjectItems();
             const targets = candidates.filter((item) =>
                 Boolean(item.baseVideo) && Boolean(item.allowedActions?.edit_postprocess)
             );
