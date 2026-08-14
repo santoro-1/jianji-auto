@@ -499,6 +499,15 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("error_code", workspace)
         self.assertNotIn("operation.error_message", workspace)
 
+    def test_failed_source_only_video_can_backfill_without_showing_stale_preview(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("const backfillSeedvr2ButtonHtml = canBackfillSeedvr2", workspace)
+        self.assertIn("数字人已完成，高清未完成", workspace)
+        self.assertGreaterEqual(workspace.count("${backfillSeedvr2ButtonHtml}"), 2)
+        self.assertIn("const activePreviewItemId = activeVideoPreviewRow", workspace)
+        self.assertIn("旧视频预览已关闭", workspace)
+        self.assertIn("历史视频不会继续冒充当前版本", workspace)
+
     def test_admin_runninghub_pool_is_selected_per_fresh_4a_confirmation(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("confirmRunningHubCost", workspace)

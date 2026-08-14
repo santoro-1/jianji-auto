@@ -334,7 +334,7 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     assert selected is not None
     assert "full_screen_broll" in selected["usage_modes"]
     assert overlay["media_type"] == "video"
-    assert overlay["start_us"] >= 8_000_000
+    assert overlay["start_us"] >= 10_000_000
     assert overlay["source_start_us"] >= 0
     assert overlay["corner"] == "center"
 

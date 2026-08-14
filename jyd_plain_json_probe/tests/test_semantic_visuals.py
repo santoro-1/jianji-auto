@@ -1085,15 +1085,29 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
 
     assert enrichment
     assert {item["target_start_us"] for item in enrichment} <= {
-        15_000_000,
+        10_000_000,
+        20_000_000,
         30_000_000,
-        45_000_000,
+        40_000_000,
+        50_000_000,
     }
     assert all(len(item["allowed_concepts"]) <= 8 for item in enrichment)
     assert all(
         item["allowed_concepts"][0]["concept_id"] == target_concept
         for item in enrichment
     )
+    assert all(item["direct_concept_ids"] == [target_concept] for item in enrichment)
+
+
+def test_plain_sunbathing_alias_recalls_the_exact_approved_video_concept() -> None:
+    candidates = recall_semantic_visual_candidates(
+        "每天晒太阳，保持规律作息。", _catalog()
+    )["candidates"]
+
+    exact = next(item for item in candidates if item["text"] == "晒太阳")
+    assert [item["concept_id"] for item in exact["allowed_concepts"]] == [
+        "activity.sunbathing"
+    ]
 
 
 def test_enrichment_never_offers_unrelated_rotating_concepts() -> None:
@@ -1237,11 +1251,149 @@ def test_enrichment_uses_video_level_asset_deduplication() -> None:
 
     too_early = build_visual_recipe(
         catalog=catalog,
-        mapped_candidates=[{**mapped[0], "start_us": 7_999_999}],
+        mapped_candidates=[{**mapped[0], "start_us": 5_999_999}],
         decisions=[decisions[0]],
         media_policy="mixed",
     )
     assert too_early["overlays"] == []
+
+
+def test_enrichment_prefers_direct_apple_video_over_model_editorial_pool() -> None:
+    catalog = _catalog()
+    candidate = {
+        "candidate_id": "ve_exact_apple",
+        "text": "只吃苹果",
+        "char_start": 0,
+        "char_end": 5,
+        "phrase_char_start": 0,
+        "phrase_char_end": 5,
+        "phrase_text": "只吃苹果",
+        "allowed_concepts": [
+            {"concept_id": "food.apple", "description": "苹果"},
+            {"concept_id": "editorial.home_daily", "description": "居家日常"},
+        ],
+        "direct_concept_ids": ["food.apple"],
+        "usage": "enrichment",
+        "start_us": 10_000_000,
+        "duration_us": 2_000_000,
+        "video_duration_us": 20_000_000,
+    }
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[candidate],
+        decisions=[
+            {
+                "candidate_id": candidate["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "editorial.home_daily",
+                "usage": "enrichment",
+                "confidence": 1.0,
+                "importance": 0.9,
+            }
+        ],
+        media_policy="mixed",
+    )
+
+    overlay = recipe["overlays"][0]
+    assert overlay["concept_id"] == "food.apple"
+    assert "food.apple" in catalog.asset(overlay["asset_id"])["concept_ids"]
+
+
+def test_full_screen_broll_reserves_its_slot_before_explicit_image() -> None:
+    catalog = _catalog()
+    explicit = {
+        "candidate_id": "vc_apple_image",
+        "text": "苹果",
+        "char_start": 0,
+        "char_end": 2,
+        "allowed_concepts": [{"concept_id": "food.apple", "description": "苹果"}],
+        "start_us": 10_000_000,
+        "duration_us": 2_000_000,
+        "video_duration_us": 20_000_000,
+    }
+    enrichment = {
+        **explicit,
+        "candidate_id": "ve_apple_video",
+        "usage": "enrichment",
+        "direct_concept_ids": ["food.apple"],
+        "start_us": 10_200_000,
+    }
+    decisions = [
+        {
+            "candidate_id": explicit["candidate_id"],
+            "decision": "SHOW",
+            "concept_id": "food.apple",
+            "confidence": 1.0,
+            "importance": 1.0,
+        },
+        {
+            "candidate_id": enrichment["candidate_id"],
+            "decision": "SHOW",
+            "concept_id": "food.apple",
+            "usage": "enrichment",
+            "confidence": 1.0,
+            "importance": 0.8,
+        },
+    ]
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[explicit, enrichment],
+        decisions=decisions,
+        media_policy="image_only",
+    )
+
+    assert len(recipe["overlays"]) == 1
+    assert recipe["overlays"][0]["usage"] == "enrichment"
+    assert recipe["overlays"][0]["media_type"] == "video"
+
+
+def test_same_concept_can_use_image_and_later_full_screen_video() -> None:
+    catalog = _catalog()
+    explicit = {
+        "candidate_id": "vc_apple_early",
+        "text": "苹果",
+        "char_start": 0,
+        "char_end": 2,
+        "allowed_concepts": [{"concept_id": "food.apple", "description": "苹果"}],
+        "start_us": 1_000_000,
+        "duration_us": 2_000_000,
+        "video_duration_us": 20_000_000,
+    }
+    enrichment = {
+        **explicit,
+        "candidate_id": "ve_apple_later",
+        "usage": "enrichment",
+        "direct_concept_ids": ["food.apple"],
+        "start_us": 10_000_000,
+    }
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[explicit, enrichment],
+        decisions=[
+            {
+                "candidate_id": explicit["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.apple",
+                "confidence": 1.0,
+            },
+            {
+                "candidate_id": enrichment["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.apple",
+                "usage": "enrichment",
+                "confidence": 1.0,
+            },
+        ],
+        media_policy="image_only",
+    )
+
+    assert [item["display_role"] for item in recipe["overlays"]] == [
+        "semantic_overlay",
+        "full_screen_broll",
+    ]
+    assert len({item["asset_id"] for item in recipe["overlays"]}) == 2
 
 
 def test_untouched_auto_recipe_refreshes_current_asset_layout_and_resource() -> None:
@@ -1485,6 +1637,40 @@ def test_recipe_conflict_prefers_importance_then_confidence() -> None:
         "food.egg",
         "food.corn",
     ]
+
+
+def test_recipe_trims_a_minor_edge_overlap_instead_of_dropping_the_item() -> None:
+    catalog = _catalog()
+    candidates = recall_semantic_visual_candidates("鸡蛋。玉米。", catalog)["candidates"]
+    egg = next(item for item in candidates if item["text"] == "鸡蛋")
+    corn = next(item for item in candidates if item["text"] == "玉米")
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[
+            {**egg, "start_us": 0, "duration_us": 2_000_000},
+            {**corn, "start_us": 1_800_000, "duration_us": 2_000_000},
+        ],
+        decisions=[
+            {
+                "candidate_id": egg["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.egg",
+                "importance": 1.0,
+                "confidence": 1.0,
+            },
+            {
+                "candidate_id": corn["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.corn",
+                "importance": 0.9,
+                "confidence": 1.0,
+            },
+        ],
+    )
+
+    assert len(recipe["overlays"]) == 2
+    assert recipe["overlays"][1]["start_us"] == 2_000_000
+    assert recipe["overlays"][1]["duration_us"] == 1_800_000
 
 
 def test_punctuation_free_manual_candidates_use_the_two_second_sentence_floor() -> None:

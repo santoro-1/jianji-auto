@@ -50,12 +50,13 @@ VISUAL_CORNERS = frozenset(
 VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
 VISUAL_MAX_AUTO_PER_MINUTE = 24
 VISUAL_SENTENCE_MIN_DURATION_US = 2_000_000
-VISUAL_ENRICHMENT_MIN_GAP_US = 8_000_000
+VISUAL_ENRICHMENT_MIN_GAP_US = 6_000_000
+VISUAL_MINOR_OVERLAP_TOLERANCE_US = 500_000
 VISUAL_SEAM_BROLL_MAX_DURATION_US = 5_000_000
 # Edit this one value to tune how often ordinary B-roll is attempted. It is a
 # target cadence, not a quota: a slot is omitted when its context has no
 # relevant, locally available concept.
-VISUAL_BROLL_TARGET_INTERVAL_SECONDS = 15
+VISUAL_BROLL_TARGET_INTERVAL_SECONDS = 10
 VISUAL_MAX_CONCEPTS_PER_ANCHOR = 8
 EDITORIAL_BROLL_POOL_IDS = (
     "editorial.home_daily",
@@ -1386,6 +1387,7 @@ def recall_semantic_visual_candidates(
 ) -> dict[str, Any]:
     """Recall explicit anchors plus relevant periodic and seam B-roll attempts."""
 
+    segment_boundaries = tuple(segment_boundaries)
     eligible_concept_ids = {
         concept_id
         for asset in catalog.assets
@@ -1454,6 +1456,22 @@ def recall_semantic_visual_candidates(
         )
 
     occupied_starts = {int(item["char_start"]) for item in candidates}
+    seam_reserved_starts: set[int] = set()
+    for boundary in segment_boundaries:
+        if not isinstance(boundary, Mapping):
+            continue
+        segment_script = str(boundary.get("script_text") or "").strip()
+        if not segment_script:
+            continue
+        cursor = 0
+        while True:
+            found = original_script.find(segment_script, cursor)
+            if found < 0:
+                break
+            if found not in occupied_starts:
+                seam_reserved_starts.add(found)
+            cursor = found + 1
+    occupied_starts.update(seam_reserved_starts)
     periodic_concept_ids = _broll_concept_ids(catalog, usage="enrichment")
     periodic_editorial = _editorial_broll_concepts(
         catalog, usage="enrichment", article_type=article_type
@@ -1538,10 +1556,16 @@ def recall_semantic_visual_candidates(
                 phrase_end=phrase_end,
                 allowed_concepts=allowed,
                 occupied_starts=occupied_starts,
-                metadata={"target_start_us": target_us},
+                metadata={
+                    "target_start_us": target_us,
+                    "direct_concept_ids": [
+                        str(item["concept_id"]) for item in contextual
+                    ],
+                },
             ):
                 periodic_phrase_ranges.add((phrase_start, phrase_end))
 
+    occupied_starts.difference_update(seam_reserved_starts)
     seam_concept_ids = _broll_concept_ids(catalog, usage="seam_broll")
     seam_editorial = _editorial_broll_concepts(
         catalog, usage="seam_broll", article_type=article_type
@@ -1612,7 +1636,12 @@ def recall_semantic_visual_candidates(
             phrase_end=phrase_end,
             allowed_concepts=allowed,
             occupied_starts=occupied_starts,
-            metadata={"segment_boundary_us": boundary_us},
+            metadata={
+                "segment_boundary_us": boundary_us,
+                "direct_concept_ids": [
+                    str(item["concept_id"]) for item in contextual
+                ],
+            },
         )
     candidates.sort(key=lambda item: (int(item["char_start"]), int(item["char_end"])))
     return {
@@ -1860,6 +1889,7 @@ def visual_overlay_conflicts(
     duration_us = int(candidate.get("duration_us") or 0)
     concept_id = str(candidate.get("concept_id") or "")
     asset_id = str(candidate.get("asset_id") or "")
+    display_role = _visual_display_role(candidate)
     active = [item for item in selected if item.get("enabled") is not False]
     if any(
         start_us < int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
@@ -1877,6 +1907,7 @@ def visual_overlay_conflicts(
         return True
     if concept_id and any(
         str(item.get("concept_id") or "") == concept_id
+        and _visual_display_role(item) == display_role
         and abs(start_us - int(item.get("start_us") or 0)) < 20_000_000
         for item in active
     ):
@@ -1885,6 +1916,17 @@ def visual_overlay_conflicts(
         asset_id
         and any(str(item.get("asset_id") or "") == asset_id for item in active)
     )
+
+
+def _visual_display_role(item: Mapping[str, Any]) -> str:
+    explicit = str(item.get("display_role") or "").strip()
+    if explicit:
+        return explicit
+    usage = str(item.get("usage") or "").strip()
+    timing_mode = str(item.get("timing_mode") or "").strip()
+    if usage in {"enrichment", "seam_broll"} or timing_mode == "seam_broll":
+        return "full_screen_broll"
+    return "semantic_overlay"
 
 
 def validate_visual_occupancy(overlays: Iterable[Mapping[str, Any]]) -> None:
@@ -1966,6 +2008,7 @@ def _choose_unused_asset(
     media_policy: str,
     usage: str,
     used_asset_ids: set[str],
+    match_tier: str = "any",
 ) -> dict[str, Any] | None:
     assets = _assets_for_media_policy(catalog, concept_id, media_policy, usage=usage)
     if not assets:
@@ -1973,7 +2016,14 @@ def _choose_unused_asset(
     occurrence = _candidate_occurrence(mapped, candidate, concept_id)
     exact_assets = [asset for asset in assets if concept_id in asset.get("concept_ids", ())]
     fallback_assets = [asset for asset in assets if asset not in exact_assets]
-    for pool in (exact_assets, fallback_assets):
+    pools = {
+        "any": (exact_assets, fallback_assets),
+        "exact": (exact_assets,),
+        "fallback": (fallback_assets,),
+    }.get(match_tier)
+    if pools is None:
+        raise ValueError("未知的语义视觉匹配层级")
+    for pool in pools:
         if not pool:
             continue
         offset = occurrence % len(pool)
@@ -1989,6 +2039,77 @@ def _choose_unused_asset(
         )
         if chosen is not None:
             return chosen
+    return None
+
+
+def _choose_ranked_broll_asset(
+    *,
+    catalog: SemanticVisualCatalog,
+    mapped: Mapping[str, Mapping[str, Any]],
+    candidate: Mapping[str, Any],
+    decision: Mapping[str, Any],
+    usage: str,
+    used_asset_ids: set[str],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Prefer direct facts, then safe taxonomy fallback, then editorial pools."""
+
+    allowed_ids = [
+        str(item.get("concept_id") or "")
+        for item in candidate.get("allowed_concepts", ())
+        if isinstance(item, Mapping) and str(item.get("concept_id") or "")
+    ]
+    selected_id = str(decision.get("concept_id") or "")
+    direct_ids = [
+        str(value)
+        for value in candidate.get("direct_concept_ids", ())
+        if str(value) in allowed_ids and not str(value).startswith("editorial.")
+    ]
+    if not direct_ids:
+        direct_ids = [
+            value for value in allowed_ids if not value.startswith("editorial.")
+        ]
+
+    def ordered_unique(values: Iterable[str]) -> list[str]:
+        result: list[str] = []
+        for value in values:
+            if value and value not in result:
+                result.append(value)
+        return result
+
+    factual_ids = ordered_unique(
+        ([selected_id] if selected_id in direct_ids else [])
+        + direct_ids
+        + [
+            value
+            for value in allowed_ids
+            if not value.startswith("editorial.")
+        ]
+    )
+    editorial_ids = ordered_unique(
+        ([selected_id] if selected_id.startswith("editorial.") else [])
+        + [value for value in allowed_ids if value.startswith("editorial.")]
+    )
+    tiers = (
+        ((concept_id, "exact") for concept_id in factual_ids),
+        ((concept_id, "fallback") for concept_id in factual_ids),
+        ((concept_id, "any") for concept_id in editorial_ids),
+    )
+    for tier in tiers:
+        for concept_id, match_tier in tier:
+            asset = _choose_unused_asset(
+                catalog=catalog,
+                mapped=mapped,
+                candidate=candidate,
+                concept_id=concept_id,
+                media_policy="video_only",
+                usage=usage,
+                used_asset_ids=used_asset_ids,
+                match_tier=match_tier,
+            )
+            if asset is not None:
+                resolved_decision = dict(decision)
+                resolved_decision["concept_id"] = concept_id
+                return resolved_decision, asset
     return None
 
 
@@ -2058,6 +2179,11 @@ def _overlay_from_asset(
         "confidence": float(decision.get("confidence", 0.0) or 0.0),
         "importance": float(decision.get("importance", 0.0) or 0.0),
         "usage": usage,
+        "display_role": (
+            "full_screen_broll"
+            if usage in {"enrichment", "seam_broll"}
+            else "semantic_overlay"
+        ),
         "reason_code": decision.get("reason_code"),
         "timing_source": str(
             candidate.get("timing_source") or "minimax_raw_cue_phrase_span"
@@ -2126,15 +2252,58 @@ def _rapid_ranges(
 
 def _group_conflicts(
     overlays: list[dict[str, Any]], selected: list[dict[str, Any]]
-) -> bool:
+) -> list[dict[str, Any]] | None:
     staged: list[dict[str, Any]] = []
     for overlay in overlays:
-        if overlay["duration_us"] <= 0 or visual_overlay_conflicts(
-            overlay, [*selected, *staged]
-        ):
-            return True
-        staged.append(overlay)
-    return False
+        fitted = _fit_minor_overlap(overlay, [*selected, *staged])
+        if fitted is None or visual_overlay_conflicts(fitted, [*selected, *staged]):
+            return None
+        staged.append(fitted)
+    return staged
+
+
+def _fit_minor_overlap(
+    overlay: Mapping[str, Any], selected: Iterable[Mapping[str, Any]]
+) -> dict[str, Any] | None:
+    """Trim an edge overlap of at most 0.5s without moving frozen selections."""
+
+    fitted = dict(overlay)
+    start_us = int(fitted.get("start_us") or 0)
+    end_us = start_us + int(fitted.get("duration_us") or 0)
+    if end_us <= start_us:
+        return None
+    active = sorted(
+        (item for item in selected if item.get("enabled") is not False),
+        key=lambda item: int(item.get("start_us") or 0),
+    )
+    for item in active:
+        item_start = int(item.get("start_us") or 0)
+        item_end = item_start + int(item.get("duration_us") or 0)
+        if start_us >= item_end or item_start >= end_us:
+            continue
+        if item_start <= start_us < item_end < end_us:
+            overlap_us = item_end - start_us
+            if overlap_us > VISUAL_MINOR_OVERLAP_TOLERANCE_US:
+                return None
+            start_us = item_end
+            continue
+        if start_us < item_start < end_us <= item_end:
+            overlap_us = end_us - item_start
+            if overlap_us > VISUAL_MINOR_OVERLAP_TOLERANCE_US:
+                return None
+            end_us = item_start
+            continue
+        return None
+    if end_us <= start_us:
+        return None
+    fitted["start_us"] = start_us
+    fitted["duration_us"] = end_us - start_us
+    if fitted.get("media_type") == "video" and not fitted.get("loop_to_target"):
+        fitted["source_duration_us"] = min(
+            int(fitted.get("source_duration_us") or fitted["duration_us"]),
+            fitted["duration_us"],
+        )
+    return fitted
 
 
 def build_visual_recipe(
@@ -2237,22 +2406,23 @@ def build_visual_recipe(
         rapid = _is_rapid_list(group)
         source_entries = group if rapid else [min(group, key=_entry_priority)]
         provisional_used = set(used_asset_ids)
-        chosen: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        chosen: list[
+            tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
+        ] = []
         for entry in source_entries:
-            concept_id = str(entry["decision"].get("concept_id") or "")
-            asset = _choose_unused_asset(
+            resolved = _choose_ranked_broll_asset(
                 catalog=catalog,
                 mapped=mapped,
                 candidate=entry["candidate"],
-                concept_id=concept_id,
-                media_policy="video_only",
+                decision=entry["decision"],
                 usage="seam_broll",
                 used_asset_ids=provisional_used,
             )
-            if asset is None:
+            if resolved is None:
                 continue
+            resolved_decision, asset = resolved
             provisional_used.add(str(asset["asset_id"]))
-            chosen.append((entry, asset))
+            chosen.append((entry, resolved_decision, asset))
         if not chosen:
             continue
         first_candidate = chosen[0][0]["candidate"]
@@ -2267,14 +2437,14 @@ def build_visual_recipe(
         if end_us <= start_us:
             continue
         ranges = (
-            _rapid_ranges([entry for entry, _asset in chosen], start_us, end_us)
+            _rapid_ranges([entry for entry, _decision, _asset in chosen], start_us, end_us)
             if rapid and len(chosen) > 1
             else [(start_us, end_us)]
         )
         overlays = [
             _overlay_from_asset(
                 candidate=entry["candidate"],
-                decision=entry["decision"],
+                decision=resolved_decision,
                 asset=asset,
                 start_us=interval[0],
                 end_us=interval[1],
@@ -2287,15 +2457,72 @@ def build_visual_recipe(
                 list_size=(len(chosen) if len(chosen) > 1 else None),
                 segment_boundary_us=boundary_us,
             )
-            for index, ((entry, asset), interval) in enumerate(zip(chosen, ranges))
+            for index, ((entry, resolved_decision, asset), interval) in enumerate(
+                zip(chosen, ranges)
+            )
         ]
-        if _group_conflicts(overlays, selected):
+        fitted_overlays = _group_conflicts(overlays, selected)
+        if fitted_overlays is None:
             continue
-        automatic.extend(overlays)
-        selected.extend(overlays)
-        used_asset_ids.update(str(asset["asset_id"]) for _entry, asset in chosen)
+        automatic.extend(fitted_overlays)
+        selected.extend(fitted_overlays)
+        used_asset_ids.update(
+            str(asset["asset_id"]) for _entry, _decision, asset in chosen
+        )
         if key is not None:
             seam_group_keys.add(key)
+
+    # Reserve full-screen B-roll before scheduling small semantic images/videos.
+    # This prevents dense explicit overlays from consuming every eligible slot.
+    for entry in sorted(enrichment_entries, key=_entry_priority):
+        candidate = entry["candidate"]
+        target_start_us = int(
+            candidate.get("target_start_us", candidate.get("start_us", 0)) or 0
+        )
+        start_us, end_us = _target_sentence_range(
+            candidate,
+            final_video_duration_us=final_video_duration_us,
+            start_override_us=max(
+                int(candidate.get("start_us") or 0), target_start_us
+            ),
+        )
+        previous_end_us = max(
+            (
+                int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
+                for item in selected
+                if int(item.get("start_us") or 0) < start_us
+                and _visual_display_role(item) == "full_screen_broll"
+            ),
+            default=0,
+        )
+        if start_us - previous_end_us < VISUAL_ENRICHMENT_MIN_GAP_US:
+            continue
+        resolved = _choose_ranked_broll_asset(
+            catalog=catalog,
+            mapped=mapped,
+            candidate=candidate,
+            decision=entry["decision"],
+            usage="enrichment",
+            used_asset_ids=used_asset_ids,
+        )
+        if resolved is None:
+            continue
+        resolved_decision, asset = resolved
+        overlay = _overlay_from_asset(
+            candidate=candidate,
+            decision=resolved_decision,
+            asset=asset,
+            start_us=start_us,
+            end_us=end_us,
+            timing_mode="sentence",
+            usage="enrichment",
+        )
+        fitted_overlay = _fit_minor_overlap(overlay, selected)
+        if fitted_overlay is None or visual_overlay_conflicts(fitted_overlay, selected):
+            continue
+        automatic.append(fitted_overlay)
+        selected.append(fitted_overlay)
+        used_asset_ids.add(str(asset["asset_id"]))
 
     ordered_groups = sorted(
         explicit_groups.items(),
@@ -2354,53 +2581,12 @@ def build_visual_recipe(
             )
             for index, ((entry, asset), interval) in enumerate(zip(chosen, ranges))
         ]
-        if _group_conflicts(overlays, selected):
+        fitted_overlays = _group_conflicts(overlays, selected)
+        if fitted_overlays is None:
             continue
-        automatic.extend(overlays)
-        selected.extend(overlays)
+        automatic.extend(fitted_overlays)
+        selected.extend(fitted_overlays)
         used_asset_ids.update(str(asset["asset_id"]) for _entry, asset in chosen)
-
-    for entry in sorted(enrichment_entries, key=_entry_priority):
-        candidate = entry["candidate"]
-        start_us, end_us = _target_sentence_range(
-            candidate, final_video_duration_us=final_video_duration_us
-        )
-        previous_end_us = max(
-            (
-                int(item.get("start_us") or 0) + int(item.get("duration_us") or 0)
-                for item in selected
-                if int(item.get("start_us") or 0) < start_us
-            ),
-            default=0,
-        )
-        if start_us - previous_end_us < VISUAL_ENRICHMENT_MIN_GAP_US:
-            continue
-        concept_id = str(entry["decision"].get("concept_id") or "")
-        asset = _choose_unused_asset(
-            catalog=catalog,
-            mapped=mapped,
-            candidate=candidate,
-            concept_id=concept_id,
-            media_policy="video_only",
-            usage="enrichment",
-            used_asset_ids=used_asset_ids,
-        )
-        if asset is None:
-            continue
-        overlay = _overlay_from_asset(
-            candidate=candidate,
-            decision=entry["decision"],
-            asset=asset,
-            start_us=start_us,
-            end_us=end_us,
-            timing_mode="sentence",
-            usage="enrichment",
-        )
-        if visual_overlay_conflicts(overlay, selected):
-            continue
-        automatic.append(overlay)
-        selected.append(overlay)
-        used_asset_ids.add(str(asset["asset_id"]))
 
     overlays = sorted(
         [*locked, *automatic],

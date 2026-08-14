@@ -55,6 +55,31 @@ class ProjectCompositionApiTest(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
+    def test_seedvr2_backfill_is_allowed_when_only_digital_human_source_exists(self) -> None:
+        actions = ProjectStore._item_actions(
+            {
+                "status": "COMPOSITION_FAILED",
+                "outputs": {
+                    "audio": {"asset_id": "audio-1"},
+                    "base_video": None,
+                    "composition_video": None,
+                    "original_video_segments": [
+                        {
+                            "external_ref": {"video_index": 1},
+                            "metadata": {"quality_variant": "digital_human_source"},
+                        }
+                    ],
+                    "variants": [],
+                },
+                "subtitles": {},
+                "content_analysis": {},
+                "visual_analysis": {},
+            }
+        )
+
+        self.assertTrue(actions["backfill_seedvr2"])
+        self.assertTrue(actions["retry_composition"])
+
     def _wait_for_project(
         self,
         client: TestClient,

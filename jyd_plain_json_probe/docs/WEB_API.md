@@ -340,8 +340,8 @@ Cookie 的状态请求按原幂等键继续。已经 `RUNNING` 的付费任务�
 `source_download_url`；主 `download_url` 始终指向清晰片段。
 
 修改项目分辨率会设置 `composition_invalidated_reason=DIGITAL_HUMAN_RESOLUTION_CHANGED`。
-若该行云端已经保存成功数字人源片段，下一次 `composition/generate` 不再上传图片或调用
-数字人画面启动接口，而是由工作台服务端代理调用云端
+若该行云端已经保存成功数字人源片段，即使本地基础视频因归一化失败而尚未建立，工作台也会
+开放显式 SeedVR2 高清补跑；下一次补跑不再上传图片或调用数字人画面启动接口，而是由工作台服务端代理调用云端
 `POST /api/workbench/tasks/{remote_item_id}/enhancement/backfill`。该动作只补跑 SeedVR2 48G，
 操作快照使用 `scope=seedvr2_backfill_only`；原 `remote_item_id` 和数字人付费任务保持不变。
 补跑完成后的状态同步、清晰片段下载和 `base_video` 下载沿用现有流程。任一源片段缺失时

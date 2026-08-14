@@ -4316,8 +4316,7 @@ class ProjectStore:
             "download_audio": audio_ready,
             "start_composition": audio_ready and not base_video_ready and not active,
             "retry_composition": status == "COMPOSITION_FAILED" and not base_video_ready,
-            "backfill_seedvr2": base_video_ready
-            and bool(latest_segments_by_index)
+            "backfill_seedvr2": bool(latest_segments_by_index)
             and not seedvr2_ready
             and not active,
             "start_postprocess": base_video_ready and not composition_ready and not active,

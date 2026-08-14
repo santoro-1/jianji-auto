@@ -1728,6 +1728,21 @@
                 allowedActions: item.allowed_actions || {}
                 });
             }) : [];
+            const activePreviewItemId = activeVideoPreviewRow?.getAttribute('data-id') || '';
+            const activePreviewItem = uploadedScripts.find((item) => item.id === activePreviewItemId);
+            const activeBrowserPreviewReady = Boolean(
+                activePreviewItem?.baseVideo
+                && activePreviewItem?.subtitles?.status === 'PREVIEW_READY'
+                && ['COMPOSITION_READY', 'VARIANT_QUEUED', 'VARIANT_RUNNING', 'VARIANT_READY', 'VARIANT_FAILED'].includes(activePreviewItem?.compositionStatus)
+            );
+            if (activePreviewItemId && !activePreviewItem?.compositionVideo && !activeBrowserPreviewReady) {
+                const previewModal = document.getElementById('video-modal');
+                const previewWasOpen = !previewModal.classList.contains('pointer-events-none');
+                closeVideoModal();
+                if (previewWasOpen) {
+                    showToast('旧视频预览已关闭', '当前图片对应的新视频尚未接回，历史视频不会继续冒充当前版本。', 'warning');
+                }
+            }
             const mappingTargetCount = uploadedScripts.filter((item) => item.imageMappingTarget).length;
             const mappingImageText = currentMappingImageIds.length
                 ? `当前循环仅使用最近选定的 ${currentMappingImageIds.length} 张图片。`
@@ -2600,6 +2615,9 @@
                 const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
                 const videoWasGenerated = Boolean(script.assetHistory?.base_video?.length || script.assetHistory?.composition_video?.length);
                 const canBackfillSeedvr2 = Boolean(script.allowedActions?.backfill_seedvr2);
+                const backfillSeedvr2ButtonHtml = canBackfillSeedvr2
+                    ? '<button type="button" onclick="backfillRowSeedvr2(this)" class="text-[9px] text-cyan-300 hover:text-white transition-colors" title="复用已有数字人分段，仅补跑 SeedVR2 48G"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>补跑 SeedVR2 高清</button>'
+                    : '';
                 const runningHubExecutionHtml = runningHubExecutionSummary(script.compositionOperation);
                 const videoActionText = videoCanReuse
                     ? '复用视频'
@@ -2732,8 +2750,9 @@
                             </div>
                             <div class="row-video-status-failed hidden flex-col items-center gap-1.5 text-rose-400 text-[9px]">
                                 <i class="fa-solid fa-triangle-exclamation text-sm"></i>
-                                <span>成片生成失败</span>
+                                <span>${canBackfillSeedvr2 ? '数字人已完成，高清未完成' : '成片生成失败'}</span>
                                 <button onclick="requestRegenerateRowVideo(this)" class="text-[9px] text-rose-300 hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重试失败阶段</button>
+                                ${backfillSeedvr2ButtonHtml}
                             </div>
                             <div class="row-video-status-ready hidden flex-col items-center gap-1.5">
                                 <button onclick="openRowVideoPreview(this)" title="查看完整视频" class="relative w-20 h-11 rounded-lg overflow-hidden border border-brand-primary/35 bg-slate-950 group/video shadow-lg">
@@ -2746,7 +2765,7 @@
                                     : `<span class="text-[9px] ${script.assetHistory?.composition_video?.length ? 'text-amber-300' : 'text-gray-500'}">${script.assetHistory?.composition_video?.length ? '封面/设置已更新 · 旧成片已过期' : '动态预览已就绪 · 尚未导出 MP4'}</span>`}
                                 ${browserPreviewReady ? `<button type="button" onclick="exportRowPostprocessVideo(this)" class="text-[9px] font-semibold text-emerald-300 hover:text-white transition-colors"><i class="fa-solid fa-file-video mr-1"></i>${script.assetHistory?.composition_video?.length ? '重新导出带封面 MP4' : '导出带封面 MP4'}</button>` : ''}
                                 ${browserPreviewReady ? '<button type="button" onclick="retryRowPostprocessPreview(this)" class="text-[9px] text-brand-accent hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>刷新动态预览</button>' : ''}
-                                ${canBackfillSeedvr2 ? '<button type="button" onclick="backfillRowSeedvr2(this)" class="text-[9px] text-cyan-300 hover:text-white transition-colors" title="复用已有数字人分段，仅补跑 SeedVR2 48G"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>补跑 SeedVR2 高清</button>' : ''}
+                                ${backfillSeedvr2ButtonHtml}
                             </div>
                             <div class="row-runninghub-execution-summary">${runningHubExecutionHtml}</div>
                         </div>
