@@ -109,7 +109,7 @@ def test_visual_context_legacy_retry_keeps_only_explicit_anchors() -> None:
         ],
         "anchors": [
             {
-                "anchor_id": "B2",
+                "anchor_id": "VA2",
                 "char_start": 2,
                 "char_end": 4,
                 "text": "鸡蛋",

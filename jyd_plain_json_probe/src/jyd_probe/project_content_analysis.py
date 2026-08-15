@@ -68,6 +68,8 @@ def _legacy_content_visual_context(
         if not isinstance(raw, Mapping) or str(raw.get("usage") or "explicit") != "explicit":
             continue
         anchor = {str(key): value for key, value in raw.items() if key != "usage"}
+        char_start = int(anchor.get("char_start") or 0)
+        anchor["anchor_id"] = "START" if char_start == 0 else f"B{char_start}"
         allowed = anchor.get("allowed_concepts")
         if not isinstance(allowed, list) or not allowed:
             continue

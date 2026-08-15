@@ -132,6 +132,9 @@ metadata 保存脚本 SHA-256/长度；只有脚本、分析、音频和 raw cue
 `subtitles.asr_alignment`，缓存键由脚本 SHA-256、音频素材 ID 和版本组成；不得把 ASR
 识别文本作为字幕落盘，也不得覆盖 `raw_cues`。默认工作台要求精确对齐，服务故障或质量门
 失败时标记 `REVIEW_REQUIRED`；只有测试或显式关闭配置允许旧插值路径。
+完整请求仅在明确缺少字词时间戳时启用分块回退：先规范为 16k 单声道 PCM，再用 20 秒核心区
+加前后 1 秒上下文识别；合并时按 token 中点归属非重叠核心区并恢复绝对时间。其他 HTTP、结构、
+脚本命中率或 raw cue 错误不触发该回退。单行失败保存 `REVIEW_REQUIRED` 后继续同批其他行。
 
 日志第一阶段将项目 schema 升级到版本 9，为 `project_operations` 增加独立
 `correlation_id`。项目操作、云端声音批次、4A 画面生成和本地渲染都应传递该字段；

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import hashlib
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -11,6 +14,8 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.caption_alignment import (  # noqa: E402
     CaptionAlignmentError,
+    FunASRCaptionAligner,
+    _ASRAudioChunk,
     alignment_matches,
     build_alignment,
     retime_render_cues,
@@ -119,6 +124,67 @@ class CaptionAlignmentTests(unittest.TestCase):
         self.assertEqual(
             alignment["script_sha256"],
             hashlib.sha256(self.script.encode("utf-8")).hexdigest(),
+        )
+
+    def test_empty_full_result_retries_contextual_chunks_and_merges_timestamps(self) -> None:
+        script = "你好世界"
+        raw_cues = [{"text": script, "start_us": 0, "duration_us": 4_000_000}]
+        first_payload = {
+            "tokens": [
+                {"text": "你", "startSeconds": 0.2, "endSeconds": 0.4},
+                {"text": "好", "startSeconds": 1.2, "endSeconds": 1.4},
+                {"text": "世", "startSeconds": 2.1, "endSeconds": 2.3},
+            ]
+        }
+        second_payload = {
+            "tokens": [
+                {"text": "好", "startSeconds": 0.2, "endSeconds": 0.4},
+                {"text": "世", "startSeconds": 1.2, "endSeconds": 1.4},
+                {"text": "界", "startSeconds": 2.2, "endSeconds": 2.4},
+            ]
+        }
+
+        with tempfile.TemporaryDirectory() as temporary_root:
+            root = Path(temporary_root)
+            audio = root / "full.mp3"
+            audio.write_bytes(b"audio")
+            chunks = [
+                _ASRAudioChunk(root / "chunk-0.wav", 0.0, 0.0, 2.0, False),
+                _ASRAudioChunk(root / "chunk-1.wav", 1.0, 2.0, 4.0, True),
+            ]
+
+            @contextmanager
+            def fake_chunks(_source: Path, *, timeout_seconds: int):
+                self.assertGreater(timeout_seconds, 0)
+                yield chunks
+
+            aligner = FunASRCaptionAligner("http://127.0.0.1:18084")
+            with patch(
+                "jyd_probe.caption_alignment._asr_audio_chunks", fake_chunks
+            ), patch.object(
+                aligner,
+                "_transcribe",
+                side_effect=[
+                    CaptionAlignmentError(
+                        "ASR_TIMESTAMPS_MISSING", "FunASR 没有返回字词时间戳"
+                    ),
+                    first_payload,
+                    second_payload,
+                ],
+            ) as transcribe:
+                alignment = aligner.align(
+                    audio,
+                    script=script,
+                    raw_cues=raw_cues,
+                    audio_asset_id="audio-chunked",
+                    audio_version=1,
+                )
+
+        self.assertEqual(transcribe.call_count, 3)
+        self.assertEqual(alignment["exact_match_ratio"], 1.0)
+        self.assertEqual(
+            [entry["start_us"] for entry in alignment["ranges"]],
+            [200_000, 1_200_000, 2_200_000, 3_200_000],
         )
 
 

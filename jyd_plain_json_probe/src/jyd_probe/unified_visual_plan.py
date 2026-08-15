@@ -31,6 +31,16 @@ def candidate_set_sha256(candidate_request: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _visual_anchor_id(char_start: int) -> str:
+    return "START" if char_start == 0 else f"VA{char_start}"
+
+
+def _compatible_visual_anchor_ids(char_start: int) -> tuple[str, ...]:
+    if char_start == 0:
+        return ("START",)
+    return (f"VA{char_start}", f"B{char_start}")
+
+
 def build_content_visual_context(candidate_request: Mapping[str, Any]) -> dict[str, Any]:
     """Convert local recall output to the small, path-free cloud input."""
 
@@ -58,7 +68,7 @@ def build_content_visual_context(candidate_request: Mapping[str, Any]) -> dict[s
         char_start = int(candidate["char_start"])
         anchors.append(
             {
-                "anchor_id": "START" if char_start == 0 else f"B{char_start}",
+                "anchor_id": _visual_anchor_id(char_start),
                 "char_start": char_start,
                 "char_end": int(candidate["char_end"]),
                 "text": str(candidate["text"]),
@@ -180,8 +190,8 @@ def validate_remote_visual_plan(
         if not isinstance(candidate, Mapping):
             continue
         char_start = int(candidate["char_start"])
-        anchor_id = "START" if char_start == 0 else f"B{char_start}"
-        candidates_by_anchor[anchor_id] = candidate
+        for anchor_id in _compatible_visual_anchor_ids(char_start):
+            candidates_by_anchor[anchor_id] = candidate
 
     raw_plan = payload.get("visual_plan")
     if not isinstance(raw_plan, list):
@@ -230,7 +240,8 @@ def _compatibility_decisions(
         if not isinstance(candidate, Mapping):
             continue
         char_start = int(candidate["char_start"])
-        candidates["START" if char_start == 0 else f"B{char_start}"] = candidate
+        for anchor_id in _compatible_visual_anchor_ids(char_start):
+            candidates[anchor_id] = candidate
     decisions: list[dict[str, Any]] = []
     for item in plan:
         candidate = candidates[item["anchor_id"]]

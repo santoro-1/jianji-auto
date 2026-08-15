@@ -14,6 +14,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.project_store import ProjectStore  # noqa: E402
+from jyd_probe.caption_alignment import (  # noqa: E402
+    CaptionAlignmentError,
+    build_alignment,
+)
+from jyd_probe.project_postprocess import ProjectPostprocessCoordinator  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
@@ -68,6 +73,163 @@ class ProjectPostprocessApiTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_one_asr_failure_does_not_block_later_rows(self) -> None:
+        user_id = "postprocess-isolation-user"
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id=user_id,
+            owner_username="tester",
+            name="ASR 行级隔离",
+            items=[
+                {"row_key": "1", "script_text": "甲"},
+                {"row_key": "2", "script_text": "乙"},
+            ],
+        )
+        for item in project["items"]:
+            audio_path = self.settings.storage_root / f"{item['row_key']}.mp3"
+            audio_path.write_bytes(b"audio")
+            audio = store.add_asset(
+                owner_user_id=user_id,
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                asset_type="audio",
+                source_type="minimax",
+                status="READY",
+                filename=audio_path.name,
+                managed_path=str(audio_path),
+                make_current=True,
+            )
+            store.set_item_subtitles(
+                user_id,
+                project["project_id"],
+                item["item_id"],
+                {
+                    "source": "minimax_timestamps",
+                    "raw_cues": [
+                        {
+                            "text": item["script_text"],
+                            "start_us": 0,
+                            "duration_us": 1_000_000,
+                        }
+                    ],
+                    "render_cues": [],
+                    "bound_audio_asset_id": audio["asset_id"],
+                    "status": "READY",
+                    "style": {},
+                    "overflow_risk": False,
+                },
+            )
+            base_path = self.settings.storage_root / f"{item['row_key']}.mp4"
+            base_path.write_bytes(b"video")
+            store.add_asset(
+                owner_user_id=user_id,
+                project_id=project["project_id"],
+                item_id=item["item_id"],
+                asset_type="base_video",
+                source_type="runninghub_merge",
+                status="READY",
+                filename=base_path.name,
+                managed_path=str(base_path),
+                make_current=True,
+            )
+
+        class RowAligner:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def align(self, _path, *, script, raw_cues, audio_asset_id, audio_version):
+                self.calls += 1
+                if self.calls == 1:
+                    raise CaptionAlignmentError(
+                        "ASR_TIMESTAMPS_MISSING", "FunASR 没有返回字词时间戳"
+                    )
+                return build_alignment(
+                    script,
+                    raw_cues,
+                    {
+                        "tokens": [
+                            {
+                                "text": script,
+                                "startSeconds": 0.1,
+                                "endSeconds": 0.9,
+                            }
+                        ]
+                    },
+                    audio_asset_id=audio_asset_id,
+                    audio_version=audio_version,
+                )
+
+        class RenderQueue:
+            def __init__(self) -> None:
+                self.jobs = []
+
+            def submit_batch(self, jobs, _variants):
+                self.jobs.extend(jobs)
+                return {"batch_id": "batch-1", "job_ids": ["job-1"]}
+
+            def get_status(self, _job_id):
+                return {"job_id": "job-1", "status": "running"}
+
+        class EmptyMusicMatcher:
+            def snapshot(self):
+                return {"profiles": []}
+
+        font_path = self.settings.storage_root / "font.ttf"
+        font_path.write_bytes(b"font")
+        aligner = RowAligner()
+        queue = RenderQueue()
+        coordinator = ProjectPostprocessCoordinator(
+            store,
+            queue,
+            storage_root=self.settings.storage_root,
+            draft_root=self.settings.default_draft_root,
+            fonts=[
+                {
+                    "identity": "font-test",
+                    "name": "测试字体",
+                    "path": str(font_path),
+                    "available": True,
+                }
+            ],
+            bgm_assets=[],
+            music_matcher=EmptyMusicMatcher(),
+            caption_aligner=aligner,
+            require_precise_alignment=True,
+            semantic_visual_library_root=self.root / "missing-visual-library",
+        )
+        with patch(
+            "jyd_probe.project_postprocess.derive_project_render_cues",
+            return_value=(
+                [{"text": "乙", "start_us": 100_000, "duration_us": 800_000}],
+                {"status": "SUCCESS", "timing_source": "funasr_word_timestamps"},
+            ),
+        ), patch.object(
+            coordinator,
+            "_build_draft_job",
+            return_value={"output": {"skip_export": True}},
+        ):
+            result = coordinator.start(
+                user_id,
+                project["project_id"],
+                idempotency_key="asr-isolation",
+                item_settings=[
+                    {
+                        "item_id": item["item_id"],
+                        "font_identity": "font-test",
+                        "bgm_selection_mode": "manual",
+                        "bgm_identity": "",
+                    }
+                    for item in project["items"]
+                ],
+            )
+
+        self.assertEqual(aligner.calls, 2)
+        self.assertEqual(len(queue.jobs), 1)
+        rows = {item["row_key"]: item for item in result["items"]}
+        self.assertEqual(rows["1"]["subtitles"]["status"], "REVIEW_REQUIRED")
+        self.assertEqual(rows["2"]["subtitles"]["status"], "PREVIEW_READY")
+        self.assertEqual(rows["2"]["status"], "POSTPROCESS_RUNNING")
 
     def test_4b_uses_real_font_width_one_line_position_and_bgm(self) -> None:
         user = {"user_id": "postprocess-user", "username": "tester", "enabled": True}

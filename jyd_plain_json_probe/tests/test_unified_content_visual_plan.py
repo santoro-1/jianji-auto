@@ -213,6 +213,7 @@ def test_one_cloud_call_builds_existing_local_visual_recipe(tmp_path: Path) -> N
     assert len(item["visual_analysis"]["visual_plan"]) == 1
     assert len(item["visual_analysis"]["recipe"]["overlays"]) == 1
     anchor = client.calls[0]["visual_context"]["anchors"][0]
+    assert anchor["anchor_id"] == "START" or anchor["anchor_id"].startswith("VA")
     assert anchor["usage"] == "explicit"
     assert anchor["text"] in anchor["context"]
     context_text = str(client.calls[0]["visual_context"])

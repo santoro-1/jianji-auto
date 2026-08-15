@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
+import tempfile
 import unicodedata
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Iterator, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 import uuid
+import wave
 
+from .bgm_loudness import _ffmpeg_path
 from .subtitles import caption_cues_from_payload
 
 
@@ -23,6 +28,9 @@ _TOKEN_RE = re.compile(
 )
 _MIN_GLOBAL_EXACT_RATIO = 0.90
 _MIN_RAW_CUE_EXACT_RATIO = 0.55
+_ASR_CHUNK_SECONDS = 20
+_ASR_CHUNK_CONTEXT_SECONDS = 1
+_ASR_CHUNK_SAMPLE_RATE = 16_000
 
 
 class CaptionAlignmentError(ValueError):
@@ -47,6 +55,161 @@ class RecognizedToken:
     key: str
     start_us: int
     end_us: int
+
+
+@dataclass(frozen=True)
+class _ASRAudioChunk:
+    path: Path
+    offset_seconds: float
+    keep_start_seconds: float
+    keep_end_seconds: float
+    is_final: bool
+
+
+def _missing_timestamp_detail(value: str) -> bool:
+    detail = str(value or "")
+    return "没有返回字词时间戳" in detail or "ASR_TIMESTAMPS_MISSING" in detail
+
+
+@contextmanager
+def _asr_audio_chunks(
+    source: Path,
+    *,
+    timeout_seconds: int,
+) -> Iterator[list[_ASRAudioChunk]]:
+    """Create contextual PCM chunks whose non-overlapping cores own the final tokens."""
+
+    ffmpeg = _ffmpeg_path()
+    if not ffmpeg:
+        raise CaptionAlignmentError(
+            "ASR_CHUNK_PREPARE_FAILED",
+            "FunASR 整段识别为空，且未找到 FFmpeg 进行安全分段回退",
+        )
+    with tempfile.TemporaryDirectory(prefix="jyd-asr-") as temporary_root:
+        root = Path(temporary_root)
+        normalized = root / "normalized.wav"
+        try:
+            completed = subprocess.run(
+                [
+                    ffmpeg,
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-ar",
+                    str(_ASR_CHUNK_SAMPLE_RATE),
+                    "-c:a",
+                    "pcm_s16le",
+                    str(normalized),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise CaptionAlignmentError(
+                "ASR_CHUNK_PREPARE_FAILED",
+                f"FunASR 分段回退准备失败：{exc}",
+            ) from exc
+        if completed.returncode != 0 or not normalized.is_file():
+            summary = (completed.stderr or completed.stdout or "FFmpeg 转换失败").strip()
+            raise CaptionAlignmentError(
+                "ASR_CHUNK_PREPARE_FAILED",
+                f"FunASR 分段回退准备失败：{summary[:300]}",
+            )
+
+        chunks: list[_ASRAudioChunk] = []
+        try:
+            with wave.open(str(normalized), "rb") as reader:
+                frame_rate = reader.getframerate()
+                frame_count = reader.getnframes()
+                sample_width = reader.getsampwidth()
+                channels = reader.getnchannels()
+                if frame_rate <= 0 or frame_count <= frame_rate * _ASR_CHUNK_SECONDS:
+                    raise CaptionAlignmentError(
+                        "ASR_TIMESTAMPS_MISSING",
+                        "FunASR 没有返回字词时间戳，短音频无法继续安全分段",
+                    )
+                core_frames = frame_rate * _ASR_CHUNK_SECONDS
+                context_frames = frame_rate * _ASR_CHUNK_CONTEXT_SECONDS
+                for index, core_start in enumerate(range(0, frame_count, core_frames)):
+                    core_end = min(frame_count, core_start + core_frames)
+                    read_start = max(0, core_start - context_frames)
+                    read_end = min(frame_count, core_end + context_frames)
+                    reader.setpos(read_start)
+                    frames = reader.readframes(read_end - read_start)
+                    chunk_path = root / f"chunk-{index:04d}.wav"
+                    with wave.open(str(chunk_path), "wb") as writer:
+                        writer.setnchannels(channels)
+                        writer.setsampwidth(sample_width)
+                        writer.setframerate(frame_rate)
+                        writer.writeframes(frames)
+                    chunks.append(
+                        _ASRAudioChunk(
+                            path=chunk_path,
+                            offset_seconds=read_start / frame_rate,
+                            keep_start_seconds=core_start / frame_rate,
+                            keep_end_seconds=core_end / frame_rate,
+                            is_final=core_end == frame_count,
+                        )
+                    )
+        except (EOFError, OSError, wave.Error) as exc:
+            raise CaptionAlignmentError(
+                "ASR_CHUNK_PREPARE_FAILED",
+                f"FunASR 分段回退读取音频失败：{exc}",
+            ) from exc
+        yield chunks
+
+
+def _merge_chunk_payloads(
+    chunks: Iterable[tuple[_ASRAudioChunk, Mapping[str, Any]]],
+) -> dict[str, Any]:
+    merged: list[dict[str, Any]] = []
+    for chunk, payload in chunks:
+        raw_tokens = payload.get("tokens")
+        if not isinstance(raw_tokens, list) or not raw_tokens:
+            raise CaptionAlignmentError(
+                "ASR_TIMESTAMPS_MISSING",
+                "FunASR 分段回退仍有片段没有返回字词时间戳",
+            )
+        for raw in raw_tokens:
+            if not isinstance(raw, Mapping):
+                raise CaptionAlignmentError("ASR_RESPONSE_INVALID", "FunASR token 结构无效")
+            try:
+                local_start = float(raw.get("startSeconds"))
+                local_end = float(raw.get("endSeconds"))
+            except (TypeError, ValueError) as exc:
+                raise CaptionAlignmentError(
+                    "ASR_RESPONSE_INVALID", "FunASR 分段时间戳无效"
+                ) from exc
+            start = local_start + chunk.offset_seconds
+            end = local_end + chunk.offset_seconds
+            midpoint = (start + end) / 2
+            if midpoint < chunk.keep_start_seconds:
+                continue
+            if midpoint >= chunk.keep_end_seconds and not chunk.is_final:
+                continue
+            if midpoint > chunk.keep_end_seconds and chunk.is_final:
+                continue
+            merged.append(
+                {
+                    **dict(raw),
+                    "startSeconds": round(start, 6),
+                    "endSeconds": round(end, 6),
+                }
+            )
+    merged.sort(key=lambda item: (float(item["startSeconds"]), float(item["endSeconds"])))
+    if not merged:
+        raise CaptionAlignmentError(
+            "ASR_TIMESTAMPS_MISSING", "FunASR 分段回退没有返回可用字词时间戳"
+        )
+    return {"tokens": merged}
 
 
 def _key(value: str) -> str:
@@ -387,20 +550,7 @@ class FunASRCaptionAligner:
         self.timeout_seconds = max(1, int(timeout_seconds))
         self.shared_token = str(shared_token or "").strip()
 
-    def align(
-        self,
-        audio_path: str | Path,
-        *,
-        script: str,
-        raw_cues: Iterable[object],
-        audio_asset_id: str,
-        audio_version: object,
-    ) -> dict[str, Any]:
-        path = Path(audio_path).expanduser().resolve()
-        if not path.is_file():
-            raise CaptionAlignmentError("ASR_AUDIO_MISSING", f"ASR 音频不存在：{path}")
-        if not self.base_url:
-            raise CaptionAlignmentError("ASR_NOT_CONFIGURED", "本地精确字幕服务未配置")
+    def _transcribe(self, path: Path) -> Mapping[str, Any]:
         boundary = f"jyd-{uuid.uuid4().hex}"
         filename = path.name.replace('"', "")
         body = (
@@ -422,6 +572,10 @@ class FunASRCaptionAligner:
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")[:500]
+            if _missing_timestamp_detail(detail):
+                raise CaptionAlignmentError(
+                    "ASR_TIMESTAMPS_MISSING", "FunASR 没有返回字词时间戳"
+                ) from exc
             raise CaptionAlignmentError(
                 "ASR_HTTP_ERROR", f"本地精确字幕服务返回 HTTP {exc.code}：{detail}"
             ) from exc
@@ -433,6 +587,41 @@ class FunASRCaptionAligner:
             raise CaptionAlignmentError("ASR_RESPONSE_INVALID", "FunASR 返回内容不是合法 JSON") from exc
         if not isinstance(payload, Mapping):
             raise CaptionAlignmentError("ASR_RESPONSE_INVALID", "FunASR 返回结构无效")
+        return payload
+
+    def _transcribe_in_chunks(self, path: Path) -> Mapping[str, Any]:
+        with _asr_audio_chunks(path, timeout_seconds=self.timeout_seconds) as chunks:
+            return _merge_chunk_payloads(
+                (chunk, self._transcribe(chunk.path)) for chunk in chunks
+            )
+
+    def align(
+        self,
+        audio_path: str | Path,
+        *,
+        script: str,
+        raw_cues: Iterable[object],
+        audio_asset_id: str,
+        audio_version: object,
+    ) -> dict[str, Any]:
+        path = Path(audio_path).expanduser().resolve()
+        if not path.is_file():
+            raise CaptionAlignmentError("ASR_AUDIO_MISSING", f"ASR 音频不存在：{path}")
+        if not self.base_url:
+            raise CaptionAlignmentError("ASR_NOT_CONFIGURED", "本地精确字幕服务未配置")
+        try:
+            payload = self._transcribe(path)
+            return build_alignment(
+                script,
+                raw_cues,
+                payload,
+                audio_asset_id=audio_asset_id,
+                audio_version=audio_version,
+            )
+        except CaptionAlignmentError as exc:
+            if exc.code != "ASR_TIMESTAMPS_MISSING":
+                raise
+        payload = self._transcribe_in_chunks(path)
         return build_alignment(
             script,
             raw_cues,

@@ -2258,13 +2258,26 @@ class ProjectPostprocessCoordinator:
                     self.store.set_item_subtitles(
                         owner_user_id, project_id, item["item_id"], subtitles
                     )
-                    raise ValueError(
-                        f"任务 {item['row_key']} 精确字幕校准失败：{exc}"
-                    ) from exc
+                    continue
             if self.require_precise_alignment and not alignment_is_current:
-                raise ValueError(
-                    f"任务 {item['row_key']} 尚未配置或启动本地 ASR 精确字幕服务"
+                reason = "当前音频尚未配置或启动本地 ASR 精确字幕服务"
+                subtitles.update(
+                    {
+                        "render_cues": [],
+                        "status": "REVIEW_REQUIRED",
+                        "overflow_risk": False,
+                        "review_reason": reason,
+                        "asr_alignment": {
+                            "status": "FAILED",
+                            "reason_code": "ASR_ALIGNMENT_REQUIRED",
+                            "reason_summary": reason,
+                        },
+                    }
                 )
+                self.store.set_item_subtitles(
+                    owner_user_id, project_id, item["item_id"], subtitles
+                )
+                continue
             render_item = {**item, "subtitles": subtitles}
             try:
                 render_cues, semantic_mapping = derive_project_render_cues(
@@ -2296,7 +2309,7 @@ class ProjectPostprocessCoordinator:
                 self.store.set_item_subtitles(
                     owner_user_id, project_id, item["item_id"], subtitles
                 )
-                raise ValueError(f"任务 {item['row_key']} 字幕需要人工检查：{exc}") from exc
+                continue
 
             subtitles.update(
                 {
@@ -2439,6 +2452,8 @@ class ProjectPostprocessCoordinator:
                 }
             )
             draft_operations.append((item, operation))
+        if not draft_jobs:
+            return self.sync(owner_user_id, project_id)
         try:
             submitted = self.render_queue.submit_batch(draft_jobs, draft_variants)
             batch_id = str(submitted.get("batch_id") or "")
