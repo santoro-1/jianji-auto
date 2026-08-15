@@ -479,7 +479,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
             execution_mode="same_account_v1",
         )
 
-    def test_start_reuses_cloud_accepted_batch_account_snapshot(self) -> None:
+    def test_start_does_not_reuse_another_items_cloud_account_snapshot(self) -> None:
         from jyd_probe.project_composition import ProjectCompositionCoordinator
 
         image_path = self.settings.storage_root / "locked-batch-person.png"
@@ -495,6 +495,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     "status": "RUNNING",
                     "payload": {
                         "batch_id": "shared-batch",
+                        "remote_item_id": "remote-accepted",
                         "runninghub_execution_account_ids": [3],
                         "seedvr2_execution_account_ids": None,
                         "execution_mode": "same_account_v1",
@@ -567,14 +568,16 @@ class ProjectCompositionApiTest(unittest.TestCase):
         )
 
         payload = store.create_operation.call_args.kwargs["payload"]
-        self.assertEqual(payload["runninghub_execution_account_ids"], [3])
+        self.assertEqual(payload["runninghub_execution_account_ids"], [3, 5])
         self.assertIsNone(payload["seedvr2_execution_account_ids"])
         self.assertEqual(payload["execution_mode"], "same_account_v1")
 
-    def test_retry_requeues_precloud_failure_with_locked_batch_snapshot(self) -> None:
+    def test_precloud_failure_can_be_restarted_with_a_new_account_selection(self) -> None:
         from jyd_probe.project_composition import ProjectCompositionCoordinator
 
-        image_sha256 = hashlib.sha256(b"retry-image").hexdigest()
+        image_path = self.settings.storage_root / "retry-precloud-image.png"
+        image_path.write_bytes(b"retry-image")
+        image_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
         failed_payload = {
             "batch_id": "shared-batch",
             "remote_item_id": "remote-failed",
@@ -582,7 +585,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
             "resolution": "1024",
             "input_image_asset_id": "image-failed",
             "input_image_sha256": image_sha256,
-            "runninghub_execution_account_ids": [3, 5],
+            "runninghub_execution_account_ids": [3],
             "seedvr2_execution_account_ids": None,
             "execution_mode": "same_account_v1",
         }
@@ -594,7 +597,13 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     "row_key": "2",
                     "status": "COMPOSITION_FAILED",
                     "settings": {},
-                    "inputs": {"image": {"metadata": {"sha256": image_sha256}}},
+                    "inputs": {
+                        "image": {
+                            "asset_id": "image-failed",
+                            "managed_path": str(image_path),
+                            "metadata": {"sha256": image_sha256},
+                        }
+                    },
                     "allowed_actions": {"retry_composition": True},
                 }
             ],
@@ -618,6 +627,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     "status": "SUCCEEDED",
                     "payload": {
                         "batch_id": "shared-batch",
+                        "remote_item_id": "remote-accepted",
                         "runninghub_execution_account_ids": [3],
                         "seedvr2_execution_account_ids": None,
                         "execution_mode": "same_account_v1",
@@ -662,6 +672,26 @@ class ProjectCompositionApiTest(unittest.TestCase):
         self.assertEqual(payload["retry_of_operation_id"], "failed-operation")
         self.assertTrue(payload["retry"])
         client.retry_workbench_composition.assert_not_called()
+
+        store.create_operation.reset_mock()
+        store.create_operation.side_effect = lambda **kwargs: {
+            "operation_id": "restart-operation",
+            "status": "PENDING",
+            "payload": kwargs["payload"],
+        }
+        coordinator.start(
+            "composition-user",
+            "project-locked-batch",
+            "token",
+            idempotency_key="restart-precloud-with-new-pool",
+            runninghub_execution_account_ids=[5, 3],
+            execution_mode="same_account_v1",
+            item_ids=["item-failed"],
+        )
+        restarted_payload = store.create_operation.call_args.kwargs["payload"]
+        self.assertEqual(
+            restarted_payload["runninghub_execution_account_ids"], [3, 5]
+        )
 
     def test_generate_downloads_original_segments_and_base_video_only(self) -> None:
         user = {

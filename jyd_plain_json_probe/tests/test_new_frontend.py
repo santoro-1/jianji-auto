@@ -198,9 +198,10 @@ class NewFrontendTest(unittest.TestCase):
     def test_selected_composition_rows_do_not_start_and_retry_twice(self) -> None:
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn(
-            "const fresh = missingBase.filter((item) => item.allowedActions?.start_composition && !item.allowedActions?.retry_composition);",
+            "const retries = missingBase.filter((item) => item.allowedActions?.retry_composition && !isPrecloudCompositionFailure(item));",
             html,
         )
+        self.assertIn("item.allowedActions?.start_composition || isPrecloudCompositionFailure(item)", html)
 
     def test_new_frontend_styles_are_bundled_locally(self) -> None:
         pages = ("index.html", "login.html", "voice-library.html", "gallery.html")
@@ -385,6 +386,15 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("continueFinalGenerationAfterComposition", workspace)
         self.assertIn("setFinalGenerationPhase('composition')", workspace)
         self.assertIn("startGlobalPostprocess()", workspace)
+        final_flow = workspace[
+            workspace.index("async function startGlobalFinalVideoGeneration()") :
+            workspace.index("async function retryFailedCompositionItems()")
+        ]
+        self.assertLess(
+            final_flow.index("const compositionTargets"),
+            final_flow.index("const canPostprocess"),
+        )
+        self.assertIn("item_ids: restartable.map((item) => item.id)", workspace)
         self.assertIn("data-final-video-url", workspace)
         self.assertIn("video-preview-time", workspace)
         self.assertIn("loadedmetadata", workspace)
@@ -531,9 +541,10 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("当前执行模式：${modeLabel}", workspace)
         self.assertIn("runningHubExecutionSummary", workspace)
         self.assertIn("refreshRunningHubExecutionSummaries", workspace)
-        self.assertIn("runningHubLockedBatchContext", workspace)
+        self.assertIn("runningHubLockedItemContext", workspace)
+        self.assertIn("isPrecloudCompositionFailure", workspace)
         self.assertIn("已锁定，将自动沿用首次被云端接收的执行账号", workspace)
-        self.assertIn("（已锁定批次账号）", workspace)
+        self.assertIn("（已锁定任务账号）", workspace)
         self.assertIn("{ items: [script] }", workspace)
         self.assertIn("{ items: fresh }", workspace)
         self.assertIn("等待云端分配实际执行账号", workspace)
@@ -543,7 +554,7 @@ class NewFrontendTest(unittest.TestCase):
             workspace.count(
                 "...runningHubSelectionRequestFields(selectedRunningHubAccountIds)"
             ),
-            3,
+            4,
         )
 
     def test_composition_poll_errors_are_deduplicated_and_backed_off(self) -> None:

@@ -66,10 +66,10 @@ def _operation_was_accepted_by_cloud(operation: dict[str, Any]) -> bool:
     )
 
 
-def _accepted_batch_execution_contracts(
+def _accepted_item_execution_contracts(
     project: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """Recover each cloud-accepted audio batch's immutable account snapshot."""
+    """Recover each cloud-accepted remote item's immutable account snapshot."""
 
     contracts: dict[str, dict[str, Any]] = {}
     for operation in project.get("operations", []):
@@ -81,11 +81,11 @@ def _accepted_batch_execution_contracts(
         payload = operation.get("payload", {})
         if not isinstance(payload, dict):
             continue
-        batch_id = str(payload.get("batch_id") or "").strip()
+        remote_item_id = str(payload.get("remote_item_id") or "").strip()
         account_ids = _normalized_execution_account_ids(
             payload.get("runninghub_execution_account_ids")
         )
-        if not batch_id or account_ids is None:
+        if not remote_item_id or account_ids is None:
             continue
         seedvr2_account_ids = _normalized_seedvr2_account_ids(
             payload.get("seedvr2_execution_account_ids")
@@ -99,12 +99,12 @@ def _accepted_batch_execution_contracts(
             "seedvr2_execution_account_ids": seedvr2_account_ids,
             "execution_mode": execution_mode,
         }
-        previous = contracts.get(batch_id)
+        previous = contracts.get(remote_item_id)
         if previous is not None and previous != candidate:
             raise ValueError(
-                f"声音批次 {batch_id} 的本地已接收执行账号快照互相冲突"
+                f"云端任务 {remote_item_id} 的本地已接收执行账号快照互相冲突"
             )
-        contracts[batch_id] = candidate
+        contracts[remote_item_id] = candidate
     return contracts
 
 
@@ -365,10 +365,17 @@ class ProjectCompositionCoordinator:
             if missing:
                 raise KeyError("项目脚本行不存在")
             target_items = [by_id[value] for value in requested_ids]
+            latest_operations = _composition_operations(project)
             blocked = [
                 item for item in target_items
                 if item.get("outputs", {}).get("base_video") is None
                 and not item.get("allowed_actions", {}).get("start_composition")
+                and not (
+                    item.get("allowed_actions", {}).get("retry_composition")
+                    and _is_precloud_start_failure(
+                        latest_operations.get(str(item["item_id"]))
+                    )
+                )
             ]
             if blocked:
                 raise ValueError(f"任务 {blocked[0]['row_key']} 尚未准备好生成画面")
@@ -402,7 +409,7 @@ class ProjectCompositionCoordinator:
         ):
             raise ValueError("同账号模式不能提交独立 SeedVR2 执行账号")
         links_by_item = _current_audio_item_links(project["links"])
-        accepted_batch_contracts = _accepted_batch_execution_contracts(project)
+        accepted_item_contracts = _accepted_item_execution_contracts(project)
 
         for item in target_items:
             backfill_seedvr2 = _has_saved_remote_video_segments(item) and (
@@ -419,7 +426,7 @@ class ProjectCompositionCoordinator:
             remote_item_id = str(link.get("external_id") or "")
             if not batch_id or not remote_item_id:
                 raise ValueError(f"任务 {item['row_key']} 的数字人任务关联不完整")
-            locked_contract = accepted_batch_contracts.get(batch_id)
+            locked_contract = accepted_item_contracts.get(remote_item_id)
             effective_account_ids = (
                 locked_contract["runninghub_execution_account_ids"]
                 if locked_contract is not None
@@ -900,9 +907,11 @@ class ProjectCompositionCoordinator:
                 raise ValueError(
                     "当前人物图与失败启动时冻结图片不一致，不能重放旧启动请求"
                 )
-            batch_id = str(original_payload.get("batch_id") or "").strip()
-            locked_contract = _accepted_batch_execution_contracts(project).get(
-                batch_id
+            remote_item_id = str(
+                original_payload.get("remote_item_id") or ""
+            ).strip()
+            locked_contract = _accepted_item_execution_contracts(project).get(
+                remote_item_id
             )
             if locked_contract is not None:
                 original_payload.update(locked_contract)
