@@ -1099,6 +1099,58 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
     assert all(item["direct_concept_ids"] == [target_concept] for item in enrichment)
 
 
+def test_seam_recall_can_use_full_screen_broll_and_previous_phrase_context() -> None:
+    catalog = _catalog()
+    target_index = next(
+        index
+        for index, asset in enumerate(catalog.assets)
+        if asset["media_type"] == "video"
+        and "full_screen_broll" in set(asset.get("usage_modes", ()))
+    )
+    target_concept = catalog.assets[target_index]["concept_ids"][0]
+    target_alias = next(
+        concept["aliases"][0]
+        for concept in catalog.concepts
+        if concept["concept_id"] == target_concept
+    )
+    tagged_assets = tuple(
+        {
+            **asset,
+            "usage_modes": (
+                ["full_screen_broll"] if index == target_index else ["manual_only"]
+            ),
+        }
+        for index, asset in enumerate(catalog.assets)
+    )
+    tagged_catalog = SemanticVisualCatalog(
+        root=catalog.root,
+        schema=catalog.schema,
+        library_id=catalog.library_id,
+        catalog_version=catalog.catalog_version,
+        concepts=catalog.concepts,
+        assets=tagged_assets,
+    )
+    next_segment = "接下来再说明具体应该怎样坚持。"
+    script = f"前面先安排{target_alias}帮助理解。{next_segment}"
+
+    seam = next(
+        item
+        for item in recall_semantic_visual_candidates(
+            script,
+            tagged_catalog,
+            video_duration_us=12_000_000,
+            segment_boundaries=[
+                {"boundary_us": 5_000_000, "script_text": next_segment}
+            ],
+        )["candidates"]
+        if item.get("usage") == "seam_broll"
+    )
+
+    assert target_alias in seam["text"]
+    assert next_segment.rstrip("。") in seam["text"]
+    assert target_concept in seam["direct_concept_ids"]
+
+
 def test_plain_sunbathing_alias_recalls_the_exact_approved_video_concept() -> None:
     candidates = recall_semantic_visual_candidates(
         "每天晒太阳，保持规律作息。", _catalog()
@@ -1347,6 +1399,106 @@ def test_full_screen_broll_reserves_its_slot_before_explicit_image() -> None:
     assert len(recipe["overlays"]) == 1
     assert recipe["overlays"][0]["usage"] == "enrichment"
     assert recipe["overlays"][0]["media_type"] == "video"
+
+
+def test_seam_broll_does_not_reset_ordinary_broll_six_second_gap() -> None:
+    catalog = _catalog()
+    enrichment = {
+        "candidate_id": "ve_apple_after_seam",
+        "text": "苹果",
+        "char_start": 0,
+        "char_end": 2,
+        "allowed_concepts": [{"concept_id": "food.apple", "description": "苹果"}],
+        "usage": "enrichment",
+        "direct_concept_ids": ["food.apple"],
+        "start_us": 10_000_000,
+        "target_start_us": 10_000_000,
+        "duration_us": 2_000_000,
+        "video_duration_us": 20_000_000,
+    }
+    locked_seam = {
+        "overlay_id": "locked-seam",
+        "asset_id": "manual-seam-video",
+        "media_type": "video",
+        "enabled": True,
+        "locked": True,
+        "selection_mode": "manual",
+        "usage": "seam_broll",
+        "timing_mode": "seam_broll",
+        "display_role": "full_screen_broll",
+        "start_us": 5_000_000,
+        "duration_us": 2_000_000,
+    }
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[enrichment],
+        decisions=[
+            {
+                "candidate_id": enrichment["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.apple",
+                "usage": "enrichment",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="image_only",
+        locked_overlays=[locked_seam],
+    )
+
+    assert any(item.get("usage") == "enrichment" for item in recipe["overlays"])
+
+
+def test_ordinary_broll_stays_in_its_sentence_when_trimmed_around_seam() -> None:
+    catalog = _catalog()
+    enrichment = {
+        "candidate_id": "ve_apple_overlapping_seam",
+        "text": "苹果",
+        "char_start": 0,
+        "char_end": 2,
+        "allowed_concepts": [{"concept_id": "food.apple", "description": "苹果"}],
+        "usage": "enrichment",
+        "direct_concept_ids": ["food.apple"],
+        "start_us": 10_000_000,
+        "target_start_us": 10_000_000,
+        "duration_us": 5_000_000,
+        "video_duration_us": 20_000_000,
+    }
+    locked_seam = {
+        "overlay_id": "locked-overlapping-seam",
+        "asset_id": "manual-overlapping-seam-video",
+        "media_type": "video",
+        "enabled": True,
+        "locked": True,
+        "selection_mode": "manual",
+        "usage": "seam_broll",
+        "timing_mode": "seam_broll",
+        "display_role": "full_screen_broll",
+        "start_us": 9_500_000,
+        "duration_us": 1_000_000,
+    }
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[enrichment],
+        decisions=[
+            {
+                "candidate_id": enrichment["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.apple",
+                "usage": "enrichment",
+                "confidence": 1.0,
+            }
+        ],
+        media_policy="image_only",
+        locked_overlays=[locked_seam],
+    )
+
+    ordinary = next(
+        item for item in recipe["overlays"] if item.get("usage") == "enrichment"
+    )
+    assert ordinary["start_us"] == 10_500_000
+    assert ordinary["start_us"] + ordinary["duration_us"] <= 15_000_000
 
 
 def test_same_concept_can_use_image_and_later_full_screen_video() -> None:
@@ -2022,7 +2174,7 @@ def test_video_overlay_is_clipped_when_sentence_exceeds_source(tmp_path: Path) -
     assert overlay["loop_to_target"] is False
 
 
-def test_video_overlay_loops_only_catalog_default_window_when_allowed(tmp_path: Path) -> None:
+def test_video_overlay_never_loops_even_when_legacy_catalog_allows_it(tmp_path: Path) -> None:
     manifest = _write_v2_catalog(tmp_path)
     payload = json.loads(manifest.read_text(encoding="utf-8"))
     payload["assets"][1]["defaults"]["loop"] = True
@@ -2045,9 +2197,9 @@ def test_video_overlay_loops_only_catalog_default_window_when_allowed(tmp_path: 
     )
 
     overlay = recipe["overlays"][0]
-    assert overlay["duration_us"] == 8_000_000
+    assert overlay["duration_us"] == 3_000_000
     assert overlay["source_duration_us"] == 3_000_000
-    assert overlay["loop_to_target"] is True
+    assert overlay["loop_to_target"] is False
 
 
 def test_segment_boundary_uses_corresponding_unused_seam_broll(tmp_path: Path) -> None:

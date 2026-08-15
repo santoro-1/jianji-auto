@@ -3155,7 +3155,10 @@
 
         function normalizeAutomaticSemanticOverlay(overlay) {
             const normalized = { ...overlay };
-            if (normalized.media_type === 'video') delete normalized.loop;
+            if (normalized.media_type === 'video') {
+                delete normalized.loop;
+                normalized.loop_to_target = false;
+            }
             if (normalized.selection_mode !== 'auto' || normalized.manual === true || normalized.locked === true) {
                 return normalized;
             }
@@ -3170,6 +3173,8 @@
             normalized.opacity = Number(asset.default_opacity ?? asset.defaults?.opacity ?? normalized.opacity ?? 1);
             if (normalized.media_type === 'video') {
                 normalized.source_start_us = Number(asset.defaults?.source_start_us ?? normalized.source_start_us ?? 0);
+                normalized.source_duration_us = Number(asset.defaults?.duration_us ?? normalized.source_duration_us ?? 0);
+                normalized.loop_to_target = false;
                 normalized.mute = asset.defaults?.mute !== false;
                 delete normalized.loop;
                 normalized.fit = asset.defaults?.fit || normalized.fit || 'cover';
@@ -3261,6 +3266,8 @@
                     semanticVisualDraft[index].opacity = Number(asset.default_opacity ?? asset.defaults?.opacity ?? 1);
                     if (asset.media_type === 'video') {
                         semanticVisualDraft[index].source_start_us = Number(asset.defaults?.source_start_us || 0);
+                        semanticVisualDraft[index].source_duration_us = Number(asset.defaults?.duration_us || 0);
+                        semanticVisualDraft[index].loop_to_target = false;
                         semanticVisualDraft[index].mute = asset.defaults?.mute !== false;
                         delete semanticVisualDraft[index].loop;
                         semanticVisualDraft[index].fit = asset.defaults?.fit || 'cover';
@@ -3306,6 +3313,8 @@
                 duration_us: Number(mapped.duration_us || 1800000),
                 ...(asset.media_type === 'video' ? {
                     source_start_us: Number(asset.defaults?.source_start_us || 0),
+                    source_duration_us: Number(asset.defaults?.duration_us || 0),
+                    loop_to_target: false,
                     mute: asset.defaults?.mute !== false,
                     fit: asset.defaults?.fit || 'cover'
                 } : {})
@@ -5611,7 +5620,11 @@
                 const effective = normalizeAutomaticSemanticOverlay(item);
                 const currentAsset = (semanticVisualCatalog?.assets || []).find((asset) => asset.asset_id === effective.asset_id);
                 const sourceStartUs = Number(effective.source_start_us || currentAsset?.defaults?.source_start_us || 0);
-                const sourceDurationUs = Math.max(0, Number(currentAsset?.resource?.duration_us || 0) - sourceStartUs);
+                const availableDurationUs = Math.max(0, Number(currentAsset?.resource?.duration_us || 0) - sourceStartUs);
+                const configuredDurationUs = Number(effective.source_duration_us || currentAsset?.defaults?.duration_us || 0);
+                const sourceDurationUs = configuredDurationUs > 0
+                    ? Math.min(configuredDurationUs, availableDurationUs)
+                    : availableDurationUs;
                 const requestedDurationUs = Number(effective.duration_us || 0);
                 const playbackDurationUs = sourceDurationUs > 0
                     ? Math.min(requestedDurationUs, sourceDurationUs)

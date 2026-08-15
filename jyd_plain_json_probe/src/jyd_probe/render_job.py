@@ -1022,9 +1022,9 @@ def _build_visual_video_additions(
                 source_duration_us=int(
                     _value(item, "source_duration_us", default=0)
                 ),
-                loop_to_target=_as_bool(
-                    _value(item, "loop_to_target", default=False)
-                ),
+                # Semantic videos and B-roll are one-shot even when an old
+                # frozen recipe still carries loop_to_target=true.
+                loop_to_target=False,
                 mute=_as_bool(_value(item, "mute", default=True)),
                 fit=str(_value(item, "fit", default="cover")),
                 corner=corner,

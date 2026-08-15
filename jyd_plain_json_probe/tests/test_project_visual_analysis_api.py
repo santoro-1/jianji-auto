@@ -201,6 +201,7 @@ def test_catalog_analysis_review_and_revision_api() -> None:
             frozen_video = saved_video.json()["items"][0]["visual_analysis"]["recipe"]["overlays"][0]
             assert frozen_video["media_type"] == "video"
             assert "loop" not in frozen_video
+            assert frozen_video["loop_to_target"] is False
 
             conflict = client.put(
                 f"/api/new/projects/{project['project_id']}/items/{item_id}/visual-overlays",

@@ -53,6 +53,9 @@ VISUAL_SENTENCE_MIN_DURATION_US = 2_000_000
 VISUAL_ENRICHMENT_MIN_GAP_US = 6_000_000
 VISUAL_MINOR_OVERLAP_TOLERANCE_US = 500_000
 VISUAL_SEAM_BROLL_MAX_DURATION_US = 5_000_000
+# Semantic foreground videos and full-screen B-roll always play once.  Keep
+# this independent from legacy catalog loop metadata and generic render APIs.
+VISUAL_VIDEO_LOOP_TO_TARGET = False
 # Edit this one value to tune how often ordinary B-roll is attempted. It is a
 # target cadence, not a quota: a slot is omitted when its context has no
 # relevant, locally available concept.
@@ -1566,9 +1569,19 @@ def recall_semantic_visual_candidates(
                 periodic_phrase_ranges.add((phrase_start, phrase_end))
 
     occupied_starts.difference_update(seam_reserved_starts)
-    seam_concept_ids = _broll_concept_ids(catalog, usage="seam_broll")
-    seam_editorial = _editorial_broll_concepts(
-        catalog, usage="seam_broll", article_type=article_type
+    # A segment seam may use any approved full-screen B-roll.  Dedicated
+    # ``seam_broll`` tagging remains preferred at asset selection time, but it
+    # must not hide an otherwise relevant one-shot full-screen clip.
+    seam_concept_ids = _broll_concept_ids(
+        catalog, usage="seam_broll"
+    ) | _broll_concept_ids(catalog, usage="enrichment")
+    seam_editorial = _merge_broll_concepts(
+        _editorial_broll_concepts(
+            catalog, usage="seam_broll", article_type=article_type
+        ),
+        _editorial_broll_concepts(
+            catalog, usage="enrichment", article_type=article_type
+        ),
     )
     expected_denominator = max(1, planning_duration_us)
     for boundary in sorted(
@@ -1609,13 +1622,42 @@ def recall_semantic_visual_candidates(
             if seam_matches
             else None
         )
-        phrase_range = (
-            visual_phrase_char_range(
+        next_phrase_range = _phrase_range_near_char(original_script, segment_start)
+        if nearest is not None:
+            phrase_range = visual_phrase_char_range(
                 original_script, start=nearest[0], end=nearest[1]
             )
-            if nearest is not None
-            else _phrase_range_near_char(original_script, segment_start)
-        )
+        else:
+            # If the new segment opens with an abstract transition, let the
+            # model inspect the preceding spoken phrase together with the next
+            # phrase.  This widens recall without accepting an unrelated clip:
+            # the cloud semantic decision still has to approve the combined
+            # context.
+            previous_start = max(0, segment_start - 80)
+            previous_matches = [
+                match
+                for match in matches
+                if match[0] < segment_start
+                and match[1] > previous_start
+                and any(
+                    str(concept.get("concept_id") or "") in seam_concept_ids
+                    for concept in match[3]
+                )
+            ]
+            previous_nearest = (
+                max(previous_matches, key=lambda match: (match[1], match[0]))
+                if previous_matches
+                else None
+            )
+            if previous_nearest is not None and next_phrase_range is not None:
+                previous_phrase_range = visual_phrase_char_range(
+                    original_script,
+                    start=previous_nearest[0],
+                    end=previous_nearest[1],
+                )
+                phrase_range = (previous_phrase_range[0], next_phrase_range[1])
+            else:
+                phrase_range = next_phrase_range
         if phrase_range is None:
             continue
         phrase_start, phrase_end = phrase_range
@@ -2203,16 +2245,12 @@ def _overlay_from_asset(
         source_start_us = int(defaults["source_start_us"])
         available_us = max(0, int(resource.get("duration_us") or 0) - source_start_us)
         source_duration_us = min(int(defaults["duration_us"]), available_us)
-        loop_to_target = bool(defaults.get("loop")) and bool(
-            asset.get("loop_allowed", defaults.get("loop"))
-        )
-        if not loop_to_target:
-            overlay["duration_us"] = min(int(overlay["duration_us"]), source_duration_us)
+        overlay["duration_us"] = min(int(overlay["duration_us"]), source_duration_us)
         overlay.update(
             {
                 "source_start_us": source_start_us,
                 "source_duration_us": source_duration_us,
-                "loop_to_target": loop_to_target,
+                "loop_to_target": VISUAL_VIDEO_LOOP_TO_TARGET,
                 "mute": defaults["mute"],
                 "fit": defaults["fit"],
             }
@@ -2298,6 +2336,58 @@ def _fit_minor_overlap(
         return None
     fitted["start_us"] = start_us
     fitted["duration_us"] = end_us - start_us
+    if fitted.get("media_type") == "video" and not fitted.get("loop_to_target"):
+        fitted["source_duration_us"] = min(
+            int(fitted.get("source_duration_us") or fitted["duration_us"]),
+            fitted["duration_us"],
+        )
+    return fitted
+
+
+def _fit_enrichment_around_seams(
+    overlay: Mapping[str, Any], selected: Iterable[Mapping[str, Any]]
+) -> dict[str, Any] | None:
+    """Keep an ordinary B-roll attempt inside its sentence while seams win."""
+
+    fitted = dict(overlay)
+    start_us = int(fitted.get("start_us") or 0)
+    end_us = start_us + int(fitted.get("duration_us") or 0)
+    intervals = [(start_us, end_us)]
+    for item in sorted(
+        (
+            value
+            for value in selected
+            if value.get("enabled") is not False
+            and (
+                str(value.get("usage") or "") == "seam_broll"
+                or str(value.get("timing_mode") or "") == "seam_broll"
+            )
+        ),
+        key=lambda value: int(value.get("start_us") or 0),
+    ):
+        seam_start = int(item.get("start_us") or 0)
+        seam_end = seam_start + int(item.get("duration_us") or 0)
+        next_intervals: list[tuple[int, int]] = []
+        for interval_start, interval_end in intervals:
+            if seam_start >= interval_end or seam_end <= interval_start:
+                next_intervals.append((interval_start, interval_end))
+                continue
+            if seam_start - interval_start >= VISUAL_SENTENCE_MIN_DURATION_US:
+                next_intervals.append((interval_start, seam_start))
+            if interval_end - seam_end >= VISUAL_SENTENCE_MIN_DURATION_US:
+                next_intervals.append((seam_end, interval_end))
+        intervals = next_intervals
+        if not intervals:
+            return None
+    chosen_start, chosen_end = min(
+        intervals,
+        key=lambda value: (
+            abs(value[0] - start_us),
+            -(value[1] - value[0]),
+        ),
+    )
+    fitted["start_us"] = chosen_start
+    fitted["duration_us"] = chosen_end - chosen_start
     if fitted.get("media_type") == "video" and not fitted.get("loop_to_target"):
         fitted["source_duration_us"] = min(
             int(fitted.get("source_duration_us") or fitted["duration_us"]),
@@ -2492,6 +2582,8 @@ def build_visual_recipe(
                 for item in selected
                 if int(item.get("start_us") or 0) < start_us
                 and _visual_display_role(item) == "full_screen_broll"
+                and str(item.get("usage") or "") != "seam_broll"
+                and str(item.get("timing_mode") or "") != "seam_broll"
             ),
             default=0,
         )
@@ -2517,6 +2609,9 @@ def build_visual_recipe(
             timing_mode="sentence",
             usage="enrichment",
         )
+        overlay = _fit_enrichment_around_seams(overlay, selected)
+        if overlay is None:
+            continue
         fitted_overlay = _fit_minor_overlap(overlay, selected)
         if fitted_overlay is None or visual_overlay_conflicts(fitted_overlay, selected):
             continue
@@ -2670,22 +2765,18 @@ def frozen_visual_overlays(
                         0, int(resource.get("duration_us") or 0) - source_start_us
                     )
                     source_duration_us = min(int(defaults["duration_us"]), available_us)
-                    loop_to_target = bool(defaults.get("loop")) and bool(
-                        current_asset.get("loop_allowed", defaults.get("loop"))
-                    )
                     overlay.update(
                         {
                             "source_start_us": source_start_us,
                             "source_duration_us": source_duration_us,
-                            "loop_to_target": loop_to_target,
+                            "loop_to_target": VISUAL_VIDEO_LOOP_TO_TARGET,
                             "mute": defaults["mute"],
                             "fit": defaults["fit"],
                         }
                     )
-                    if not loop_to_target:
-                        overlay["duration_us"] = min(
-                            int(overlay.get("duration_us") or 0), source_duration_us
-                        )
+                    overlay["duration_us"] = min(
+                        int(overlay.get("duration_us") or 0), source_duration_us
+                    )
         if schema == RECIPE_SCHEMA_V2 and resolved_root is not None:
             try:
                 _relative, resource_path = _safe_relative_child(
@@ -2706,6 +2797,15 @@ def frozen_visual_overlays(
                 overlay["video_path"] = str(resource_path)
             else:
                 continue
+        if overlay.get("media_type") == "video":
+            # Old manual/locked recipes may still contain loop_to_target=true.
+            # Enforce the current one-shot policy at consumption time too.
+            overlay["loop_to_target"] = VISUAL_VIDEO_LOOP_TO_TARGET
+            source_duration_us = int(overlay.get("source_duration_us") or 0)
+            if source_duration_us > 0:
+                overlay["duration_us"] = min(
+                    int(overlay.get("duration_us") or 0), source_duration_us
+                )
         result.append(overlay)
     validate_visual_occupancy(result)
     return result

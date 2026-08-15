@@ -925,23 +925,29 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   弹窗的“移除本行”只修改当前行配方，不删除素材库文件。全局图库新增、停用和物理删除
   保护规则见 `docs/SEMANTIC_VISUAL_LIBRARY.md`。
 - catalog v3 严格按用途选材：普通句只接受 `semantic_overlay/action_demo/knowledge_card`，
-  顿号速切只接受 `list_quick_cut`，通用空镜只接受 `full_screen_broll`，拼接点只接受
-  `seam_broll`；v2 继续兼容 `空镜/相关素材/b-roll/enrichment` tags。v3 的
+  顿号速切只接受 `list_quick_cut`，通用空镜只接受 `full_screen_broll`；拼接点优先
+  `seam_broll`，并可从同语义下已批准的 `full_screen_broll` 补充候选。v2 继续兼容
+  `空镜/相关素材/b-roll/enrichment` tags。v3 的
   `semantic_roles.related` 是非自动关系，不能作为空镜开关。锚点输入显式携带
   `usage=enrichment/seam_broll` 和所在短语上下文；直接强相关返回 priority 2，同场景、动作或
   类别下自然且不误导的宽相关允许 priority 1 自动使用，priority 0 只供审核。通用空镜由
   `VISUAL_BROLL_TARGET_INTERVAL_SECONDS=10` 控制约每 10 秒一次的目标尝试；
-  本地在目标点附近只提交确有获准素材支撑的相关短句，实际时间轴仍至少留 6 秒空窗。该值是
+  本地在目标点附近只提交确有获准素材支撑的相关短句，普通空镜之间仍至少留 6 秒空窗；接缝
+  空镜不重置这个间隔。该值是
   尝试间隔而非配额，匹配不到即保留数字人口播。普通全屏空镜先于显式小窗占位；本地按精确
   动作/对象、同类场景或分类回退、编辑型空镜池依次选材，存在精确视频时拒绝宽泛编辑池。
   两类候选仍在一次模型调用内完成。
 - `project_video_source.py` 从当前 `source_task_ids` 绑定的最新原始数字人分段读取边界和下一段
-  脚本；连接处以独立 `seam_broll` 候选参与同一次内容分析，不计入 10 秒周期。4B 在 ASR/raw cues
+  脚本；连接处以独立 `seam_broll` 候选参与同一次内容分析，不计入 10 秒周期。下一段开头无
+  直接命中时，候选上下文扩展为上一段末句加下一段首句，并允许使用同语义下获准的普通全屏
+  空镜；云端仍须拒绝无关或误导素材。4B 在 ASR/raw cues
   已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频
   时从边界开始生成最长 5 秒的 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
   保留。配方先登记手工锁定项，再按接缝、通用全屏空镜、显式语义的顺序占位和更新
-  `used_asset_ids`。视频源短于冻结目标区间时，浏览器预览和渲染器都会让该 overlay 提前结束，
-  不循环也不定格补足。
+  `used_asset_ids`。普通空镜与接缝碰撞时，仅在原句段内寻找不少于 2 秒的前后剩余区间，不能
+  移到无关台词；原句段没有空间才跳过。视频源短于冻结目标区间时，浏览器预览和渲染器都会让该 overlay 提前结束，
+  不循环也不定格补足；该规则同时覆盖自动、人工锁定和历史冻结配方，旧
+  `loop_to_target=true` 在 API 保存、配方消费及渲染任务三层都会被强制关闭。
 - 工作台加载器同时支持严格 catalog v2 和完整 catalog v3。v3 强制
   `concept_ids == auto_trigger_concept_ids`，自动关系只能来自互斥的 depicts/expresses，且每项
   必须给出 `trigger_basis`；`auto_eligible=false` 的概念不会进入模型候选或本地选材。未知或

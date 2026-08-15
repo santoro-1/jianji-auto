@@ -2666,20 +2666,26 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     ),
                 }
             if media_type == "video":
+                source_start_us = int(
+                    raw.get("source_start_us", defaults["source_start_us"])
+                )
+                available_us = max(
+                    0,
+                    int(asset["resource"].get("duration_us") or 0)
+                    - source_start_us,
+                )
+                source_duration_us = min(
+                    int(raw.get("source_duration_us", defaults["duration_us"])),
+                    available_us,
+                )
+                overlay["duration_us"] = min(
+                    int(overlay.get("duration_us") or 0), source_duration_us
+                )
                 overlay.update(
                     {
-                        "source_start_us": int(
-                            raw.get("source_start_us", defaults["source_start_us"])
-                        ),
-                        "source_duration_us": int(
-                            raw.get("source_duration_us", defaults["duration_us"])
-                        ),
-                        "loop_to_target": raw.get(
-                            "loop_to_target",
-                            bool(defaults["loop"])
-                            and bool(asset.get("loop_allowed", defaults["loop"])),
-                        )
-                        is not False,
+                        "source_start_us": source_start_us,
+                        "source_duration_us": source_duration_us,
+                        "loop_to_target": False,
                         "mute": raw.get("mute", defaults["mute"]) is not False,
                         "fit": str(raw.get("fit") or defaults["fit"]),
                     }

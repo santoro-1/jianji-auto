@@ -239,7 +239,7 @@ def test_render_builder_places_window_video_below_nameplate_and_broll_above() ->
         ("全屏 B-roll", 30),
     ]
     assert additions[1].source_duration_us == 1_500_000
-    assert additions[1].loop_to_target is True
+    assert additions[1].loop_to_target is False
 
 
 def test_visual_layer_order_is_image_or_window_then_nameplate_then_broll(tmp_path: Path) -> None:
