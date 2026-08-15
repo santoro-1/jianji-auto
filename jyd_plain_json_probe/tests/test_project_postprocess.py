@@ -166,25 +166,48 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 metadata={"start_seconds": start, "end_seconds": end},
             )
 
-        captured: dict[str, object] = {"submit_count": 0}
+        captured: dict[str, object] = {"submit_count": 0, "jobs": []}
+        statuses: dict[str, dict[str, object]] = {}
 
         def fake_submit_batch(_queue, jobs, variants):
             captured["submit_count"] = int(captured["submit_count"]) + 1
+            captured["jobs"].append(jobs[0])
             captured["job"] = jobs[0]
             captured["variant"] = variants[0]
-            output = Path(jobs[0]["output"]["mp4_path"])
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_bytes(b"captioned-with-bgm")
-            captured["output"] = output
-            return {"batch_id": "export-batch-1", "job_ids": ["export-job-1"]}
+            if jobs[0]["output"].get("skip_export") is True:
+                job_id = f"draft-job-{captured['submit_count']}"
+                draft_dir = (
+                    Path(jobs[0]["output"]["draft_root"])
+                    / jobs[0]["output"]["draft_name"]
+                )
+                draft_dir.mkdir(parents=True, exist_ok=True)
+                (draft_dir / "draft_content.json").write_text("{}", encoding="utf-8")
+                statuses[job_id] = {
+                    "job_id": job_id,
+                    "status": "completed",
+                    "result": {
+                        "output_draft_dir": str(draft_dir),
+                        "output_draft_name": jobs[0]["output"]["draft_name"],
+                    },
+                }
+            else:
+                job_id = f"export-job-{captured['submit_count']}"
+                output = Path(jobs[0]["output"]["mp4_path"])
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_bytes(b"captioned-with-bgm")
+                captured["output"] = output
+                statuses[job_id] = {
+                    "job_id": job_id,
+                    "status": "completed",
+                    "result": {"output_mp4": str(output)},
+                }
+            return {
+                "batch_id": f"batch-{captured['submit_count']}",
+                "job_ids": [job_id],
+            }
 
         def fake_get_status(_queue, job_id):
-            self.assertEqual(job_id, "export-job-1")
-            return {
-                "job_id": job_id,
-                "status": "completed",
-                "result": {"output_mp4": str(captured["output"])},
-            }
+            return statuses[job_id]
 
         with patch(
             "jyd_probe.auth_center.AuthCenterClient.login",
@@ -296,9 +319,13 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertFalse(row["allowed_actions"]["download_current_video"])
                 operation = generated.json()["operations"][-1]
                 self.assertEqual(operation["status"], "SUCCEEDED")
-                self.assertEqual(operation["result"]["preview_mode"], "browser")
-                self.assertNotIn("job_id", operation["result"])
-                self.assertEqual(captured["submit_count"], 0)
+                self.assertEqual(
+                    operation["result"]["preview_mode"],
+                    "browser_with_frozen_draft",
+                )
+                self.assertIn("job_id", operation["result"])
+                self.assertTrue(Path(operation["result"]["output_draft_dir"]).is_dir())
+                self.assertEqual(captured["submit_count"], 1)
 
                 downloaded = client.get(
                     f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/current-video"
@@ -317,9 +344,12 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(exported.status_code, 200, exported.text)
                 exported_row = exported.json()["items"][0]
                 self.assertIsNotNone(exported_row["outputs"]["composition_video"])
-                self.assertEqual(captured["submit_count"], 1)
-                job = captured["job"]
+                self.assertEqual(captured["submit_count"], 2)
+                job = captured["jobs"][0]
+                export_job = captured["jobs"][1]
+                self.assertEqual(export_job["source"]["type"], "existing_draft")
                 self.assertEqual(job["output"]["draft_name"], "1-composition")
+                self.assertTrue(job["output"]["skip_export"])
                 self.assertEqual(job["cover"]["frame_source"], "input_image")
                 self.assertEqual(job["cover"]["image_path"], str(image_path.resolve()))
                 self.assertEqual(job["cover"]["text_line_1"], "健康真相")
@@ -465,7 +495,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     -0.32080308951309267,
                 )
                 self.assertIsNone(retried_row["outputs"]["composition_video"])
-                self.assertEqual(captured["submit_count"], 1)
+                self.assertEqual(captured["submit_count"], 4)
 
                 current = store.get_project(user["user_id"], project["project_id"])
                 current_row = current["items"][0]

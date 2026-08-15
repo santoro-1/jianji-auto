@@ -8,6 +8,7 @@ import json
 from typing import Any, Mapping
 
 from .caption_alignment import alignment_matches
+from .project_music import item_video_duration_us
 from .project_video_source import project_segment_boundaries
 from .semantic_visuals import (
     DEFAULT_LIBRARY_ID,
@@ -103,11 +104,8 @@ def prepare_unified_visual_input(
     base_video = (item.get("outputs") or {}).get("base_video") or {}
     audio = (item.get("outputs") or {}).get("audio") or {}
     subtitles = item.get("subtitles") or {}
-    metadata = base_video.get("metadata") if isinstance(base_video, Mapping) else {}
-    duration = metadata.get("duration_us") if isinstance(metadata, Mapping) else None
-    video_duration_us = (
-        int(duration) if isinstance(duration, int) and duration > 0 else None
-    )
+    duration = item_video_duration_us(item)
+    video_duration_us = duration if duration > 0 else None
     segment_boundaries = project_segment_boundaries(dict(item))
     settings = item.get("settings") if isinstance(item.get("settings"), Mapping) else {}
     source_metadata = (

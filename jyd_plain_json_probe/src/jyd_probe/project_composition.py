@@ -1249,6 +1249,17 @@ class ProjectCompositionCoordinator:
             and len(set(source_quality_variants)) == 1
         ):
             quality_variant = source_quality_variants[0]
+        duration_us = max(
+            (
+                round(float(video.get("end_seconds")) * 1_000_000)
+                for video in videos
+                if isinstance(video, dict)
+                and isinstance(video.get("end_seconds"), (int, float))
+                and not isinstance(video.get("end_seconds"), bool)
+                and float(video["end_seconds"]) > 0
+            ),
+            default=0,
+        )
         signature = {
             "remote_item_id": remote_item_id,
             "source_task_ids": task_ids,
@@ -1303,6 +1314,7 @@ class ProjectCompositionCoordinator:
             external_ref=signature,
             metadata={
                 "segment_count": len(task_ids),
+                "duration_us": duration_us or None,
                 "normalized_to_approved_audio": True,
                 "input_image_asset_id": input_image_asset_id
                 or str(item.get("inputs", {}).get("image", {}).get("asset_id") or ""),

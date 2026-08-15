@@ -98,6 +98,9 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
     if source_kind == "auto":
         source_kind = "template" if _template_dir_from_config(config, source) else "video"
 
+    if source_kind == "existing-draft":
+        return _export_existing_draft(config, source, output)
+
     if source_kind == "video":
         source_draft_dir, template_dir, output_name_source = _prepare_video_source(config, source)
         default_output_root = PROJECT_ROOT / "_local_loop_test"
@@ -231,6 +234,74 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         exported=exported,
         top_level_changes=replace_result.top_level_changes,
         json_changes=replace_result.json_changes + caption_changes,
+    )
+
+
+def _export_existing_draft(
+    config: Mapping[str, Any],
+    source: Mapping[str, Any],
+    output: Mapping[str, Any],
+) -> RenderJobResult:
+    """Export a previously frozen draft without rebuilding its timeline."""
+
+    draft_dir = _positive_path(
+        _value(source, "draft_dir", "template_dir", default=""),
+        "已生成剪映草稿",
+    )
+    if not draft_dir.is_dir() or not (draft_dir / "draft_content.json").is_file():
+        raise RuntimeError(f"已生成剪映草稿结构不完整: {draft_dir}")
+    draft_name = str(
+        _value(source, "draft_name", default=draft_dir.name)
+    ).strip()
+    if not draft_name:
+        raise RuntimeError("已生成剪映草稿缺少名称")
+    output_mp4_text = _value(
+        output,
+        "mp4_path",
+        "output_mp4",
+        "output_path",
+        default=_value(config, "output_mp4", "output_path", default=""),
+    )
+    if not output_mp4_text:
+        raise RuntimeError("导出 MP4 时必须提供 output.mp4_path 或 output_mp4")
+    output_mp4 = Path(output_mp4_text).expanduser().resolve()
+    export_config = _dict_value(config.get("export"))
+    _export_mp4(
+        draft_name,
+        output_mp4,
+        resolution=str(
+            _value(
+                export_config,
+                "resolution",
+                default=_value(output, "resolution", default=""),
+            )
+        ),
+        framerate=str(
+            _value(
+                export_config,
+                "framerate",
+                default=_value(output, "framerate", default=""),
+            )
+        ),
+        timeout=float(
+            _value(
+                export_config,
+                "timeout",
+                "export_timeout",
+                default=_value(output, "timeout", default=1200),
+            )
+        ),
+    )
+    return RenderJobResult(
+        source_kind="existing-draft",
+        source_draft_dir=draft_dir,
+        working_template_dir=draft_dir,
+        output_draft_dir=draft_dir,
+        output_draft_name=draft_name,
+        output_mp4=output_mp4,
+        exported=True,
+        top_level_changes=0,
+        json_changes=0,
     )
 
 

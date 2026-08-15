@@ -113,6 +113,31 @@ class UnifiedClient:
         }
 
 
+def test_visual_input_uses_current_cue_duration_when_base_metadata_is_legacy() -> None:
+    catalog = load_semantic_visual_catalog(CATALOG_ROOT)
+    prepared = prepare_unified_visual_input(
+        {
+            "script_text": "鸡蛋是常见食物。",
+            "outputs": {
+                "audio": {"asset_id": "audio-1", "version": 1, "metadata": {}},
+                "base_video": {"asset_id": "video-1", "metadata": {"segment_count": 1}},
+            },
+            "subtitles": {
+                "bound_audio_asset_id": "audio-1",
+                "raw_cues": [
+                    {
+                        "start_us": 0,
+                        "end_us": 9_900_000,
+                        "text": "鸡蛋是常见食物。",
+                    }
+                ],
+            },
+        },
+        catalog,
+    )
+    assert prepared.video_duration_us == 9_900_000
+
+
 class BlockingUnifiedClient(UnifiedClient):
     def __init__(self) -> None:
         super().__init__()

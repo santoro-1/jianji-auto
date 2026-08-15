@@ -434,15 +434,19 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `0.08..0.25`、失败回退 `0.18`；强人声音乐以低于人声 15 dB 为目标，限制在
 `0.05..0.16`、失败回退 `0.1136`。该字段是服务端冻结结果，不接受客户端手工音量。
 
-`postprocess/generate` 成功后登记 `PREVIEW_READY` 配方并进入 `COMPOSITION_READY`；浏览器
-直接用内部 `base-video`、render cues、真实字体和 BGM 完整预览，不会创建
-`composition_video`，也不要求剪映保持打开。只有用户明确下载普通成片时才调用单行
-`postprocess/export`，此时复用现有剪映队列并只导出一次。后续变体应直接把基础视频和
-同一配方放进变体任务一次导出，不以前述普通成片作为必需中间产物。接口不会自动创建变体。
-若导出因剪映窗口状态等本地原因失败，`base_video`、`PREVIEW_READY` 配方和 render cues 均
-继续保留；客户端应只为该行使用新幂等键重调 `postprocess/export`，无需重跑预览生成，且
-不能把其他已就绪行一并提交到 `postprocess/generate`。
-浏览器预览、4B 按需导出和模块 6 始终使用同一个已按音频时长标准化的 `base_video`。
+`postprocess/generate` 会先登记 `PREVIEW_READY` 配方，再向本地剪映队列提交
+`skip_export=true` 的草稿生成任务；草稿结构完整后才进入 `COMPOSITION_READY`。浏览器仍直接
+使用内部 `base-video`、render cues、真实字体和 BGM 预览，不创建 `composition_video`，草稿
+生成阶段也不编码 MP4。只有用户明确下载普通成片时才调用单行 `postprocess/export`，此时以
+`existing_draft` 复用已冻结草稿，只启动剪映编码。升级前已生成、没有冻结草稿的旧预览继续
+兼容一次“建草稿并导出”。后续变体仍直接把基础视频和同一配方放进变体任务一次导出，不以
+普通成片作为必需中间产物。若导出因剪映窗口状态等本地原因失败，冻结草稿、`base_video`、
+`PREVIEW_READY` 配方和 render cues 均继续保留；客户端只需为该行使用新幂等键重调
+`postprocess/export`，不得把其他已就绪行一并提交到 `postprocess/generate`。
+真实画面时长优先取 `base_video.metadata.duration_us`，旧数据回退到原始分段边界，最后才使用
+当前音频或与当前音频绑定的 raw cues。所有语义视觉和来源文字在建草稿前按该时长裁边：完全
+落在片尾外的项丢弃，跨越片尾的项裁短。因此历史 SeedVR2 画面短于音频时也不会因字幕或贴层
+越过主视频而使整条草稿失败。浏览器预览、4B 和模块 6 使用同一绝对时间轴。
 RunningHub 原始 MP4 分段继续作为不可覆盖历史素材保存，但不直接作为上述时间线画面源；
 这样字幕、BGM 和视频使用完全相同的绝对时间轴，不会因供应商分段的容器实际时长偏短而
 使末尾字幕越界。`base_video` 已包含 4A 生成的 250000 微秒保时长叠化。

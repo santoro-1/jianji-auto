@@ -506,8 +506,10 @@ Worker 控制，本地 4 线程不是账号并发配额。
 glyph advance 测量宽度，把过长文本在原 cue 时间内派生为连续的单行 render cues。
 语义排版先修复过短逗号前缀，再把剩余软/硬标点边界视为不可跨越的分句边界；局部字宽
 切分统一保护数字与量词表达式，避免出现“十 / 年”“5 万 / 名”这类字幕断裂。
-普通 4B 立即把 `base_video`、render cues、字体和 BGM 登记为浏览器预览配方，不向
-`RenderJobQueue` 提交任务。固定参数为居中、画面宽度 `0.8`、`transform_y=-850/1920`
+普通 4B 先把 `base_video`、render cues、字体和 BGM 登记为浏览器预览配方，再向
+`RenderJobQueue` 提交 `skip_export=true` 的草稿生成任务；只有草稿目录和
+`draft_content.json` 均存在时才进入 `COMPOSITION_READY`。此阶段不编码 MP4。固定参数为居中、
+画面宽度 `0.8`、`transform_y=-850/1920`
 （剪映 1080×1920 参考位置 Y=-850）、`DouyinSansBold` 14 号、默认白字、黑色 `0.06` 描边。
 BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人声和曲目综合响度，目标
 为普通音乐低于人声 11 dB、强人声音乐低于人声 15 dB；两者线性音量分别限制在
@@ -520,9 +522,10 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 同一反向计划，不能恢复为从 0 开始的 `% duration` 循环。
 浏览器直接读取同一冻结样式，不得为溢出字幕临时缩字；
 无法可靠排版时状态为 `REVIEW_REQUIRED`，不会静默显示溢出字幕。只有用户明确下载普通
-成片时才调用 `postprocess/export` 提交一次剪映任务。后续变体必须把基础/上传视频与已
+成片时才调用 `postprocess/export`，并使用 `existing_draft` 对已冻结草稿执行 MP4 编码，不再
+重建字幕、BGM、封面和视觉时间线；升级前没有草稿结果的旧预览保留一次兼容重建。后续变体必须把基础/上传视频与已
 冻结的字幕、BGM 配方合并到同一个变体任务中一次导出，不能依赖一个预先导出的普通成片。
-若该按需导出失败但 `base_video` 和 `PREVIEW_READY` 配方仍在，行级失败重试必须直接以新的
+若该按需导出失败但冻结草稿、`base_video` 和 `PREVIEW_READY` 配方仍在，行级失败重试必须直接以新的
 幂等键再次调用 `postprocess/export`；不得把全项目行重新提交给 `postprocess/generate`。
 若 4A 返回多个 RunningHub 原始片段，浏览器预览使用已按音频时长标准化的 `base_video`；
 4B 按需导出和模块 6 使用按 `video_index` 排序的 `video_sequence`，让剪映草稿保留真实分段。
@@ -546,6 +549,10 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 正文视频顶部与封面标题解耦：`build_top_title_texts()` 固定生成一行“世界冠军带你自律”，字号
 19、Y=1535、红字白描边；历史 `top_title` 只保留接口兼容，不再影响浏览器预览或剪映导出。
 
+建草稿前必须用真实画面时长裁剪所有定时视觉和来源文字。时长优先读取
+`base_video.metadata.duration_us`，旧行回退原始分段结束时间，再回退当前音频或其绑定 raw cues；
+起点已在画面外的项丢弃，跨越片尾的项裁短。不能用脚本文字估算时长直接写入草稿。
+
 `ProjectPostprocessCoordinator.sync()` 必须扫描全部仍为 `PENDING/RUNNING` 的 4B 操作，
 不能只检查每行最新一条。更新操作时通过 `operation_id` 精确定位；被新尝试取代的旧操作只
 回收自身终态，不覆盖当前行状态、字幕或成片指针。
@@ -553,11 +560,12 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 新版页面把字幕效果卡直接放在表格“字幕样式”列，点击效果卡才打开字体和颜色配置；BGM
 继续在相邻列直接选择。修改任一设置只把对应脚本行退回 `BASE_VIDEO_READY` 并保留
 `base_video`、付费任务和历史成片。前端用同一个 `POST /postprocess/generate` 仅提交该行
-`item_id`，即可重新派生字幕并刷新浏览器 BGM 预览；服务端只处理请求中明确列出的脚本行。
+`item_id`，即可重新派生字幕、刷新浏览器 BGM 预览并重建该行剪映草稿；服务端只处理请求中明确列出的脚本行。
 批量工具栏的“刷新预览”复用同一契约：有勾选时使用选中行，否则使用当前批次全部
 `base_video` 已存在且不在运行中的行。前端先逐行以 `force_retry=true` 失效旧 4B 配方，再用
 一个 `/postprocess/generate` 请求提交明确的 `item_id` 列表，因此字幕断句、ASR 时间绑定、
-自动 BGM 选择和封面会按当前代码重算，但不会调用 MiniMax、RunningHub 或剪映导出。
+自动 BGM 选择和封面会按当前代码重算，并重建可编辑剪映草稿，但不会调用 MiniMax、RunningHub
+或编码 MP4。
 同一工具栏的“下载视频”把目标行 ID 编码为 `GET /videos/download?item_ids=id1,id2`。后端校验
 所有 ID 都属于当前项目并按项目行顺序打包；省略参数继续打包项目全部当前普通成片。
 姿态或字幕样式保存提交 `preserve_auto_bgm=true`。当新旧模式都是 `auto` 时，Store 保留当前
@@ -580,9 +588,10 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 旧成片和 RunningHub 原始片段，同时解绑并失效原 MiniMax 字幕。原始素材下载按
 `external_ref.video_index` 排序；单片段直接返回文件，多片段使用一次性 ZIP 并附加
 `片段顺序清单.json`，响应结束后删除临时 ZIP。
-底部“一键下载未变体视频”在所有行普通成片预览就绪后启用。前端对仅有浏览器动态预览的
-行顺序调用 `POST /postprocess/export` 并等待真实 `composition_video`，再通过项目级
-`GET /videos/download` 打包；variant 素材不参与，临时 ZIP 在响应结束后删除。
+底部“一键下载未变体视频”在普通成片预览就绪后启用。前端对仅有冻结草稿的行顺序调用
+`POST /postprocess/export` 并等待真实 `composition_video`；单行导出失败会记录任务 ID 并继续
+后续行，最终只把已有或本轮成功的普通成片通过项目级 `GET /videos/download` 打包。variant
+素材不参与，临时 ZIP 在响应结束后删除；若全部失败则不发起空包下载。
 
 `project_content_analysis.py` 负责新增智能内容分析模块 5。Excel/CSV 导入、添加分段和编辑
 脚本只把相应快照置为 `NOT_REQUESTED`，不发起分析。用户点击“生成声音预览和脚本分析”时，前端在

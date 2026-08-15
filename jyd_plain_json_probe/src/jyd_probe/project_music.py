@@ -51,26 +51,6 @@ def item_video_duration_us(item: Mapping[str, Any]) -> int:
     """Return the best local duration fact without calling any external service."""
 
     outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
-    audio = outputs.get("audio") if isinstance(outputs.get("audio"), dict) else {}
-    metadata = audio.get("metadata") if isinstance(audio.get("metadata"), dict) else {}
-    duration = metadata.get("duration_us")
-    if type(duration) is int and duration > 0:
-        return duration
-
-    subtitles = item.get("subtitles") if isinstance(item.get("subtitles"), dict) else {}
-    bound_audio_id = str(subtitles.get("bound_audio_asset_id") or "")
-    current_audio_id = str(audio.get("asset_id") or "")
-    if not bound_audio_id or not current_audio_id or bound_audio_id == current_audio_id:
-        cue_ends = []
-        for cue in subtitles.get("raw_cues") or []:
-            if not isinstance(cue, dict):
-                continue
-            end_us = cue.get("end_us")
-            if type(end_us) is int and end_us > 0:
-                cue_ends.append(end_us)
-        if cue_ends:
-            return max(cue_ends)
-
     base_video = (
         outputs.get("base_video") if isinstance(outputs.get("base_video"), dict) else {}
     )
@@ -95,7 +75,30 @@ def item_video_duration_us(item: Mapping[str, Any]) -> int:
         end_seconds = segment_metadata.get("end_seconds")
         if type(end_seconds) in {int, float} and end_seconds > 0:
             segment_ends.append(round(float(end_seconds) * 1_000_000))
-    return max(segment_ends, default=0)
+    if segment_ends:
+        return max(segment_ends)
+
+    audio = outputs.get("audio") if isinstance(outputs.get("audio"), dict) else {}
+    metadata = audio.get("metadata") if isinstance(audio.get("metadata"), dict) else {}
+    duration = metadata.get("duration_us")
+    if type(duration) is int and duration > 0:
+        return duration
+
+    subtitles = item.get("subtitles") if isinstance(item.get("subtitles"), dict) else {}
+    bound_audio_id = str(subtitles.get("bound_audio_asset_id") or "")
+    current_audio_id = str(audio.get("asset_id") or "")
+    if not bound_audio_id or not current_audio_id or bound_audio_id == current_audio_id:
+        cue_ends = []
+        for cue in subtitles.get("raw_cues") or []:
+            if not isinstance(cue, dict):
+                continue
+            end_us = cue.get("end_us")
+            if type(end_us) is int and end_us > 0:
+                cue_ends.append(end_us)
+        if cue_ends:
+            return max(cue_ends)
+
+    return 0
 
 
 def manual_music_selection(

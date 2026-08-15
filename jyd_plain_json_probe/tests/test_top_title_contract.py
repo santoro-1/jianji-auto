@@ -5,6 +5,7 @@ import pytest
 from jyd_probe.content_replace import _apply_text_material_overrides
 from jyd_probe.project_postprocess import (
     CAPTION_REFERENCE_MAX_EM,
+    bound_visual_overlays_to_video,
     build_project_cover,
     build_source_attribution_texts,
     build_top_title_texts,
@@ -114,6 +115,29 @@ def test_network_source_label_reuses_disclaimer_style_and_overlay_timing() -> No
     assert source["color"] == "#FFFFFF"
     assert source["opacity"] == 0.5
     assert source["font_id"] == "font-id"
+
+
+def test_out_of_range_visuals_are_dropped_and_partial_items_are_trimmed() -> None:
+    overlays = bound_visual_overlays_to_video(
+        [
+            {"asset_id": "inside", "start_us": 8_000_000, "duration_us": 4_000_000},
+            {"asset_id": "outside", "start_us": 12_000_000, "duration_us": 2_000_000},
+        ],
+        10_000_000,
+    )
+    assert overlays == [
+        {"asset_id": "inside", "start_us": 8_000_000, "duration_us": 2_000_000}
+    ]
+    assert build_source_attribution_texts(
+        [
+            {
+                "attribution_text": "素材来源于网络",
+                "start_us": 12_000_000,
+                "duration_us": 2_000_000,
+            }
+        ],
+        video_duration_us=10_000_000,
+    ) == []
 
 
 def test_top_title_rejects_multiline_overflow() -> None:

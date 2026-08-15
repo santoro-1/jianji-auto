@@ -4509,43 +4509,73 @@
             refreshVariantActionAvailability();
             refreshRowSelectionControls();
             try {
+                const downloadableItemIds = new Set(
+                    readyItems.filter((item) => Boolean(item.compositionVideo)).map((item) => item.id)
+                );
+                const failedExports = [];
                 for (let index = 0; index < missing.length; index += 1) {
                     const item = missing[index];
                     showToast('正在导出未变体成片', `正在处理第 ${index + 1}/${missing.length} 条：任务ID ${item.rowKey}。`, 'info');
-                    let project = await workspaceApi(
-                        `/api/new/projects/${projectId}/items/${item.id}/postprocess/export`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ idempotency_key: `bulk-export-${item.id}-${Date.now()}` })
-                        }
-                    );
-                    syncProjectInputs(project);
-                    for (let attempt = 0; attempt < 900; attempt += 1) {
-                        const updated = (project.items || []).find(candidate => candidate.item_id === item.id);
-                        if (updated?.outputs?.composition_video) break;
-                        if (updated?.status === 'COMPOSITION_FAILED') {
-                            throw new Error(`任务ID ${item.rowKey} 导出失败，请在视频预览列重试`);
-                        }
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/status`);
+                    try {
+                        let project = await workspaceApi(
+                            `/api/new/projects/${projectId}/items/${item.id}/postprocess/export`,
+                            {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ idempotency_key: `bulk-export-${item.id}-${Date.now()}` })
+                            }
+                        );
                         syncProjectInputs(project);
-                        const refreshed = (project.items || []).find(candidate => candidate.item_id === item.id);
-                        if (refreshed?.outputs?.composition_video) break;
-                        if (refreshed?.status === 'COMPOSITION_FAILED') {
-                            throw new Error(`任务ID ${item.rowKey} 导出失败，请在视频预览列重试`);
+                        let completed = false;
+                        for (let attempt = 0; attempt < 900; attempt += 1) {
+                            const updated = (project.items || []).find(candidate => candidate.item_id === item.id);
+                            if (updated?.outputs?.composition_video) {
+                                completed = true;
+                                break;
+                            }
+                            if (updated?.status === 'COMPOSITION_FAILED') {
+                                throw new Error(`任务ID ${item.rowKey} 导出失败`);
+                            }
+                            await new Promise(resolve => setTimeout(resolve, 2000));
+                            project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/status`);
+                            syncProjectInputs(project);
+                            const refreshed = (project.items || []).find(candidate => candidate.item_id === item.id);
+                            if (refreshed?.outputs?.composition_video) {
+                                completed = true;
+                                break;
+                            }
+                            if (refreshed?.status === 'COMPOSITION_FAILED') {
+                                throw new Error(`任务ID ${item.rowKey} 导出失败`);
+                            }
+                            if (attempt === 899) throw new Error(`任务ID ${item.rowKey} 导出等待超时`);
                         }
-                        if (attempt === 899) throw new Error(`任务ID ${item.rowKey} 导出等待超时`);
+                        if (completed) downloadableItemIds.add(item.id);
+                    } catch (error) {
+                        failedExports.push({ rowKey: item.rowKey, message: error.message });
+                        try {
+                            syncProjectInputs(await workspaceApi(`/api/new/projects/${projectId}`));
+                        } catch (_) {}
+                        if (index < missing.length - 1) {
+                            showToast('单条导出失败，继续处理', `任务ID ${item.rowKey} 失败，继续后续任务。`, 'warning');
+                        }
                     }
                 }
+                const downloadableItems = readyItems.filter((item) => downloadableItemIds.has(item.id));
+                if (!downloadableItems.length) {
+                    throw new Error(`本次没有成功导出的成片；失败任务：${failedExports.map((item) => item.rowKey).join('、')}`);
+                }
                 const link = document.createElement('a');
-                const itemIdsQuery = encodeURIComponent(readyItems.map((item) => item.id).join(','));
+                const itemIdsQuery = encodeURIComponent(downloadableItems.map((item) => item.id).join(','));
                 link.href = `/api/new/projects/${projectId}/videos/download?item_ids=${itemIdsQuery}`;
                 link.download = '';
                 document.body.appendChild(link);
                 link.click();
                 link.remove();
-                showToast('正在打包下载', `共 ${readyItems.length} 条已完成未变体成片，跳过 ${candidateRows.length - readyItems.length} 条未完成任务；压缩包不包含变体视频。`, 'success');
+                showToast(
+                    failedExports.length ? '部分导出完成' : '正在打包下载',
+                    `成功 ${downloadableItems.length} 条，导出失败 ${failedExports.length} 条，跳过 ${candidateRows.length - readyItems.length} 条未完成任务${failedExports.length ? `；失败任务ID：${failedExports.map((item) => item.rowKey).join('、')}` : ''}。`,
+                    failedExports.length ? 'warning' : 'success'
+                );
             } catch (error) {
                 showToast('一键下载失败', error.message, 'warning');
                 try {
@@ -5037,7 +5067,7 @@
                 return;
             }
             const scope = selected.length ? '选中的' : '当前批次全部';
-            if (!window.confirm(`将刷新${scope} ${targets.length} 条浏览器预览，重新计算字幕断句、ASR 时间绑定、自动 BGM 推荐和三帧封面。不会重新生成声音、数字人或启动剪映导出。是否继续？`)) return;
+            if (!window.confirm(`将刷新${scope} ${targets.length} 条完整预览，重新计算字幕断句、ASR 时间绑定、自动 BGM 推荐和三帧封面，并同步重建可编辑剪映草稿；不会重新生成声音、数字人或编码 MP4。是否继续？`)) return;
 
             const projectId = activeProject.project_id;
             const targetIds = new Set(targets.map((item) => item.id));
@@ -5186,7 +5216,7 @@
                 if (updated?.subtitles?.status !== 'PREVIEW_READY') {
                     throw new Error(updated?.subtitles?.review_reason || '字幕预览尚未准备完成');
                 }
-                showToast('动态预览已刷新', '已刷新字幕、BGM 和三帧封面预览；这里只更新浏览器预览，不会生成新的 MP4。', 'success');
+                showToast('完整预览已刷新', '已刷新字幕、BGM、三帧封面和可编辑剪映草稿；不会生成新的 MP4。', 'success');
                 if (openAfter) openVideoModal(rowId);
             } catch (error) {
                 showToast('动态预览刷新失败', error.message, 'warning');
@@ -6452,15 +6482,15 @@
                 });
                 syncProjectInputs(project);
                 const targetIds = new Set(targetItems.map((item) => item.id));
-                const browserPreviewReady = (project.items || [])
+                const previewAndDraftReady = (project.items || [])
                     .filter((item) => targetIds.has(item.item_id))
-                    .every((item) => item.subtitles?.status === 'PREVIEW_READY');
-                if (browserPreviewReady) {
+                    .every((item) => item.subtitles?.status === 'PREVIEW_READY' && item.status === 'COMPOSITION_READY');
+                if (previewAndDraftReady) {
                     setFinalGenerationPhase(null);
-                    showToast('完整预览已准备', '字幕会按真实时间轴切换，背景音乐将在浏览器中同步播放；没有启动剪映导出。', 'success');
+                    showToast('完整预览已准备', '浏览器预览和可编辑剪映草稿均已生成；下载时只需编码 MP4。', 'success');
                 } else {
                     schedulePostprocessStatusPoll();
-                    showToast('成片任务已提交', '正在添加字幕和所选背景音乐。', 'success');
+                    showToast('剪映草稿任务已提交', '正在把字幕、背景音乐、封面和语义视觉写入可编辑草稿。', 'success');
                 }
             } catch (error) {
                 isGeneratingPostprocess = false;
@@ -6526,8 +6556,8 @@
                     if (!stillActive) {
                         const failed = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED').length;
                         showToast(
-                            failed ? '部分完整成片生成失败' : '完整成片已生成',
-                            failed ? `${failed} 条失败；重新生成会从失败的内部阶段继续。` : '现在预览和下载的都是已添加字幕及所选背景音乐的完整成片。',
+                            failed ? '部分剪映草稿生成失败' : '完整预览已准备',
+                            failed ? `${failed} 条失败；重新生成会从失败的内部阶段继续。` : '浏览器预览和可编辑剪映草稿均已生成；下载时只需编码 MP4。',
                             failed ? 'warning' : 'success'
                         );
                     }

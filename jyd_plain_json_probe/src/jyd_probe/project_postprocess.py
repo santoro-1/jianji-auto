@@ -28,6 +28,7 @@ from .music_matching import MusicProfileMatcher
 from .project_music import (
     ProjectMusicSelector,
     automatic_music_identity_counts,
+    item_video_duration_us,
     manual_music_selection,
 )
 from .project_export_naming import (
@@ -602,6 +603,7 @@ def build_source_attribution_texts(
     *,
     font: dict[str, Any] | None = None,
     layout_profile_id: Any = DEFAULT_LAYOUT_PROFILE,
+    video_duration_us: int | None = None,
 ) -> list[dict[str, Any]]:
     """Build timed top-right source labels for attributed semantic visuals."""
 
@@ -614,7 +616,13 @@ def build_source_attribution_texts(
         duration_us = int(overlay.get("duration_us") or 0)
         if not text or start_us < 0 or duration_us <= 0:
             continue
-        intervals.append((start_us, start_us + duration_us, text))
+        if video_duration_us is not None and start_us >= video_duration_us:
+            continue
+        end_us = start_us + duration_us
+        if video_duration_us is not None:
+            end_us = min(end_us, video_duration_us)
+        if end_us > start_us:
+            intervals.append((start_us, end_us, text))
     intervals.sort(key=lambda item: (item[0], item[1], item[2]))
 
     merged: list[list[Any]] = []
@@ -660,6 +668,32 @@ def build_source_attribution_texts(
         }
         for index, (start_us, end_us, text) in enumerate(merged, start=1)
     ]
+
+
+def bound_visual_overlays_to_video(
+    overlays: Iterable[dict[str, Any]], video_duration_us: int
+) -> list[dict[str, Any]]:
+    """Drop fully out-of-range visuals and trim partial overlaps to the video."""
+
+    bounded: list[dict[str, Any]] = []
+    for raw in overlays:
+        overlay = dict(raw)
+        start_us = int(overlay.get("start_us") or 0)
+        duration_us = int(overlay.get("duration_us") or 0)
+        if start_us < 0 or duration_us <= 0:
+            continue
+        if video_duration_us > 0:
+            if start_us >= video_duration_us:
+                continue
+            duration_us = min(duration_us, video_duration_us - start_us)
+        if duration_us <= 0:
+            continue
+        overlay["duration_us"] = duration_us
+        source_duration_us = overlay.get("source_duration_us")
+        if isinstance(source_duration_us, int) and source_duration_us > duration_us:
+            overlay["source_duration_us"] = duration_us
+        bounded.append(overlay)
+    return bounded
 
 
 _PREFERRED_PHRASE_END_TERMS = (
@@ -1873,6 +1907,123 @@ class ProjectPostprocessCoordinator:
             strong_vocals=strong_vocals,
         )
 
+    def _build_draft_job(
+        self,
+        item: dict[str, Any],
+        *,
+        draft_name: str,
+        output_mp4: Path | None = None,
+        skip_export: bool,
+    ) -> dict[str, Any]:
+        subtitles = dict(item.get("subtitles") or {})
+        if subtitles.get("status") != "PREVIEW_READY" or not subtitles.get(
+            "render_cues"
+        ):
+            raise ValueError("请先生成浏览器字幕与 BGM 预览")
+        style = dict(subtitles.get("style") or {})
+        settings = dict(item.get("settings", {}).get("postprocess") or {})
+        profile_id = normalize_layout_profile(
+            settings.get("layout_profile") or DEFAULT_LAYOUT_PROFILE
+        )
+        profile = layout_profile(profile_id)
+        caption_profile = profile["caption"]
+        font = layout_font(
+            self.fonts,
+            str(style.get("font_id") or settings.get("font_identity") or ""),
+        )
+        bgm_identity = str(settings.get("bgm_identity") or "")
+        if bgm_identity and bgm_identity not in self.bgm_assets:
+            raise ValueError("浏览器预览绑定的 BGM 不可用")
+        output: dict[str, Any] = {
+            "draft_root": str(self.draft_root),
+            "draft_name": draft_name,
+            "skip_export": skip_export,
+        }
+        if output_mp4 is not None:
+            output["mp4_path"] = str(output_mp4)
+        job: dict[str, Any] = {
+            "schema": "jyd.render_job.v1",
+            "source": build_project_video_source(item),
+            "original_video_volume": 0.0,
+            "output": output,
+            "captions": {
+                "cues": subtitles["render_cues"],
+                "track_name": "MiniMax 单行字幕",
+                "size": float(caption_profile["font_size"]),
+                "clip_scale": float(caption_profile["clip_scale"]),
+                "color": "#FFFFFF",
+                "stroke_color": "",
+                "stroke_width": 0.0,
+                "shadow_color": "#000000",
+                "shadow_alpha": float(caption_profile["shadow_alpha"]),
+                "shadow_distance": 5.0,
+                "shadow_angle": -45.0,
+                "shadow_smoothing": 0.45000001788139343,
+                "transform_x": 0.0,
+                "transform_y": float(caption_profile["transform_y"]),
+                "line_max_width": float(caption_profile["max_width_ratio"]),
+                "max_lines": 1,
+                "single_line": True,
+                "font_id": str(font.get("resource_id") or ""),
+                "font_path": str(font["path"]),
+                "font_title": str(font.get("name") or ""),
+            },
+            "audios": [
+                build_project_speech_audio(item),
+                *(
+                    [
+                        {
+                            "type": "bgm",
+                            "library_identity": bgm_identity,
+                            "target_start_us": 0,
+                            "target_duration_us": 0,
+                            "fit_to_video": True,
+                            "align_to_end": True,
+                            "crossfade_us": BGM_CROSSFADE_US,
+                            "volume": float(
+                                settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
+                            ),
+                        }
+                    ]
+                    if bgm_identity
+                    else []
+                ),
+            ],
+            "export": {"resolution": "1080P", "framerate": "30fps"},
+        }
+        video_duration_us = item_video_duration_us(item)
+        visual_overlays = bound_visual_overlays_to_video(
+            apply_layout_to_visual_overlays(
+                frozen_visual_overlays(
+                    item, library_root=self.semantic_visual_library_root
+                ),
+                profile_id,
+            ),
+            video_duration_us,
+        )
+        job["visual_overlays"] = visual_overlays
+        job["fixed_overlays"] = [
+            fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
+        ]
+        title_texts = [
+            *build_top_title_texts(
+                settings.get("top_title"), font=font, layout_profile_id=profile_id
+            ),
+            *nameplate_texts(profile_id, font=font),
+            *build_source_attribution_texts(
+                visual_overlays,
+                font=font,
+                layout_profile_id=profile_id,
+                video_duration_us=video_duration_us or None,
+            ),
+        ]
+        if title_texts:
+            job["texts"] = title_texts
+        cover = build_project_cover(item, fonts=self.fonts)
+        if cover is not None:
+            job["cover"] = cover
+        return job
+
     def start(
         self,
         owner_user_id: str,
@@ -2112,6 +2263,9 @@ class ProjectPostprocessCoordinator:
                 }
             )
             subtitle_updates.append((item, subtitles))
+        draft_jobs: list[dict[str, Any]] = []
+        draft_variants: list[dict[str, Any]] = []
+        draft_operations: list[tuple[dict[str, Any], dict[str, Any]]] = []
         for item, subtitles in subtitle_updates:
             selected = resolved_settings[str(item["item_id"])]
             self.store.configure_item_postprocess(
@@ -2165,6 +2319,25 @@ class ProjectPostprocessCoordinator:
                         item=updated_item,
                         catalog=self.semantic_visual_catalog,
                     )
+            latest_project = self.store.get_project(owner_user_id, project_id)
+            latest_item = next(
+                (
+                    candidate
+                    for candidate in latest_project.get("items", [])
+                    if candidate.get("item_id") == item["item_id"]
+                ),
+                None,
+            )
+            if not isinstance(latest_item, dict):
+                raise KeyError("项目脚本行不存在")
+            draft_name = available_draft_name(
+                self.draft_root, composition_draft_name(latest_item)
+            )
+            job = self._build_draft_job(
+                latest_item,
+                draft_name=draft_name,
+                skip_export=True,
+            )
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -2186,26 +2359,67 @@ class ProjectPostprocessCoordinator:
                     / 2,
                 },
             )
-            self.store.transition_operation(
-                owner_user_id,
-                project_id,
-                item["item_id"],
-                operation_type="POSTPROCESS_GENERATE",
-                status="SUCCEEDED",
-                item_status="COMPOSITION_READY",
-                result={
-                    "operation_id": operation["operation_id"],
-                    "preview_mode": "browser",
-                    "base_video_asset_id": item.get("outputs", {})
-                    .get("base_video", {})
-                    .get("asset_id"),
-                    "caption_cue_count": len(subtitles["render_cues"]),
-                    "bgm_identity": selected.get("bgm_identity") or None,
-                    "bgm_selection_mode": selected.get("bgm_selection_mode"),
-                    "music_selection": selected.get("music_selection"),
-                },
+            job["observability"] = {
+                "project_id": project_id,
+                "item_id": item["item_id"],
+                "operation_id": operation["operation_id"],
+                "correlation_id": operation["correlation_id"],
+            }
+            draft_jobs.append(job)
+            draft_variants.append(
+                {
+                    "project_id": project_id,
+                    "item_id": item["item_id"],
+                    "kind": "composition_draft",
+                }
             )
-        return self.store.get_project(owner_user_id, project_id)
+            draft_operations.append((item, operation))
+        try:
+            submitted = self.render_queue.submit_batch(draft_jobs, draft_variants)
+            batch_id = str(submitted.get("batch_id") or "")
+            job_ids = [str(value) for value in submitted.get("job_ids", [])]
+            if not batch_id or len(job_ids) != len(draft_operations):
+                raise ValueError("剪映任务队列返回了无效的草稿生成结果")
+            for (item, operation), job_id in zip(draft_operations, job_ids):
+                self.store.add_link(
+                    owner_user_id=owner_user_id,
+                    project_id=project_id,
+                    item_id=item["item_id"],
+                    system="jianying",
+                    relation="postprocess_draft_job",
+                    external_id=job_id,
+                    metadata={"batch_id": batch_id, "reason": "postprocess_generate"},
+                )
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=operation["operation_id"],
+                    operation_type="POSTPROCESS_GENERATE",
+                    status="RUNNING",
+                    item_status="POSTPROCESS_RUNNING",
+                    result={
+                        "batch_id": batch_id,
+                        "job_id": job_id,
+                        "operation_id": operation["operation_id"],
+                        "preview_mode": "browser_with_frozen_draft",
+                    },
+                )
+        except Exception as exc:
+            for item, operation in draft_operations:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=operation["operation_id"],
+                    operation_type="POSTPROCESS_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
+                )
+            raise
+        return self.sync(owner_user_id, project_id)
 
     def export_preview(
         self,
@@ -2246,19 +2460,6 @@ class ProjectPostprocessCoordinator:
         base_video = item.get("outputs", {}).get("base_video")
         if not isinstance(base_video, dict) or not base_video.get("managed_path"):
             raise ValueError("当前浏览器预览缺少画面源文件")
-        style = dict(subtitles.get("style") or {})
-        settings = dict(item.get("settings", {}).get("postprocess") or {})
-        profile_id = normalize_layout_profile(
-            settings.get("layout_profile") or DEFAULT_LAYOUT_PROFILE
-        )
-        profile = layout_profile(profile_id)
-        caption_profile = profile["caption"]
-        font = layout_font(
-            self.fonts, str(style.get("font_id") or settings.get("font_identity") or "")
-        )
-        bgm_identity = str(settings.get("bgm_identity") or "")
-        if bgm_identity and bgm_identity not in self.bgm_assets:
-            raise ValueError("浏览器预览绑定的 BGM 不可用")
         output = (
             self.storage_root
             / "projects"
@@ -2268,92 +2469,59 @@ class ProjectPostprocessCoordinator:
             / "composition"
             / f"composition-{uuid.uuid4().hex}.mp4"
         )
-        job = {
-            "schema": "jyd.render_job.v1",
-            "source": build_project_video_source(item),
-            "original_video_volume": 0.0,
-            "output": {
-                "draft_root": str(self.draft_root),
-                "draft_name": available_draft_name(
+        frozen_draft: dict[str, Any] | None = None
+        for candidate in reversed(project.get("operations", [])):
+            if (
+                candidate.get("operation_type") == "POSTPROCESS_GENERATE"
+                and candidate.get("item_id") == item["item_id"]
+                and candidate.get("status") == "SUCCEEDED"
+            ):
+                result = (
+                    candidate.get("result")
+                    if isinstance(candidate.get("result"), dict)
+                    else {}
+                )
+                draft_dir_text = str(result.get("output_draft_dir") or "")
+                draft_name = str(result.get("output_draft_name") or "")
+                if draft_dir_text and draft_name:
+                    draft_dir = Path(draft_dir_text).resolve()
+                    if draft_dir.is_dir() and (draft_dir / "draft_content.json").is_file():
+                        frozen_draft = {
+                            "draft_dir": str(draft_dir),
+                            "draft_name": draft_name,
+                        }
+                break
+        if frozen_draft is not None:
+            job = {
+                "schema": "jyd.render_job.v1",
+                "source": {"type": "existing_draft", **frozen_draft},
+                "output": {"mp4_path": str(output)},
+                "export": {"resolution": "1080P", "framerate": "30fps"},
+            }
+            export_source = "frozen_draft"
+        else:
+            # Compatibility path for previews created before draft pre-generation
+            # was introduced. Newly generated rows always take the branch above.
+            job = self._build_draft_job(
+                item,
+                draft_name=available_draft_name(
                     self.draft_root, composition_draft_name(item)
                 ),
-                "mp4_path": str(output),
-                "skip_export": False,
-            },
-            "captions": {
-                "cues": subtitles["render_cues"],
-                "track_name": "MiniMax 单行字幕",
-                "size": float(caption_profile["font_size"]),
-                "clip_scale": float(caption_profile["clip_scale"]),
-                "color": "#FFFFFF",
-                "stroke_color": "",
-                "stroke_width": 0.0,
-                "shadow_color": "#000000",
-                "shadow_alpha": float(caption_profile["shadow_alpha"]),
-                "shadow_distance": 5.0,
-                "shadow_angle": -45.0,
-                "shadow_smoothing": 0.45000001788139343,
-                "transform_x": 0.0,
-                "transform_y": float(caption_profile["transform_y"]),
-                "line_max_width": float(caption_profile["max_width_ratio"]),
-                "max_lines": 1,
-                "single_line": True,
-                "font_id": str(font.get("resource_id") or ""),
-                "font_path": str(font["path"]),
-                "font_title": str(font.get("name") or ""),
-            },
-            "audios": [
-                build_project_speech_audio(item),
-                *(
-                    [
-                    {
-                        "type": "bgm",
-                        "library_identity": bgm_identity,
-                        "target_start_us": 0,
-                        "target_duration_us": 0,
-                        "fit_to_video": True,
-                        "align_to_end": True,
-                        "crossfade_us": BGM_CROSSFADE_US,
-                        "volume": float(
-                            settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
-                        ),
-                    }
-                    ]
-                    if bgm_identity
-                    else []
-                ),
-            ],
-            "export": {"resolution": "1080P", "framerate": "30fps"},
-        }
-        visual_overlays = apply_layout_to_visual_overlays(
-            frozen_visual_overlays(item, library_root=self.semantic_visual_library_root),
-            profile_id,
-        )
-        job["visual_overlays"] = visual_overlays
-        job["fixed_overlays"] = [
-            fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
-        ]
-        title_texts = [
-            *build_top_title_texts(
-                settings.get("top_title"), font=font, layout_profile_id=profile_id
-            ),
-            *nameplate_texts(profile_id, font=font),
-            *build_source_attribution_texts(
-                visual_overlays, font=font, layout_profile_id=profile_id
-            ),
-        ]
-        if title_texts:
-            job["texts"] = title_texts
-        cover = build_project_cover(item, fonts=self.fonts)
-        if cover is not None:
-            job["cover"] = cover
+                output_mp4=output,
+                skip_export=False,
+            )
+            export_source = "legacy_build_and_export"
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,
             item_id=item["item_id"],
             operation_type="POSTPROCESS_EXPORT",
             idempotency_key=clean_key,
-            payload={"reason": "explicit_download", "base_video_asset_id": base_video.get("asset_id")},
+            payload={
+                "reason": "explicit_download",
+                "base_video_asset_id": base_video.get("asset_id"),
+                "export_source": export_source,
+            },
         )
         job["observability"] = {
             "project_id": project_id,
@@ -2459,6 +2627,48 @@ class ProjectPostprocessCoordinator:
                 )
                 continue
             render_result = status.get("result") if isinstance(status.get("result"), dict) else {}
+            if operation_type == "POSTPROCESS_GENERATE":
+                draft_dir = Path(
+                    str(render_result.get("output_draft_dir") or "")
+                ).resolve()
+                draft_name = str(render_result.get("output_draft_name") or "").strip()
+                if (
+                    not draft_name
+                    or not draft_dir.is_dir()
+                    or not (draft_dir / "draft_content.json").is_file()
+                ):
+                    self.store.transition_operation(
+                        owner_user_id,
+                        project_id,
+                        item["item_id"],
+                        operation_id=operation_id,
+                        operation_type=operation_type,
+                        status="FAILED",
+                        item_status=(
+                            "COMPOSITION_FAILED" if is_latest else preserved_item_status
+                        ),
+                        result={"job_id": job_id},
+                        error_code="DRAFT_OUTPUT_MISSING",
+                        error_message="草稿生成任务完成但剪映草稿不存在或结构不完整",
+                    )
+                    continue
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=operation_id,
+                    operation_type=operation_type,
+                    status="SUCCEEDED",
+                    item_status=("COMPOSITION_READY" if is_latest else preserved_item_status),
+                    result={
+                        **result,
+                        "job_id": job_id,
+                        "output_draft_dir": str(draft_dir),
+                        "output_draft_name": draft_name,
+                        "preview_mode": "browser_with_frozen_draft",
+                    },
+                )
+                continue
             output = Path(str(render_result.get("output_mp4") or "")).resolve()
             if not output.is_file():
                 self.store.transition_operation(

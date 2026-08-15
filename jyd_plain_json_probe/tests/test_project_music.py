@@ -85,6 +85,12 @@ class ProjectMusicSelectionTest(unittest.TestCase):
         item["outputs"]["base_video"] = {"metadata": {"duration_us": 9_000_000}}
         self.assertEqual(item_video_duration_us(item), 9_000_000)
 
+    def test_real_video_duration_wins_when_audio_is_longer(self) -> None:
+        item = _item()
+        item["outputs"]["audio"]["metadata"] = {"duration_us": 10_000_000}
+        item["outputs"]["base_video"] = {"metadata": {"duration_us": 9_000_000}}
+        self.assertEqual(item_video_duration_us(item), 9_000_000)
+
     def test_analysis_can_choose_a_preliminary_top1_before_audio_exists(self) -> None:
         selector = ProjectMusicSelector(self.matcher, self.available)
         item = _item(

@@ -916,6 +916,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 )
                 current = payload["items"][0]
                 self.assertIsNotNone(current["outputs"]["base_video"])
+                self.assertEqual(
+                    current["outputs"]["base_video"]["metadata"]["duration_us"],
+                    3_000_000,
+                )
                 self.assertEqual(len(current["outputs"]["original_video_segments"]), 1)
                 segment_asset = current["outputs"]["original_video_segments"][0]
                 self.assertEqual(

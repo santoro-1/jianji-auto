@@ -117,6 +117,24 @@ jyd_plain_json_probe/data/template_library/demo_template/
 
 `library_root` 留空时使用 `jyd_plain_json_probe/template_library`。模板库里的草稿应当已经是明文，所以渲染时不会重复解密。
 
+已经完成时间线构建、只需要编码 MP4 时，使用 `existing_draft`：
+
+```json
+{
+  "source": {
+    "type": "existing_draft",
+    "draft_dir": "D:/剪映草稿/JianyingPro Drafts/已冻结草稿",
+    "draft_name": "已冻结草稿"
+  },
+  "output": {"mp4_path": "D:/输出/result.mp4"},
+  "export": {"resolution": "1080P", "framerate": "30fps"}
+}
+```
+
+该模式校验草稿目录及 `draft_content.json` 后直接调用剪映导出，不重新执行字幕、音频、封面、
+贴层或其他时间线修改。项目 4B 在 `postprocess/generate` 阶段先用 `skip_export=true` 生成冻结
+草稿，下载阶段再用此模式编码。
+
 ## output
 
 ```json
