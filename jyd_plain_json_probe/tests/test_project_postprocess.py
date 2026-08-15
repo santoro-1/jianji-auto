@@ -74,6 +74,135 @@ class ProjectPostprocessApiTest(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
+    def test_export_prepares_old_preview_draft_before_starting_mp4_export(self) -> None:
+        user_id = "old-preview-user"
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id=user_id,
+            owner_username="tester",
+            name="旧预览导出",
+            items=[{"row_key": "1", "script_text": "旧预览"}],
+        )
+        item = project["items"][0]
+        base_path = self.settings.storage_root / "old-preview-base.mp4"
+        base_path.write_bytes(b"video")
+        store.add_asset(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            asset_type="base_video",
+            source_type="runninghub_merge",
+            status="READY",
+            filename=base_path.name,
+            managed_path=str(base_path),
+            make_current=True,
+        )
+        store.set_item_subtitles(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": [{"text": "旧预览", "start_us": 0, "duration_us": 1_000_000}],
+                "render_cues": [{"text": "旧预览", "start_us": 0, "duration_us": 1_000_000}],
+                "status": "PREVIEW_READY",
+                "style": {},
+                "overflow_risk": False,
+            },
+        )
+
+        stale_dir = self.settings.default_draft_root / "stale-draft"
+        stale_dir.mkdir(parents=True)
+        (stale_dir / "draft_content.json").write_text("{}", encoding="utf-8")
+        stale = store.create_operation(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            idempotency_key="stale-success",
+            payload={},
+        )
+        store.transition_operation(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            operation_id=stale["operation_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            status="SUCCEEDED",
+            item_status="COMPOSITION_READY",
+            result={
+                "output_draft_dir": str(stale_dir),
+                "output_draft_name": stale_dir.name,
+            },
+        )
+        failed = store.create_operation(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            idempotency_key="newer-failed",
+            payload={},
+        )
+        store.transition_operation(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            operation_id=failed["operation_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            status="FAILED",
+            item_status="COMPOSITION_FAILED",
+            error_code="TEST",
+            error_message="new draft failed",
+        )
+
+        class Queue:
+            def __init__(self) -> None:
+                self.jobs = []
+
+            def submit_batch(self, jobs, _variants):
+                self.jobs.extend(jobs)
+                return {"batch_id": "prepare-batch", "job_ids": ["prepare-job"]}
+
+            def get_status(self, _job_id):
+                return {"job_id": "prepare-job", "status": "running"}
+
+        class EmptyMusicMatcher:
+            def snapshot(self):
+                return {"profiles": []}
+
+        queue = Queue()
+        coordinator = ProjectPostprocessCoordinator(
+            store,
+            queue,
+            storage_root=self.settings.storage_root,
+            draft_root=self.settings.default_draft_root,
+            fonts=[],
+            bgm_assets=[],
+            music_matcher=EmptyMusicMatcher(),
+        )
+        prepared_job = {
+            "schema": "jyd.render_job.v1",
+            "source": {"type": "video", "media_path": str(base_path)},
+            "output": {"draft_root": str(self.settings.default_draft_root), "draft_name": "fresh", "skip_export": True},
+        }
+        with patch.object(coordinator, "_build_draft_job", return_value=prepared_job):
+            result = coordinator.export_preview(
+                user_id,
+                project["project_id"],
+                item["item_id"],
+                idempotency_key="download-old-preview",
+            )
+
+        self.assertEqual(len(queue.jobs), 1)
+        self.assertTrue(queue.jobs[0]["output"]["skip_export"])
+        self.assertNotIn("mp4_path", queue.jobs[0]["output"])
+        latest = result["operations"][-1]
+        self.assertEqual(latest["operation_type"], "POSTPROCESS_GENERATE")
+        self.assertEqual(latest["result"]["reason"], "export_prepare")
+        self.assertFalse(
+            any(operation["operation_type"] == "POSTPROCESS_EXPORT" for operation in result["operations"])
+        )
+
     def test_one_asr_failure_does_not_block_later_rows(self) -> None:
         user_id = "postprocess-isolation-user"
         store = ProjectStore(self.settings.storage_root / "control.db")

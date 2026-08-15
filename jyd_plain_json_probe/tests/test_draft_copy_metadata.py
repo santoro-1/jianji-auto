@@ -117,6 +117,44 @@ class DraftDiscoveryRetryTest(unittest.TestCase):
         self.assertEqual(Controller.attempts, 1)
         sleep.assert_not_called()
 
+    def test_export_retries_when_draft_click_did_not_enter_editor(self) -> None:
+        class AutomationError(Exception):
+            pass
+
+        class Controller:
+            attempts = 0
+
+            def export_draft(self, draft_name, output_path, **kwargs):
+                Controller.attempts += 1
+                if Controller.attempts < 3:
+                    raise AutomationError("未在编辑窗口中找到导出按钮")
+
+        with (
+            patch("jyd_probe.render_job._load_export_api", return_value=(Controller, (), ())),
+            patch("jyd_probe.render_job.time.sleep") as sleep,
+        ):
+            _export_mp4("click-missed-draft", self.root_path("out.mp4"))
+
+        self.assertEqual(Controller.attempts, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_export_reports_editor_entry_failure_after_retries(self) -> None:
+        class Controller:
+            attempts = 0
+
+            def export_draft(self, draft_name, output_path, **kwargs):
+                Controller.attempts += 1
+                raise RuntimeError("未在编辑窗口中找到导出按钮")
+
+        with (
+            patch("jyd_probe.render_job._load_export_api", return_value=(Controller, (), ())),
+            patch("jyd_probe.render_job.time.sleep"),
+            self.assertRaisesRegex(RuntimeError, "点击草稿后未进入编辑页"),
+        ):
+            _export_mp4("never-opened-draft", self.root_path("out.mp4"))
+
+        self.assertEqual(Controller.attempts, 10)
+
     @staticmethod
     def root_path(name: str) -> Path:
         root = PROJECT_ROOT / "runtime" / "test_tmp" / "draft_discovery_retry"

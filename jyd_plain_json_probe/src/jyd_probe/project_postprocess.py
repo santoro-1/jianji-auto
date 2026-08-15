@@ -2549,48 +2549,127 @@ class ProjectPostprocessCoordinator:
             / "composition"
             / f"composition-{uuid.uuid4().hex}.mp4"
         )
-        frozen_draft: dict[str, Any] | None = None
-        for candidate in reversed(project.get("operations", [])):
-            if (
-                candidate.get("operation_type") == "POSTPROCESS_GENERATE"
+        latest_generate = next(
+            (
+                candidate
+                for candidate in reversed(project.get("operations", []))
+                if candidate.get("operation_type") == "POSTPROCESS_GENERATE"
                 and candidate.get("item_id") == item["item_id"]
-                and candidate.get("status") == "SUCCEEDED"
-            ):
-                result = (
-                    candidate.get("result")
-                    if isinstance(candidate.get("result"), dict)
-                    else {}
-                )
-                draft_dir_text = str(result.get("output_draft_dir") or "")
-                draft_name = str(result.get("output_draft_name") or "")
-                if draft_dir_text and draft_name:
-                    draft_dir = Path(draft_dir_text).resolve()
-                    if draft_dir.is_dir() and (draft_dir / "draft_content.json").is_file():
-                        frozen_draft = {
-                            "draft_dir": str(draft_dir),
-                            "draft_name": draft_name,
-                        }
-                break
-        if frozen_draft is not None:
-            job = {
-                "schema": "jyd.render_job.v1",
-                "source": {"type": "existing_draft", **frozen_draft},
-                "output": {"mp4_path": str(output)},
-                "export": {"resolution": "1080P", "framerate": "30fps"},
-            }
-            export_source = "frozen_draft"
-        else:
-            # Compatibility path for previews created before draft pre-generation
-            # was introduced. Newly generated rows always take the branch above.
-            job = self._build_draft_job(
+            ),
+            None,
+        )
+        frozen_draft: dict[str, Any] | None = None
+        if latest_generate is not None and latest_generate.get("status") == "SUCCEEDED":
+            result = (
+                latest_generate.get("result")
+                if isinstance(latest_generate.get("result"), dict)
+                else {}
+            )
+            draft_dir_text = str(result.get("output_draft_dir") or "")
+            draft_name = str(result.get("output_draft_name") or "")
+            if draft_dir_text and draft_name:
+                draft_dir = Path(draft_dir_text).resolve()
+                if draft_dir.is_dir() and (draft_dir / "draft_content.json").is_file():
+                    frozen_draft = {
+                        "draft_dir": str(draft_dir),
+                        "draft_name": draft_name,
+                    }
+
+        if frozen_draft is None:
+            # Old previews did not pre-generate a draft.  Prepare one as its own
+            # queue step and let the caller invoke export again after it succeeds.
+            # This keeps timeline construction out of the Jianying export step.
+            prepare_key = (
+                "export-prepare-"
+                + hashlib.sha256(clean_key.encode("utf-8")).hexdigest()[:32]
+            )
+            prepare_operation = self.store.create_operation(
+                owner_user_id=owner_user_id,
+                project_id=project_id,
+                item_id=item["item_id"],
+                operation_type="POSTPROCESS_GENERATE",
+                idempotency_key=prepare_key,
+                payload={
+                    "reason": "prepare_frozen_draft_for_export",
+                    "base_video_asset_id": base_video.get("asset_id"),
+                },
+            )
+            prepare_job = self._build_draft_job(
                 item,
                 draft_name=available_draft_name(
                     self.draft_root, composition_draft_name(item)
                 ),
-                output_mp4=output,
-                skip_export=False,
+                skip_export=True,
             )
-            export_source = "legacy_build_and_export"
+            prepare_job["observability"] = {
+                "project_id": project_id,
+                "item_id": item["item_id"],
+                "operation_id": prepare_operation["operation_id"],
+                "correlation_id": prepare_operation["correlation_id"],
+            }
+            try:
+                submitted = self.render_queue.submit_batch(
+                    [prepare_job],
+                    [
+                        {
+                            "project_id": project_id,
+                            "item_id": item["item_id"],
+                            "kind": "composition_draft",
+                        }
+                    ],
+                )
+                batch_id = str(submitted.get("batch_id") or "")
+                job_ids = [str(value) for value in submitted.get("job_ids", [])]
+                if not batch_id or len(job_ids) != 1:
+                    raise ValueError("剪映任务队列返回了无效的草稿准备结果")
+                job_id = job_ids[0]
+                self.store.add_link(
+                    owner_user_id=owner_user_id,
+                    project_id=project_id,
+                    item_id=item["item_id"],
+                    system="jianying",
+                    relation="postprocess_draft_job",
+                    external_id=job_id,
+                    metadata={"batch_id": batch_id, "reason": "export_prepare"},
+                )
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=prepare_operation["operation_id"],
+                    operation_type="POSTPROCESS_GENERATE",
+                    status="RUNNING",
+                    item_status="POSTPROCESS_RUNNING",
+                    result={
+                        "batch_id": batch_id,
+                        "job_id": job_id,
+                        "operation_id": prepare_operation["operation_id"],
+                        "preview_mode": "browser_with_frozen_draft",
+                        "reason": "export_prepare",
+                    },
+                )
+            except Exception as exc:
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=prepare_operation["operation_id"],
+                    operation_type="POSTPROCESS_GENERATE",
+                    status="FAILED",
+                    item_status="COMPOSITION_FAILED",
+                    error_code=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                raise
+            return self.sync(owner_user_id, project_id)
+
+        job = {
+            "schema": "jyd.render_job.v1",
+            "source": {"type": "existing_draft", **frozen_draft},
+            "output": {"mp4_path": str(output)},
+            "export": {"resolution": "1080P", "framerate": "30fps"},
+        }
+        export_source = "frozen_draft"
         operation = self.store.create_operation(
             owner_user_id=owner_user_id,
             project_id=project_id,

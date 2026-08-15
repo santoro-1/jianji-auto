@@ -1052,7 +1052,6 @@
         // refresh server state while the native file chooser is open.
         let activeImageItemId = null;
         let activeVideoPreviewRow = null;
-        let pendingPreviewDownloadItemId = null;
         let previewCoverPrefixPlayed = false;
         let previewCoverPlayDelayTimer = null;
         const previewBgmAudios = [new Audio(), new Audio()];
@@ -2432,15 +2431,17 @@
             if (downloadVideos) {
                 const candidates = selectedCount ? selectedProjectItems() : filteredProjectItems();
                 const downloadableCount = candidates.filter((item) =>
-                    document.querySelector(`.table-data-row[data-id="${CSS.escape(item.id)}"]`)?.getAttribute('data-video-status') === 'ready'
+                    Boolean(item.compositionVideo)
+                    || Boolean(item.baseVideo && item.subtitles?.status === 'PREVIEW_READY')
+                    || item.compositionStatus === 'POSTPROCESS_RUNNING'
                 ).length;
                 downloadVideos.disabled = isDownloadingProjectVideos || downloadableCount === 0;
                 downloadVideos.innerHTML = isDownloadingProjectVideos
                     ? '<i class="fa-solid fa-spinner fa-spin mr-1"></i>打包中...'
                     : '<i class="fa-solid fa-file-arrow-down mr-1"></i>下载视频';
                 downloadVideos.title = selectedCount
-                    ? `下载选中的 ${downloadableCount} 条已完成普通成片`
-                    : `未勾选任务：下载全部 ${downloadableCount} 条已完成普通成片`;
+                    ? `处理并下载选中的 ${candidates.length} 条任务；当前 ${downloadableCount} 条已有成片或可继续导出`
+                    : `处理当前类型全部 ${candidates.length} 条任务；当前 ${downloadableCount} 条已有成片或可继续导出`;
             }
         }
 
@@ -4438,14 +4439,18 @@
         function refreshVariantActionAvailability() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allVideosReady = rows.length > 0 && rows.every(row => row.getAttribute('data-video-status') === 'ready');
-            const readyVideoCount = rows.filter(row => row.getAttribute('data-video-status') === 'ready').length;
+            const exportableVideoCount = uploadedScripts.filter((item) =>
+                Boolean(item.compositionVideo)
+                || Boolean(item.baseVideo && item.subtitles?.status === 'PREVIEW_READY')
+                || item.compositionStatus === 'POSTPROCESS_RUNNING'
+            ).length;
             const mainButton = document.getElementById('btn-generate-variants');
             const settingsButton = document.getElementById('btn-variant-settings');
             const downloadButton = document.getElementById('btn-download-project-videos');
             const backendAllowsVariants = Boolean(activeProject?.allowed_actions?.generate_variants);
             const canGenerate = backendAllowsVariants && allVideosReady && !isGeneratingVariants;
             const canConfigure = backendAllowsVariants && rows.length > 0 && !isGeneratingVariants;
-            const canDownload = readyVideoCount > 0 && !isDownloadingProjectVideos;
+            const canDownload = exportableVideoCount > 0 && !isDownloadingProjectVideos;
 
             rows.forEach(row => {
                 const input = row.querySelector('.row-variant-count');
@@ -4476,8 +4481,8 @@
                 ? "w-full md:w-auto px-6 py-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/35 hover:border-emerald-300/60 text-emerald-300 hover:text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer active:scale-[0.98]"
                 : "w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
             downloadButton.title = canDownload
-                ? `导出并打包 ${readyVideoCount} 条已完成预览，跳过 ${rows.length - readyVideoCount} 条未完成任务`
-                : (isDownloadingProjectVideos ? '正在逐条导出并打包' : '当前项目还没有已完成的普通成片预览');
+                ? `按当前项目的 ${uploadedScripts.length} 条任务逐条核对；等待正在生成的草稿并导出可用成片，不静默漏掉任务`
+                : (isDownloadingProjectVideos ? '正在逐条核对、导出并打包' : '当前项目还没有可继续导出的普通成片预览');
         }
 
         function downloadSelectedProjectVideos() {
@@ -4488,68 +4493,100 @@
             );
         }
 
+        function backendProjectItem(project, itemId) {
+            return (project?.items || []).find((item) => item.item_id === itemId) || null;
+        }
+
+        function latestPostprocessFailure(project, itemId) {
+            const operation = [...(project?.operations || [])].reverse().find((candidate) =>
+                candidate.item_id === itemId
+                && ['POSTPROCESS_GENERATE', 'POSTPROCESS_EXPORT'].includes(candidate.operation_type)
+                && candidate.status === 'FAILED'
+            );
+            return String(operation?.error_message || '').trim();
+        }
+
+        async function waitForProjectItemPostprocess(projectId, itemId, rowKey, project) {
+            for (let attempt = 0; attempt < 900; attempt += 1) {
+                const item = backendProjectItem(project, itemId);
+                if (!item || item.status !== 'POSTPROCESS_RUNNING') return project;
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+                project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/status`);
+                syncProjectInputs(project);
+            }
+            throw new Error(`任务ID ${rowKey} 等待剪映草稿或导出完成超时`);
+        }
+
+        async function ensureProjectItemExport(projectId, itemId, rowKey) {
+            let project = activeProject;
+            let submittedCount = 0;
+            while (submittedCount < 2) {
+                project = await waitForProjectItemPostprocess(projectId, itemId, rowKey, project);
+                let item = backendProjectItem(project, itemId);
+                if (!item) throw new Error(`任务ID ${rowKey} 不存在`);
+                if (item.outputs?.composition_video) return project;
+                if (item.status === 'COMPOSITION_FAILED' && submittedCount > 0) {
+                    throw new Error(latestPostprocessFailure(project, itemId) || `任务ID ${rowKey} 导出失败`);
+                }
+                if (!item.outputs?.base_video) {
+                    throw new Error(`任务ID ${rowKey} 尚未生成数字人画面`);
+                }
+                if (item.subtitles?.status !== 'PREVIEW_READY' || !(item.subtitles?.render_cues || []).length) {
+                    throw new Error(`任务ID ${rowKey} 尚未生成字幕/BGM完整预览`);
+                }
+
+                project = await workspaceApi(
+                    `/api/new/projects/${projectId}/items/${itemId}/postprocess/export`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            idempotency_key: `preview-export-${itemId}-${Date.now()}-${submittedCount + 1}`
+                        })
+                    }
+                );
+                submittedCount += 1;
+                syncProjectInputs(project);
+                project = await waitForProjectItemPostprocess(projectId, itemId, rowKey, project);
+                item = backendProjectItem(project, itemId);
+                if (item?.outputs?.composition_video) return project;
+                if (item?.status === 'COMPOSITION_FAILED') {
+                    throw new Error(latestPostprocessFailure(project, itemId) || `任务ID ${rowKey} 导出失败`);
+                }
+                // A pre-upgrade browser preview has no frozen draft.  Its first
+                // request only prepares that draft; the second request exports it.
+            }
+            throw new Error(`任务ID ${rowKey} 已准备草稿但没有生成 MP4`);
+        }
+
         async function downloadProjectVideos(itemIds = null) {
             if (!activeProject || !uploadedScripts.length || isDownloadingProjectVideos) return;
             const requestedIds = Array.isArray(itemIds) ? new Set(itemIds) : null;
-            const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            const candidateRows = rows.filter((row) =>
-                !requestedIds || requestedIds.has(row.getAttribute('data-id'))
-            );
-            const readyRows = candidateRows.filter(row => row.getAttribute('data-video-status') === 'ready');
-            if (!readyRows.length) {
-                showToast('暂时不能下载', requestedIds ? '勾选任务中还没有已完成的普通成片预览。' : '当前项目还没有已完成的普通成片预览。', 'warning');
+            const candidateItems = uploadedScripts.filter((item) => !requestedIds || requestedIds.has(item.id));
+            if (!candidateItems.length) {
+                showToast('暂时不能下载', '本次没有选中任何任务。', 'warning');
                 return;
             }
             const projectId = activeProject.project_id;
-            const readyItemIds = new Set(readyRows.map(row => row.getAttribute('data-id')));
-            const readyItems = uploadedScripts.filter(item => readyItemIds.has(item.id));
-            const missing = readyItems.filter(item => !item.compositionVideo);
-            if (missing.length && !window.confirm(`本次下载 ${readyItems.length} 条已完成预览，其中 ${missing.length} 条只有浏览器动态预览，将逐条启动剪映导出；另外跳过 ${candidateRows.length - readyItems.length} 条未完成任务。不会生成或下载变体。是否继续？`)) return;
+            const existing = candidateItems.filter((item) => Boolean(item.compositionVideo));
+            const missing = candidateItems.filter((item) => !item.compositionVideo);
+            const waiting = missing.filter((item) => item.compositionStatus === 'POSTPROCESS_RUNNING');
+            if (missing.length && !window.confirm(`本次目标 ${candidateItems.length} 条：复用已有 MP4 ${existing.length} 条，等待正在生成草稿 ${waiting.length} 条，其余 ${missing.length - waiting.length} 条将逐条核对并导出。旧预览会先补一份冻结剪映草稿，再单独导出；不会重跑声音、数字人、SeedVR2 或变体。是否继续？`)) return;
             isDownloadingProjectVideos = true;
             refreshVariantActionAvailability();
             refreshRowSelectionControls();
             try {
                 const downloadableItemIds = new Set(
-                    readyItems.filter((item) => Boolean(item.compositionVideo)).map((item) => item.id)
+                    existing.map((item) => item.id)
                 );
                 const failedExports = [];
                 for (let index = 0; index < missing.length; index += 1) {
                     const item = missing[index];
-                    showToast('正在导出未变体成片', `正在处理第 ${index + 1}/${missing.length} 条：任务ID ${item.rowKey}。`, 'info');
+                    showToast('正在核对并导出未变体成片', `正在处理第 ${index + 1}/${missing.length} 条：任务ID ${item.rowKey}。`, 'info');
                     try {
-                        let project = await workspaceApi(
-                            `/api/new/projects/${projectId}/items/${item.id}/postprocess/export`,
-                            {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ idempotency_key: `bulk-export-${item.id}-${Date.now()}` })
-                            }
-                        );
+                        const project = await ensureProjectItemExport(projectId, item.id, item.rowKey);
                         syncProjectInputs(project);
-                        let completed = false;
-                        for (let attempt = 0; attempt < 900; attempt += 1) {
-                            const updated = (project.items || []).find(candidate => candidate.item_id === item.id);
-                            if (updated?.outputs?.composition_video) {
-                                completed = true;
-                                break;
-                            }
-                            if (updated?.status === 'COMPOSITION_FAILED') {
-                                throw new Error(`任务ID ${item.rowKey} 导出失败`);
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 2000));
-                            project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/status`);
-                            syncProjectInputs(project);
-                            const refreshed = (project.items || []).find(candidate => candidate.item_id === item.id);
-                            if (refreshed?.outputs?.composition_video) {
-                                completed = true;
-                                break;
-                            }
-                            if (refreshed?.status === 'COMPOSITION_FAILED') {
-                                throw new Error(`任务ID ${item.rowKey} 导出失败`);
-                            }
-                            if (attempt === 899) throw new Error(`任务ID ${item.rowKey} 导出等待超时`);
-                        }
-                        if (completed) downloadableItemIds.add(item.id);
+                        downloadableItemIds.add(item.id);
                     } catch (error) {
                         failedExports.push({ rowKey: item.rowKey, message: error.message });
                         try {
@@ -4560,7 +4597,7 @@
                         }
                     }
                 }
-                const downloadableItems = readyItems.filter((item) => downloadableItemIds.has(item.id));
+                const downloadableItems = candidateItems.filter((item) => downloadableItemIds.has(item.id));
                 if (!downloadableItems.length) {
                     throw new Error(`本次没有成功导出的成片；失败任务：${failedExports.map((item) => item.rowKey).join('、')}`);
                 }
@@ -4573,7 +4610,7 @@
                 link.remove();
                 showToast(
                     failedExports.length ? '部分导出完成' : '正在打包下载',
-                    `成功 ${downloadableItems.length} 条，导出失败 ${failedExports.length} 条，跳过 ${candidateRows.length - readyItems.length} 条未完成任务${failedExports.length ? `；失败任务ID：${failedExports.map((item) => item.rowKey).join('、')}` : ''}。`,
+                    `本次目标 ${candidateItems.length} 条，成功进入压缩包 ${downloadableItems.length} 条，失败 ${failedExports.length} 条${failedExports.length ? `；失败任务ID：${failedExports.map((item) => item.rowKey).join('、')}` : ''}。`,
                     failedExports.length ? 'warning' : 'success'
                 );
             } catch (error) {
@@ -6175,18 +6212,17 @@
         }
 
         async function startPostprocessVideoExport(itemId) {
-            pendingPreviewDownloadItemId = itemId;
+            const script = uploadedScripts.find((item) => item.id === itemId);
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${itemId}/postprocess/export`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ idempotency_key: `preview-export-${itemId}-${Date.now()}` })
-                });
+                const project = await ensureProjectItemExport(
+                    activeProject.project_id,
+                    itemId,
+                    script?.rowKey || itemId
+                );
                 syncProjectInputs(project);
-                schedulePostprocessStatusPoll();
-                showToast('正在导出带封面成片', '剪映将使用当前标题生成三帧封面并创建新的 MP4；旧素材版本会保留。', 'success');
+                triggerCurrentVideoDownload(itemId);
+                showToast('导出完成', '已复用冻结剪映草稿生成带封面 MP4，并开始下载；旧素材版本会保留。', 'success');
             } catch (error) {
-                pendingPreviewDownloadItemId = null;
                 showToast('带封面成片导出失败', error.message, 'warning');
             }
         }
@@ -6533,17 +6569,6 @@
             refreshAudioStageActions();
             if (!active || !activeProject) {
                 if (!active && finalGenerationPhase === 'postprocess') setFinalGenerationPhase(null);
-                if (!active && pendingPreviewDownloadItemId) {
-                    const requested = uploadedScripts.find((item) => item.id === pendingPreviewDownloadItemId);
-                    if (requested?.compositionVideo) {
-                        const itemId = pendingPreviewDownloadItemId;
-                        pendingPreviewDownloadItemId = null;
-                        triggerCurrentVideoDownload(itemId);
-                        showToast('导出完成', '完整成片已导出并开始下载。', 'success');
-                    } else if (requested?.compositionStatus === 'COMPOSITION_FAILED') {
-                        pendingPreviewDownloadItemId = null;
-                    }
-                }
                 return;
             }
             postprocessStatusPollTimer = setTimeout(async () => {

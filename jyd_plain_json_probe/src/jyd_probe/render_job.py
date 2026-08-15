@@ -1330,13 +1330,26 @@ def _export_mp4(
             controller.export_draft(draft_name, str(output_mp4), **export_kwargs)
             break
         except Exception as exc:
-            if type(exc).__name__ != "DraftNotFound" or attempt >= discovery_attempts:
+            draft_not_found = type(exc).__name__ == "DraftNotFound"
+            editor_not_open = "未在编辑窗口中找到导出按钮" in str(exc)
+            if (not draft_not_found and not editor_not_open) or attempt >= discovery_attempts:
+                if editor_not_open:
+                    raise RuntimeError(
+                        f"剪映点击草稿后未进入编辑页，已重试 {attempt} 次: draft={draft_name}"
+                    ) from exc
                 raise
-            print(
-                f"[export] 剪映首页暂未识别草稿 draft={draft_name}，"
-                f"2 秒后重试（{attempt}/{discovery_attempts}）",
-                flush=True,
-            )
+            if editor_not_open:
+                print(
+                    f"[export] 已找到草稿但点击后未进入编辑页 draft={draft_name}，"
+                    f"重新聚焦剪映并点击（{attempt}/{discovery_attempts}）",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"[export] 剪映首页暂未识别草稿 draft={draft_name}，"
+                    f"2 秒后重试（{attempt}/{discovery_attempts}）",
+                    flush=True,
+                )
             time.sleep(2)
     print(f"[export] 剪映导出完成 output={output_mp4}", flush=True)
 

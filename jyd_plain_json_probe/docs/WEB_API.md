@@ -438,8 +438,9 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `skip_export=true` 的草稿生成任务；草稿结构完整后才进入 `COMPOSITION_READY`。浏览器仍直接
 使用内部 `base-video`、render cues、真实字体和 BGM 预览，不创建 `composition_video`，草稿
 生成阶段也不编码 MP4。只有用户明确下载普通成片时才调用单行 `postprocess/export`，此时以
-`existing_draft` 复用已冻结草稿，只启动剪映编码。升级前已生成、没有冻结草稿的旧预览继续
-兼容一次“建草稿并导出”。后续变体仍直接把基础视频和同一配方放进变体任务一次导出，不以
+`existing_draft` 复用已冻结草稿，只启动剪映编码。升级前已生成、没有冻结草稿的旧预览第一次
+调用该接口时只提交 `skip_export=true` 的冻结草稿准备任务；准备完成后再次调用才会以
+`existing_draft` 编码，禁止在同一个导出任务里重建时间线。后续变体仍直接把基础视频和同一配方放进变体任务一次导出，不以
 普通成片作为必需中间产物。若导出因剪映窗口状态等本地原因失败，冻结草稿、`base_video`、
 `PREVIEW_READY` 配方和 render cues 均继续保留；客户端只需为该行使用新幂等键重调
 `postprocess/export`，不得把其他已就绪行一并提交到 `postprocess/generate`。
@@ -499,8 +500,10 @@ GET  /api/new/projects/{project_id}/videos/download?item_ids={item_id_1},{item_i
 
 `GET /videos/download` 只打包项目中每一行当前的 `composition_video`，也就是生成变体前的
 普通成片，不包含任何 variant。目标脚本行必须已有实际导出的当前成片；浏览器动态预览
-尚未导出时返回 `409`。工作台的一键下载会先顺序调用单行 `postprocess/export` 补齐这些
-文件，再请求 ZIP；ZIP 在响应结束后立即删除。可选的逗号分隔 `item_ids` 只打包指定项目行，
+尚未导出时返回 `409`。工作台的一键下载按用户选择的完整 `item_id` 集合核对：复用已有 MP4、
+等待正在生成的草稿、为旧预览补冻结草稿，再顺序调用单行 `postprocess/export` 补齐文件；
+每条目标明确记为成功或失败，不按点击瞬间的 ready 子集静默漏项。之后再请求 ZIP，响应结束后
+立即删除。可选的逗号分隔 `item_ids` 只打包指定项目行，
 其中任何 ID 不属于当前项目时返回 `422`；省略该参数时保持全项目下载。
 
 `original-materials` 不改变任何项目状态。只有一个 RunningHub 原始片段时直接返回 MP4；
