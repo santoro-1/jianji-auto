@@ -65,6 +65,8 @@ from .project_postprocess import (
 )
 from .project_results import ProjectResultLibrary
 from .project_variants import ProjectVariantCoordinator
+from .project_video_source import project_segment_boundaries
+from .project_visual_analysis import ProjectVisualAnalysisCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
 from .semantic_visuals import load_semantic_visual_catalog
@@ -2506,6 +2508,16 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             visual_catalog=semantic_visual_catalog,
         )
 
+    def project_visual_analysis_coordinator(
+        client: AuthCenterClient,
+    ) -> ProjectVisualAnalysisCoordinator:
+        return ProjectVisualAnalysisCoordinator(
+            project_store,
+            client,
+            semantic_visual_catalog,
+            max_concurrency=10,
+        )
+
     @app.get("/api/new/semantic-visuals/catalog")
     def new_semantic_visual_catalog(request: Request) -> dict[str, Any]:
         current_project_user(request)
@@ -3641,6 +3653,34 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         ):
             raise HTTPException(status_code=422, detail="字幕与背景音乐参数格式不正确")
         try:
+            requested_item_ids = [
+                str(item.get("item_id") or "").strip()
+                for item in items
+                if str(item.get("item_id") or "").strip()
+            ]
+            current_project = project_store.get_project(user["user_id"], project_id)
+            requested_set = set(requested_item_ids)
+            needs_seam_analysis = any(
+                str(item.get("item_id") or "") in requested_set
+                and bool(project_segment_boundaries(item))
+                for item in current_project.get("items", [])
+            )
+            if needs_seam_analysis:
+                try:
+                    client, token = digital_human_access(request)
+                    project_visual_analysis_coordinator(client).supplement_seams(
+                        user["user_id"],
+                        project_id,
+                        token,
+                        item_ids=requested_item_ids,
+                    )
+                except Exception as exc:
+                    # Seam B-roll is opportunistic. A missing/failed cloud match
+                    # must leave the existing dissolve available for 4B.
+                    render_logger.warning(
+                        "[postprocess] 连接处空镜补分析失败，继续生成原转场: %s",
+                        exc,
+                    )
             return project_postprocess_coordinator().start(
                 user["user_id"],
                 project_id,

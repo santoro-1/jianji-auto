@@ -389,7 +389,7 @@ RunningHub 手动取消后的“生成视频”按取消时所处阶段创建新
 
 ## 新版字幕与 BGM 接口（模块 4B）
 
-4B 普通预览只使用工作台后端，不访问 RunningHub，也不启动剪映：
+4B 普通预览不访问 RunningHub，也不在浏览器预览阶段启动剪映：
 
 ```text
 GET  /api/new/postprocess/options
@@ -443,6 +443,10 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 普通成片作为必需中间产物。若导出因剪映窗口状态等本地原因失败，冻结草稿、`base_video`、
 `PREVIEW_READY` 配方和 render cues 均继续保留；客户端只需为该行使用新幂等键重调
 `postprocess/export`，不得把其他已就绪行一并提交到 `postprocess/generate`。
+对于已有两个及以上真实数字人分段的行，`postprocess/generate` 会在冻结配方前自动用现有
+工作台令牌调用一次 `/api/workbench/visual-analysis`，只判断连接处 `seam_broll` 候选并与首轮
+配方合并。成功候选摘要用于幂等复用；云端失败、无合格素材或旧服务暂不支持新字段时不阻塞
+4B，继续保留原 250ms 溶解。旧多段项目重新生成 4B 也会走同一补齐路径。
 真实画面时长优先取 `base_video.metadata.duration_us`，旧数据回退到原始分段边界，最后才使用
 当前音频或与当前音频绑定的 raw cues。所有语义视觉和来源文字在建草稿前按该时长裁边：完全
 落在片尾外的项丢弃，跨越片尾的项裁短。因此历史 SeedVR2 画面短于音频时也不会因字幕或贴层

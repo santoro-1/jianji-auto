@@ -776,6 +776,43 @@ _BAD_LINE_ENDINGS = (
     "或",
     "并",
 )
+_RESULT_DIRECTIONAL_COMPLEMENTS = frozenset(
+    {
+        "出",
+        "出来",
+        "出去",
+        "到",
+        "完",
+        "好",
+        "住",
+        "掉",
+        "成",
+        "开",
+        "进",
+        "进去",
+        "回",
+        "回来",
+        "上",
+        "上来",
+        "上去",
+        "下",
+        "下来",
+        "下去",
+        "过",
+        "过来",
+        "过去",
+        "起",
+        "起来",
+        "来",
+        "去",
+        "懂",
+        "见",
+        "清",
+        "对",
+        "错",
+        "走",
+    }
+)
 
 jieba.setLogLevel(logging.ERROR)
 _JIEBA_TOKENIZER = jieba.Tokenizer()
@@ -905,6 +942,33 @@ def _dependency_break_offsets(text: str) -> set[int]:
         elif left_flag.startswith("m") and right_flag.startswith(("a", "n", "q")):
             dependencies.add(boundary)
     return dependencies
+
+
+def _result_complement_break_offsets(text: str) -> set[int]:
+    """Protect verb-result/directional complements as one spoken predicate.
+
+    Jieba may tokenize ``排出`` as one word (already covered by lexical
+    protection) or as ``排`` + ``出``.  The POS relationship is the stable
+    signal: only a verb followed by a known result/directional complement is
+    protected, so an unrelated sentence that happens to start with ``出`` is
+    still free to break normally.
+    """
+
+    tagged: list[tuple[str, str, int]] = []
+    cursor = 0
+    for token in _JIEBA_POS_TOKENIZER.cut(text, HMM=False):
+        word = str(token.word)
+        cursor += len(word)
+        tagged.append((word, str(token.flag), cursor))
+    return {
+        boundary
+        for (left_word, left_flag, boundary), (right_word, _right_flag, _right_end) in zip(
+            tagged, tagged[1:]
+        )
+        if left_word
+        and left_flag.startswith("v")
+        and right_word in _RESULT_DIRECTIONAL_COMPLEMENTS
+    }
 
 
 def _preferred_syntax_break_offsets(text: str) -> set[int]:
@@ -1133,6 +1197,7 @@ def _unsafe_break_offsets(text: str) -> set[int]:
             cursor = position + 1
     for match in _NUMBER_EXPRESSION.finditer(text):
         unsafe_offsets.update(range(match.start() + 1, match.end()))
+    unsafe_offsets.update(_result_complement_break_offsets(text))
     for boundary in range(1, len(text)):
         # Structural particles must not start a rendered line. The boundary
         # value means "before text[boundary]"; protecting that exact offset

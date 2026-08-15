@@ -17,6 +17,7 @@ from .semantic_visuals import (
     map_visual_candidates_to_raw_cues,
     recall_semantic_visual_candidates,
 )
+from .unified_visual_plan import UnifiedVisualInput, prepare_unified_visual_input
 
 
 VISUAL_ANALYSIS_BATCH_CONCURRENCY = 10
@@ -41,9 +42,16 @@ _USAGES = {
     "passing_mention",
     "uncertain",
     "no_asset",
+    "action",
+    "scene",
+    "editorial_context",
 }
 _REASON_CODES = {
     "LITERAL_CONCRETE_OBJECT",
+    "MATCH_EXACT_OBJECT",
+    "MATCH_SAME_ACTION",
+    "MATCH_SAME_SCENE",
+    "MATCH_EDITORIAL_CONTEXT",
     "SKIP_IDIOM",
     "SKIP_METAPHOR",
     "SKIP_NEGATED",
@@ -51,6 +59,14 @@ _REASON_CODES = {
     "SKIP_PASSING_MENTION",
     "SKIP_UNCERTAIN",
     "SKIP_NO_ASSET",
+    "SKIP_UNRELATED",
+}
+_POSITIVE_MATCH_REASONS = {
+    "LITERAL_CONCRETE_OBJECT",
+    "MATCH_EXACT_OBJECT",
+    "MATCH_SAME_ACTION",
+    "MATCH_SAME_SCENE",
+    "MATCH_EDITORIAL_CONTEXT",
 }
 
 
@@ -152,6 +168,14 @@ class _Target:
     raw_cues: list[dict[str, Any]]
     video_duration_us: int | None
     previous: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _SeamTarget:
+    item_id: str
+    script: str
+    request: dict[str, Any]
+    visual_input: UnifiedVisualInput
 
 
 class ProjectVisualAnalysisCoordinator:
@@ -357,6 +381,300 @@ class ProjectVisualAnalysisCoordinator:
                             error=_safe_error(exc),
                         )
         return self.store.get_project(owner_user_id, project_id)
+
+    def supplement_seams(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        item_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Analyze only newly available multi-segment seams and merge them in place.
+
+        Digital-human segment boundaries do not exist during the first unified
+        analysis.  This lightweight second pass runs after composition is ready;
+        it never replaces the original visual plan or any manual overlay.
+        """
+
+        project = self.store.get_project(owner_user_id, project_id)
+        requested = {
+            str(item_id).strip()
+            for item_id in (item_ids or [])
+            if str(item_id).strip()
+        }
+        known = {str(item["item_id"]) for item in project["items"]}
+        if requested.difference(known):
+            raise KeyError("项目脚本行不存在")
+        targets: list[_SeamTarget] = []
+        for item in project["items"]:
+            item_id = str(item["item_id"])
+            if requested and item_id not in requested:
+                continue
+            visual_input = prepare_unified_visual_input(item, self.catalog)
+            seam_candidates = [
+                dict(candidate)
+                for candidate in visual_input.candidate_request.get("candidates", [])
+                if isinstance(candidate, Mapping)
+                and str(candidate.get("usage") or "") == "seam_broll"
+            ]
+            if not seam_candidates:
+                continue
+            request_payload = self._seam_request(
+                visual_input.candidate_request, seam_candidates
+            )
+            signature = _candidate_set_sha256(request_payload)
+            previous_seam = (item.get("visual_analysis") or {}).get("seam_analysis")
+            if (
+                isinstance(previous_seam, Mapping)
+                and previous_seam.get("status") == "SUCCESS"
+                and previous_seam.get("candidate_set_sha256") == signature
+            ):
+                continue
+            targets.append(
+                _SeamTarget(
+                    item_id=item_id,
+                    script=str(item.get("script_text") or ""),
+                    request=request_payload,
+                    visual_input=visual_input,
+                )
+            )
+        workers = min(self.max_concurrency, len(targets)) if targets else 0
+        if workers:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(
+                        self.client.analyze_workbench_visuals,
+                        token,
+                        target.request,
+                    ): target
+                    for target in targets
+                }
+                for future in as_completed(futures):
+                    target = futures[future]
+                    signature = _candidate_set_sha256(target.request)
+                    try:
+                        result = _validated_remote_result(
+                            future.result(), candidate_request=target.request
+                        )
+                        if result["analysis_status"] != "SUCCESS":
+                            self._store_seam_failure(
+                                owner_user_id,
+                                project_id,
+                                target,
+                                signature,
+                                dict(result["error"]),
+                            )
+                            continue
+                        mapped = map_visual_candidates_to_raw_cues(
+                            target.script,
+                            target.request["candidates"],
+                            target.visual_input.raw_cues,
+                            video_duration_us=target.visual_input.video_duration_us,
+                            asr_alignment=target.visual_input.asr_alignment,
+                        )
+                        approved = [
+                            {
+                                **dict(decision),
+                                "usage": "seam_broll",
+                            }
+                            for decision in result["decisions"]
+                            if decision.get("decision") == "SHOW"
+                            and float(decision.get("confidence") or 0.0) >= 0.85
+                            and decision.get("reason_code") in _POSITIVE_MATCH_REASONS
+                        ]
+                        manual = self._manual_overlays(target.visual_input.previous)
+                        seam_recipe = build_visual_recipe(
+                            catalog=self.catalog,
+                            mapped_candidates=mapped,
+                            decisions=approved,
+                            media_policy="mixed",
+                            locked_overlays=manual,
+                            segment_boundaries=target.visual_input.segment_boundaries or [],
+                            final_video_duration_us=target.visual_input.video_duration_us,
+                        )
+                        merged_recipe = self._merge_seam_recipe(
+                            target.visual_input.previous, seam_recipe
+                        )
+                        self.store.update_item_seam_visual_analysis(
+                            owner_user_id,
+                            project_id,
+                            target.item_id,
+                            expected_script_sha256=target.request["script_sha256"],
+                            seam_analysis={
+                                "status": "SUCCESS",
+                                "candidate_set_sha256": signature,
+                                "decisions": list(result["decisions"]),
+                                "mapped_candidates": mapped,
+                                "provider_request_id": result.get("provider_request_id"),
+                                "provider_attempts": int(result.get("provider_attempts") or 0),
+                                "cache_hit": result.get("cache_hit") is True,
+                                "error": None,
+                            },
+                            recipe=merged_recipe,
+                        )
+                    except Exception as exc:
+                        self._store_seam_failure(
+                            owner_user_id,
+                            project_id,
+                            target,
+                            signature,
+                            _safe_error(exc),
+                        )
+        return self.store.get_project(owner_user_id, project_id)
+
+    @staticmethod
+    def _seam_request(
+        candidate_request: Mapping[str, Any],
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        clean_candidates: list[dict[str, Any]] = []
+        for candidate in candidates:
+            allowed = [
+                {
+                    "concept_id": str(value.get("concept_id") or ""),
+                    "description": str(value.get("description") or ""),
+                }
+                for value in candidate.get("allowed_concepts", [])
+                if isinstance(value, Mapping)
+            ]
+            allowed_ids = {value["concept_id"] for value in allowed}
+            clean_candidates.append(
+                {
+                    "candidate_id": str(candidate["candidate_id"]),
+                    "text": str(candidate["text"]),
+                    "char_start": int(candidate["char_start"]),
+                    "char_end": int(candidate["char_end"]),
+                    "allowed_concepts": allowed,
+                    "usage": "seam_broll",
+                    "direct_concept_ids": [
+                        str(value)
+                        for value in candidate.get("direct_concept_ids", [])
+                        if str(value) in allowed_ids
+                    ],
+                    "segment_boundary_us": int(candidate["segment_boundary_us"]),
+                }
+            )
+        return {
+            "schema_version": "jyd.visual-analysis.request.v1",
+            "original_script": str(candidate_request["original_script"]),
+            "script_sha256": str(candidate_request["script_sha256"]),
+            "catalog_version": str(candidate_request["catalog_version"]),
+            "candidates": clean_candidates,
+        }
+
+    @staticmethod
+    def _manual_overlays(snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
+        recipe = snapshot.get("recipe") if isinstance(snapshot.get("recipe"), Mapping) else {}
+        return [
+            dict(overlay)
+            for overlay in recipe.get("overlays", [])
+            if isinstance(overlay, Mapping) and overlay.get("manual") is True
+        ]
+
+    def _merge_seam_recipe(
+        self,
+        snapshot: Mapping[str, Any],
+        seam_recipe: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        previous_recipe = (
+            dict(snapshot.get("recipe"))
+            if isinstance(snapshot.get("recipe"), Mapping)
+            else {}
+        )
+        new_seams = [
+            dict(overlay)
+            for overlay in seam_recipe.get("overlays", [])
+            if isinstance(overlay, Mapping)
+            and overlay.get("manual") is not True
+            and (
+                overlay.get("usage") == "seam_broll"
+                or overlay.get("timing_mode") == "seam_broll"
+            )
+        ]
+
+        def overlaps_seam(overlay: Mapping[str, Any]) -> bool:
+            start = int(overlay.get("start_us") or 0)
+            end = start + int(overlay.get("duration_us") or 0)
+            asset_id = str(overlay.get("asset_id") or "")
+            return any(
+                (
+                    start
+                    < int(seam.get("start_us") or 0)
+                    + int(seam.get("duration_us") or 0)
+                    and int(seam.get("start_us") or 0) < end
+                )
+                or (
+                    asset_id
+                    and asset_id == str(seam.get("asset_id") or "")
+                )
+                for seam in new_seams
+            )
+
+        retained: list[dict[str, Any]] = []
+        for raw in previous_recipe.get("overlays", []):
+            if not isinstance(raw, Mapping):
+                continue
+            overlay = dict(raw)
+            automatic_seam = overlay.get("manual") is not True and (
+                overlay.get("usage") == "seam_broll"
+                or overlay.get("timing_mode") == "seam_broll"
+            )
+            if automatic_seam:
+                continue
+            if overlay.get("manual") is not True and overlaps_seam(overlay):
+                continue
+            retained.append(overlay)
+        overlays = sorted(
+            [*retained, *new_seams],
+            key=lambda value: (
+                int(value.get("start_us") or 0),
+                str(value.get("overlay_id") or ""),
+            ),
+        )
+        return {
+            **previous_recipe,
+            "schema": seam_recipe.get("schema") or RECIPE_SCHEMA,
+            "library_id": seam_recipe.get("library_id")
+            or self.catalog.library_id
+            or DEFAULT_LIBRARY_ID,
+            "catalog_version": self.catalog.catalog_version,
+            "media_policy": "mixed",
+            "timing_policy_version": seam_recipe.get("timing_policy_version")
+            or previous_recipe.get("timing_policy_version")
+            or "sentence-v1",
+            "used_asset_ids": sorted(
+                {
+                    str(overlay.get("asset_id") or "")
+                    for overlay in overlays
+                    if overlay.get("enabled") is not False
+                    and str(overlay.get("asset_id") or "")
+                }
+            ),
+            "overlays": overlays,
+        }
+
+    def _store_seam_failure(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        target: _SeamTarget,
+        signature: str,
+        error: dict[str, str],
+    ) -> None:
+        self.store.update_item_seam_visual_analysis(
+            owner_user_id,
+            project_id,
+            target.item_id,
+            expected_script_sha256=target.request["script_sha256"],
+            seam_analysis={
+                "status": "FAILED",
+                "candidate_set_sha256": signature,
+                "decisions": [],
+                "mapped_candidates": [],
+                "error": error,
+            },
+        )
 
     def _locked_overlays(self, snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
         recipe = snapshot.get("recipe") if isinstance(snapshot.get("recipe"), Mapping) else {}

@@ -12,6 +12,7 @@ from jyd_probe.project_postprocess import (
     _caption_display_text,
     _postprocess_target_items,
     _split_one_line,
+    _unsafe_break_offsets,
 )
 from jyd_probe.project_video_source import (
     build_normalized_project_video_source,
@@ -98,6 +99,17 @@ class CaptionRenderContractTest(unittest.TestCase):
     def test_numeric_separators_remain_visible(self) -> None:
         display, _breaks = _caption_display_text("24.4 秒，8:30 开始. Next.")
         self.assertEqual(display, "24.4 秒8:30 开始 Next")
+
+    def test_verb_result_and_directional_complements_are_hard_protected(self) -> None:
+        cases = {
+            "把脂肪拿出来": len("把脂肪拿"),
+            "把动作做完再休息": len("把动作做"),
+            "把坏习惯改掉": len("把坏习惯改"),
+            "把重点说清再继续": len("把重点说"),
+        }
+        for text, boundary in cases.items():
+            with self.subTest(text=text):
+                self.assertIn(boundary, _unsafe_break_offsets(text))
 
     def test_multi_segment_project_uses_independent_main_track_source(self) -> None:
         item = {

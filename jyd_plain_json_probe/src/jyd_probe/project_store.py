@@ -186,6 +186,14 @@ def _default_visual_analysis(
         "mapped_candidates": [],
         "visual_plan": [],
         "decisions": [],
+        "seam_analysis": {
+            "status": "NOT_REQUESTED",
+            "candidate_set_sha256": None,
+            "decisions": [],
+            "mapped_candidates": [],
+            "error": None,
+            "analyzed_at": None,
+        },
         "recipe": {
             "schema": RECIPE_SCHEMA,
             "library_id": DEFAULT_LIBRARY_ID,
@@ -3617,6 +3625,53 @@ class ProjectStore:
             )
             connection.execute(
                 "UPDATE projects SET updated_at=? WHERE project_id=?", (now, project_id)
+            )
+        return True
+
+    def update_item_seam_visual_analysis(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        seam_analysis: dict[str, Any],
+        recipe: dict[str, Any] | None = None,
+    ) -> bool:
+        """Persist a seam-only visual supplement without replacing the main plan."""
+
+        if not isinstance(seam_analysis, dict):
+            raise ValueError("连接处视觉分析结果无效")
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}), script
+            )
+            analyzed_at = _now()
+            snapshot["seam_analysis"] = {
+                **dict(seam_analysis),
+                "analyzed_at": analyzed_at,
+            }
+            if recipe is not None:
+                snapshot["recipe"] = recipe
+            snapshot["bound_audio_asset_id"] = item["current_audio_asset_id"]
+            snapshot["raw_cues_sha256"] = _raw_cues_sha256(
+                _object(item["subtitles_json"], _default_subtitles()).get(
+                    "raw_cues", []
+                )
+            )
+            snapshot["revision"] = int(snapshot.get("revision") or 0) + 1
+            connection.execute(
+                "UPDATE project_items SET visual_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), analyzed_at, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?",
+                (analyzed_at, project_id),
             )
         return True
 

@@ -190,3 +190,82 @@ def test_raw_cues_change_invalidates_only_automatic_visual_recipe(tmp_path: Path
     assert visual["visual_plan"] == []
     assert visual["recipe"]["overlays"] == []
     assert changed["items"][0]["subtitles"]["raw_cues"] == subtitles["raw_cues"]
+
+
+def test_seam_supplement_runs_once_after_segments_exist_and_merges_recipe(
+    tmp_path: Path,
+) -> None:
+    script = "前面先热身。接着做胯下击掌燃脂操，保持呼吸。"
+    second_segment = "接着做胯下击掌燃脂操，保持呼吸。"
+    store, project = _project(tmp_path, script)
+    item = project["items"][0]
+    base_path = tmp_path / "base.mp4"
+    segment_1 = tmp_path / "segment-1.mp4"
+    segment_2 = tmp_path / "segment-2.mp4"
+    for path in (base_path, segment_1, segment_2):
+        path.write_bytes(b"video")
+    store.add_asset(
+        owner_user_id="user-1",
+        project_id=project["project_id"],
+        item_id=item["item_id"],
+        asset_type="original_video_segment",
+        source_type="runninghub",
+        status="READY",
+        managed_path=str(segment_1),
+        external_ref={"video_index": 1},
+        metadata={
+            "start_seconds": 0.0,
+            "end_seconds": 2.0,
+            "script_text": "前面先热身。",
+        },
+    )
+    store.add_asset(
+        owner_user_id="user-1",
+        project_id=project["project_id"],
+        item_id=item["item_id"],
+        asset_type="original_video_segment",
+        source_type="runninghub",
+        status="READY",
+        managed_path=str(segment_2),
+        external_ref={"video_index": 2},
+        metadata={
+            "start_seconds": 2.0,
+            "end_seconds": 6.0,
+            "script_text": second_segment,
+        },
+    )
+    store.add_asset(
+        owner_user_id="user-1",
+        project_id=project["project_id"],
+        item_id=item["item_id"],
+        asset_type="base_video",
+        source_type="runninghub",
+        status="READY",
+        managed_path=str(base_path),
+        metadata={"segment_count": 2, "duration_us": 6_000_000},
+        make_current=True,
+    )
+    client = FakeVisualClient()
+    coordinator = ProjectVisualAnalysisCoordinator(
+        store, client, load_semantic_visual_catalog(CATALOG_ROOT)
+    )
+
+    first = coordinator.supplement_seams(
+        "user-1", project["project_id"], "token", item_ids=[item["item_id"]]
+    )
+    visual = first["items"][0]["visual_analysis"]
+
+    assert len(client.calls) == 1
+    assert all(candidate["usage"] == "seam_broll" for candidate in client.calls[0]["candidates"])
+    assert visual["seam_analysis"]["status"] == "SUCCESS"
+    seam = next(
+        overlay
+        for overlay in visual["recipe"]["overlays"]
+        if overlay.get("usage") == "seam_broll"
+    )
+    assert seam["start_us"] == 2_000_000
+
+    coordinator.supplement_seams(
+        "user-1", project["project_id"], "token", item_ids=[item["item_id"]]
+    )
+    assert len(client.calls) == 1
