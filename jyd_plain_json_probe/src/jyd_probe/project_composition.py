@@ -55,6 +55,74 @@ def _composition_operations(project: dict[str, Any]) -> dict[str, dict[str, Any]
     return latest
 
 
+def _operation_was_accepted_by_cloud(operation: dict[str, Any]) -> bool:
+    """Whether a local start crossed the cloud's immutable batch boundary."""
+
+    if str(operation.get("status") or "") in {"RUNNING", "SUCCEEDED"}:
+        return True
+    result = operation.get("result", {})
+    return isinstance(result, dict) and bool(
+        str(result.get("remote_item_id") or "").strip()
+    )
+
+
+def _accepted_batch_execution_contracts(
+    project: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    """Recover each cloud-accepted audio batch's immutable account snapshot."""
+
+    contracts: dict[str, dict[str, Any]] = {}
+    for operation in project.get("operations", []):
+        if (
+            operation.get("operation_type") != "COMPOSITION_GENERATE"
+            or not _operation_was_accepted_by_cloud(operation)
+        ):
+            continue
+        payload = operation.get("payload", {})
+        if not isinstance(payload, dict):
+            continue
+        batch_id = str(payload.get("batch_id") or "").strip()
+        account_ids = _normalized_execution_account_ids(
+            payload.get("runninghub_execution_account_ids")
+        )
+        if not batch_id or account_ids is None:
+            continue
+        seedvr2_account_ids = _normalized_seedvr2_account_ids(
+            payload.get("seedvr2_execution_account_ids")
+        )
+        execution_mode = (
+            _normalized_execution_mode(payload.get("execution_mode"))
+            or "same_account_v1"
+        )
+        candidate = {
+            "runninghub_execution_account_ids": account_ids,
+            "seedvr2_execution_account_ids": seedvr2_account_ids,
+            "execution_mode": execution_mode,
+        }
+        previous = contracts.get(batch_id)
+        if previous is not None and previous != candidate:
+            raise ValueError(
+                f"声音批次 {batch_id} 的本地已接收执行账号快照互相冲突"
+            )
+        contracts[batch_id] = candidate
+    return contracts
+
+
+def _is_precloud_start_failure(operation: dict[str, Any] | None) -> bool:
+    """Whether a failed local operation never reached cloud composition start."""
+
+    if not isinstance(operation, dict) or operation.get("status") != "FAILED":
+        return False
+    payload = operation.get("payload", {})
+    return (
+        isinstance(payload, dict)
+        and str(payload.get("scope") or "base_video_only") == "base_video_only"
+        and bool(str(payload.get("batch_id") or "").strip())
+        and bool(str(payload.get("remote_item_id") or "").strip())
+        and not _operation_was_accepted_by_cloud(operation)
+    )
+
+
 def _frozen_composition_image(
     operations: list[dict[str, Any]], remote_item_id: str
 ) -> dict[str, str]:
@@ -333,29 +401,8 @@ class ProjectCompositionCoordinator:
             and selected_seedvr2_account_ids is not None
         ):
             raise ValueError("同账号模式不能提交独立 SeedVR2 执行账号")
-        for existing in project.get("operations", []):
-            if (
-                existing.get("operation_type") == "COMPOSITION_GENERATE"
-                and existing.get("idempotency_key") == clean_key
-                and (
-                    existing.get("payload", {}).get(
-                        "runninghub_execution_account_ids"
-                    ) != selected_account_ids
-                    or existing.get("payload", {}).get(
-                        "seedvr2_execution_account_ids"
-                    ) != selected_seedvr2_account_ids
-                    or not _execution_modes_match(
-                        existing.get("payload", {}).get("execution_mode"),
-                        selected_execution_mode,
-                    )
-                    or str(existing.get("payload", {}).get("resolution") or "1024")
-                    != clean_resolution
-                )
-            ):
-                raise ValueError(
-                    "该画面生成操作的执行账号或分辨率快照已锁定，不能修改"
-                )
         links_by_item = _current_audio_item_links(project["links"])
+        accepted_batch_contracts = _accepted_batch_execution_contracts(project)
 
         for item in target_items:
             backfill_seedvr2 = _has_saved_remote_video_segments(item) and (
@@ -372,6 +419,22 @@ class ProjectCompositionCoordinator:
             remote_item_id = str(link.get("external_id") or "")
             if not batch_id or not remote_item_id:
                 raise ValueError(f"任务 {item['row_key']} 的数字人任务关联不完整")
+            locked_contract = accepted_batch_contracts.get(batch_id)
+            effective_account_ids = (
+                locked_contract["runninghub_execution_account_ids"]
+                if locked_contract is not None
+                else selected_account_ids
+            )
+            effective_seedvr2_account_ids = (
+                locked_contract["seedvr2_execution_account_ids"]
+                if locked_contract is not None
+                else selected_seedvr2_account_ids
+            )
+            effective_execution_mode = (
+                locked_contract["execution_mode"]
+                if locked_contract is not None
+                else selected_execution_mode
+            )
             image: dict[str, Any] = {}
             image_path: Path | None = None
             image_sha256 = ""
@@ -402,9 +465,9 @@ class ProjectCompositionCoordinator:
                     else "base_video_only"
                 ),
                 "resolution": clean_resolution,
-                "runninghub_execution_account_ids": selected_account_ids,
-                "seedvr2_execution_account_ids": selected_seedvr2_account_ids,
-                "execution_mode": selected_execution_mode,
+                "runninghub_execution_account_ids": effective_account_ids,
+                "seedvr2_execution_account_ids": effective_seedvr2_account_ids,
+                "execution_mode": effective_execution_mode,
             }
             if not backfill_seedvr2:
                 operation_payload.update(
@@ -413,6 +476,27 @@ class ProjectCompositionCoordinator:
                         "input_image_sha256": image_sha256,
                     }
                 )
+            for existing in project.get("operations", []):
+                existing_payload = existing.get("payload", {})
+                if (
+                    existing.get("operation_type") == "COMPOSITION_GENERATE"
+                    and existing.get("idempotency_key") == clean_key
+                    and (
+                        existing_payload.get("runninghub_execution_account_ids")
+                        != effective_account_ids
+                        or existing_payload.get("seedvr2_execution_account_ids")
+                        != effective_seedvr2_account_ids
+                        or not _execution_modes_match(
+                            existing_payload.get("execution_mode"),
+                            effective_execution_mode,
+                        )
+                        or str(existing_payload.get("resolution") or "1024")
+                        != clean_resolution
+                    )
+                ):
+                    raise ValueError(
+                        "该画面生成操作的执行账号或分辨率快照已锁定，不能修改"
+                    )
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -424,19 +508,19 @@ class ProjectCompositionCoordinator:
             )
             if operation.get("payload", {}).get(
                 "runninghub_execution_account_ids"
-            ) != selected_account_ids:
+            ) != effective_account_ids:
                 raise ValueError(
                     "该画面生成操作的 RunningHub 执行账号快照已锁定，不能修改"
                 )
             if operation.get("payload", {}).get(
                 "seedvr2_execution_account_ids"
-            ) != selected_seedvr2_account_ids:
+            ) != effective_seedvr2_account_ids:
                 raise ValueError(
                     "该画面生成操作的 SeedVR2 执行账号快照已锁定，不能修改"
                 )
             if not _execution_modes_match(
                 operation.get("payload", {}).get("execution_mode"),
-                selected_execution_mode,
+                effective_execution_mode,
             ):
                 raise ValueError(
                     "该画面生成操作的 RunningHub 执行模式快照已锁定，不能修改"
@@ -796,6 +880,53 @@ class ProjectCompositionCoordinator:
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("画面重试请求缺少幂等键")
+        latest_operation = _composition_operations(project).get(item_id)
+        if _is_precloud_start_failure(latest_operation):
+            original_payload = dict(latest_operation.get("payload", {}))
+            original_image_sha256 = str(
+                original_payload.get("input_image_sha256") or ""
+            ).strip().lower()
+            current_image_sha256 = str(
+                item.get("inputs", {})
+                .get("image", {})
+                .get("metadata", {})
+                .get("sha256")
+                or ""
+            ).strip().lower()
+            if (
+                original_image_sha256
+                and current_image_sha256 != original_image_sha256
+            ):
+                raise ValueError(
+                    "当前人物图与失败启动时冻结图片不一致，不能重放旧启动请求"
+                )
+            batch_id = str(original_payload.get("batch_id") or "").strip()
+            locked_contract = _accepted_batch_execution_contracts(project).get(
+                batch_id
+            )
+            if locked_contract is not None:
+                original_payload.update(locked_contract)
+            original_payload["retry"] = True
+            original_payload["retry_of_operation_id"] = str(
+                latest_operation.get("operation_id") or ""
+            )
+            self.store.create_operation(
+                owner_user_id=owner_user_id,
+                project_id=project_id,
+                item_id=item_id,
+                operation_type="COMPOSITION_GENERATE",
+                idempotency_key=clean_key,
+                payload=original_payload,
+                correlation_id=(
+                    str(link.get("metadata", {}).get("correlation_id") or "").strip()
+                    or None
+                ),
+            )
+            # The normal authenticated status poll drains this durable PENDING
+            # operation through start_pending_operation.  Calling the cloud
+            # retry endpoint here would be invalid because no remote 4A start
+            # was accepted for the failed local operation.
+            return self.store.get_project(owner_user_id, project_id)
         resolution_invalidated = (
             item.get("settings", {}).get("composition_invalidated_reason")
             == "DIGITAL_HUMAN_RESOLUTION_CHANGED"

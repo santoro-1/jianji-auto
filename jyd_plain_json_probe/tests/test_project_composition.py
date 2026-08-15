@@ -479,6 +479,190 @@ class ProjectCompositionApiTest(unittest.TestCase):
             execution_mode="same_account_v1",
         )
 
+    def test_start_reuses_cloud_accepted_batch_account_snapshot(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        image_path = self.settings.storage_root / "locked-batch-person.png"
+        image_path.write_bytes(b"locked-batch-image")
+        image_sha256 = hashlib.sha256(image_path.read_bytes()).hexdigest()
+        project = {
+            "allowed_actions": {"start_composition": True},
+            "operations": [
+                {
+                    "operation_id": "accepted-operation",
+                    "operation_type": "COMPOSITION_GENERATE",
+                    "item_id": "item-accepted",
+                    "status": "RUNNING",
+                    "payload": {
+                        "batch_id": "shared-batch",
+                        "runninghub_execution_account_ids": [3],
+                        "seedvr2_execution_account_ids": None,
+                        "execution_mode": "same_account_v1",
+                    },
+                    "result": {"remote_item_id": "remote-accepted"},
+                },
+                {
+                    "operation_id": "rejected-operation",
+                    "operation_type": "COMPOSITION_GENERATE",
+                    "item_id": "item-rejected",
+                    "status": "FAILED",
+                    "payload": {
+                        "batch_id": "shared-batch",
+                        "runninghub_execution_account_ids": [3, 5],
+                        "seedvr2_execution_account_ids": None,
+                        "execution_mode": "same_account_v1",
+                    },
+                    "result": {},
+                },
+            ],
+            "items": [
+                {
+                    "item_id": "item-new",
+                    "row_key": "3",
+                    "settings": {},
+                    "outputs": {},
+                    "inputs": {
+                        "image": {
+                            "asset_id": "image-new",
+                            "managed_path": str(image_path),
+                            "metadata": {"sha256": image_sha256},
+                        }
+                    },
+                    "allowed_actions": {"start_composition": True},
+                }
+            ],
+            "links": [
+                {
+                    "system": "runninghub",
+                    "relation": "digital_human_audio_item",
+                    "item_id": "item-new",
+                    "external_id": "remote-new",
+                    "metadata": {"batch_id": "shared-batch"},
+                }
+            ],
+        }
+        store = MagicMock()
+        store.get_project.return_value = project
+        store.create_operation.side_effect = lambda **kwargs: {
+            "operation_id": "new-operation",
+            "operation_type": kwargs["operation_type"],
+            "idempotency_key": kwargs["idempotency_key"],
+            "payload": kwargs["payload"],
+        }
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            MagicMock(),
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+
+        coordinator.start(
+            "composition-user",
+            "project-locked-batch",
+            "token",
+            idempotency_key="new-operation-key",
+            runninghub_execution_account_ids=[3, 5],
+            execution_mode="same_account_v1",
+            item_ids=["item-new"],
+        )
+
+        payload = store.create_operation.call_args.kwargs["payload"]
+        self.assertEqual(payload["runninghub_execution_account_ids"], [3])
+        self.assertIsNone(payload["seedvr2_execution_account_ids"])
+        self.assertEqual(payload["execution_mode"], "same_account_v1")
+
+    def test_retry_requeues_precloud_failure_with_locked_batch_snapshot(self) -> None:
+        from jyd_probe.project_composition import ProjectCompositionCoordinator
+
+        image_sha256 = hashlib.sha256(b"retry-image").hexdigest()
+        failed_payload = {
+            "batch_id": "shared-batch",
+            "remote_item_id": "remote-failed",
+            "scope": "base_video_only",
+            "resolution": "1024",
+            "input_image_asset_id": "image-failed",
+            "input_image_sha256": image_sha256,
+            "runninghub_execution_account_ids": [3, 5],
+            "seedvr2_execution_account_ids": None,
+            "execution_mode": "same_account_v1",
+        }
+        project = {
+            "settings": {"digital_human": {"resolution": "1024"}},
+            "items": [
+                {
+                    "item_id": "item-failed",
+                    "row_key": "2",
+                    "status": "COMPOSITION_FAILED",
+                    "settings": {},
+                    "inputs": {"image": {"metadata": {"sha256": image_sha256}}},
+                    "allowed_actions": {"retry_composition": True},
+                }
+            ],
+            "links": [
+                {
+                    "system": "runninghub",
+                    "relation": "digital_human_audio_item",
+                    "item_id": "item-failed",
+                    "external_id": "remote-failed",
+                    "metadata": {
+                        "batch_id": "shared-batch",
+                        "correlation_id": "correlation-failed",
+                    },
+                }
+            ],
+            "operations": [
+                {
+                    "operation_id": "accepted-operation",
+                    "operation_type": "COMPOSITION_GENERATE",
+                    "item_id": "item-accepted",
+                    "status": "SUCCEEDED",
+                    "payload": {
+                        "batch_id": "shared-batch",
+                        "runninghub_execution_account_ids": [3],
+                        "seedvr2_execution_account_ids": None,
+                        "execution_mode": "same_account_v1",
+                    },
+                    "result": {"remote_item_id": "remote-accepted"},
+                },
+                {
+                    "operation_id": "failed-operation",
+                    "operation_type": "COMPOSITION_GENERATE",
+                    "item_id": "item-failed",
+                    "status": "FAILED",
+                    "payload": failed_payload,
+                    "result": {},
+                    "error_code": "AuthCenterError",
+                },
+            ],
+        }
+        store = MagicMock()
+        store.get_project.return_value = project
+        store.create_operation.return_value = {
+            "operation_id": "retry-operation",
+            "status": "PENDING",
+        }
+        client = MagicMock()
+        coordinator = ProjectCompositionCoordinator(
+            store,
+            client,
+            storage_root=self.settings.storage_root,
+            max_video_bytes=1024,
+        )
+
+        coordinator.retry(
+            "composition-user",
+            "project-locked-batch",
+            "item-failed",
+            "token",
+            idempotency_key="retry-precloud",
+        )
+
+        payload = store.create_operation.call_args.kwargs["payload"]
+        self.assertEqual(payload["runninghub_execution_account_ids"], [3])
+        self.assertEqual(payload["retry_of_operation_id"], "failed-operation")
+        self.assertTrue(payload["retry"])
+        client.retry_workbench_composition.assert_not_called()
+
     def test_generate_downloads_original_segments_and_base_video_only(self) -> None:
         user = {
             "user_id": "composition-user",

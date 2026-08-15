@@ -1300,7 +1300,50 @@
             return {};
         }
 
-        async function confirmRunningHubCost(message, { skipForNormalUser = false } = {}) {
+        function runningHubLockedBatchContext(items = []) {
+            const targetIds = new Set(items.map((item) => String(item?.id || item?.item_id || '')).filter(Boolean));
+            if (!targetIds.size) return { lockedItemCount: 0, unlockedItemCount: 0, contracts: [] };
+            const contractsByBatch = new Map();
+            (Array.isArray(activeProject?.operations) ? activeProject.operations : []).forEach((operation) => {
+                if (operation?.operation_type !== 'COMPOSITION_GENERATE') return;
+                const accepted = ['RUNNING', 'SUCCEEDED'].includes(String(operation.status || '')) || Boolean(operation.result?.remote_item_id);
+                const batchId = String(operation.payload?.batch_id || '').trim();
+                const digital = Array.isArray(operation.payload?.runninghub_execution_account_ids)
+                    ? operation.payload.runninghub_execution_account_ids.map(Number).filter((value) => Number.isInteger(value) && value > 0).sort((left, right) => left - right)
+                    : [];
+                if (!accepted || !batchId || !digital.length) return;
+                const seedvr2 = Array.isArray(operation.payload?.seedvr2_execution_account_ids)
+                    ? operation.payload.seedvr2_execution_account_ids.map(Number).filter((value) => Number.isInteger(value) && value > 0).sort((left, right) => left - right)
+                    : [];
+                contractsByBatch.set(batchId, {
+                    execution_mode: operation.payload?.execution_mode || 'same_account_v1',
+                    runninghub_execution_account_ids: digital,
+                    seedvr2_execution_account_ids: seedvr2
+                });
+            });
+            const batchByItem = new Map();
+            (Array.isArray(activeProject?.links) ? activeProject.links : []).forEach((link) => {
+                if (link?.system === 'runninghub' && link?.relation === 'digital_human_audio_item' && link?.item_id) {
+                    batchByItem.set(String(link.item_id), String(link.metadata?.batch_id || '').trim());
+                }
+            });
+            const lockedContracts = [];
+            let lockedItemCount = 0;
+            targetIds.forEach((itemId) => {
+                const contract = contractsByBatch.get(batchByItem.get(itemId));
+                if (!contract) return;
+                lockedItemCount += 1;
+                lockedContracts.push(contract);
+            });
+            const uniqueContracts = Array.from(new Map(lockedContracts.map((contract) => [JSON.stringify(contract), contract])).values());
+            return {
+                lockedItemCount,
+                unlockedItemCount: targetIds.size - lockedItemCount,
+                contracts: uniqueContracts
+            };
+        }
+
+        async function confirmRunningHubCost(message, { skipForNormalUser = false, items = [] } = {}) {
             // same_account_v1 文案/契约：本次执行账号（每次重新默认全选）；
             // 取消勾选仅影响本次；请至少选择一个 RunningHub 执行账号；
             // 默认值来自 summary.default_selected_account_ids。
@@ -1319,6 +1362,16 @@
                 if (skipForNormalUser) return undefined;
                 return window.confirm(message) ? undefined : null;
             }
+            const lockedContext = runningHubLockedBatchContext(items);
+            const lockedOnlyContract = lockedContext.lockedItemCount > 0
+                && lockedContext.unlockedItemCount === 0
+                && lockedContext.contracts.length === 1
+                && lockedContext.contracts[0].execution_mode === summary.execution_mode
+                ? lockedContext.contracts[0]
+                : null;
+            const lockedNotice = lockedContext.lockedItemCount > 0
+                ? `<div class="rounded-lg border border-amber-400/25 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">其中 ${lockedContext.lockedItemCount} 条所属声音批次已锁定，将自动沿用首次被云端接收的执行账号；本次勾选只影响其余 ${lockedContext.unlockedItemCount} 条未锁定任务。</div>`
+                : '';
             const sections = dualMode
                 ? [
                     { key: 'digital', title: '数字人账号池', data: summary.digital_human || {} },
@@ -1327,7 +1380,10 @@
                 : [{ key: 'digital', title: '本次执行账号', data: summary }];
             const sectionHtml = sections.map((section) => {
                 const accounts = Array.isArray(section.data.accounts) ? section.data.accounts : [];
-                const defaults = new Set(Array.isArray(section.data.default_selected_account_ids) ? section.data.default_selected_account_ids : []);
+                const lockedDefaults = lockedOnlyContract
+                    ? (section.key === 'seedvr2' ? lockedOnlyContract.seedvr2_execution_account_ids : lockedOnlyContract.runninghub_execution_account_ids)
+                    : null;
+                const defaults = new Set(Array.isArray(lockedDefaults) ? lockedDefaults : (Array.isArray(section.data.default_selected_account_ids) ? section.data.default_selected_account_ids : []));
                 const accountHtml = accounts.map((account) => {
                     const accountId = Number(account.id);
                     const selectable = account.selectable === true;
@@ -1344,14 +1400,14 @@
                         <span class="min-w-0 flex-1"><span class="flex items-center justify-between gap-2"><strong class="truncate text-xs text-gray-100">${escapeHtml(account.label || `账号 ${accountId}`)}</strong><span class="text-[10px] ${account.availability === 'AVAILABLE' ? 'text-emerald-400' : 'text-amber-400'}">${escapeHtml(availability)}</span></span><span class="mt-1 block text-[10px] text-gray-500">${escapeHtml(capacity)} · 当前空闲 ${Number(account.available_slots || 0)}</span><span class="mt-1 block text-[10px] ${balance.remain_coins === null || balance.remain_coins === undefined ? 'text-amber-300' : 'text-cyan-300'}">${escapeHtml(remainCoins)} · ${escapeHtml(balanceAge)}</span></span>
                     </label>`;
                 }).join('');
-                return `<div class="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3"><div class="mb-2 text-[11px] font-semibold text-indigo-100">${section.title}（每次重新默认全选）</div><div class="max-h-44 space-y-2 overflow-y-auto narrow-scrollbar">${accountHtml || '<div class="py-4 text-center text-xs text-amber-300">当前没有可选择的执行账号</div>'}</div><p id="runninghub-${section.key}-selection-error" class="mt-2 hidden text-[10px] text-red-400">请至少选择一个${section.title}。</p></div>`;
+                return `<div class="rounded-xl border border-brand-primary/20 bg-brand-primary/5 p-3"><div class="mb-2 text-[11px] font-semibold text-indigo-100">${section.title}${lockedOnlyContract ? '（已锁定批次账号）' : '（每次重新默认全选）'}</div><div class="max-h-44 space-y-2 overflow-y-auto narrow-scrollbar">${accountHtml || '<div class="py-4 text-center text-xs text-amber-300">当前没有可选择的执行账号</div>'}</div><p id="runninghub-${section.key}-selection-error" class="mt-2 hidden text-[10px] text-red-400">请至少选择一个${section.title}。</p></div>`;
             }).join('');
             return new Promise((resolve) => {
                 openConfirmModal({
                     title: `确认 RunningHub 费用与执行账号（${modeLabel}）`,
                     message,
                     confirmText: '确认并启动',
-                    extraHtml: `<div class="space-y-3"><div class="rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold text-cyan-200">当前执行模式：${modeLabel}${dualMode ? '（数字人与 SeedVR2 分别调度）' : '（同一账号完成数字人与 SeedVR2）'}</div>${sectionHtml}<p class="text-[10px] text-gray-500">取消勾选只影响本次启动，不修改全局账号状态。</p></div>`,
+                    extraHtml: `<div class="space-y-3"><div class="rounded-lg border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-[11px] font-semibold text-cyan-200">当前执行模式：${modeLabel}${dualMode ? '（数字人与 SeedVR2 分别调度）' : '（同一账号完成数字人与 SeedVR2）'}</div>${lockedNotice}${sectionHtml}<p class="text-[10px] text-gray-500">取消勾选只影响本次启动，不修改全局账号状态。</p></div>`,
                     validate: () => {
                         return sections.every((section) => {
                             const valid = document.querySelectorAll(`.runninghub-${section.key}-checkbox:checked:not(:disabled)`).length > 0;
@@ -3465,7 +3521,8 @@
                 if (!window.confirm(`只为任务 ${script.rowKey} 从失败的原流水线继续处理，可能再次产生 RunningHub 费用。是否继续？`)) return;
             } else {
                 selectedRunningHubAccountIds = await confirmRunningHubCost(
-                    `只为任务 ${script.rowKey} 调用 RunningHub 生成数字人画面并产生费用，完成后自动添加字幕和 BGM。`
+                    `只为任务 ${script.rowKey} 调用 RunningHub 生成数字人画面并产生费用，完成后自动添加字幕和 BGM。`,
+                    { items: [script] }
                 );
                 if (selectedRunningHubAccountIds === null) return;
             }
@@ -3839,7 +3896,7 @@
             const retries = missingBase.filter((item) => item.allowedActions?.retry_composition);
             const confirmationMessage = `将为选中的 ${missingBase.length} 条任务调用 RunningHub 生成画面并产生费用；另外 ${unfinished.length - missingBase.length} 条已有画面只继续字幕/BGM。`;
             const selectedRunningHubAccountIds = fresh.length
-                ? await confirmRunningHubCost(confirmationMessage)
+                ? await confirmRunningHubCost(confirmationMessage, { items: fresh })
                 : (window.confirm(`${confirmationMessage}是否继续？`) ? undefined : null);
             if (selectedRunningHubAccountIds === null) return;
             unfinished.forEach((item) => pendingSingleCompositionItemIds.add(item.id));
@@ -6243,7 +6300,10 @@
             }
             const selectedRunningHubAccountIds = await confirmRunningHubCost(
                 `将为 ${rows.length} 条脚本调用 RunningHub 生成数字人画面并产生费用，随后自动添加字幕和所选背景音乐。`,
-                { skipForNormalUser: skipConfirmation }
+                {
+                    skipForNormalUser: skipConfirmation,
+                    items: uploadedScripts.filter((item) => !item.baseVideo && item.allowedActions?.start_composition)
+                }
             );
             if (selectedRunningHubAccountIds === null) return;
 
