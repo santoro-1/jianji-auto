@@ -386,6 +386,23 @@ def test_catalog_contains_images_and_registered_activity_videos() -> None:
     assert len([item for item in catalog.assets if item["media_type"] == "video"]) >= 2
     assert len([item for item in catalog.assets if "food.egg" in item["concept_ids"]]) >= 2
     assert all(Path(item["image_path"]).is_file() for item in catalog.assets)
+    if catalog.schema == CATALOG_SCHEMA_V3:
+        editorial_assets = [
+            item
+            for item in catalog.assets
+            if any(
+                str(concept_id).startswith("editorial.")
+                for concept_id in item.get("video_taxonomy", {}).get(
+                    "fallback_concept_ids", ()
+                )
+            )
+        ]
+        assert len(editorial_assets) == 92
+        assert all("seam_broll" in item["usage_modes"] for item in editorial_assets)
+        assert all(
+            "full_screen_broll" not in item["usage_modes"]
+            for item in editorial_assets
+        )
 
     reviewed = [item for item in catalog.assets if item["asset_id"].startswith("review.")]
     if not reviewed:
@@ -1208,19 +1225,31 @@ def test_enrichment_never_offers_unrelated_rotating_concepts() -> None:
 def test_editorial_broll_pools_are_limited_by_article_type(
     article_type: str, included: str, excluded: str | None
 ) -> None:
-    script = "真正长期能坚持的改变，往往来自每天都做得到的小选择。" * 8
+    segment_script = "真正长期能坚持的改变，往往来自每天都做得到的小选择。"
+    script = segment_script * 8
     candidates = recall_semantic_visual_candidates(
         script,
         _catalog_with_editorial_broll(),
         video_duration_us=60_000_000,
         article_type=article_type,
+        segment_boundaries=[
+            {"boundary_us": 30_000_000, "script_text": segment_script}
+        ],
     )["candidates"]
     enrichment = [item for item in candidates if item.get("usage") == "enrichment"]
+    seams = [item for item in candidates if item.get("usage") == "seam_broll"]
 
-    assert enrichment
+    assert all(
+        not any(
+            concept["concept_id"].startswith("editorial.")
+            for concept in item["allowed_concepts"]
+        )
+        for item in enrichment
+    )
+    assert seams
     offered = {
         concept["concept_id"]
-        for item in enrichment
+        for item in seams
         for concept in item["allowed_concepts"]
     }
     assert included in offered
@@ -1258,7 +1287,7 @@ def test_editorial_pool_can_create_seam_candidate_without_literal_alias() -> Non
 def test_enrichment_uses_video_level_asset_deduplication() -> None:
     catalog = _catalog()
     candidates = recall_semantic_visual_candidates(
-        "跑步、散步、跳绳", catalog
+        "苹果、香蕉、西红柿", catalog
     )["candidates"]
     mapped = [
         {
@@ -2231,8 +2260,8 @@ def test_segment_boundary_uses_corresponding_unused_seam_broll(tmp_path: Path) -
 
     seam = next(item for item in recipe["overlays"] if item["timing_mode"] == "seam_broll")
     assert seam["asset_id"] == "beef.video.01"
-    assert seam["start_us"] == 1_000_000
-    assert seam["duration_us"] == 2_000_000
+    assert seam["start_us"] == 500_000
+    assert seam["duration_us"] == 1_000_000
     assert seam["segment_boundary_us"] == 1_000_000
 
 

@@ -246,20 +246,26 @@ def _compatibility_decisions(
     for item in plan:
         candidate = candidates[item["anchor_id"]]
         priority = int(item["priority"])
+        usage = str(
+            candidate.get("usage")
+            or (
+                "enrichment"
+                if str(candidate.get("candidate_id") or "").startswith("ve_")
+                else "explicit"
+            )
+        )
+        requires_high_relevance = usage in {"enrichment", "seam_broll"}
         decisions.append(
             {
                 "candidate_id": str(candidate["candidate_id"]),
-                "decision": "REVIEW" if priority == 0 else "SHOW",
+                "decision": (
+                    "REVIEW"
+                    if priority == 0 or (requires_high_relevance and priority < 2)
+                    else "SHOW"
+                ),
                 "concept_id": item["concept_id"],
                 "priority": priority,
-                "usage": str(
-                    candidate.get("usage")
-                    or (
-                        "enrichment"
-                        if str(candidate.get("candidate_id") or "").startswith("ve_")
-                        else "explicit"
-                    )
-                ),
+                "usage": usage,
                 "importance": {0: 0.4, 1: 0.75, 2: 1.0}[priority],
                 "confidence": 1.0,
                 "reason_code": None,

@@ -365,7 +365,7 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
     assert overlay["corner"] == "center"
 
 
-def test_naturally_related_enrichment_priority_one_can_be_used(tmp_path: Path) -> None:
+def test_enrichment_priority_one_requires_review(tmp_path: Path) -> None:
     script = "三伏天也可以安排日常轻活动，节奏放慢并逐步养成习惯。" * 8
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
@@ -393,8 +393,8 @@ def test_naturally_related_enrichment_priority_one_can_be_used(tmp_path: Path) -
 
     analysis = result["items"][0]["visual_analysis"]
     assert analysis["visual_plan"][0]["priority"] == 1
-    assert analysis["decisions"][0]["decision"] == "SHOW"
-    assert analysis["recipe"]["overlays"][0]["usage"] == "enrichment"
+    assert analysis["decisions"][0]["decision"] == "REVIEW"
+    assert analysis["recipe"]["overlays"] == []
 
 
 def test_real_activity_script_uses_explicit_action_video_in_one_cloud_call(
@@ -561,12 +561,13 @@ def test_real_segment_boundary_flows_into_local_seam_broll_recipe(tmp_path: Path
         }
     ]
     seam = next(item for item in recipe["overlays"] if item["usage"] == "seam_broll")
-    assert seam["start_us"] == 2_000_000
+    assert seam["start_us"] == 1_500_000
+    assert seam["duration_us"] == 1_000_000
     assert seam["segment_boundary_us"] == 2_000_000
     assert seam["media_type"] == "video"
 
 
-def test_unified_visual_input_limits_editorial_pools_by_article_type() -> None:
+def test_unified_visual_input_does_not_offer_editorial_pools_for_enrichment() -> None:
     item = {
         "script_text": "长期改变来自每天做得到的小选择。" * 12,
         "settings": {"source_metadata": {"article_type": "鸡汤文"}},
@@ -583,5 +584,4 @@ def test_unified_visual_input_limits_editorial_pools_by_article_type() -> None:
         if concept_id.startswith("editorial.")
     }
 
-    assert "editorial.family_life" in offered
-    assert "editorial.meal_daily" not in offered
+    assert offered == set()

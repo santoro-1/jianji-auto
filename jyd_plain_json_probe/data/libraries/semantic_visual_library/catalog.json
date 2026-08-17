@@ -10051,7 +10051,6 @@
       ],
       "usage_modes": [
         "action_demo",
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "A",
@@ -10653,7 +10652,6 @@
       ],
       "usage_modes": [
         "action_demo",
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "A",
@@ -20589,7 +20587,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -21641,7 +21638,6 @@
         "cooking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -22058,7 +22054,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -22798,7 +22793,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -23926,7 +23920,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -26498,7 +26491,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -27949,7 +27941,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -28195,7 +28186,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -29565,7 +29555,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -30933,7 +30922,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -33677,7 +33665,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -37147,7 +37134,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -39400,7 +39386,6 @@
         "cooking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -39487,7 +39472,6 @@
         "eating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -39580,7 +39564,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -41352,7 +41335,6 @@
         "eating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -42085,7 +42067,6 @@
         "cooking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -42823,7 +42804,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -42988,7 +42968,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -43073,7 +43052,6 @@
         "brewing"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -43398,7 +43376,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -44212,7 +44189,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -45130,7 +45106,6 @@
         "cooking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -45708,7 +45683,6 @@
         "washing"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -47880,7 +47854,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -48610,7 +48583,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -48860,7 +48832,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49037,7 +49008,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49120,7 +49090,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49203,7 +49172,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49372,7 +49340,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49463,7 +49430,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49639,7 +49605,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49817,7 +49782,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49905,7 +49869,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -49992,7 +49955,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50075,7 +50037,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50162,7 +50123,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50248,7 +50208,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50338,7 +50297,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50427,7 +50385,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50691,7 +50648,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -50868,7 +50824,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -51049,7 +51004,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -51140,7 +51094,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -51921,7 +51874,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -52092,7 +52044,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -52186,7 +52137,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -52276,7 +52226,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -52362,7 +52311,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -52989,7 +52937,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -53333,7 +53280,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -53686,7 +53632,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -54191,7 +54136,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -54280,7 +54224,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -54614,7 +54557,6 @@
         "brewing"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -54703,7 +54645,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -54876,7 +54817,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -54969,7 +54909,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -55656,7 +55595,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -94942,7 +94880,6 @@
         "cooking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95033,7 +94970,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95123,7 +95059,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95216,7 +95151,6 @@
         "serving"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95307,7 +95241,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95402,7 +95335,6 @@
         "eating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95501,7 +95433,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95593,7 +95524,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95691,7 +95621,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95786,7 +95715,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95876,7 +95804,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -95969,7 +95896,6 @@
         "eating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96060,7 +95986,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96150,7 +96075,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96242,7 +96166,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96330,7 +96253,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96422,7 +96344,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96527,7 +96448,6 @@
         "serving"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96621,7 +96541,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96808,7 +96727,6 @@
         "eating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -96908,7 +96826,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97000,7 +96917,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97092,7 +97008,6 @@
         "walking"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97190,7 +97105,6 @@
         "eating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97286,7 +97200,6 @@
         "plating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97372,7 +97285,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97455,7 +97367,6 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97555,7 +97466,6 @@
         "plating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97652,7 +97562,6 @@
         "resting"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",
@@ -97758,7 +97667,6 @@
         "plating"
       ],
       "usage_modes": [
-        "full_screen_broll",
         "seam_broll"
       ],
       "cleanliness_grade": "B",

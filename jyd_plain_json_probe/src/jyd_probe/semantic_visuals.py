@@ -52,7 +52,7 @@ VISUAL_MAX_AUTO_PER_MINUTE = 24
 VISUAL_SENTENCE_MIN_DURATION_US = 2_000_000
 VISUAL_ENRICHMENT_MIN_GAP_US = 6_000_000
 VISUAL_MINOR_OVERLAP_TOLERANCE_US = 500_000
-VISUAL_SEAM_BROLL_MAX_DURATION_US = 5_000_000
+VISUAL_SEAM_BROLL_DURATION_US = 1_000_000
 # Semantic foreground videos and full-screen B-roll always play once.  Keep
 # this independent from legacy catalog loop metadata and generic render APIs.
 VISUAL_VIDEO_LOOP_TO_TARGET = False
@@ -1276,6 +1276,11 @@ def _editorial_broll_concepts(
     usage: str,
     article_type: str | None,
 ) -> list[dict[str, Any]]:
+    # Editorial atmosphere pools are reserved for short digital-human seams.
+    # Ordinary sentence enrichment must be backed by a directly recalled
+    # object, action, or scene instead of a generic mood/lifestyle pool.
+    if usage != "seam_broll":
+        return []
     backed = _broll_concept_ids(catalog, usage=usage)
     allowed_ids = set(editorial_broll_pool_ids(article_type)) & backed
     return [
@@ -2493,8 +2498,10 @@ def build_visual_recipe(
                 candidates_after,
                 key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
             )
-        rapid = _is_rapid_list(group)
-        source_entries = group if rapid else [min(group, key=_entry_priority)]
+        # One short full-screen insert is enough to cover a digital-human seam.
+        # Never turn a one-second seam into a rapid multi-asset list.
+        rapid = False
+        source_entries = [min(group, key=_entry_priority)]
         provisional_used = set(used_asset_ids)
         chosen: list[
             tuple[dict[str, Any], dict[str, Any], dict[str, Any]]
@@ -2515,15 +2522,11 @@ def build_visual_recipe(
             chosen.append((entry, resolved_decision, asset))
         if not chosen:
             continue
-        first_candidate = chosen[0][0]["candidate"]
-        minimum = 0 if rapid and len(chosen) > 1 else VISUAL_SENTENCE_MIN_DURATION_US
-        start_us, end_us = _target_sentence_range(
-            first_candidate,
-            final_video_duration_us=final_video_duration_us,
-            start_override_us=boundary_us,
-            minimum_duration_us=minimum,
-        )
-        end_us = min(end_us, start_us + VISUAL_SEAM_BROLL_MAX_DURATION_US)
+        half_duration_us = VISUAL_SEAM_BROLL_DURATION_US // 2
+        start_us = max(0, boundary_us - half_duration_us)
+        end_us = boundary_us + half_duration_us
+        if isinstance(final_video_duration_us, int) and final_video_duration_us > 0:
+            end_us = min(end_us, final_video_duration_us)
         if end_us <= start_us:
             continue
         ranges = (
