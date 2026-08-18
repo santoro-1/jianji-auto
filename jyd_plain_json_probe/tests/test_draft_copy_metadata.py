@@ -14,7 +14,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.cli import copy_template_draft  # noqa: E402
-from jyd_probe.render_job import _export_mp4  # noqa: E402
+from jyd_probe.render_job import (  # noqa: E402
+    RenderJobResult,
+    _export_existing_draft,
+    _export_mp4,
+)
 
 
 class DraftCopyMetadataTest(unittest.TestCase):
@@ -99,6 +103,27 @@ class DraftDiscoveryRetryTest(unittest.TestCase):
         self.assertEqual(Controller.attempts, 3)
         self.assertEqual(sleep.call_count, 2)
 
+    def test_export_stops_after_five_draft_discovery_attempts(self) -> None:
+        class DraftNotFound(Exception):
+            pass
+
+        class Controller:
+            attempts = 0
+
+            def export_draft(self, draft_name, output_path, **kwargs):
+                Controller.attempts += 1
+                raise DraftNotFound(draft_name)
+
+        with (
+            patch("jyd_probe.render_job._load_export_api", return_value=(Controller, (), ())),
+            patch("jyd_probe.render_job.time.sleep") as sleep,
+            self.assertRaises(DraftNotFound),
+        ):
+            _export_mp4("missing-draft", self.root_path("out.mp4"))
+
+        self.assertEqual(Controller.attempts, 5)
+        self.assertEqual(sleep.call_count, 4)
+
     def test_export_does_not_retry_other_failures(self) -> None:
         class Controller:
             attempts = 0
@@ -116,6 +141,27 @@ class DraftDiscoveryRetryTest(unittest.TestCase):
 
         self.assertEqual(Controller.attempts, 1)
         sleep.assert_not_called()
+
+    def test_export_retries_known_transient_com_error(self) -> None:
+        class COMError(Exception):
+            pass
+
+        class Controller:
+            attempts = 0
+
+            def export_draft(self, draft_name, output_path, **kwargs):
+                Controller.attempts += 1
+                if Controller.attempts < 3:
+                    raise COMError("(-2147220991, '事件无法调用任何订户')")
+
+        with (
+            patch("jyd_probe.render_job._load_export_api", return_value=(Controller, (), ())),
+            patch("jyd_probe.render_job.time.sleep") as sleep,
+        ):
+            _export_mp4("transient-com-draft", self.root_path("out.mp4"))
+
+        self.assertEqual(Controller.attempts, 3)
+        self.assertEqual(sleep.call_count, 2)
 
     def test_export_retries_when_draft_click_did_not_enter_editor(self) -> None:
         class AutomationError(Exception):
@@ -153,7 +199,62 @@ class DraftDiscoveryRetryTest(unittest.TestCase):
         ):
             _export_mp4("never-opened-draft", self.root_path("out.mp4"))
 
-        self.assertEqual(Controller.attempts, 10)
+        self.assertEqual(Controller.attempts, 5)
+
+    def test_existing_draft_rebuilds_once_after_discovery_is_exhausted(self) -> None:
+        class DraftNotFound(Exception):
+            pass
+
+        original = self.root_path("original-draft")
+        original.mkdir()
+        (original / "draft_content.json").write_text("{}", encoding="utf-8")
+        recovered = self.root_path("recovered-draft")
+        recovered.mkdir()
+        (recovered / "draft_content.json").write_text("{}", encoding="utf-8")
+        output = self.root_path("recovered.mp4")
+        rebuild_job = {
+            "schema": "jyd.render_job.v1",
+            "source": {"type": "video", "media_path": "input.mp4"},
+            "output": {"draft_name": recovered.name, "skip_export": True},
+        }
+        recovery_result = RenderJobResult(
+            source_kind="video",
+            source_draft_dir=recovered,
+            working_template_dir=recovered,
+            output_draft_dir=recovered,
+            output_draft_name=recovered.name,
+            output_mp4=None,
+            exported=False,
+            top_level_changes=2,
+            json_changes=3,
+        )
+        export_names: list[str] = []
+
+        def export(draft_name, output_path, **kwargs):
+            export_names.append(draft_name)
+            if len(export_names) == 1:
+                raise DraftNotFound(draft_name)
+
+        with (
+            patch("jyd_probe.render_job._export_mp4", side_effect=export),
+            patch("jyd_probe.render_job.run_render_job", return_value=recovery_result) as rebuild,
+        ):
+            result = _export_existing_draft(
+                {},
+                {
+                    "draft_dir": str(original),
+                    "draft_name": original.name,
+                    "recovery": {"rebuild_job": rebuild_job},
+                },
+                {"mp4_path": str(output)},
+            )
+
+        self.assertEqual(export_names, [original.name, recovered.name])
+        rebuild.assert_called_once_with(rebuild_job)
+        self.assertEqual(result.output_draft_dir, recovered.resolve())
+        self.assertEqual(result.output_draft_name, recovered.name)
+        self.assertEqual(result.top_level_changes, 2)
+        self.assertEqual(result.json_changes, 3)
 
     @staticmethod
     def root_path(name: str) -> Path:

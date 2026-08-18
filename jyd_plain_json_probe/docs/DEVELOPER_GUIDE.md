@@ -530,9 +530,12 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 参数，后续调整时不得在草稿 JSON 写入层另设硬编码。
 浏览器直接读取同一冻结样式，不得为溢出字幕临时缩字；
 无法可靠排版时状态为 `REVIEW_REQUIRED`，不会静默显示溢出字幕。只有用户明确下载普通
-成片时才调用 `postprocess/export`，并使用 `existing_draft` 对已冻结草稿执行 MP4 编码，不再
+成片时才调用 `postprocess/export`，并使用 `existing_draft` 对已冻结草稿执行 MP4 编码。正常路径不
 重建字幕、BGM、封面和视觉时间线；升级前没有草稿结果的旧预览先提交独立 `skip_export=true`
-草稿准备任务，准备成功后由客户端再次调用同一导出接口，禁止在导出任务内边建草稿边导出。后续变体必须把基础/上传视频与已
+草稿准备任务，准备成功后由客户端再次调用同一导出接口。唯一恢复例外是：剪映首页连续 5 次
+返回 `DraftNotFound` 时，导出任务使用提交时一并冻结的完整重建配方创建一个新名称草稿，保留且
+不覆盖旧草稿，再尝试识别 5 次；第二轮仍失败才停止。已知 UIA `COMError` 可重建控制器重试，
+但不得误判成草稿丢失并触发时间线重建。后续变体必须把基础/上传视频与已
 冻结的字幕、BGM 配方合并到同一个变体任务中一次导出，不能依赖一个预先导出的普通成片。
 若该按需导出失败但冻结草稿、`base_video` 和 `PREVIEW_READY` 配方仍在，行级失败重试必须直接以新的
 幂等键再次调用 `postprocess/export`；不得把全项目行重新提交给 `postprocess/generate`。
@@ -953,8 +956,9 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   弹窗的“移除本行”只修改当前行配方，不删除素材库文件。全局图库新增、停用和物理删除
   保护规则见 `docs/SEMANTIC_VISUAL_LIBRARY.md`。
 - catalog v3 严格按用途选材：普通句只接受 `semantic_overlay/action_demo/knowledge_card`，
-  顿号速切只接受 `list_quick_cut`，通用空镜只接受 `full_screen_broll`；拼接点优先
-  `seam_broll`，并可从同语义下已批准的 `full_screen_broll` 补充候选。v2 继续兼容
+  顿号速切只接受 `list_quick_cut`，通用空镜只接受 `full_screen_broll`；拼接点只接受明确带
+  `seam_broll` 用途的连接处素材，不得把仅有 `full_screen_broll/enrichment` 的普通空镜并入候选。
+  同一素材同时带 `seam_broll` 和其他用途时仍可用于拼接点。v2 继续兼容
   `空镜/相关素材/b-roll/enrichment` tags。v3 的
   `semantic_roles.related` 是非自动关系，不能作为空镜开关。锚点输入显式携带
   `usage=enrichment/seam_broll` 和所在短语上下文；直接强相关返回 priority 2，同场景、动作或
@@ -966,18 +970,21 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   动作/对象、同类场景或分类回退、编辑型空镜池依次选材，存在精确视频时拒绝宽泛编辑池。
   首轮显式语义和通用空镜仍在统一内容分析的一次模型调用内完成；数字人真实分段尚未生成，
   因此接缝候选不能在首轮可靠产生。
-- `project_video_source.py` 从当前 `source_task_ids` 绑定的最新原始数字人分段读取边界和下一段
-  脚本；`POST .../postprocess/generate` 在 4B 冻结配方前自动调用一次轻量视觉接口，只提交新增的
+- `project_video_source.py` 从当前 `source_task_ids` 绑定的最新原始数字人分段读取下一段脚本，并用
+  与剪映建草稿相同的媒体探测器读取每个实际 MP4 时长，按使用顺序累计真实边界；下载新分段时
+  同时冻结 `actual_duration_us`，历史分段在使用时现场探测。`POST .../postprocess/generate` 在 4B
+  冻结配方前自动调用一次轻量视觉接口，只提交新增的
   `seam_broll` 候选，不重跑音乐、标题、字幕或普通空镜，也不覆盖首轮视觉方案。候选集合摘要
-  成功落盘后重复 4B 不再请求；旧多段项目重刷 4B 会自动补齐。下一段开头无
-  直接命中时，候选上下文扩展为上一段末句加下一段首句，并允许使用同语义下获准的普通全屏
-  空镜；云端仍须拒绝无关或误导素材。4B 在 ASR/raw cues
-  已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频
-  时从边界开始生成最长 5 秒的 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
+  成功落盘后重复 4B 不再请求；旧多段项目重刷 4B 会自动补齐。候选上下文固定为上一段末句加
+  下一段首句，不得向下一段后续句子扩张；云端在专用连接处空镜池内允许自然且不误导的弱匹配，
+  仍须拒绝无关或误导素材。4B 在 ASR/raw cues
+  已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频时生成覆盖真实边界前后各
+  0.5 秒的 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
   保留。补分析失败或没有达到语义门槛时继续 4B 并保留原溶解。配方先登记手工项，再按接缝、
   通用全屏空镜、显式语义的顺序占位和更新
-  `used_asset_ids`。普通空镜与接缝碰撞时，仅在原句段内寻找不少于 2 秒的前后剩余区间，不能
-  移到无关台词；原句段没有空间才跳过。视频源短于冻结目标区间时，浏览器预览和渲染器都会让该 overlay 提前结束，
+  `used_asset_ids`。普通语义画面和普通空镜均直接使用对应说话短句的真实时间，不再补足到 2 秒；
+  与接缝碰撞时也只能在原句段的前后剩余区间内裁短，不能移到无关台词。原句段没有空间才跳过。
+  视频源短于冻结目标区间时，浏览器预览和渲染器都会让该 overlay 提前结束，
   不循环也不定格补足；该规则同时覆盖自动、人工锁定和历史冻结配方，旧
   `loop_to_target=true` 在 API 保存、配方消费及渲染任务三层都会被强制关闭。
 - 工作台加载器同时支持严格 catalog v2 和完整 catalog v3。v3 强制

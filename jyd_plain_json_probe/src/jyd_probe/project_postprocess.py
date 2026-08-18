@@ -2689,9 +2689,20 @@ class ProjectPostprocessCoordinator:
                 raise
             return self.sync(owner_user_id, project_id)
 
+        recovery_job = self._build_draft_job(
+            item,
+            draft_name=available_draft_name(
+                self.draft_root, composition_draft_name(item)
+            ),
+            skip_export=True,
+        )
         job = {
             "schema": "jyd.render_job.v1",
-            "source": {"type": "existing_draft", **frozen_draft},
+            "source": {
+                "type": "existing_draft",
+                **frozen_draft,
+                "recovery": {"rebuild_job": recovery_job},
+            },
             "output": {"mp4_path": str(output)},
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
@@ -2713,6 +2724,10 @@ class ProjectPostprocessCoordinator:
             "item_id": item["item_id"],
             "operation_id": operation["operation_id"],
             "correlation_id": operation["correlation_id"],
+        }
+        recovery_job["observability"] = {
+            **job["observability"],
+            "recovery_reason": "draft_discovery_exhausted",
         }
         try:
             submitted = self.render_queue.submit_batch(

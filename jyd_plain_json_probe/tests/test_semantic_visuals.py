@@ -1164,6 +1164,15 @@ def test_seam_recall_rejects_full_screen_only_broll() -> None:
     ]
 
     assert seams == []
+    assert (
+        _assets_for_media_policy(
+            tagged_catalog,
+            target_concept,
+            "video_only",
+            usage="seam_broll",
+        )
+        == []
+    )
 
 
 def test_plain_sunbathing_alias_recalls_the_exact_approved_video_concept() -> None:

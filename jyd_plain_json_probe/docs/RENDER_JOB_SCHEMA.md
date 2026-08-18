@@ -56,6 +56,11 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 `fade_out_us` 是主视频片尾“渐隐”时长，单位微秒；`0` 表示关闭。单视频作用于唯一主片段，
 `video_sequence` 只作用于最后一个主视频片段，不会给语义覆盖层或字幕重复添加动画。
 
+按需导出已冻结草稿时使用 `source.type=existing_draft`。项目工作台会在
+`source.recovery.rebuild_job` 中一并冻结一个 `output.skip_export=true` 的恢复任务：剪映首页连续
+5 次返回 `DraftNotFound` 后，保留原草稿并用该任务创建一个新名称草稿，再识别 5 次；第二轮
+仍失败才停止。普通调用可以省略 `recovery`，省略后发现失败不会重建草稿。
+
 多个视频需要在剪映主轨道中保持为独立素材片段时，使用 `video_sequence`：
 
 ```json

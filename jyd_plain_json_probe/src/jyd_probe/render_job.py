@@ -45,6 +45,8 @@ from .cover_apply import CoverConfig
 
 
 TEXT_END_ROUNDING_TOLERANCE_US = 33_334
+DRAFT_DISCOVERY_ATTEMPTS = 5
+DRAFT_DISCOVERY_RETRY_DELAY_SECONDS = 2
 
 
 RENDER_JOB_SCHEMA = "jyd.render_job.v1"
@@ -245,7 +247,7 @@ def _export_existing_draft(
     source: Mapping[str, Any],
     output: Mapping[str, Any],
 ) -> RenderJobResult:
-    """Export a previously frozen draft without rebuilding its timeline."""
+    """Export a frozen draft, rebuilding once only after discovery is exhausted."""
 
     draft_dir = _positive_path(
         _value(source, "draft_dir", "template_dir", default=""),
@@ -269,42 +271,85 @@ def _export_existing_draft(
         raise RuntimeError("导出 MP4 时必须提供 output.mp4_path 或 output_mp4")
     output_mp4 = Path(output_mp4_text).expanduser().resolve()
     export_config = _dict_value(config.get("export"))
-    _export_mp4(
-        draft_name,
-        output_mp4,
-        resolution=str(
-            _value(
-                export_config,
-                "resolution",
-                default=_value(output, "resolution", default=""),
-            )
-        ),
-        framerate=str(
-            _value(
-                export_config,
-                "framerate",
-                default=_value(output, "framerate", default=""),
-            )
-        ),
-        timeout=float(
-            _value(
-                export_config,
-                "timeout",
-                "export_timeout",
-                default=_value(output, "timeout", default=1200),
-            )
-        ),
+    resolution = str(
+        _value(
+            export_config,
+            "resolution",
+            default=_value(output, "resolution", default=""),
+        )
     )
+    framerate = str(
+        _value(
+            export_config,
+            "framerate",
+            default=_value(output, "framerate", default=""),
+        )
+    )
+    timeout = float(
+        _value(
+            export_config,
+            "timeout",
+            "export_timeout",
+            default=_value(output, "timeout", default=1200),
+        )
+    )
+    export_draft_dir = draft_dir
+    export_draft_name = draft_name
+    recovery_result: RenderJobResult | None = None
+    try:
+        _export_mp4(
+            export_draft_name,
+            output_mp4,
+            resolution=resolution,
+            framerate=framerate,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        recovery = _dict_value(source.get("recovery"))
+        rebuild_job = _dict_value(recovery.get("rebuild_job"))
+        if not _is_draft_not_found(exc) or not rebuild_job:
+            raise
+        rebuild_output = _dict_value(rebuild_job.get("output"))
+        if not _as_bool(_value(rebuild_output, "skip_export", default=False)):
+            raise RuntimeError("草稿发现恢复任务必须设置 output.skip_export=true") from exc
+        print(
+            f"[export] 连续 {DRAFT_DISCOVERY_ATTEMPTS} 次未在剪映首页识别草稿 "
+            f"draft={draft_name}，保留原草稿并创建一次恢复草稿",
+            flush=True,
+        )
+        recovery_result = run_render_job(rebuild_job)
+        export_draft_dir = recovery_result.output_draft_dir.resolve()
+        export_draft_name = recovery_result.output_draft_name.strip()
+        if (
+            not export_draft_name
+            or not export_draft_dir.is_dir()
+            or not (export_draft_dir / "draft_content.json").is_file()
+        ):
+            raise RuntimeError("草稿发现恢复任务没有生成完整的新草稿") from exc
+        if export_draft_dir == draft_dir or export_draft_name == draft_name:
+            raise RuntimeError("草稿发现恢复任务必须使用新草稿名称，不能覆盖冻结草稿") from exc
+        print(
+            f"[export] 恢复草稿已创建 old={draft_name} new={export_draft_name}，"
+            f"开始第二轮 {DRAFT_DISCOVERY_ATTEMPTS} 次识别",
+            flush=True,
+        )
+        _export_mp4(
+            export_draft_name,
+            output_mp4,
+            resolution=resolution,
+            framerate=framerate,
+            timeout=timeout,
+        )
     return RenderJobResult(
         source_kind="existing-draft",
         source_draft_dir=draft_dir,
-        working_template_dir=draft_dir,
-        output_draft_dir=draft_dir,
-        output_draft_name=draft_name,
+        working_template_dir=export_draft_dir,
+        output_draft_dir=export_draft_dir,
+        output_draft_name=export_draft_name,
         output_mp4=output_mp4,
         exported=True,
-        top_level_changes=0,
-        json_changes=0,
+        top_level_changes=(recovery_result.top_level_changes if recovery_result else 0),
+        json_changes=(recovery_result.json_changes if recovery_result else 0),
     )
 
 
@@ -1355,19 +1400,25 @@ def _export_mp4(
         "framerate": _enum_by_value(framerate_type, framerate, "帧率"),
         "timeout": timeout,
     }
-    discovery_attempts = 10
+    discovery_attempts = DRAFT_DISCOVERY_ATTEMPTS
     for attempt in range(1, discovery_attempts + 1):
         controller = controller_type()
         try:
             controller.export_draft(draft_name, str(output_mp4), **export_kwargs)
             break
         except Exception as exc:
-            draft_not_found = type(exc).__name__ == "DraftNotFound"
+            draft_not_found = _is_draft_not_found(exc)
             editor_not_open = "未在编辑窗口中找到导出按钮" in str(exc)
-            if (not draft_not_found and not editor_not_open) or attempt >= discovery_attempts:
+            transient_com_error = _is_transient_ui_automation_error(exc)
+            retryable = draft_not_found or editor_not_open or transient_com_error
+            if not retryable or attempt >= discovery_attempts:
                 if editor_not_open:
                     raise RuntimeError(
                         f"剪映点击草稿后未进入编辑页，已重试 {attempt} 次: draft={draft_name}"
+                    ) from exc
+                if transient_com_error:
+                    raise RuntimeError(
+                        f"剪映 UI 自动化连接失效，已重试 {attempt} 次: draft={draft_name}"
                     ) from exc
                 raise
             if editor_not_open:
@@ -1376,14 +1427,31 @@ def _export_mp4(
                     f"重新聚焦剪映并点击（{attempt}/{discovery_attempts}）",
                     flush=True,
                 )
+            elif transient_com_error:
+                print(
+                    f"[export] 剪映 UI 自动化连接暂时失效 draft={draft_name}，"
+                    f"2 秒后重建控制器（{attempt}/{discovery_attempts}）",
+                    flush=True,
+                )
             else:
                 print(
                     f"[export] 剪映首页暂未识别草稿 draft={draft_name}，"
                     f"2 秒后重试（{attempt}/{discovery_attempts}）",
                     flush=True,
                 )
-            time.sleep(2)
+            time.sleep(DRAFT_DISCOVERY_RETRY_DELAY_SECONDS)
     print(f"[export] 剪映导出完成 output={output_mp4}", flush=True)
+
+
+def _is_draft_not_found(exc: BaseException) -> bool:
+    return type(exc).__name__ == "DraftNotFound"
+
+
+def _is_transient_ui_automation_error(exc: BaseException) -> bool:
+    if type(exc).__name__ != "COMError":
+        return False
+    message = str(exc)
+    return "-2147220991" in message or "事件无法调用任何订户" in message
 
 
 def _load_export_api() -> tuple[type, type, type]:

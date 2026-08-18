@@ -937,6 +937,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                     segment_asset["metadata"]["enhanced_by"],
                     "runninghub_seedvr2",
                 )
+                self.assertEqual(
+                    segment_asset["metadata"]["actual_duration_us"],
+                    2_990_000,
+                )
                 self.assertTrue(
                     segment_asset["metadata"]["source_is_available_on_cloud"]
                 )

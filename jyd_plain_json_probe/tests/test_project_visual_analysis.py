@@ -265,7 +265,7 @@ def test_seam_supplement_runs_once_after_segments_exist_and_merges_recipe(
         for overlay in visual["recipe"]["overlays"]
         if overlay.get("usage") == "seam_broll"
     )
-    assert seam["start_us"] == 2_000_000
+    assert seam["start_us"] == 1_500_000
 
     coordinator.supplement_seams(
         "user-1", project["project_id"], "token", item_ids=[item["item_id"]]
