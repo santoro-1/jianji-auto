@@ -367,6 +367,7 @@ class AudioAddition:
     target_start_us: 新音乐在时间线的开始时间，默认 0。
     target_duration_us: 新音乐在时间线持续多久；0 表示使用素材时长。
     loop_to_target: 音乐短于目标时长时是否循环，并裁切最后一次循环到目标结尾。
+    fade_in_us: 整条新增音乐从时间线起点渐起的时长，单位微秒；0 表示关闭。
     """
 
     media_path: PathLike
@@ -378,6 +379,7 @@ class AudioAddition:
     loop_to_target: bool = False
     align_to_end: bool = False
     crossfade_us: int = 0
+    fade_in_us: int = 0
 
 
 @dataclass(frozen=True)
@@ -664,6 +666,7 @@ def _apply_top_level_changes(
                     audio_loop_to_target=item.loop_to_target,
                     audio_align_to_end=item.align_to_end,
                     audio_crossfade_us=item.crossfade_us,
+                    audio_fade_in_us=item.fade_in_us,
                 ),
             )
         )

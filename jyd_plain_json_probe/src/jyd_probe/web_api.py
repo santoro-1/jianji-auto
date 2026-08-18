@@ -33,6 +33,7 @@ from starlette.background import BackgroundTask
 
 from .audio_catalog import AudioCatalog, CombinedAudioCatalog
 from .asset_admin import AssetAdminCatalog
+from .browser_preview import BrowserPreviewError, browser_preview_path
 from .caption_alignment import FunASRCaptionAligner
 from .auth_center import AuthCenterClient, AuthCenterError, AuthHandoffStore
 from .admin_auth import AdminAuth
@@ -3176,6 +3177,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         user = current_project_user(request)
         client, token = digital_human_access(request)
         voice_asset_id = str(payload.get("voice_asset_id") or "").strip()
+        item_ids = payload.get("item_ids")
+        if item_ids is not None and not isinstance(item_ids, list):
+            raise HTTPException(status_code=422, detail="脚本行范围必须是数组")
         try:
             library = client.list_workbench_voices(token)
         except AuthCenterError as exc:
@@ -3187,6 +3191,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 user["user_id"],
                 project_id,
                 voice_asset_id=voice_asset_id,
+                item_ids=item_ids,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
@@ -3588,12 +3593,23 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="基础视频文件不存在") from exc
         if not path.is_file():
             raise HTTPException(status_code=404, detail="基础视频文件不存在")
+        try:
+            preview_path = browser_preview_path(
+                path,
+                settings.storage_root
+                / "browser_previews"
+                / str(project_id)
+                / str(item_id),
+            )
+        except BrowserPreviewError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
         return FileResponse(
-            path,
+            preview_path,
             media_type="video/mp4",
-            filename=str(
-                base_video.get("filename") or f"{item['row_key']}-base.mp4"
-            ),
+            headers={
+                "Cache-Control": "private, max-age=86400",
+                "Content-Disposition": "inline",
+            },
         )
 
     @app.get("/api/new/postprocess/options")

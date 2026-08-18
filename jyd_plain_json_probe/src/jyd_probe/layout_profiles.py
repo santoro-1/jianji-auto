@@ -15,7 +15,7 @@ _PROFILES: dict[str, dict[str, Any]] = {
         "label": "站姿",
         "caption": {
             "font_size": 11.0,
-            "clip_scale": 1.351709192276617,
+            "clip_scale": 1.32,
             "transform_x": 0.0,
             "transform_y": -0.382336816305469,
             "max_width_ratio": 0.8,

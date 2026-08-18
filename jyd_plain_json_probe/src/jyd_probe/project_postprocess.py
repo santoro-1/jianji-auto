@@ -74,6 +74,8 @@ CAPTION_REFERENCE_MAX_EM = 9.69 * 15.0 / CAPTION_REFERENCE_FONT_SIZE
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
 BGM_CROSSFADE_US = 200_000
+BGM_FADE_IN_US = 5_000_000
+VIDEO_FADE_OUT_US = 2_000_000
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
 FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
 FIXED_VIDEO_TITLE_FONT_SIZE = 19.0
@@ -1614,6 +1616,7 @@ def _layout_semantic_groups(
     metrics: FontMetrics,
     *,
     maximum_width_em: float,
+    preserve_preferred_boundaries: bool = False,
 ) -> list[dict[str, int | str]]:
     # Model boundaries are preferences, not trusted indivisible chunks.  Build
     # punctuation/raw-cue-bounded clauses first, then lay each clause out over
@@ -1638,6 +1641,9 @@ def _layout_semantic_groups(
         group_text = str(group.get("text") or "").rstrip()
         if group.get("hard_break_after") or (
             group_text and group_text[-1] in _CLAUSE_BREAKS
+        ) or (
+            preserve_preferred_boundaries
+            and str(group.get("break_after") or "allow") == "prefer"
         ):
             clauses.append(current)
             current = []
@@ -1648,22 +1654,25 @@ def _layout_semantic_groups(
     # punctuation remains a hard layout boundary because punctuation is hidden
     # in rendered captions and merging it would create text such as `花掉的`.
     joined_clauses: list[list[dict[str, Any]]] = []
-    index = 0
-    while index < len(clauses):
-        clause = clauses[index]
-        clause_text = "".join(str(group.get("text") or "") for group in clause)
-        display, _preferred = _caption_display_text(clause_text)
-        if (
-            display in _RIGHT_BINDING_CLAUSES
-            and index + 1 < len(clauses)
-            and int(clauses[index + 1][0].get("start_us") or 0)
-            == int(clause[-1].get("end_us") or 0)
-        ):
-            joined_clauses.append(clause + clauses[index + 1])
-            index += 2
-            continue
-        joined_clauses.append(clause)
-        index += 1
+    if preserve_preferred_boundaries:
+        joined_clauses = clauses
+    else:
+        index = 0
+        while index < len(clauses):
+            clause = clauses[index]
+            clause_text = "".join(str(group.get("text") or "") for group in clause)
+            display, _preferred = _caption_display_text(clause_text)
+            if (
+                display in _RIGHT_BINDING_CLAUSES
+                and index + 1 < len(clauses)
+                and int(clauses[index + 1][0].get("start_us") or 0)
+                == int(clause[-1].get("end_us") or 0)
+            ):
+                joined_clauses.append(clause + clauses[index + 1])
+                index += 2
+                continue
+            joined_clauses.append(clause)
+            index += 1
 
     result: list[CaptionCue] = []
     for clause in joined_clauses:
@@ -1726,6 +1735,17 @@ def _fallback_mapping(
         "audio_version": audio.get("version") if isinstance(audio, dict) else None,
         "mapped_unit_count": 0,
     }
+
+
+def _uses_validated_subtitle_boundaries(analysis: dict[str, Any]) -> bool:
+    """Only v20+ subtitle contracts may turn provider preferences into hard beats."""
+
+    subtitle_version = str(analysis.get("subtitle_prompt_version") or "")
+    if subtitle_version == "jyd.subtitle-analysis.prompt.v20":
+        return True
+    prompt_version = str(analysis.get("prompt_version") or "")
+    match = re.fullmatch(r"jyd\.content-analysis\.prompt\.v(\d+)", prompt_version)
+    return bool(match and int(match.group(1)) >= 20)
 
 
 def derive_project_render_cues(
@@ -1804,6 +1824,9 @@ def derive_project_render_cues(
                 groups,
                 metrics,
                 maximum_width_em=maximum_width_em,
+                preserve_preferred_boundaries=_uses_validated_subtitle_boundaries(
+                    analysis
+                ),
             )
             if asr_alignment is not None:
                 render_cues = retime_render_cues(
@@ -2006,9 +2029,11 @@ class ProjectPostprocessCoordinator:
         }
         if output_mp4 is not None:
             output["mp4_path"] = str(output_mp4)
+        source = build_project_video_source(item)
+        source["fade_out_us"] = VIDEO_FADE_OUT_US
         job: dict[str, Any] = {
             "schema": "jyd.render_job.v1",
-            "source": build_project_video_source(item),
+            "source": source,
             "original_video_volume": 0.0,
             "output": output,
             "captions": {
@@ -2045,6 +2070,7 @@ class ProjectPostprocessCoordinator:
                             "fit_to_video": True,
                             "align_to_end": True,
                             "crossfade_us": BGM_CROSSFADE_US,
+                            "fade_in_us": BGM_FADE_IN_US,
                             "volume": float(
                                 settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
                             ),

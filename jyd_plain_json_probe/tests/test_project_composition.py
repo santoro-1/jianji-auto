@@ -863,6 +863,9 @@ class ProjectCompositionApiTest(unittest.TestCase):
         ), patch(
             "jyd_probe.auth_center.AuthCenterClient.download_workbench_base_video",
             new=write_base,
+        ), patch(
+            "jyd_probe.project_composition.probe_video_duration_us",
+            return_value=2_990_000,
         ):
             with TestClient(create_app(self.settings)) as client:
                 login = client.post(
@@ -918,6 +921,10 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertIsNotNone(current["outputs"]["base_video"])
                 self.assertEqual(
                     current["outputs"]["base_video"]["metadata"]["duration_us"],
+                    2_990_000,
+                )
+                self.assertEqual(
+                    current["outputs"]["base_video"]["metadata"]["planned_duration_us"],
                     3_000_000,
                 )
                 self.assertEqual(len(current["outputs"]["original_video_segments"]), 1)

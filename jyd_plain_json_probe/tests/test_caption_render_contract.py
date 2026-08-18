@@ -355,6 +355,45 @@ class CaptionRenderContractTest(unittest.TestCase):
             )
             self.assertFalse((created.draft_dir / "_segment_holds").exists())
 
+    def test_video_fade_out_is_attached_only_to_last_main_track_segment(self) -> None:
+        import cv2
+        import numpy as np
+
+        with tempfile.TemporaryDirectory(prefix="jyd-fade-out-") as directory:
+            root = Path(directory)
+            videos: list[Path] = []
+            for index, value in enumerate((40, 180), start=1):
+                path = root / f"segment-{index}.avi"
+                writer = cv2.VideoWriter(
+                    str(path), cv2.VideoWriter_fourcc(*"MJPG"), 10, (64, 96)
+                )
+                self.assertTrue(writer.isOpened())
+                for _ in range(10):
+                    writer.write(np.full((96, 64, 3), value, dtype=np.uint8))
+                writer.release()
+                videos.append(path)
+
+            created = create_plain_draft_from_videos(
+                [
+                    VideoSequenceItem(videos[0], target_duration_us=1_000_000),
+                    VideoSequenceItem(videos[1], target_duration_us=3_000_000),
+                ],
+                root / "drafts",
+                draft_name="two-segments-with-fade-out",
+                fade_out_us=2_000_000,
+            )
+            data = load_plain_draft_json(created.draft_dir)
+            video_track = next(track for track in data["tracks"] if track["type"] == "video")
+            animations = data["materials"]["material_animations"]
+
+            self.assertEqual(len(animations), 1)
+            animation = animations[0]["animations"][0]
+            self.assertEqual(animation["name"], "渐隐")
+            self.assertEqual(animation["duration"], 2_000_000)
+            self.assertEqual(animation["start"], 1_000_000)
+            self.assertNotIn(animations[0]["id"], video_track["segments"][0]["extra_material_refs"])
+            self.assertIn(animations[0]["id"], video_track["segments"][1]["extra_material_refs"])
+
 
 if __name__ == "__main__":
     unittest.main()

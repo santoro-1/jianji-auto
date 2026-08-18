@@ -18,7 +18,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
-from jyd_probe.project_audio import _current_audio_links  # noqa: E402
+from jyd_probe.project_audio import ProjectAudioCoordinator, _current_audio_links  # noqa: E402
+from jyd_probe.project_store import ProjectStore  # noqa: E402
 
 
 PNG_1X1 = base64.b64decode(
@@ -105,6 +106,93 @@ class ProjectAudioApiTest(unittest.TestCase):
 
         self.assertEqual(batches, [])
         self.assertEqual(items, {})
+
+    def test_existing_audio_can_recover_captions_without_redownload(self) -> None:
+        store = ProjectStore(self.root / "caption-recovery.db")
+        project = store.create_project(
+            owner_user_id="recovery-user",
+            owner_username="tester",
+            name="字幕恢复测试",
+            items=[{"row_key": "1", "script_text": "保留旧音频并恢复字幕。"}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+        store.add_link(
+            owner_user_id="recovery-user",
+            project_id=project_id,
+            system="runninghub",
+            relation="digital_human_audio_batch",
+            external_id="recovery-batch",
+        )
+        store.add_link(
+            owner_user_id="recovery-user",
+            project_id=project_id,
+            item_id=item_id,
+            system="runninghub",
+            relation="digital_human_audio_item",
+            external_id="recovery-remote-item",
+            metadata={"batch_id": "recovery-batch"},
+        )
+        audio_path = self.root / "existing-v1.mp3"
+        audio_path.write_bytes(b"ID3-existing-audio")
+        asset = store.add_asset(
+            owner_user_id="recovery-user",
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename="1.mp3",
+            managed_path=str(audio_path),
+            external_ref={
+                "batch_id": "recovery-batch",
+                "remote_item_id": "recovery-remote-item",
+                "generation_version": 1,
+            },
+            make_current=True,
+        )
+
+        class RecoveryClient:
+            def get_workbench_audio_batch(self, _token, _batch_id):
+                return {
+                    "batch_id": "recovery-batch",
+                    "items": [
+                        {
+                            "item_id": "recovery-remote-item",
+                            "status": "AWAITING_REVIEW",
+                            "generation_version": 1,
+                            "audio_ready": True,
+                            "captions": {
+                                "cues": [
+                                    {
+                                        "start_us": 0,
+                                        "end_us": 1_500_000,
+                                        "duration_us": 1_500_000,
+                                        "text": "保留旧音频并恢复字幕。",
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+
+            def download_workbench_audio(self, *_args, **_kwargs):
+                raise AssertionError("已有音频不应被重复下载")
+
+        coordinator = ProjectAudioCoordinator(
+            store,
+            RecoveryClient(),
+            storage_root=self.root / "storage",
+            max_audio_bytes=1024 * 1024,
+        )
+
+        recovered = coordinator.sync("recovery-user", project_id, "token")
+
+        row = recovered["items"][0]
+        self.assertEqual(row["outputs"]["audio"]["asset_id"], asset["asset_id"])
+        self.assertEqual(row["subtitles"]["bound_audio_asset_id"], asset["asset_id"])
+        self.assertEqual(row["subtitles"]["status"], "READY")
+        self.assertEqual(row["subtitles"]["raw_cues"][0]["text"], "保留旧音频并恢复字幕。")
 
     def test_pending_audio_operation_resumes_after_application_restart(self) -> None:
         user = {"user_id": "restart-user", "username": "tester", "enabled": True}
@@ -261,7 +349,14 @@ class ProjectAudioApiTest(unittest.TestCase):
                 "name": "已保存克隆音色",
                 "source": "custom",
                 "method": "clone",
-            }
+            },
+            {
+                "voice_asset_id": "saved-voice-2",
+                "provider_voice_id": "custom-provider-2",
+                "name": "第二个已保存音色",
+                "source": "custom",
+                "method": "clone",
+            },
         ]
 
         with patch(
@@ -305,6 +400,33 @@ class ProjectAudioApiTest(unittest.TestCase):
                         for item in payload["project"]["items"]
                     )
                 )
+
+                first_item_id = payload["project"]["items"][0]["item_id"]
+                second_item_id = payload["project"]["items"][1]["item_id"]
+                scoped = client.put(
+                    f"/api/new/projects/{project['project_id']}/voice",
+                    json={
+                        "voice_asset_id": "saved-voice-2",
+                        "item_ids": [second_item_id],
+                    },
+                )
+                self.assertEqual(scoped.status_code, 200, scoped.text)
+                scoped_items = scoped.json()["project"]["items"]
+                self.assertEqual(scoped_items[0]["item_id"], first_item_id)
+                self.assertEqual(
+                    scoped_items[0]["settings"]["voice_asset_id"],
+                    "saved-voice-1",
+                )
+                self.assertEqual(
+                    scoped_items[1]["settings"]["voice_asset_id"],
+                    "saved-voice-2",
+                )
+
+                invalid_scope = client.put(
+                    f"/api/new/projects/{project['project_id']}/voice",
+                    json={"voice_asset_id": "saved-voice-1", "item_ids": "bad"},
+                )
+                self.assertEqual(invalid_scope.status_code, 422)
 
                 speed = client.put(
                     "/api/new/voices/default",

@@ -523,7 +523,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     0.5 + (-0.382336816305469) / 2,
                 )
                 self.assertEqual(options.json()["caption"]["font_size"], 11.0)
-                self.assertAlmostEqual(options.json()["caption"]["clip_scale"], 1.351709192276617)
+                self.assertAlmostEqual(options.json()["caption"]["clip_scale"], 1.32)
                 self.assertEqual(options.json()["caption"]["stroke_color"], "#000000")
                 self.assertEqual(options.json()["caption"]["stroke_width"], 0.0)
                 self.assertEqual(options.json()["default_layout_profile"], "standing")
@@ -587,7 +587,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 )
                 self.assertAlmostEqual(row["subtitles"]["style"]["transform_y"], -0.382336816305469)
                 self.assertEqual(row["subtitles"]["style"]["font_size"], 11.0)
-                self.assertAlmostEqual(row["subtitles"]["style"]["clip_scale"], 1.351709192276617)
+                self.assertAlmostEqual(row["subtitles"]["style"]["clip_scale"], 1.32)
                 self.assertEqual(row["settings"]["postprocess"]["layout_profile"], "standing")
                 self.assertEqual(
                     row["settings"]["postprocess"]["top_title"],
@@ -649,7 +649,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["captions"]["max_lines"], 1)
                 self.assertAlmostEqual(job["captions"]["transform_y"], -0.382336816305469)
                 self.assertEqual(job["captions"]["size"], 11.0)
-                self.assertAlmostEqual(job["captions"]["clip_scale"], 1.351709192276617)
+                self.assertAlmostEqual(job["captions"]["clip_scale"], 1.32)
                 self.assertEqual(job["captions"]["stroke_color"], "")
                 self.assertEqual(job["captions"]["stroke_width"], 0.0)
                 self.assertEqual(job["source"]["type"], "video_sequence")
@@ -667,6 +667,8 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["audios"][1]["volume"], 0.18)
                 self.assertTrue(job["audios"][1]["align_to_end"])
                 self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)
+                self.assertEqual(job["audios"][1]["fade_in_us"], 5_000_000)
+                self.assertEqual(job["source"]["fade_out_us"], 2_000_000)
                 self.assertEqual(
                     [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],
                     [

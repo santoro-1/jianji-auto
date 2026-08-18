@@ -2112,12 +2112,35 @@
             if (!voice) return;
             try {
                 if (activeProject) {
+                    const selectedItems = selectedProjectItems();
+                    const targetItems = selectedItems.length
+                        ? selectedItems
+                        : (activeArticleTypeFilter ? filteredProjectItems() : uploadedScripts);
+                    if (!targetItems.length) {
+                        showToast('没有可设置的任务', '当前选择或文章类型筛选中没有脚本行。', 'warning');
+                        return;
+                    }
+                    const scopeLabel = selectedItems.length
+                        ? `已勾选的 ${targetItems.length} 条任务`
+                        : (activeArticleTypeFilter
+                            ? `“${activeArticleTypeFilter}”类型的 ${targetItems.length} 条任务`
+                            : `当前项目全部 ${targetItems.length} 条任务`);
+                    const invalidatedAudioCount = targetItems.filter((item) =>
+                        item.voiceAssetId !== voice.id && Boolean(item.audio)
+                    ).length;
+                    if (invalidatedAudioCount && !window.confirm(
+                        `${scopeLabel}中有 ${invalidatedAudioCount} 条已生成声音。切换后这些目标行需要重新生成，未选中和其他文章类型的结果保持不变。是否继续？`
+                    )) return;
                     const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/voice`, {
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ voice_asset_id: voice.id })
+                        body: JSON.stringify({
+                            voice_asset_id: voice.id,
+                            item_ids: targetItems.map((item) => item.id)
+                        })
                     });
                     voicePreferences = result.preferences || voicePreferences;
                     syncProjectInputs(result.project);
+                    showToast('目标任务声音已更改', `已将「${voice.name}」应用到${scopeLabel}，范围外已有声音保持不变。`, 'success');
                 } else {
                     const result = await workspaceApi('/api/new/voices/default', {
                         method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -2128,9 +2151,9 @@
                 selectedDefaultVoiceIndex = index;
                 renderVoicePresetCards();
                 renderVoiceSpeedControl();
-                showToast('项目默认声音已更改', activeProject
-                    ? `已将「${voice.name}」应用到当前项目全部脚本行，右侧仍可逐行覆盖。`
-                    : `已选择「${voice.name}」作为后续项目的默认配音。`, 'success');
+                if (!activeProject) {
+                    showToast('默认声音已更改', `已选择「${voice.name}」作为后续项目的默认配音。`, 'success');
+                }
             } catch (error) { showToast('默认声音保存失败', error.message, 'warning'); }
         }
 
@@ -2608,8 +2631,9 @@
                     tr.setAttribute('data-final-video-name', script.compositionVideo.filename || `${script.rowKey}-final.mp4`);
                 } else if (browserPreviewReady) {
                     tr.setAttribute('data-preview-mode', 'browser');
-                    tr.setAttribute('data-preview-video-url', `/api/new/projects/${activeProject.project_id}/items/${script.id}/base-video`);
-                    tr.setAttribute('data-final-video-name', `${script.rowKey}-browser-preview`);
+                    const previewAssetId = encodeURIComponent(script.baseVideo?.asset_id || 'current');
+                    tr.setAttribute('data-preview-video-url', `/api/new/projects/${activeProject.project_id}/items/${script.id}/base-video?asset_id=${previewAssetId}`);
+                    tr.setAttribute('data-final-video-name', `${script.rowKey}-动态效果预览（以剪映草稿为准）`);
                 }
                 const variantStatus = ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus)
                     ? 'loading'
@@ -2826,11 +2850,11 @@
                                 <button onclick="openRowVideoPreview(this)" title="查看完整视频" class="relative w-20 h-11 rounded-lg overflow-hidden border border-brand-primary/35 bg-slate-950 group/video shadow-lg">
                                     <span class="absolute inset-0 bg-gradient-to-br from-brand-primary/30 via-slate-950 to-brand-secondary/25"></span>
                                     <span class="absolute inset-0 flex items-center justify-center bg-black/20"><i class="fa-solid fa-play text-[10px] text-white"></i></span>
-                                    <span class="absolute bottom-0 right-0 px-1 py-0.5 bg-black/70 text-[7px] text-brand-accent">${browserPreviewReady ? '动态预览' : '完整成片'}</span>
+                                    <span class="absolute bottom-0 right-0 px-1 py-0.5 bg-black/70 text-[7px] text-brand-accent">${browserPreviewReady ? '效果预览' : '完整成片'}</span>
                                 </button>
                                 ${script.compositionVideo
                                     ? `<a href="/api/new/projects/${activeProject.project_id}/items/${script.id}/current-video" class="text-[9px] text-gray-400 hover:text-brand-accent transition-colors"><i class="fa-solid fa-download mr-1"></i>下载完整成片</a>`
-                                    : `<span class="text-[9px] ${script.assetHistory?.composition_video?.length ? 'text-amber-300' : 'text-gray-500'}">${script.assetHistory?.composition_video?.length ? '封面/设置已更新 · 旧成片已过期' : '动态预览已就绪 · 尚未导出 MP4'}</span>`}
+                                    : `<span class="text-[9px] ${script.assetHistory?.composition_video?.length ? 'text-amber-300' : 'text-gray-500'}">${script.assetHistory?.composition_video?.length ? '封面/设置已更新 · 旧成片已过期' : '效果预览已就绪 · 以剪映草稿为准'}</span>`}
                                 ${browserPreviewReady ? `<button type="button" onclick="exportRowPostprocessVideo(this)" class="text-[9px] font-semibold text-emerald-300 hover:text-white transition-colors"><i class="fa-solid fa-file-video mr-1"></i>${script.assetHistory?.composition_video?.length ? '重新导出带封面 MP4' : '导出带封面 MP4'}</button>` : ''}
                                 ${browserPreviewReady ? '<button type="button" onclick="retryRowPostprocessPreview(this)" class="text-[9px] text-brand-accent hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>刷新动态预览</button>' : ''}
                                 ${backfillSeedvr2ButtonHtml}
@@ -5206,7 +5230,7 @@
             }
         }
 
-        async function regeneratePostprocessPreview(rowId, openAfter = false) {
+        async function regeneratePostprocessPreview(rowId) {
             if (!activeProject || !rowId || previewRetryingItems.has(rowId)) return;
             const script = uploadedScripts.find((item) => item.id === rowId);
             if (!script?.baseVideo) {
@@ -5254,7 +5278,6 @@
                     throw new Error(updated?.subtitles?.review_reason || '字幕预览尚未准备完成');
                 }
                 showToast('完整预览已刷新', '已刷新字幕、BGM、三帧封面和可编辑剪映草稿；不会生成新的 MP4。', 'success');
-                if (openAfter) openVideoModal(rowId);
             } catch (error) {
                 showToast('动态预览刷新失败', error.message, 'warning');
                 try {
@@ -5267,14 +5290,14 @@
 
         function retryRowPostprocessPreview(button) {
             const rowId = button.closest('tr')?.getAttribute('data-id') || '';
-            void regeneratePostprocessPreview(rowId, true);
+            void regeneratePostprocessPreview(rowId);
         }
 
         function retryActiveVideoPreview() {
             const rowId = activeVideoPreviewRow?.getAttribute('data-id') || '';
             if (!rowId) return;
             closeVideoModal();
-            void regeneratePostprocessPreview(rowId, true);
+            void regeneratePostprocessPreview(rowId);
         }
 
         function focusActivePreviewSettings() {

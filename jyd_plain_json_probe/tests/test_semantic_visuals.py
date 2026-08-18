@@ -1116,7 +1116,7 @@ def test_recall_adds_compact_enrichment_anchors_only_for_tagged_assets() -> None
     assert all(item["direct_concept_ids"] == [target_concept] for item in enrichment)
 
 
-def test_seam_recall_can_use_full_screen_broll_and_previous_phrase_context() -> None:
+def test_seam_recall_rejects_full_screen_only_broll() -> None:
     catalog = _catalog()
     target_index = next(
         index
@@ -1150,7 +1150,7 @@ def test_seam_recall_can_use_full_screen_broll_and_previous_phrase_context() -> 
     next_segment = "接下来再说明具体应该怎样坚持。"
     script = f"前面先安排{target_alias}帮助理解。{next_segment}"
 
-    seam = next(
+    seams = [
         item
         for item in recall_semantic_visual_candidates(
             script,
@@ -1161,11 +1161,9 @@ def test_seam_recall_can_use_full_screen_broll_and_previous_phrase_context() -> 
             ],
         )["candidates"]
         if item.get("usage") == "seam_broll"
-    )
+    ]
 
-    assert target_alias in seam["text"]
-    assert next_segment.rstrip("。") in seam["text"]
-    assert target_concept in seam["direct_concept_ids"]
+    assert seams == []
 
 
 def test_plain_sunbathing_alias_recalls_the_exact_approved_video_concept() -> None:
@@ -1273,7 +1271,7 @@ def test_editorial_pool_can_create_seam_candidate_without_literal_alias() -> Non
         if item.get("usage") == "seam_broll"
     )
 
-    assert candidate["text"].startswith("接下来")
+    assert candidate["text"] == "先把前面的道理说清楚。接下来聊聊怎样把改变放进普通生活"
     assert {
         concept["concept_id"] for concept in candidate["allowed_concepts"]
     } == {
@@ -1854,7 +1852,7 @@ def test_recipe_trims_a_minor_edge_overlap_instead_of_dropping_the_item() -> Non
     assert recipe["overlays"][1]["duration_us"] == 1_800_000
 
 
-def test_punctuation_free_manual_candidates_use_the_two_second_sentence_floor() -> None:
+def test_punctuation_free_manual_candidates_keep_the_mapped_sentence_duration() -> None:
     catalog = _catalog()
     script = "牛肉鸡蛋豆腐苹果西红柿黄瓜杏仁"
     candidates = recall_semantic_visual_candidates(script, catalog)["candidates"]
@@ -1885,7 +1883,7 @@ def test_punctuation_free_manual_candidates_use_the_two_second_sentence_floor() 
 
     assert len(candidates) >= 6
     assert len(recipe["overlays"]) == len(candidates)
-    assert all(item["duration_us"] == 2_000_000 for item in recipe["overlays"])
+    assert all(item["duration_us"] == 1_500_000 for item in recipe["overlays"])
     assert all(
         current["start_us"] - previous["start_us"] == 2_000_000
         for previous, current in zip(recipe["overlays"], recipe["overlays"][1:])
@@ -1944,7 +1942,7 @@ def test_recipe_keeps_a_short_first_phrase_without_opening_delay() -> None:
 
     assert len(recipe["overlays"]) == 1
     assert recipe["overlays"][0]["start_us"] == 0
-    assert recipe["overlays"][0]["duration_us"] == 2_000_000
+    assert recipe["overlays"][0]["duration_us"] == 1_800_000
 
 
 def test_rapid_list_covers_the_whole_sentence_and_cuts_in_speech_order() -> None:
@@ -2063,7 +2061,7 @@ def test_short_normal_sentence_is_clamped_to_final_video_end() -> None:
 
     overlay = recipe["overlays"][0]
     assert overlay["start_us"] == 1_500_000
-    assert overlay["duration_us"] == 900_000
+    assert overlay["duration_us"] == 300_000
     assert overlay["timing_mode"] == "sentence"
 
 

@@ -9,6 +9,7 @@ import threading
 from typing import Any
 
 from .auth_center import AuthCenterClient, AuthCenterError
+from .draft_factory import probe_video_duration_us
 from .logging_config import log_event
 from .project_store import ProjectStore
 
@@ -1185,6 +1186,7 @@ class ProjectCompositionCoordinator:
             except BaseException:
                 temporary.unlink(missing_ok=True)
                 raise
+            actual_duration_us = probe_video_duration_us(target)
             self.store.add_asset(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -1203,6 +1205,7 @@ class ProjectCompositionCoordinator:
                 metadata={
                     "start_seconds": video.get("start_seconds"),
                     "end_seconds": video.get("end_seconds"),
+                    "actual_duration_us": actual_duration_us,
                     "script_text": video.get("script_text"),
                     "quality_variant": video.get("quality_variant"),
                     "enhanced_by": (
@@ -1300,6 +1303,15 @@ class ProjectCompositionCoordinator:
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise
+        planned_duration_us = duration_us
+        try:
+            duration_us = probe_video_duration_us(target)
+        except Exception as exc:
+            duration_us = planned_duration_us
+            logger.warning(
+                "基础视频实际时长读取失败，将使用云端计划时长: error_type=%s",
+                type(exc).__name__,
+            )
         self.store.add_asset(
             owner_user_id=owner_user_id,
             project_id=project_id,
@@ -1315,6 +1327,7 @@ class ProjectCompositionCoordinator:
             metadata={
                 "segment_count": len(task_ids),
                 "duration_us": duration_us or None,
+                "planned_duration_us": planned_duration_us or None,
                 "normalized_to_approved_audio": True,
                 "input_image_asset_id": input_image_asset_id
                 or str(item.get("inputs", {}).get("image", {}).get("asset_id") or ""),

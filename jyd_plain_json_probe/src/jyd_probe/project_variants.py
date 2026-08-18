@@ -13,10 +13,12 @@ from .project_store import ProjectStore
 from .project_video_source import build_project_speech_audio, build_project_video_source
 from .project_postprocess import (
     BGM_CROSSFADE_US,
+    BGM_FADE_IN_US,
     CAPTION_REFERENCE_FONT_SIZE,
     CAPTION_STROKE_COLOR,
     CAPTION_STROKE_WIDTH,
     CAPTION_TRANSFORM_Y,
+    VIDEO_FADE_OUT_US,
     build_project_cover,
     build_top_title_texts,
 )
@@ -865,9 +867,11 @@ class ProjectVariantCoordinator:
         bgm_identity = str(postprocess.get("bgm_identity") or "")
         if bgm_identity and bgm_identity not in self.bgm_assets:
             raise ValueError(f"任务 {item['row_key']} 冻结的 BGM 不可用")
+        source = build_project_video_source(item)
+        source["fade_out_us"] = VIDEO_FADE_OUT_US
         job: dict[str, Any] = {
             "schema": "jyd.render_job.v1",
-            "source": build_project_video_source(item),
+            "source": source,
             "original_video_volume": 0.0,
             "export": {"resolution": "1080P", "framerate": "30fps"},
             "audios": [build_project_speech_audio(item)],
@@ -917,6 +921,7 @@ class ProjectVariantCoordinator:
                     "fit_to_video": True,
                     "align_to_end": True,
                     "crossfade_us": BGM_CROSSFADE_US,
+                    "fade_in_us": BGM_FADE_IN_US,
                     "volume": float(saved_bgm_volume or BGM_FALLBACK_VOLUME),
                 }
             )

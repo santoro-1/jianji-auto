@@ -44,6 +44,7 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
   "type": "video",
   "media_path": "D:/素材/input.mp4",
   "work_root": "D:/工作目录/generated_video_drafts",
+  "fade_out_us": 2000000,
   "canvas": {
     "width": 0,
     "height": 0,
@@ -51,6 +52,9 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
   }
 }
 ```
+
+`fade_out_us` 是主视频片尾“渐隐”时长，单位微秒；`0` 表示关闭。单视频作用于唯一主片段，
+`video_sequence` 只作用于最后一个主视频片段，不会给语义覆盖层或字幕重复添加动画。
 
 多个视频需要在剪映主轨道中保持为独立素材片段时，使用 `video_sequence`：
 
@@ -220,6 +224,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
 `text_effect_json_path` 是可选的花字素材，只应用于这条新增文字。新增文字可直接指定填充、描边、
 字体、单行宽度与坐标；这些字段在样式预设之后应用，因此固定标题可锁定最终参数。
 `start_us=0` 表示从视频开头开始，`duration_us=0` 表示从开始时间持续到视频结尾。
+新增文字的结束点若只因媒体帧取整而超出草稿实际时长不超过一个 30fps 帧（33334 微秒），
+渲染器会把它裁到片尾；起点越界或结束点超出一帧仍会拒绝任务，防止错误视频/文字绑定被掩盖。
 
 替换已有文字：
 
@@ -266,6 +272,7 @@ jyd_plain_json_probe/data/template_library/demo_template/
   "fit_to_video": true,
   "align_to_end": true,
   "crossfade_us": 200000,
+  "fade_in_us": 5000000,
   "volume": 0.3
 }
 ```
@@ -275,6 +282,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
 渲染器从视频结尾向前铺设，音乐长于视频时取曲目末尾等长区间；音乐短于视频时最后一轮完整
 播放到曲目自然结尾，最早一轮允许只取曲目尾部。`crossfade_us` 控制相邻轮次的交叉衔接，
 4B/变体固定为 `200000`；实现使用两条交替音轨，最后一轮不淡出。
+`fade_in_us` 控制整条 BGM 从时间线开头渐起的时长，单位微秒；只应用于最早的音乐片段，
+并可与该片段用于循环衔接的淡出同时存在。`0` 表示关闭。
 普通 `type=add` 默认仍只播放一次；确实需要循环时可显式传 `loop_to_video=true`。
 `volume` 支持 `0.0` 到 `2.0`。通用提交页未指定时使用页面默认值；数字人 4B 流程则保存
 响度分析得到的冻结音量，普通音乐范围为 `0.08..0.25`，强人声音乐范围为 `0.05..0.16`。

@@ -77,6 +77,59 @@ def test_video_uses_one_fixed_title_and_fixed_bottom_disclaimer() -> None:
     assert material["global_alpha"] == 0.5
 
 
+def test_added_text_clamps_a_single_frame_end_rounding_difference() -> None:
+    _replacements, additions, _styles, _nested_styles = _build_text_replacements(
+        {
+            "texts": [
+                {
+                    "type": "add",
+                    "text": "素材来源于网络",
+                    "start_us": 6_000_825,
+                    "duration_us": 8_810_894,
+                }
+            ]
+        },
+        timeline_duration_us=14_800_000,
+    )
+
+    assert additions[0].duration_us == 8_799_175
+
+
+def test_added_text_still_rejects_material_end_beyond_one_frame() -> None:
+    with pytest.raises(RuntimeError, match="新增文字时间范围超出视频时长"):
+        _build_text_replacements(
+            {
+                "texts": [
+                    {
+                        "type": "add",
+                        "text": "错误绑定的文字",
+                        "start_us": 6_000_000,
+                        "duration_us": 9_000_000,
+                    }
+                ]
+            },
+            timeline_duration_us=14_800_000,
+        )
+
+
+def test_added_text_starting_after_video_end_is_skipped() -> None:
+    _replacements, additions, _styles, _nested_styles = _build_text_replacements(
+        {
+            "texts": [
+                {
+                    "type": "add",
+                    "text": "素材来源于网络",
+                    "start_us": 20_000_000,
+                    "duration_us": 2_000_000,
+                }
+            ]
+        },
+        timeline_duration_us=19_467_000,
+    )
+
+    assert additions == []
+
+
 def test_network_source_label_reuses_disclaimer_style_and_overlay_timing() -> None:
     texts = build_source_attribution_texts(
         [

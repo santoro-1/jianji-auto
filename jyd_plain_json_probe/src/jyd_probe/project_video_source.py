@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .draft_factory import probe_video_duration_us
+
 
 WORKBENCH_DISSOLVE_DURATION_US = 250_000
 
@@ -72,6 +74,38 @@ def _base_video_source(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _actual_segment_duration_us(asset: dict[str, Any]) -> int:
+    """Return the playable duration of the exact stored segment file."""
+
+    metadata = asset.get("metadata")
+    recorded = metadata.get("actual_duration_us") if isinstance(metadata, dict) else None
+    if type(recorded) is int and recorded > 0:
+        return recorded
+    return probe_video_duration_us(str(asset["managed_path"]))
+
+
+def _segment_timeline(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build one cumulative timeline from the actual segment media files."""
+
+    cursor_us = 0
+    timeline: list[dict[str, Any]] = []
+    for asset in segments:
+        duration_us = _actual_segment_duration_us(asset)
+        if duration_us <= 0:
+            raise ValueError(f"原始分段 {_segment_index(asset)} 的实际视频时长无效")
+        start_us = cursor_us
+        cursor_us += duration_us
+        timeline.append(
+            {
+                "asset": asset,
+                "start_us": start_us,
+                "end_us": cursor_us,
+                "duration_us": duration_us,
+            }
+        )
+    return timeline
+
+
 def build_normalized_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
     """Return the normalized base video used by preview, captions, and export."""
 
@@ -131,22 +165,21 @@ def project_segment_boundaries(item: dict[str, Any]) -> list[dict[str, Any]]:
         range(1, expected + 1)
     ):
         return []
+    try:
+        timeline = _segment_timeline(segments)
+    except (FileNotFoundError, RuntimeError, ValueError):
+        # A wrong seam is more harmful than omitting an optional seam overlay.
+        return []
     boundaries: list[dict[str, Any]] = []
-    for asset in segments[1:]:
+    for entry in timeline[1:]:
+        asset = entry["asset"]
         metadata = asset.get("metadata", {})
-        try:
-            start_seconds = float(metadata.get("start_seconds"))
-            end_seconds = float(metadata.get("end_seconds"))
-        except (TypeError, ValueError):
-            return []
-        if start_seconds < 0 or end_seconds <= start_seconds:
-            return []
         boundaries.append(
             {
-                "boundary_us": round(start_seconds * 1_000_000),
+                "boundary_us": int(entry["start_us"]),
                 "segment_index": _segment_index(asset),
-                "segment_start_us": round(start_seconds * 1_000_000),
-                "segment_end_us": round(end_seconds * 1_000_000),
+                "segment_start_us": int(entry["start_us"]),
+                "segment_end_us": int(entry["end_us"]),
                 "script_text": str(metadata.get("script_text") or ""),
             }
         )
@@ -190,19 +223,11 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
             f"应有 {expected} 段，当前可用 {len(segments)} 段"
         )
 
+    timeline = _segment_timeline(segments)
     source_items: list[dict[str, Any]] = []
-    for asset in segments:
-        metadata = asset.get("metadata", {})
-        try:
-            start_seconds = float(metadata.get("start_seconds"))
-            end_seconds = float(metadata.get("end_seconds"))
-        except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"原始分段 {_segment_index(asset)} 缺少有效的音频时间范围"
-            ) from exc
-        duration_us = round((end_seconds - start_seconds) * 1_000_000)
-        if duration_us <= 0:
-            raise ValueError(f"原始分段 {_segment_index(asset)} 的目标时长无效")
+    for entry in timeline:
+        asset = entry["asset"]
+        duration_us = int(entry["duration_us"])
         source_item = {
             "media_path": str(Path(str(asset["managed_path"])).resolve()),
             "target_duration_us": duration_us,

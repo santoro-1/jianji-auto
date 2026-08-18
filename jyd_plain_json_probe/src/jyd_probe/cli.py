@@ -1024,6 +1024,9 @@ def add_audio_track_segment(draft: Any, script: Any, args: argparse.Namespace) -
 
     align_to_end = bool(getattr(args, "audio_align_to_end", False))
     crossfade_us = max(0, int(getattr(args, "audio_crossfade_us", 0) or 0))
+    requested_fade_in_us = max(
+        0, int(getattr(args, "audio_fade_in_us", 0) or 0)
+    )
     if align_to_end and loop_to_target and target_duration > 0:
         # Lay complete musical phrases backwards from the video end.  When the
         # song is shorter than the video, the first timeline piece is the song's
@@ -1068,7 +1071,7 @@ def add_audio_track_segment(draft: Any, script: Any, args: argparse.Namespace) -
             fade_in = (
                 min(crossfade_us, segment_duration // 2)
                 if index > 0
-                else 0
+                else min(requested_fade_in_us, segment_duration)
             )
             fade_out = (
                 min(crossfade_us, segment_duration // 2)
@@ -1101,6 +1104,11 @@ def add_audio_track_segment(draft: Any, script: Any, args: argparse.Namespace) -
             source_timerange=segment_source_timerange,
             volume=float(getattr(args, "audio_volume", 1.0)),
         )
+        if elapsed == 0 and requested_fade_in_us > 0 and hasattr(audio_segment, "add_fade"):
+            audio_segment.add_fade(
+                min(requested_fade_in_us, segment_duration),
+                0,
+            )
         script.add_segment(audio_segment, track_name)
         segment_count += 1
         elapsed += segment_duration

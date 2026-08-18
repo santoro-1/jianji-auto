@@ -501,6 +501,54 @@ class ProjectApiTest(unittest.TestCase):
             )
         )
 
+    def test_project_voice_scope_preserves_audio_outside_requested_items(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="按文章类型切换音色",
+            items=[
+                {"row_key": "1", "script_text": "鸡汤文。"},
+                {"row_key": "2", "script_text": "干货文。"},
+            ],
+        )
+        project = store.configure_project_voice(
+            "user-1", project["project_id"], voice_asset_id="voice-chicken"
+        )
+        chicken_item = project["items"][0]
+        dry_item = project["items"][1]
+        chicken_audio = store.add_asset(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=chicken_item["item_id"],
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename="chicken.mp3",
+            make_current=True,
+        )
+
+        changed = store.configure_project_voice(
+            "user-1",
+            project["project_id"],
+            voice_asset_id="voice-dry",
+            item_ids=[dry_item["item_id"]],
+        )
+
+        first, second = changed["items"]
+        self.assertEqual(first["settings"]["voice_asset_id"], "voice-chicken")
+        self.assertEqual(first["outputs"]["audio"]["asset_id"], chicken_audio["asset_id"])
+        self.assertEqual(first["status"], "AUDIO_READY")
+        self.assertEqual(second["settings"]["voice_asset_id"], "voice-dry")
+        self.assertIsNone(second["outputs"]["audio"])
+        self.assertEqual(
+            changed["settings"]["default_voice_asset_id"], "voice-dry"
+        )
+        self.assertEqual(
+            store.get_voice_preferences("user-1")["default_voice_asset_id"],
+            "voice-dry",
+        )
+
     def test_project_tables_do_not_modify_existing_render_queue_schema_or_rows(self) -> None:
         database = self.settings.storage_root / "control.db"
         task_store = SQLiteTaskStore(database)

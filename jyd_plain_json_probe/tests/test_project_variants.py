@@ -290,7 +290,7 @@ class ProjectVariantTest(unittest.TestCase):
             )
             self.assertEqual(job["original_video_volume"], 0.0)
             self.assertEqual(job["captions"]["size"], 11.0)
-            self.assertAlmostEqual(job["captions"]["clip_scale"], 1.351709192276617)
+            self.assertAlmostEqual(job["captions"]["clip_scale"], 1.32)
             self.assertEqual(job["captions"]["stroke_color"], "")
             self.assertEqual(job["captions"]["font_title"], "固定字体")
             self.assertEqual(
@@ -300,6 +300,8 @@ class ProjectVariantTest(unittest.TestCase):
             self.assertEqual(job["audios"][1]["library_identity"], "bgm-1")
             self.assertTrue(job["audios"][1]["align_to_end"])
             self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)
+            self.assertEqual(job["audios"][1]["fade_in_us"], 5_000_000)
+            self.assertEqual(job["source"]["fade_out_us"], 2_000_000)
             self.assertEqual(
                 [text["text"] for text in job["texts"]],
                 [

@@ -191,6 +191,9 @@ def _validated_remote_result(
     return {
         "schema_version": str(payload.get("schema_version") or "")[:100],
         "prompt_version": str(payload.get("prompt_version") or "")[:100],
+        "subtitle_prompt_version": str(
+            payload.get("subtitle_prompt_version") or ""
+        )[:100],
         "model": str(payload.get("model") or "")[:200],
         "music_analysis_status": music_status,
         "subtitle_analysis_status": subtitle_status,

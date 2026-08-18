@@ -39,6 +39,19 @@ def _safe_draft_name(stem: str) -> str:
     return name or "uploaded_video"
 
 
+def probe_video_duration_us(media_path: str | Path) -> int:
+    """Read the same media duration fact that Jianying draft creation will use."""
+
+    media = Path(media_path).expanduser().resolve()
+    if not media.is_file():
+        raise FileNotFoundError(f"输入视频不存在: {media}")
+    draft = import_pyjianyingdraft()
+    duration_us = int(draft.VideoMaterial(str(media)).duration)
+    if duration_us <= 0:
+        raise RuntimeError(f"输入视频时长无效: duration_us={duration_us}")
+    return duration_us
+
+
 def create_plain_draft_from_video(
     media_path: str | Path,
     output_root: str | Path,
@@ -49,6 +62,7 @@ def create_plain_draft_from_video(
     fps: int = 30,
     source_start_us: int = 0,
     source_duration_us: int = 0,
+    fade_out_us: int = 0,
 ) -> CreatedVideoDraft:
     """Create a plain Jianying draft containing one top-level video segment."""
 
@@ -93,13 +107,17 @@ def create_plain_draft_from_video(
         allow_replace=False,
     )
     append_track_compat(draft, script, draft.TrackType.video)
-    script.add_segment(
-        draft.VideoSegment(
-            material,
-            draft.Timerange(0, segment_duration),
-            source_timerange=draft.Timerange(source_start, segment_duration),
-        )
+    video_segment = draft.VideoSegment(
+        material,
+        draft.Timerange(0, segment_duration),
+        source_timerange=draft.Timerange(source_start, segment_duration),
     )
+    fade_out = max(0, int(fade_out_us))
+    if fade_out > segment_duration:
+        raise ValueError("视频渐隐时长不能超过最后一个主视频片段")
+    if fade_out > 0:
+        video_segment.add_animation(draft.OutroType.渐隐, duration=fade_out)
+    script.add_segment(video_segment)
     script.save()
 
     draft_dir = root / draft_name
@@ -126,6 +144,7 @@ def create_plain_draft_from_videos(
     width: int = 0,
     height: int = 0,
     fps: int = 30,
+    fade_out_us: int = 0,
 ) -> CreatedVideoDraft:
     """Create one main track whose source videos remain separate, ordered clips."""
 
@@ -202,6 +221,12 @@ def create_plain_draft_from_videos(
                     draft.TransitionType.叠化,
                     duration=transition_duration,
                 )
+        if index == len(sequence):
+            fade_out = max(0, int(fade_out_us))
+            if fade_out > clip_duration:
+                raise ValueError("视频渐隐时长不能超过最后一个主视频片段")
+            if fade_out > 0:
+                video_segment.add_animation(draft.OutroType.渐隐, duration=fade_out)
         script.add_segment(video_segment)
         cursor += clip_duration
     script.save()

@@ -27,7 +27,7 @@ def test_layout_profiles_preserve_the_two_manual_draft_standards() -> None:
     assert LAYOUT_PROFILE_FONT_IDENTITY == "resource_id:7086699209738424840"
     assert [row["id"] for row in public_layout_profiles()] == ["standing", "seated"]
     assert standing["caption"]["font_size"] == 11.0
-    assert standing["caption"]["clip_scale"] == pytest.approx(1.351709192276617)
+    assert standing["caption"]["clip_scale"] == pytest.approx(1.32)
     assert standing["caption"]["transform_y"] == pytest.approx(-0.382336816305469)
     assert standing["caption"]["max_width_ratio"] == 0.8
     assert seated["caption"]["font_size"] == 15.0

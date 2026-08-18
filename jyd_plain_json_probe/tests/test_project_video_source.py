@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from jyd_probe.project_video_source import project_segment_boundaries
+from jyd_probe.project_video_source import (
+    build_project_video_source,
+    project_segment_boundaries,
+)
 
 
 def test_project_segment_boundaries_preserve_next_segment_script_and_time(
@@ -28,6 +31,7 @@ def test_project_segment_boundaries_preserve_next_segment_script_and_time(
                     "metadata": {
                         "start_seconds": 0.0,
                         "end_seconds": 2.5,
+                        "actual_duration_us": 2_200_000,
                         "script_text": "第一句。",
                     },
                 },
@@ -39,6 +43,7 @@ def test_project_segment_boundaries_preserve_next_segment_script_and_time(
                     "metadata": {
                         "start_seconds": 2.5,
                         "end_seconds": 5.0,
+                        "actual_duration_us": 2_700_000,
                         "script_text": "第二句吃牛肉。",
                     },
                 },
@@ -48,10 +53,15 @@ def test_project_segment_boundaries_preserve_next_segment_script_and_time(
 
     assert project_segment_boundaries(item) == [
         {
-            "boundary_us": 2_500_000,
+            "boundary_us": 2_200_000,
             "segment_index": 2,
-            "segment_start_us": 2_500_000,
-            "segment_end_us": 5_000_000,
+            "segment_start_us": 2_200_000,
+            "segment_end_us": 4_900_000,
             "script_text": "第二句吃牛肉。",
         }
+    ]
+    source = build_project_video_source(item)
+    assert [entry["target_duration_us"] for entry in source["items"]] == [
+        2_200_000,
+        2_700_000,
     ]

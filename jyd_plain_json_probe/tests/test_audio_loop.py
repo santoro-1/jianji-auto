@@ -136,6 +136,7 @@ class AudioLoopTest(unittest.TestCase):
                 audio_loop_to_target=True,
                 audio_align_to_end=True,
                 audio_crossfade_us=200_000,
+                audio_fade_in_us=5_000_000,
             ),
         )
 
@@ -157,7 +158,7 @@ class AudioLoopTest(unittest.TestCase):
         )
         self.assertEqual(
             [segment.fade for segment, _ in script.segments],
-            [(0, 200_000), (200_000, 200_000), (200_000, 0)],
+            [(5_000_000, 200_000), (200_000, 200_000), (200_000, 0)],
         )
         self.assertEqual(len({track_name for _, track_name in script.segments}), 2)
 
@@ -176,6 +177,7 @@ class AudioLoopTest(unittest.TestCase):
                 audio_loop_to_target=True,
                 audio_align_to_end=True,
                 audio_crossfade_us=200_000,
+                audio_fade_in_us=5_000_000,
             ),
         )
 
@@ -185,7 +187,7 @@ class AudioLoopTest(unittest.TestCase):
         self.assertEqual(segment.target_timerange.duration, 60_000_000)
         self.assertEqual(segment.source_timerange.start, 60_000_000)
         self.assertEqual(segment.source_timerange.duration, 60_000_000)
-        self.assertIsNone(segment.fade)
+        self.assertEqual(segment.fade, (5_000_000, 0))
 
     def test_render_job_defaults_only_fitted_bgm_to_loop(self) -> None:
         media_path = str(Path(__file__).resolve())
@@ -230,6 +232,7 @@ class AudioLoopTest(unittest.TestCase):
                         "fit_to_video": True,
                         "align_to_end": True,
                         "crossfade_us": 200_000,
+                        "fade_in_us": 5_000_000,
                     }
                 ]
             },
@@ -239,6 +242,7 @@ class AudioLoopTest(unittest.TestCase):
         self.assertTrue(additions[0].loop_to_target)
         self.assertTrue(additions[0].align_to_end)
         self.assertEqual(additions[0].crossfade_us, 200_000)
+        self.assertEqual(additions[0].fade_in_us, 5_000_000)
 
 
 if __name__ == "__main__":

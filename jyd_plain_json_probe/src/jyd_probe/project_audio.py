@@ -414,8 +414,19 @@ class ProjectAudioCoordinator:
             for item in project["items"]
             if item.get("status") in {"AUDIO_QUEUED", "AUDIO_RUNNING"}
         }
+        caption_recovery_item_ids = {
+            str(item["item_id"])
+            for item in project["items"]
+            if isinstance(item.get("outputs", {}).get("audio"), dict)
+            and (
+                item.get("subtitles", {}).get("bound_audio_asset_id")
+                != item["outputs"]["audio"].get("asset_id")
+                or not item.get("subtitles", {}).get("raw_cues")
+            )
+        }
         batch_links, item_links = _current_audio_links(
-            project["links"], active_item_ids=active_item_ids
+            project["links"],
+            active_item_ids=active_item_ids | caption_recovery_item_ids,
         )
         local_by_item = {item["item_id"]: item for item in project["items"]}
         for batch_link in batch_links:
@@ -433,6 +444,8 @@ class ProjectAudioCoordinator:
                 local_item_id = str(link["item_id"])
                 provider_status = str(remote_item.get("status") or "")
                 if provider_status == "FAILED":
+                    if local_item_id not in active_item_ids:
+                        continue
                     self.store.transition_audio_operation(
                         owner_user_id,
                         project_id,
@@ -454,6 +467,11 @@ class ProjectAudioCoordinator:
                         current_ref.get("remote_item_id") == remote_item_id
                         and int(current_ref.get("generation_version") or 0) == generation_version
                     )
+                    if local_item_id in caption_recovery_item_ids and not already_downloaded:
+                        # Caption recovery must never replace the restored current audio with
+                        # another remote generation merely because a newer link also exists.
+                        continue
+                    asset = current
                     if not already_downloaded:
                         directory = (
                             self.storage_root
@@ -506,17 +524,20 @@ class ProjectAudioCoordinator:
                             },
                             make_current=True,
                         )
-                        captions = remote_item.get("captions")
-                        if isinstance(captions, dict):
-                            cues = captions.get("cues")
+                    captions = remote_item.get("captions")
+                    if isinstance(captions, dict) and isinstance(asset, dict):
+                        cues = captions.get("cues")
+                        if isinstance(cues, list) and (
+                            cues or local_item_id not in caption_recovery_item_ids
+                        ):
                             updated = self.store.set_item_subtitles(
                                 owner_user_id,
                                 project_id,
                                 local_item_id,
                                 {
                                     "source": "minimax_timestamps",
-                                    "raw_cues": cues if isinstance(cues, list) else [],
-                                    "render_cues": cues if isinstance(cues, list) else [],
+                                    "raw_cues": cues,
+                                    "render_cues": cues,
                                     "bound_audio_asset_id": asset["asset_id"],
                                     "bound_video_asset_id": None,
                                     "style": local_item.get("subtitles", {}).get("style", {}),
@@ -541,21 +562,26 @@ class ProjectAudioCoordinator:
                                         item=updated_item,
                                         catalog=self.visual_catalog,
                                     )
+                    if not already_downloaded or local_item_id in caption_recovery_item_ids:
                         project = self.store.get_project(owner_user_id, project_id)
                         local_by_item = {item["item_id"]: item for item in project["items"]}
-                    self.store.transition_audio_operation(
-                        owner_user_id,
-                        project_id,
-                        local_item_id,
-                        status="SUCCEEDED",
-                        item_status="AUDIO_READY",
-                        result={
-                            "batch_id": batch_id,
-                            "item_id": remote_item_id,
-                            "generation_version": generation_version,
-                        },
-                    )
-                elif provider_status in REMOTE_AUDIO_ACTIVE:
+                    if local_item_id in active_item_ids:
+                        self.store.transition_audio_operation(
+                            owner_user_id,
+                            project_id,
+                            local_item_id,
+                            status="SUCCEEDED",
+                            item_status="AUDIO_READY",
+                            result={
+                                "batch_id": batch_id,
+                                "item_id": remote_item_id,
+                                "generation_version": generation_version,
+                            },
+                        )
+                elif (
+                    provider_status in REMOTE_AUDIO_ACTIVE
+                    and local_item_id in active_item_ids
+                ):
                     self.store.transition_audio_operation(
                         owner_user_id,
                         project_id,

@@ -216,6 +216,7 @@ def test_seam_supplement_runs_once_after_segments_exist_and_merges_recipe(
         metadata={
             "start_seconds": 0.0,
             "end_seconds": 2.0,
+            "actual_duration_us": 2_000_000,
             "script_text": "前面先热身。",
         },
     )
@@ -231,6 +232,7 @@ def test_seam_supplement_runs_once_after_segments_exist_and_merges_recipe(
         metadata={
             "start_seconds": 2.0,
             "end_seconds": 6.0,
+            "actual_duration_us": 4_000_000,
             "script_text": second_segment,
         },
     )

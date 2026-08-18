@@ -1234,21 +1234,45 @@ class ProjectStore:
         project_id: str,
         *,
         voice_asset_id: str,
+        item_ids: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Atomically apply one saved voice to every item and the user default."""
+        """Atomically apply a saved voice to the requested items and user default.
+
+        Omitting ``item_ids`` preserves the historical whole-project behavior.  A
+        supplied list is an explicit scope from the table selection or article-type
+        filter; rows outside that scope must keep their current audio and downstream
+        bindings.
+        """
 
         voice_id = str(voice_asset_id or "").strip()
         if not voice_id:
             raise ValueError("声音原型不能为空")
         owner_id = str(owner_user_id or "").strip()
+        clean_item_ids: list[str] | None = None
+        if item_ids is not None:
+            clean_item_ids = list(
+                dict.fromkeys(str(value or "").strip() for value in item_ids)
+            )
+            if not clean_item_ids or any(not value for value in clean_item_ids):
+                raise ValueError("至少选择一条需要更换声音的脚本行")
         with self._transaction() as connection:
             project = self._owned_project(connection, owner_id, project_id)
             items = connection.execute(
                 "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
                 (project_id,),
             ).fetchall()
+            existing_ids = {str(item["item_id"]) for item in items}
+            if clean_item_ids is not None and any(
+                item_id not in existing_ids for item_id in clean_item_ids
+            ):
+                raise KeyError("项目脚本行不存在")
+            target_ids = (
+                existing_ids if clean_item_ids is None else set(clean_item_ids)
+            )
             changed_items = []
             for item in items:
+                if str(item["item_id"]) not in target_ids:
+                    continue
                 settings = _object(item["settings_json"], {})
                 if settings.get("voice_asset_id") != voice_id:
                     changed_items.append((item, settings))
@@ -3354,6 +3378,8 @@ class ProjectStore:
                 or baseline.get("schema_version"),
                 "prompt_version": result.get("prompt_version")
                 or baseline.get("prompt_version"),
+                "subtitle_prompt_version": result.get("subtitle_prompt_version")
+                or baseline.get("subtitle_prompt_version"),
                 "model": result.get("model") or baseline.get("model"),
                 "provider_request_id": result.get("provider_request_id")
                 or baseline.get("provider_request_id"),

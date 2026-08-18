@@ -49,7 +49,6 @@ VISUAL_CORNERS = frozenset(
 )
 VISUAL_PHRASE_BOUNDARIES = frozenset("，,。！？!?；;：:\n\r")
 VISUAL_MAX_AUTO_PER_MINUTE = 24
-VISUAL_SENTENCE_MIN_DURATION_US = 2_000_000
 VISUAL_ENRICHMENT_MIN_GAP_US = 6_000_000
 VISUAL_MINOR_OVERLAP_TOLERANCE_US = 500_000
 VISUAL_SEAM_BROLL_DURATION_US = 1_000_000
@@ -1574,19 +1573,11 @@ def recall_semantic_visual_candidates(
                 periodic_phrase_ranges.add((phrase_start, phrase_end))
 
     occupied_starts.difference_update(seam_reserved_starts)
-    # A segment seam may use any approved full-screen B-roll.  Dedicated
-    # ``seam_broll`` tagging remains preferred at asset selection time, but it
-    # must not hide an otherwise relevant one-shot full-screen clip.
-    seam_concept_ids = _broll_concept_ids(
-        catalog, usage="seam_broll"
-    ) | _broll_concept_ids(catalog, usage="enrichment")
-    seam_editorial = _merge_broll_concepts(
-        _editorial_broll_concepts(
-            catalog, usage="seam_broll", article_type=article_type
-        ),
-        _editorial_broll_concepts(
-            catalog, usage="enrichment", article_type=article_type
-        ),
+    # Segment seams have a dedicated reviewed pool. Ordinary enrichment clips
+    # must not become seam candidates unless they also carry ``seam_broll``.
+    seam_concept_ids = _broll_concept_ids(catalog, usage="seam_broll")
+    seam_editorial = _editorial_broll_concepts(
+        catalog, usage="seam_broll", article_type=article_type
     )
     expected_denominator = max(1, planning_duration_us)
     for boundary in sorted(
@@ -1609,60 +1600,42 @@ def recall_semantic_visual_candidates(
             continue
         expected_char = round(len(original_script) * boundary_us / expected_denominator)
         segment_start = min(occurrences, key=lambda value: abs(value - expected_char))
-        context_end = min(
-            len(original_script), segment_start + min(len(segment_script), 80)
-        )
-        seam_matches = [
-            match
-            for match in matches
-            if match[0] < context_end
-            and match[1] > segment_start
-            and any(
-                str(concept.get("concept_id") or "") in seam_concept_ids
-                for concept in match[3]
+        next_probe = segment_start
+        while (
+            next_probe < len(original_script)
+            and (
+                original_script[next_probe].isspace()
+                or original_script[next_probe] in VISUAL_PHRASE_BOUNDARIES
             )
-        ]
-        nearest = (
-            min(seam_matches, key=lambda match: (match[0], match[1]))
-            if seam_matches
+        ):
+            next_probe += 1
+        previous_probe = segment_start - 1
+        while (
+            previous_probe >= 0
+            and (
+                original_script[previous_probe].isspace()
+                or original_script[previous_probe] in VISUAL_PHRASE_BOUNDARIES
+            )
+        ):
+            previous_probe -= 1
+        next_phrase_range = (
+            visual_phrase_char_range(
+                original_script, start=next_probe, end=next_probe + 1
+            )
+            if next_probe < len(original_script)
             else None
         )
-        next_phrase_range = _phrase_range_near_char(original_script, segment_start)
-        if nearest is not None:
-            phrase_range = visual_phrase_char_range(
-                original_script, start=nearest[0], end=nearest[1]
+        previous_phrase_range = (
+            visual_phrase_char_range(
+                original_script, start=previous_probe, end=previous_probe + 1
             )
+            if previous_probe >= 0
+            else None
+        )
+        if previous_phrase_range is not None and next_phrase_range is not None:
+            phrase_range = (previous_phrase_range[0], next_phrase_range[1])
         else:
-            # If the new segment opens with an abstract transition, let the
-            # model inspect the preceding spoken phrase together with the next
-            # phrase.  This widens recall without accepting an unrelated clip:
-            # the cloud semantic decision still has to approve the combined
-            # context.
-            previous_start = max(0, segment_start - 80)
-            previous_matches = [
-                match
-                for match in matches
-                if match[0] < segment_start
-                and match[1] > previous_start
-                and any(
-                    str(concept.get("concept_id") or "") in seam_concept_ids
-                    for concept in match[3]
-                )
-            ]
-            previous_nearest = (
-                max(previous_matches, key=lambda match: (match[1], match[0]))
-                if previous_matches
-                else None
-            )
-            if previous_nearest is not None and next_phrase_range is not None:
-                previous_phrase_range = visual_phrase_char_range(
-                    original_script,
-                    start=previous_nearest[0],
-                    end=previous_nearest[1],
-                )
-                phrase_range = (previous_phrase_range[0], next_phrase_range[1])
-            else:
-                phrase_range = next_phrase_range
+            phrase_range = next_phrase_range
         if phrase_range is None:
             continue
         phrase_start, phrase_end = phrase_range
@@ -1878,7 +1851,7 @@ def _assets_for_media_policy(
             and (usage != "explicit" or not available)
         ):
             fallback_modes = (
-                {"full_screen_broll", "seam_broll"}
+                {"seam_broll"}
                 if usage == "seam_broll"
                 else {"full_screen_broll"}
             )
@@ -2165,7 +2138,7 @@ def _target_sentence_range(
     *,
     final_video_duration_us: int | None,
     start_override_us: int | None = None,
-    minimum_duration_us: int = VISUAL_SENTENCE_MIN_DURATION_US,
+    minimum_duration_us: int = 0,
 ) -> tuple[int, int]:
     start_us = int(
         candidate.get("start_us", 0) if start_override_us is None else start_override_us
@@ -2377,9 +2350,9 @@ def _fit_enrichment_around_seams(
             if seam_start >= interval_end or seam_end <= interval_start:
                 next_intervals.append((interval_start, interval_end))
                 continue
-            if seam_start - interval_start >= VISUAL_SENTENCE_MIN_DURATION_US:
+            if seam_start > interval_start:
                 next_intervals.append((interval_start, seam_start))
-            if interval_end - seam_end >= VISUAL_SENTENCE_MIN_DURATION_US:
+            if interval_end > seam_end:
                 next_intervals.append((seam_end, interval_end))
         intervals = next_intervals
         if not intervals:
@@ -2656,7 +2629,7 @@ def build_visual_recipe(
         start_us, end_us = _target_sentence_range(
             first_candidate,
             final_video_duration_us=final_video_duration_us,
-            minimum_duration_us=0 if rapid else VISUAL_SENTENCE_MIN_DURATION_US,
+            minimum_duration_us=0,
         )
         ranges = (
             _rapid_ranges([entry for entry, _asset in chosen], start_us, end_us)

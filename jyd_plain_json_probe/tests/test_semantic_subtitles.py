@@ -34,7 +34,7 @@ PRODUCTION_CAPTION_FONT_PATH = (
     / "files"
     / "FZCuJinLJW_7086699209738424840.ttf"
 )
-PRODUCTION_CAPTION_FONT_SIZE = 11.0 * 1.351709192276617
+PRODUCTION_CAPTION_FONT_SIZE = 11.0 * 1.32
 
 
 def _units(parts: list[tuple[str, str, str, str]]) -> list[dict[str, object]]:
@@ -61,6 +61,7 @@ def _item(
     raw_cues: list[dict[str, object]],
     *,
     audio_script_hash: str | None = None,
+    prompt_version: str = "jyd.content-analysis.prompt.v1",
 ) -> dict[str, object]:
     script_hash = hashlib.sha256(script.encode("utf-8")).hexdigest()
     return {
@@ -70,7 +71,7 @@ def _item(
             "subtitle_units": units,
             "script_sha256": script_hash,
             "schema_version": "jyd.content-analysis.v1",
-            "prompt_version": "jyd.content-analysis.prompt.v1",
+            "prompt_version": prompt_version,
         },
         "outputs": {
             "audio": {
@@ -87,6 +88,34 @@ def _item(
             "raw_cues": raw_cues,
         },
     }
+
+
+def test_v20_boundaries_are_hard_and_ten_full_width_characters_fit() -> None:
+    script = "肚子饿了第一个想吃的就是鸡蛋"
+    units = _units(
+        [
+            ("肚子饿了第一个想吃的", "phrase", "none", "prefer"),
+            ("就是鸡蛋", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(
+            script,
+            units,
+            raw_cues,
+            prompt_version="jyd.content-analysis.prompt.v20",
+        ),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [cue["text"] for cue in render_cues] == [
+        "肚子饿了第一个想吃的",
+        "就是鸡蛋",
+    ]
 
 
 def test_semantic_layout_keeps_connectors_numbers_words_and_tilde_intact() -> None:
@@ -275,7 +304,7 @@ def test_soft_comma_does_not_force_an_orphan_short_caption() -> None:
     )
 
 
-def test_model_preferred_boundary_beats_short_tail_penalty() -> None:
+def test_legacy_model_preference_remains_soft_when_ten_characters_fit() -> None:
     script = "只是让你多上点心坚持，"
     units = _units(
         [
@@ -293,13 +322,10 @@ def test_model_preferred_boundary_beats_short_tail_penalty() -> None:
     )
 
     assert mapping["status"] == "SUCCESS"
-    assert [str(cue["text"]) for cue in render_cues] == [
-        "只是让你多上点心",
-        "坚持",
-    ]
+    assert [str(cue["text"]) for cue in render_cues] == ["只是让你多上点心坚持"]
 
 
-def test_local_reflow_preserves_task_11_phrase_without_model_boundary() -> None:
+def test_ten_full_width_characters_fit_without_a_model_boundary() -> None:
     script = "只是让你多上点心坚持，"
     units = _units([(script, "phrase", "none", "prefer")])
     raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
@@ -312,10 +338,7 @@ def test_local_reflow_preserves_task_11_phrase_without_model_boundary() -> None:
     )
 
     assert mapping["status"] == "SUCCESS"
-    assert [str(cue["text"]) for cue in render_cues] == [
-        "只是让你多上点心",
-        "坚持",
-    ]
+    assert [str(cue["text"]) for cue in render_cues] == ["只是让你多上点心坚持"]
 
 
 def test_task_20_semantic_answer_boundary_is_kept_even_when_text_fits() -> None:

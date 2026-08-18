@@ -4,6 +4,7 @@
     "media_path": "C:/Users/san/Desktop/测试/1.mp4",
     "work_root": "",
     "base_draft_name": "",
+    "fade_out_us": 2000000,
     "canvas_width": 0,
     "canvas_height": 0,
     "fps": 30
@@ -27,7 +28,15 @@
       "size": 8.0
     }
   ],
-  "audios": [],
+  "audios": [
+    {
+      "type": "bgm",
+      "media_path": "D:/素材/bgm.mp3",
+      "fit_to_video": true,
+      "fade_in_us": 5000000,
+      "volume": 0.18
+    }
+  ],
   "effects": [
     {
       "effect_json_path": "D:/工作内容/轻盈健/公寓/effect_library/流星雨.json",

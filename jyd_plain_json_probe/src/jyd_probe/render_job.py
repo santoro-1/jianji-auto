@@ -44,6 +44,9 @@ from .visual_variant import VisualVariant
 from .cover_apply import CoverConfig
 
 
+TEXT_END_ROUNDING_TOLERANCE_US = 33_334
+
+
 RENDER_JOB_SCHEMA = "jyd.render_job.v1"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -324,6 +327,10 @@ def _prepare_video_source(config: Mapping[str, Any], source: Mapping[str, Any]) 
         fps=int(_value(canvas, "fps", default=_value(source, "canvas_fps", "fps", default=30))),
         source_start_us=int(_value(source, "source_start_us", "start_us", default=0)),
         source_duration_us=int(_value(source, "source_duration_us", "duration_us", default=0)),
+        fade_out_us=max(
+            0,
+            int(_value(source, "fade_out_us", "video_fade_out_us", default=0)),
+        ),
     )
 
     return created.draft_dir, created.draft_dir, media.stem
@@ -381,6 +388,10 @@ def _prepare_video_sequence_source(
             _value(canvas, "height", default=_value(source, "canvas_height", "height", default=0))
         ),
         fps=int(_value(canvas, "fps", default=_value(source, "canvas_fps", "fps", default=30))),
+        fade_out_us=max(
+            0,
+            int(_value(source, "fade_out_us", "video_fade_out_us", default=0)),
+        ),
     )
     return created.draft_dir, created.draft_dir, items[0].media_path.stem
 
@@ -626,11 +637,18 @@ def _build_text_replacements(
             if text_effect_json_path:
                 _positive_path(text_effect_json_path, "花字素材 JSON")
             start_us = int(_value(item, "start_us", default=0))
+            # A source-attribution label can be inherited from a semantic
+            # overlay whose rounded start lands after the actual merged video
+            # has already ended.  Such text has no visible timeline range and
+            # should not make an otherwise valid editable draft fail.
+            if timeline_duration_us > 0 and start_us >= timeline_duration_us:
+                continue
             duration_us = _resolve_timeline_duration(
                 start_us,
                 int(_value(item, "duration_us", default=5_000_000)),
                 timeline_duration_us,
                 "新增文字",
+                end_tolerance_us=TEXT_END_ROUNDING_TOLERANCE_US,
             )
             opacity = float(_value(item, "opacity", "global_alpha", default=1.0))
             if not 0.0 <= opacity <= 1.0:
@@ -812,6 +830,8 @@ def _resolve_timeline_duration(
     duration_us: int,
     timeline_duration_us: int,
     label: str,
+    *,
+    end_tolerance_us: int = 0,
 ) -> int:
     if start_us < 0:
         raise RuntimeError(f"{label}开始时间不能为负数")
@@ -820,7 +840,15 @@ def _resolve_timeline_duration(
             f"{label}开始时间超出视频时长: start_us={start_us}, video_duration_us={timeline_duration_us}"
         )
     resolved = duration_us if duration_us > 0 else timeline_duration_us - start_us
-    if resolved <= 0 or start_us + resolved > timeline_duration_us:
+    if resolved <= 0:
+        raise RuntimeError(
+            f"{label}时间范围超出视频时长: start_us={start_us}, duration_us={resolved}, "
+            f"video_duration_us={timeline_duration_us}"
+        )
+    end_overrun_us = start_us + resolved - timeline_duration_us
+    if 0 < end_overrun_us <= max(0, int(end_tolerance_us)):
+        return timeline_duration_us - start_us
+    if end_overrun_us > 0:
         raise RuntimeError(
             f"{label}时间范围超出视频时长: start_us={start_us}, duration_us={resolved}, "
             f"video_duration_us={timeline_duration_us}"
@@ -917,6 +945,10 @@ def _build_audio_replacements(
                     crossfade_us=max(
                         0,
                         int(_value(item, "crossfade_us", default=0)),
+                    ),
+                    fade_in_us=max(
+                        0,
+                        int(_value(item, "fade_in_us", "fade_in_duration_us", default=0)),
                     ),
                 )
             )
