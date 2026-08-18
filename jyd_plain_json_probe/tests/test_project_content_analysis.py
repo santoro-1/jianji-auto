@@ -24,7 +24,10 @@ from jyd_probe.project_content_analysis import (  # noqa: E402
     _legacy_content_visual_context,
     _validated_remote_result,
 )
-from jyd_probe.project_store import ProjectStore  # noqa: E402
+from jyd_probe.project_store import (  # noqa: E402
+    ProjectStore,
+    subtitle_analysis_sha256,
+)
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
@@ -564,6 +567,223 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertEqual(item["outputs"]["audio"]["asset_id"], audio["asset_id"])
         self.assertEqual(item["outputs"]["base_video"]["asset_id"], base_video["asset_id"])
         self.assertEqual(item["subtitles"]["raw_cues"], raw_cues)
+
+    def test_new_subtitle_analysis_version_invalidates_only_derived_preview(self) -> None:
+        script = "肚子饿了第一个想吃的就是鸡蛋"
+        store = ProjectStore(self.settings.storage_root / "subtitle_binding.db")
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="字幕版本绑定",
+            items=[{"row_key": "1", "script_text": script}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+        audio = store.add_asset(
+            owner_user_id=self.user["user_id"],
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename="audio.mp3",
+            managed_path=str(self.root / "audio.mp3"),
+            metadata={"script_sha256": hashlib.sha256(script.encode()).hexdigest()},
+            make_current=True,
+        )
+        base_video = store.add_asset(
+            owner_user_id=self.user["user_id"],
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="base_video",
+            source_type="runninghub",
+            status="READY",
+            filename="base.mp4",
+            managed_path=str(self.root / "base.mp4"),
+            make_current=True,
+        )
+        raw_cues = [{"start_us": 0, "end_us": 1_000_000, "text": script}]
+        asr_alignment = {"audio_asset_id": audio["asset_id"], "words": []}
+        store.set_item_subtitles(
+            self.user["user_id"],
+            project_id,
+            item_id,
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": raw_cues,
+                "render_cues": raw_cues,
+                "bound_audio_asset_id": audio["asset_id"],
+                "bound_video_asset_id": base_video["asset_id"],
+                "semantic_mapping": {
+                    "schema": "jyd.semantic-caption-mapping.v1",
+                    "status": "SUCCESS",
+                    "analysis_prompt_version": "jyd.content-analysis.prompt.v19",
+                },
+                "asr_alignment": asr_alignment,
+                "style": {},
+                "status": "PREVIEW_READY",
+                "overflow_risk": False,
+            },
+        )
+        composition = store.add_asset(
+            owner_user_id=self.user["user_id"],
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="composition_video",
+            source_type="jianying",
+            status="READY",
+            filename="old.mp4",
+            managed_path=str(self.root / "old.mp4"),
+            make_current=True,
+        )
+        result = _remote_result(script)
+        result["prompt_version"] = "jyd.content-analysis.prompt.v20"
+        result["subtitle_prompt_version"] = "jyd.subtitle-analysis.prompt.v20"
+
+        completed = store.complete_item_content_analysis(
+            self.user["user_id"],
+            project_id,
+            item_id,
+            expected_script_sha256=hashlib.sha256(script.encode()).hexdigest(),
+            result=result,
+        )
+
+        self.assertTrue(completed)
+        item = store.get_project(self.user["user_id"], project_id)["items"][0]
+        self.assertEqual(item["content_analysis"]["prompt_version"], result["prompt_version"])
+        self.assertEqual(item["subtitles"]["render_cues"], [])
+        self.assertEqual(item["subtitles"]["status"], "READY")
+        self.assertEqual(
+            item["subtitles"]["semantic_mapping"]["reason_code"],
+            "SUBTITLE_ANALYSIS_VERSION_CHANGED",
+        )
+        self.assertEqual(item["subtitles"]["raw_cues"], raw_cues)
+        self.assertEqual(item["subtitles"]["bound_audio_asset_id"], audio["asset_id"])
+        self.assertEqual(item["subtitles"]["asr_alignment"], asr_alignment)
+        self.assertIsNone(item["subtitles"]["bound_video_asset_id"])
+        self.assertEqual(item["outputs"]["base_video"]["asset_id"], base_video["asset_id"])
+        self.assertIsNone(item["outputs"]["composition_video"])
+        self.assertEqual(item["status"], "BASE_VIDEO_READY")
+        self.assertTrue(item["allowed_actions"]["start_postprocess"])
+        self.assertNotEqual(composition["asset_id"], item["outputs"].get("composition_video"))
+
+    def test_matching_subtitle_analysis_identity_keeps_existing_preview(self) -> None:
+        script = "你做不到每天运动没问题"
+        store = ProjectStore(self.settings.storage_root / "subtitle_binding_same.db")
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="字幕版本相同",
+            items=[{"row_key": "1", "script_text": script}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+        result = _remote_result(script)
+        result["prompt_version"] = "jyd.content-analysis.prompt.v20"
+        result["subtitle_prompt_version"] = "jyd.subtitle-analysis.prompt.v20"
+        snapshot = {
+            **result,
+            "snapshot_schema": "jyd.project-content-analysis.v1",
+        }
+        identity = subtitle_analysis_sha256(snapshot)
+        render_cues = [{"start_us": 0, "end_us": 1_000_000, "text": script}]
+        store.set_item_subtitles(
+            self.user["user_id"],
+            project_id,
+            item_id,
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": render_cues,
+                "render_cues": render_cues,
+                "semantic_mapping": {
+                    "schema": "jyd.semantic-caption-mapping.v1",
+                    "status": "SUCCESS",
+                    "analysis_subtitle_sha256": identity,
+                },
+                "status": "PREVIEW_READY",
+            },
+        )
+
+        completed = store.complete_item_content_analysis(
+            self.user["user_id"],
+            project_id,
+            item_id,
+            expected_script_sha256=hashlib.sha256(script.encode()).hexdigest(),
+            result=result,
+        )
+
+        self.assertTrue(completed)
+        item = store.get_project(self.user["user_id"], project_id)["items"][0]
+        self.assertEqual(item["subtitles"]["render_cues"], render_cues)
+        self.assertEqual(item["subtitles"]["status"], "PREVIEW_READY")
+
+    def test_schema_upgrade_repairs_existing_v19_preview_bound_to_v20_analysis(self) -> None:
+        script = "晚上十一点钟以前睡觉"
+        database_path = self.settings.storage_root / "subtitle_binding_upgrade.db"
+        store = ProjectStore(database_path)
+        project = store.create_project(
+            owner_user_id=self.user["user_id"],
+            owner_username=self.user["username"],
+            name="历史字幕错绑",
+            items=[{"row_key": "1", "script_text": script}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+        render_cues = [{"start_us": 0, "end_us": 1_000_000, "text": script}]
+        store.set_item_subtitles(
+            self.user["user_id"],
+            project_id,
+            item_id,
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": render_cues,
+                "render_cues": render_cues,
+                "semantic_mapping": {
+                    "schema": "jyd.semantic-caption-mapping.v1",
+                    "status": "SUCCESS",
+                    "analysis_prompt_version": "jyd.content-analysis.prompt.v19",
+                },
+                "status": "PREVIEW_READY",
+            },
+        )
+        store.add_asset(
+            owner_user_id=self.user["user_id"],
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="composition_video",
+            source_type="jianying",
+            status="READY",
+            filename="old.mp4",
+            managed_path=str(self.root / "old.mp4"),
+            make_current=True,
+        )
+        analysis = _remote_result(script)
+        analysis["prompt_version"] = "jyd.content-analysis.prompt.v20"
+        analysis["subtitle_prompt_version"] = "jyd.subtitle-analysis.prompt.v20"
+        with store._connect() as connection:
+            connection.execute(
+                """
+                UPDATE project_items SET content_analysis_json=? WHERE item_id=?
+                """,
+                (json.dumps(analysis, ensure_ascii=False), item_id),
+            )
+            connection.execute(
+                """
+                UPDATE project_schema_meta SET value='10' WHERE key='version'
+                """
+            )
+
+        upgraded_store = ProjectStore(database_path)
+        item = upgraded_store.get_project(self.user["user_id"], project_id)["items"][0]
+
+        self.assertEqual(item["subtitles"]["render_cues"], [])
+        self.assertEqual(item["subtitles"]["raw_cues"], render_cues)
+        self.assertEqual(item["subtitles"]["status"], "READY")
+        self.assertIsNone(item["outputs"]["composition_video"])
+        self.assertEqual(
+            item["subtitles"]["semantic_mapping"]["reason_code"],
+            "SUBTITLE_ANALYSIS_VERSION_CHANGED",
+        )
 
     def test_late_response_cannot_overwrite_a_newer_script(self) -> None:
         started = threading.Event()

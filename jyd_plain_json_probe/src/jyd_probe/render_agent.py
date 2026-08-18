@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 from .render_job import run_render_job
 from .logging_config import configure_file_logging, log_event
+from .ui_automation_thread import initialize_ui_automation_in_current_thread
 
 
 AGENT_VERSION = "1.0.0"
@@ -112,31 +113,32 @@ class RenderAgent:
         stop_event: threading.Event | None = None,
     ) -> int:
         stop_event = stop_event or threading.Event()
-        self.register()
-        self._log(f"已连接中央服务：{self.name}（{self.agent_id}）")
-        while not stop_event.is_set():
-            try:
-                claimed = self.client.post(
-                    f"/api/agents/{quote(self.agent_id)}/claim"
-                ).get("job")
-                if isinstance(claimed, dict) and claimed.get("job_id"):
-                    self._run_claimed_job(claimed)
+        with initialize_ui_automation_in_current_thread():
+            self.register()
+            self._log(f"已连接中央服务：{self.name}（{self.agent_id}）")
+            while not stop_event.is_set():
+                try:
+                    claimed = self.client.post(
+                        f"/api/agents/{quote(self.agent_id)}/claim"
+                    ).get("job")
+                    if isinstance(claimed, dict) and claimed.get("job_id"):
+                        self._run_claimed_job(claimed)
+                        if once:
+                            return 0
+                        continue
+                    self.client.post(
+                        f"/api/agents/{quote(self.agent_id)}/heartbeat",
+                        {"state": "idle"},
+                    )
+                except KeyboardInterrupt:
+                    return 0
+                except Exception as exc:
+                    self._log(f"连接或领取任务失败：{exc}")
                     if once:
-                        return 0
-                    continue
-                self.client.post(
-                    f"/api/agents/{quote(self.agent_id)}/heartbeat",
-                    {"state": "idle"},
-                )
-            except KeyboardInterrupt:
-                return 0
-            except Exception as exc:
-                self._log(f"连接或领取任务失败：{exc}")
-                if once:
-                    return 1
-            stop_event.wait(self.poll_seconds)
-        self._log("处理机 Agent 已停止")
-        return 0
+                        return 1
+                stop_event.wait(self.poll_seconds)
+            self._log("处理机 Agent 已停止")
+            return 0
 
     def _run_claimed_job(self, claimed: dict[str, Any]) -> None:
         job_id = str(claimed["job_id"])

@@ -1388,6 +1388,75 @@ def test_enrichment_prefers_direct_apple_video_over_model_editorial_pool() -> No
     assert "food.apple" in catalog.asset(overlay["asset_id"])["concept_ids"]
 
 
+def test_missing_seam_decision_uses_editorial_candidate_instead_of_next_cake() -> None:
+    catalog = _catalog_with_editorial_broll()
+    seam = {
+        "candidate_id": "vs_boundary_editorial",
+        "text": "忍一忍。接下来继续说",
+        "char_start": 0,
+        "char_end": 10,
+        "phrase_char_start": 0,
+        "phrase_char_end": 10,
+        "phrase_text": "忍一忍。接下来继续说",
+        "allowed_concepts": [
+            {"concept_id": "editorial.home_daily", "description": "居家日常"},
+            {"concept_id": "editorial.mood_atmosphere", "description": "情绪氛围"},
+        ],
+        "usage": "seam_broll",
+        "segment_boundary_us": 5_000_000,
+        "start_us": 4_500_000,
+        "duration_us": 2_000_000,
+        "video_duration_us": 10_000_000,
+    }
+    cake = {
+        "candidate_id": "vc_cake_after_boundary",
+        "text": "蛋糕",
+        "char_start": 11,
+        "char_end": 13,
+        "phrase_char_start": 11,
+        "phrase_char_end": 13,
+        "phrase_text": "蛋糕",
+        "allowed_concepts": [
+            {"concept_id": "food.cake", "description": "蛋糕"},
+        ],
+        "start_us": 5_100_000,
+        "duration_us": 2_000_000,
+        "video_duration_us": 10_000_000,
+    }
+
+    recipe = build_visual_recipe(
+        catalog=catalog,
+        mapped_candidates=[seam, cake],
+        decisions=[
+            {
+                "candidate_id": cake["candidate_id"],
+                "decision": "SHOW",
+                "concept_id": "food.cake",
+                "confidence": 1.0,
+                "importance": 1.0,
+            }
+        ],
+        media_policy="mixed",
+        segment_boundaries=[{"boundary_us": 5_000_000}],
+        final_video_duration_us=10_000_000,
+    )
+
+    seam_overlay = next(
+        overlay for overlay in recipe["overlays"] if overlay["usage"] == "seam_broll"
+    )
+    assert seam_overlay["concept_id"] == "editorial.mood_atmosphere"
+    assert seam_overlay["reason_code"] == "LOCAL_EDITORIAL_SEAM_FALLBACK"
+    assert seam_overlay["asset_id"] != "review.u0006.video.59499a298d"
+
+
+def test_cake_video_is_not_eligible_for_seam_broll() -> None:
+    cake = _catalog().asset("review.u0006.video.59499a298d")
+
+    assert cake is not None
+    assert "full_screen_broll" in cake["usage_modes"]
+    assert "seam_broll" not in cake["usage_modes"]
+
+
 def test_full_screen_broll_reserves_its_slot_before_explicit_image() -> None:
     catalog = _catalog()
     explicit = {

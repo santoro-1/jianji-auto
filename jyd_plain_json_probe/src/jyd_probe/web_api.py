@@ -87,6 +87,7 @@ from .subtitles import (
 )
 from .template_library import TemplateLibrary, summarize_draft_data
 from .task_store import SQLiteTaskStore
+from .ui_automation_thread import initialize_ui_automation_in_current_thread
 from .user_auth import UserAuth
 
 
@@ -702,16 +703,17 @@ class RenderJobQueue:
                 return None
 
     def _worker_loop(self) -> None:
-        while True:
-            signal_job_id = self._queue.get()
-            try:
-                claimed = self.store.claim_job(
-                    "embedded-local", lease_seconds=self.settings.agent_lease_seconds
-                )
-                if claimed is not None:
-                    self._run_job(str(claimed["job_id"]), already_claimed=True)
-            finally:
-                self._queue.task_done()
+        with initialize_ui_automation_in_current_thread():
+            while True:
+                signal_job_id = self._queue.get()
+                try:
+                    claimed = self.store.claim_job(
+                        "embedded-local", lease_seconds=self.settings.agent_lease_seconds
+                    )
+                    if claimed is not None:
+                        self._run_job(str(claimed["job_id"]), already_claimed=True)
+                finally:
+                    self._queue.task_done()
 
     def _run_job(self, job_id: str, *, already_claimed: bool = False) -> None:
         with self._lock:

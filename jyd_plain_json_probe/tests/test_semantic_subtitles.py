@@ -112,6 +112,8 @@ def test_v20_boundaries_are_hard_and_ten_full_width_characters_fit() -> None:
     )
 
     assert mapping["status"] == "SUCCESS"
+    assert mapping["analysis_prompt_version"] == "jyd.content-analysis.prompt.v20"
+    assert len(mapping["analysis_subtitle_sha256"]) == 64
     assert [cue["text"] for cue in render_cues] == [
         "肚子饿了第一个想吃的",
         "就是鸡蛋",

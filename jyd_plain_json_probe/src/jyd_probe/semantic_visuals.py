@@ -2436,6 +2436,11 @@ def build_visual_recipe(
 
     automatic: list[dict[str, Any]] = []
     seam_group_keys: set[tuple[int, int]] = set()
+    dedicated_seams = [
+        candidate
+        for candidate in mapped.values()
+        if str(candidate.get("usage") or "") == "seam_broll"
+    ]
     for raw_boundary in sorted(
         (item for item in segment_boundaries if isinstance(item, Mapping)),
         key=lambda item: int(item.get("boundary_us") or 0),
@@ -2453,24 +2458,63 @@ def build_visual_recipe(
         if matching_seam:
             group = matching_seam
         else:
-            # Compatibility fallback for plans created before dedicated seam
-            # candidates existed.
-            candidates_after = [
-                (candidate_key, candidate_group)
-                for candidate_key, candidate_group in explicit_groups.items()
-                if candidate_key not in seam_group_keys
-                and int(candidate_group[0]["candidate"].get("start_us", 0))
-                + int(candidate_group[0]["candidate"].get("duration_us", 0))
-                > boundary_us
-                and int(candidate_group[0]["candidate"].get("start_us", 0))
-                >= boundary_us - 300_000
+            matching_candidates = [
+                candidate
+                for candidate in dedicated_seams
+                if int(candidate.get("segment_boundary_us") or 0) == boundary_us
             ]
-            if not candidates_after:
-                continue
-            key, group = min(
-                candidates_after,
-                key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
-            )
+            if matching_candidates:
+                # A model omission at a seam must not borrow a concrete object
+                # selected for the following sentence.  Use only the dedicated
+                # candidate's editorial pools as a deterministic local fallback.
+                candidate = matching_candidates[0]
+                editorial_ids = [
+                    str(concept.get("concept_id") or "")
+                    for concept in candidate.get("allowed_concepts", ())
+                    if isinstance(concept, Mapping)
+                    and str(concept.get("concept_id") or "").startswith("editorial.")
+                ]
+                if not editorial_ids:
+                    continue
+                concept_id = (
+                    "editorial.mood_atmosphere"
+                    if "editorial.mood_atmosphere" in editorial_ids
+                    else editorial_ids[0]
+                )
+                group = [
+                    {
+                        "candidate": candidate,
+                        "decision": {
+                            "candidate_id": candidate.get("candidate_id"),
+                            "decision": "SHOW",
+                            "concept_id": concept_id,
+                            "usage": "seam_broll",
+                            "confidence": 1.0,
+                            "importance": 0.0,
+                            "reason_code": "LOCAL_EDITORIAL_SEAM_FALLBACK",
+                        },
+                        "usage": "seam_broll",
+                    }
+                ]
+            else:
+                # Compatibility fallback for legacy plans created before
+                # dedicated seam candidates existed.
+                candidates_after = [
+                    (candidate_key, candidate_group)
+                    for candidate_key, candidate_group in explicit_groups.items()
+                    if candidate_key not in seam_group_keys
+                    and int(candidate_group[0]["candidate"].get("start_us", 0))
+                    + int(candidate_group[0]["candidate"].get("duration_us", 0))
+                    > boundary_us
+                    and int(candidate_group[0]["candidate"].get("start_us", 0))
+                    >= boundary_us - 300_000
+                ]
+                if not candidates_after:
+                    continue
+                key, group = min(
+                    candidates_after,
+                    key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
+                )
         # One short full-screen insert is enough to cover a digital-human seam.
         # Never turn a one-second seam into a rapid multi-asset list.
         rapid = False

@@ -21,7 +21,7 @@ from .semantic_visuals import (
 )
 
 
-PROJECT_SCHEMA_VERSION = 10
+PROJECT_SCHEMA_VERSION = 11
 logger = logging.getLogger("jyd_probe.workbench")
 MAX_PROJECT_ITEMS = 500
 
@@ -116,6 +116,32 @@ def _default_subtitles() -> dict[str, Any]:
 
 def _script_sha256(script: str) -> str:
     return hashlib.sha256(script.encode("utf-8")).hexdigest()
+
+
+def subtitle_analysis_sha256(snapshot: dict[str, Any] | None) -> str | None:
+    """Identify the exact subtitle-analysis contract and unit boundaries."""
+
+    if not isinstance(snapshot, dict):
+        return None
+    if str(snapshot.get("subtitle_analysis_status") or "").upper() != "SUCCESS":
+        return None
+    units = snapshot.get("subtitle_units")
+    if not isinstance(units, list):
+        return None
+    payload = {
+        "script_sha256": snapshot.get("script_sha256"),
+        "schema_version": snapshot.get("schema_version"),
+        "prompt_version": snapshot.get("prompt_version"),
+        "subtitle_prompt_version": snapshot.get("subtitle_prompt_version"),
+        "subtitle_units": units,
+    }
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 
 
 def _default_content_analysis(
@@ -689,10 +715,124 @@ class ProjectStore:
                 "CREATE INDEX IF NOT EXISTS idx_project_operations_correlation "
                 "ON project_operations(correlation_id, created_at)"
             )
+            version_row = connection.execute(
+                "SELECT value FROM project_schema_meta WHERE key='version'"
+            ).fetchone()
+            previous_schema_version = (
+                int(version_row["value"])
+                if version_row is not None and str(version_row["value"]).isdigit()
+                else 0
+            )
+            if previous_schema_version < 11:
+                self._invalidate_legacy_subtitle_bindings(connection)
             connection.execute(
                 "INSERT OR REPLACE INTO project_schema_meta(key, value) VALUES('version', ?)",
                 (str(PROJECT_SCHEMA_VERSION),),
             )
+
+    def _invalidate_legacy_subtitle_bindings(
+        self, connection: sqlite3.Connection
+    ) -> None:
+        """Repair previews saved before subtitle-analysis identities were persisted."""
+
+        rows = connection.execute(
+            """
+            SELECT item_id, project_id, status, current_audio_asset_id,
+                   current_base_video_asset_id, subtitles_json,
+                   content_analysis_json
+            FROM project_items
+            """
+        ).fetchall()
+        changed_projects: set[str] = set()
+        now = _now()
+        for item in rows:
+            if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                continue
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            if not subtitles.get("render_cues"):
+                continue
+            analysis = _object(item["content_analysis_json"], {})
+            current_identity = subtitle_analysis_sha256(analysis)
+            if current_identity is None:
+                continue
+            mapping = (
+                dict(subtitles.get("semantic_mapping") or {})
+                if isinstance(subtitles.get("semantic_mapping"), dict)
+                else {}
+            )
+            mapped_identity = str(
+                mapping.get("analysis_subtitle_sha256") or ""
+            ).strip()
+            if mapped_identity:
+                binding_is_stale = mapped_identity != current_identity
+            else:
+                mapped_prompt_version = str(
+                    mapping.get("analysis_prompt_version") or ""
+                ).strip()
+                current_prompt_version = str(
+                    analysis.get("prompt_version") or ""
+                ).strip()
+                mapped_subtitle_version = str(
+                    mapping.get("analysis_subtitle_prompt_version") or ""
+                ).strip()
+                current_subtitle_version = str(
+                    analysis.get("subtitle_prompt_version") or ""
+                ).strip()
+                binding_is_stale = bool(
+                    mapped_prompt_version
+                    and current_prompt_version
+                    and mapped_prompt_version != current_prompt_version
+                ) or bool(
+                    mapped_subtitle_version
+                    and current_subtitle_version
+                    and mapped_subtitle_version != current_subtitle_version
+                )
+            if not binding_is_stale:
+                continue
+            subtitles["render_cues"] = []
+            subtitles["bound_video_asset_id"] = None
+            subtitles["overflow_risk"] = False
+            subtitles["review_reason"] = None
+            subtitles["status"] = (
+                "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+            )
+            subtitles["semantic_mapping"] = {
+                "schema": "jyd.semantic-caption-mapping.v1",
+                "status": "NOT_REQUESTED",
+                "reason_code": "SUBTITLE_ANALYSIS_VERSION_CHANGED",
+                "reason_summary": "字幕分析版本或断句结果已更新，需重新生成预览",
+                "analysis_prompt_version": analysis.get("prompt_version"),
+                "analysis_subtitle_prompt_version": analysis.get(
+                    "subtitle_prompt_version"
+                ),
+            }
+            next_status = (
+                "BASE_VIDEO_READY"
+                if item["current_base_video_asset_id"]
+                else (
+                    "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                )
+            )
+            connection.execute(
+                """
+                UPDATE project_items
+                SET subtitles_json=?, current_video_asset_id=NULL,
+                    status=?, updated_at=?
+                WHERE item_id=?
+                """,
+                (_json(subtitles), next_status, now, item["item_id"]),
+            )
+            changed_projects.add(str(item["project_id"]))
+        for project_id in changed_projects:
+            connection.execute(
+                """
+                UPDATE projects
+                SET revision=revision+1, updated_at=?
+                WHERE project_id=?
+                """,
+                (now, project_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
 
     def create_project(
         self,
@@ -3390,6 +3530,48 @@ class ProjectStore:
                 "invalidated_reason": None,
                 "invalidated_at": None,
             }
+            subtitle_result_refreshed = (
+                str(result.get("subtitle_analysis_status") or "").upper()
+                == "SUCCESS"
+                and isinstance(result.get("subtitle_units"), list)
+            )
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            semantic_mapping = (
+                dict(subtitles.get("semantic_mapping") or {})
+                if isinstance(subtitles.get("semantic_mapping"), dict)
+                else {}
+            )
+            current_analysis_identity = subtitle_analysis_sha256(snapshot)
+            mapped_analysis_identity = str(
+                semantic_mapping.get("analysis_subtitle_sha256") or ""
+            ).strip()
+            invalidate_rendered_subtitles = (
+                subtitle_result_refreshed
+                and bool(subtitles.get("render_cues"))
+                and current_analysis_identity is not None
+                and (
+                    not mapped_analysis_identity
+                    or mapped_analysis_identity != current_analysis_identity
+                )
+            )
+            if invalidate_rendered_subtitles:
+                subtitles["render_cues"] = []
+                subtitles["bound_video_asset_id"] = None
+                subtitles["overflow_risk"] = False
+                subtitles["review_reason"] = None
+                subtitles["status"] = (
+                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+                )
+                subtitles["semantic_mapping"] = {
+                    "schema": "jyd.semantic-caption-mapping.v1",
+                    "status": "NOT_REQUESTED",
+                    "reason_code": "SUBTITLE_ANALYSIS_VERSION_CHANGED",
+                    "reason_summary": "字幕分析版本或断句结果已更新，需重新生成预览",
+                    "analysis_prompt_version": snapshot.get("prompt_version"),
+                    "analysis_subtitle_prompt_version": snapshot.get(
+                        "subtitle_prompt_version"
+                    ),
+                }
             if title_status == "SUCCESS" and isinstance(title, dict):
                 line_1 = str(title.get("line_1") or "").strip()
                 line_2 = str(title.get("line_2") or "").strip()
@@ -3408,14 +3590,47 @@ class ProjectStore:
                     "UPDATE project_items SET settings_json=? WHERE item_id=?",
                     (_json(settings), item_id),
                 )
-            connection.execute(
-                "UPDATE project_items SET content_analysis_json=?, updated_at=? WHERE item_id=?",
-                (_json(snapshot), analyzed_at, item_id),
-            )
-            connection.execute(
-                "UPDATE projects SET updated_at=? WHERE project_id=?",
-                (analyzed_at, project_id),
-            )
+            if invalidate_rendered_subtitles:
+                next_status = (
+                    "BASE_VIDEO_READY"
+                    if item["current_base_video_asset_id"]
+                    else (
+                        "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                    )
+                )
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET content_analysis_json=?, subtitles_json=?,
+                        current_video_asset_id=NULL, status=?, updated_at=?
+                    WHERE item_id=?
+                    """,
+                    (
+                        _json(snapshot),
+                        _json(subtitles),
+                        next_status,
+                        analyzed_at,
+                        item_id,
+                    ),
+                )
+                connection.execute(
+                    """
+                    UPDATE projects
+                    SET revision=revision+1, updated_at=?
+                    WHERE project_id=?
+                    """,
+                    (analyzed_at, project_id),
+                )
+                self._refresh_project_status(connection, project_id, now=analyzed_at)
+            else:
+                connection.execute(
+                    "UPDATE project_items SET content_analysis_json=?, updated_at=? WHERE item_id=?",
+                    (_json(snapshot), analyzed_at, item_id),
+                )
+                connection.execute(
+                    "UPDATE projects SET updated_at=? WHERE project_id=?",
+                    (analyzed_at, project_id),
+                )
         return True
 
     def fail_item_content_analysis(

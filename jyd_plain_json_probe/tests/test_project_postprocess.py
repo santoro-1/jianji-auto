@@ -18,7 +18,10 @@ from jyd_probe.caption_alignment import (  # noqa: E402
     CaptionAlignmentError,
     build_alignment,
 )
-from jyd_probe.project_postprocess import ProjectPostprocessCoordinator  # noqa: E402
+from jyd_probe.project_postprocess import (  # noqa: E402
+    ProjectPostprocessCoordinator,
+    draft_recipe_sha256,
+)
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
@@ -120,7 +123,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
             item_id=item["item_id"],
             operation_type="POSTPROCESS_GENERATE",
             idempotency_key="stale-success",
-            payload={},
+            payload={"draft_recipe_sha256": "0" * 64},
         )
         store.transition_operation(
             user_id,
@@ -242,13 +245,22 @@ class ProjectPostprocessApiTest(unittest.TestCase):
         frozen_dir = self.settings.default_draft_root / "frozen-draft"
         frozen_dir.mkdir(parents=True)
         (frozen_dir / "draft_content.json").write_text("{}", encoding="utf-8")
+        recovery_job = {
+            "schema": "jyd.render_job.v1",
+            "source": {"type": "video", "media_path": str(base_path)},
+            "output": {
+                "draft_root": str(self.settings.default_draft_root),
+                "draft_name": "recovered-draft",
+                "skip_export": True,
+            },
+        }
         generated = store.create_operation(
             owner_user_id=user_id,
             project_id=project["project_id"],
             item_id=item["item_id"],
             operation_type="POSTPROCESS_GENERATE",
             idempotency_key="frozen-success",
-            payload={},
+            payload={"draft_recipe_sha256": draft_recipe_sha256(recovery_job)},
         )
         store.transition_operation(
             user_id,
@@ -289,15 +301,6 @@ class ProjectPostprocessApiTest(unittest.TestCase):
             bgm_assets=[],
             music_matcher=EmptyMusicMatcher(),
         )
-        recovery_job = {
-            "schema": "jyd.render_job.v1",
-            "source": {"type": "video", "media_path": str(base_path)},
-            "output": {
-                "draft_root": str(self.settings.default_draft_root),
-                "draft_name": "recovered-draft",
-                "skip_export": True,
-            },
-        }
         with patch.object(coordinator, "_build_draft_job", return_value=recovery_job):
             coordinator.export_preview(
                 user_id,
@@ -319,6 +322,30 @@ class ProjectPostprocessApiTest(unittest.TestCase):
         self.assertEqual(
             embedded["observability"]["recovery_reason"],
             "draft_discovery_exhausted",
+        )
+
+    def test_draft_recipe_hash_ignores_output_but_detects_timeline_changes(self) -> None:
+        first = {
+            "schema": "jyd.render_job.v1",
+            "source": {"type": "video", "media_path": "base.mp4"},
+            "visual_overlays": [{"asset_id": "asset-a", "start_us": 1_000_000}],
+            "output": {"draft_name": "draft-a", "skip_export": True},
+        }
+        same_recipe = {
+            **first,
+            "output": {"draft_name": "draft-b", "mp4_path": "result.mp4"},
+            "observability": {"operation_id": "runtime-only"},
+        }
+        changed_recipe = {
+            **first,
+            "visual_overlays": [{"asset_id": "asset-b", "start_us": 1_000_000}],
+        }
+
+        self.assertEqual(draft_recipe_sha256(first), draft_recipe_sha256(same_recipe))
+        self.assertNotEqual(draft_recipe_sha256(first), draft_recipe_sha256(changed_recipe))
+        self.assertNotEqual(
+            draft_recipe_sha256(first, subtitle_analysis_identity="analysis-v19"),
+            draft_recipe_sha256(first, subtitle_analysis_identity="analysis-v20"),
         )
 
     def test_one_asr_failure_does_not_block_later_rows(self) -> None:

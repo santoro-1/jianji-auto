@@ -20669,8 +20669,7 @@
       },
       "visual_actions": [],
       "usage_modes": [
-        "full_screen_broll",
-        "seam_broll"
+        "full_screen_broll"
       ],
       "cleanliness_grade": "B",
       "auto_eligible": true,

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import json
 import logging
 from pathlib import Path
 import re
@@ -36,7 +37,7 @@ from .project_export_naming import (
     composition_draft_name,
     composition_export_filename,
 )
-from .project_store import ProjectStore
+from .project_store import ProjectStore, subtitle_analysis_sha256
 from .layout_profiles import (
     DEFAULT_LAYOUT_PROFILE,
     apply_layout_to_visual_overlays,
@@ -78,6 +79,31 @@ BGM_FADE_IN_US = 5_000_000
 VIDEO_FADE_OUT_US = 2_000_000
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
 FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
+
+
+def draft_recipe_sha256(
+    job: dict[str, Any],
+    *,
+    subtitle_analysis_identity: str | None = None,
+) -> str:
+    """Hash only timeline-affecting render inputs, excluding run-specific output data."""
+
+    recipe = {
+        key: value
+        for key, value in job.items()
+        if key not in {"output", "observability", "batch"}
+    }
+    if subtitle_analysis_identity:
+        recipe["__subtitle_analysis_sha256"] = subtitle_analysis_identity
+    canonical = json.dumps(
+        recipe,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
+
+
 FIXED_VIDEO_TITLE_FONT_SIZE = 19.0
 FIXED_VIDEO_TITLE_COLOR = "#E53935"
 FIXED_VIDEO_TITLE_STROKE_COLOR = "#FFFFFF"
@@ -1731,6 +1757,12 @@ def _fallback_mapping(
         "reason_summary": str(summary or "使用 MiniMax 原始字幕排版")[:500],
         "script_sha256": hashlib.sha256(str(item.get("script_text") or "").encode("utf-8")).hexdigest(),
         "analysis_script_sha256": analysis.get("script_sha256"),
+        "analysis_schema_version": analysis.get("schema_version"),
+        "analysis_prompt_version": analysis.get("prompt_version"),
+        "analysis_subtitle_prompt_version": analysis.get(
+            "subtitle_prompt_version"
+        ),
+        "analysis_subtitle_sha256": subtitle_analysis_sha256(analysis),
         "audio_asset_id": audio.get("asset_id") if isinstance(audio, dict) else None,
         "audio_version": audio.get("version") if isinstance(audio, dict) else None,
         "mapped_unit_count": 0,
@@ -1845,6 +1877,10 @@ def derive_project_render_cues(
                 "analysis_script_sha256": analysis.get("script_sha256"),
                 "analysis_schema_version": analysis.get("schema_version"),
                 "analysis_prompt_version": analysis.get("prompt_version"),
+                "analysis_subtitle_prompt_version": analysis.get(
+                    "subtitle_prompt_version"
+                ),
+                "analysis_subtitle_sha256": subtitle_analysis_sha256(analysis),
                 "audio_asset_id": audio.get("asset_id"),
                 "audio_version": audio.get("version"),
                 "mapped_unit_count": len(timed_units),
@@ -2442,6 +2478,12 @@ class ProjectPostprocessCoordinator:
                 draft_name=draft_name,
                 skip_export=True,
             )
+            recipe_sha256 = draft_recipe_sha256(
+                job,
+                subtitle_analysis_identity=subtitle_analysis_sha256(
+                    latest_item.get("content_analysis")
+                ),
+            )
             operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
                 project_id=project_id,
@@ -2456,6 +2498,7 @@ class ProjectPostprocessCoordinator:
                     "bgm_identity": selected.get("bgm_identity") or None,
                     "bgm_selection_mode": selected.get("bgm_selection_mode"),
                     "music_selection": selected.get("music_selection"),
+                    "draft_recipe_sha256": recipe_sha256,
                     "caption_max_width_ratio": CAPTION_MAX_WIDTH_RATIO,
                     "caption_max_lines": CAPTION_MAX_LINES,
                     "caption_bottom_offset_ratio": 0.5
@@ -2575,17 +2618,34 @@ class ProjectPostprocessCoordinator:
             / "composition"
             / f"composition-{uuid.uuid4().hex}.mp4"
         )
+        recovery_job = self._build_draft_job(
+            item,
+            draft_name=available_draft_name(
+                self.draft_root, composition_draft_name(item)
+            ),
+            skip_export=True,
+        )
+        recipe_sha256 = draft_recipe_sha256(
+            recovery_job,
+            subtitle_analysis_identity=subtitle_analysis_sha256(
+                item.get("content_analysis")
+            ),
+        )
         latest_generate = next(
             (
                 candidate
                 for candidate in reversed(project.get("operations", []))
                 if candidate.get("operation_type") == "POSTPROCESS_GENERATE"
                 and candidate.get("item_id") == item["item_id"]
+                and candidate.get("status") == "SUCCEEDED"
+                and isinstance(candidate.get("payload"), dict)
+                and candidate["payload"].get("draft_recipe_sha256")
+                == recipe_sha256
             ),
             None,
         )
         frozen_draft: dict[str, Any] | None = None
-        if latest_generate is not None and latest_generate.get("status") == "SUCCEEDED":
+        if latest_generate is not None:
             result = (
                 latest_generate.get("result")
                 if isinstance(latest_generate.get("result"), dict)
@@ -2607,7 +2667,9 @@ class ProjectPostprocessCoordinator:
             # This keeps timeline construction out of the Jianying export step.
             prepare_key = (
                 "export-prepare-"
-                + hashlib.sha256(clean_key.encode("utf-8")).hexdigest()[:32]
+                + hashlib.sha256(
+                    f"{clean_key}:{recipe_sha256}".encode("utf-8")
+                ).hexdigest()[:32]
             )
             prepare_operation = self.store.create_operation(
                 owner_user_id=owner_user_id,
@@ -2618,15 +2680,10 @@ class ProjectPostprocessCoordinator:
                 payload={
                     "reason": "prepare_frozen_draft_for_export",
                     "base_video_asset_id": base_video.get("asset_id"),
+                    "draft_recipe_sha256": recipe_sha256,
                 },
             )
-            prepare_job = self._build_draft_job(
-                item,
-                draft_name=available_draft_name(
-                    self.draft_root, composition_draft_name(item)
-                ),
-                skip_export=True,
-            )
+            prepare_job = recovery_job
             prepare_job["observability"] = {
                 "project_id": project_id,
                 "item_id": item["item_id"],
@@ -2689,13 +2746,6 @@ class ProjectPostprocessCoordinator:
                 raise
             return self.sync(owner_user_id, project_id)
 
-        recovery_job = self._build_draft_job(
-            item,
-            draft_name=available_draft_name(
-                self.draft_root, composition_draft_name(item)
-            ),
-            skip_export=True,
-        )
         job = {
             "schema": "jyd.render_job.v1",
             "source": {
@@ -2717,6 +2767,7 @@ class ProjectPostprocessCoordinator:
                 "reason": "explicit_download",
                 "base_video_asset_id": base_video.get("asset_id"),
                 "export_source": export_source,
+                "draft_recipe_sha256": recipe_sha256,
             },
         )
         job["observability"] = {
