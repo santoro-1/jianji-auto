@@ -380,6 +380,11 @@ class CoverApplyTest(unittest.TestCase):
         self.assertEqual(cover_material["shadow_angle"], -45.0)
         self.assertAlmostEqual(cover_material["shadow_point"]["x"], 0.636396103, places=6)
         self.assertAlmostEqual(cover_material["shadow_point"]["y"], -0.636396103, places=6)
+        cover_shadow = cover_content["styles"][0]["shadows"][0]
+        self.assertEqual(cover_shadow["alpha"], 0.9)
+        self.assertEqual(cover_shadow["distance"], 5.0)
+        self.assertEqual(cover_shadow["angle"], -45.0)
+        self.assertEqual(cover_shadow["content"]["solid"]["color"], [0.0, 0.0, 0.0])
 
     def test_keeps_generated_cover_material_on_real_absolute_path(self) -> None:
         data = {

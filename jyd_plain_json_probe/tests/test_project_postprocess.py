@@ -813,6 +813,14 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertEqual(job["original_video_volume"], 0.0)
                 self.assertEqual(job["audios"][0]["media_path"], str(audio_path.resolve()))
                 self.assertEqual(job["audios"][0]["volume"], 1.0)
+                bgm_media_path = Path(job["audios"][1]["media_path"])
+                self.assertTrue(bgm_media_path.is_file())
+                self.assertEqual(job["audios"][1]["library_identity"], bgm["identity"])
+                recovery_bgm = export_job["source"]["recovery"]["rebuild_job"][
+                    "audios"
+                ][1]
+                self.assertEqual(recovery_bgm["media_path"], str(bgm_media_path))
+                self.assertEqual(recovery_bgm["library_identity"], bgm["identity"])
                 self.assertEqual(job["audios"][1]["volume"], 0.18)
                 self.assertTrue(job["audios"][1]["align_to_end"])
                 self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)

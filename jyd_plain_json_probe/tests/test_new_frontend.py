@@ -150,8 +150,8 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("const sampleImages", html)
         self.assertTrue((FRONTEND_ROOT / "project-script-template.xlsx").is_file())
         self.assertIn("activeLayoutProfileConfig()?.cover", html)
-        self.assertIn("coverStyle.overlay_y_ratio ?? 0.625", html)
-        self.assertIn("coverStyle.overlay_height_ratio ?? 0.26", html)
+        self.assertIn("coverStyle.overlay_y_ratio ?? 0.615", html)
+        self.assertIn("coverStyle.overlay_height_ratio ?? 0.28", html)
         self.assertNotIn("displayedHeight * (0.609375 - 0.36 / 2)", html)
 
     def test_workspace_sidebar_collapses_and_table_headers_distinguish_io(self) -> None:

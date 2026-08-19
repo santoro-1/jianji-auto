@@ -74,6 +74,10 @@ CAPTION_REFERENCE_FONT_SIZE = 14.0
 CAPTION_REFERENCE_MAX_EM = 9.69 * 15.0 / CAPTION_REFERENCE_FONT_SIZE
 CAPTION_STROKE_COLOR = "#000000"
 CAPTION_STROKE_WIDTH = 0.06
+TEXT_SHADOW_COLOR = "#000000"
+TEXT_SHADOW_DISTANCE = 5.0
+TEXT_SHADOW_ANGLE = -45.0
+TEXT_SHADOW_SMOOTHING = 0.45000001788139343
 BGM_CROSSFADE_US = 200_000
 BGM_FADE_IN_US = 5_000_000
 VIDEO_FADE_OUT_US = 2_000_000
@@ -429,6 +433,7 @@ def build_project_cover(
         raise ValueError("固定封面字体“思源粗宋”不可用")
     profile = layout_profile(postprocess.get("layout_profile", DEFAULT_LAYOUT_PROFILE))
     cover_style = profile["cover"]
+    caption_style = profile["caption"]
     overlay_y_ratio = float(cover_style["overlay_y_ratio"])
     overlay_height_ratio = float(cover_style["overlay_height_ratio"])
     overlay_top = overlay_y_ratio - overlay_height_ratio / 2
@@ -459,16 +464,16 @@ def build_project_cover(
         "line_2_size": float(cover_style["line_2_size"]),
         "line_1_color": str(cover_style["line_1_color"]),
         "line_2_color": str(cover_style["line_2_color"]),
-        "line_1_shadow_color": str(cover_style["shadow_color"]),
-        "line_1_shadow_alpha": float(cover_style["shadow_alpha"]),
-        "line_1_shadow_smoothing": float(cover_style["shadow_smoothing"]),
-        "line_1_shadow_distance": float(cover_style["shadow_distance"]),
-        "line_1_shadow_angle": float(cover_style["shadow_angle"]),
-        "line_2_shadow_color": str(cover_style["shadow_color"]),
-        "line_2_shadow_alpha": float(cover_style["shadow_alpha"]),
-        "line_2_shadow_smoothing": float(cover_style["shadow_smoothing"]),
-        "line_2_shadow_distance": float(cover_style["shadow_distance"]),
-        "line_2_shadow_angle": float(cover_style["shadow_angle"]),
+        "line_1_shadow_color": TEXT_SHADOW_COLOR,
+        "line_1_shadow_alpha": float(caption_style["shadow_alpha"]),
+        "line_1_shadow_smoothing": TEXT_SHADOW_SMOOTHING,
+        "line_1_shadow_distance": TEXT_SHADOW_DISTANCE,
+        "line_1_shadow_angle": TEXT_SHADOW_ANGLE,
+        "line_2_shadow_color": TEXT_SHADOW_COLOR,
+        "line_2_shadow_alpha": float(caption_style["shadow_alpha"]),
+        "line_2_shadow_smoothing": TEXT_SHADOW_SMOOTHING,
+        "line_2_shadow_distance": TEXT_SHADOW_DISTANCE,
+        "line_2_shadow_angle": TEXT_SHADOW_ANGLE,
         "frame_scale": 1.0,
         "frame_offset_x": 0.0,
         "frame_offset_y": 0.0,
@@ -2058,6 +2063,15 @@ class ProjectPostprocessCoordinator:
         bgm_identity = str(settings.get("bgm_identity") or "")
         if bgm_identity and bgm_identity not in self.bgm_assets:
             raise ValueError("浏览器预览绑定的 BGM 不可用")
+        bgm_media_path = ""
+        if bgm_identity:
+            bgm_asset = self.bgm_assets[bgm_identity]
+            bgm_media_path = str(
+                bgm_asset.get("absolute_path") or bgm_asset.get("path") or ""
+            ).strip()
+            if not bgm_media_path or not Path(bgm_media_path).expanduser().is_file():
+                raise ValueError("浏览器预览绑定的 BGM 文件不存在")
+            bgm_media_path = str(Path(bgm_media_path).expanduser().resolve())
         output: dict[str, Any] = {
             "draft_root": str(self.draft_root),
             "draft_name": draft_name,
@@ -2080,11 +2094,11 @@ class ProjectPostprocessCoordinator:
                 "color": "#FFFFFF",
                 "stroke_color": "",
                 "stroke_width": 0.0,
-                "shadow_color": "#000000",
+                "shadow_color": TEXT_SHADOW_COLOR,
                 "shadow_alpha": float(caption_profile["shadow_alpha"]),
-                "shadow_distance": 5.0,
-                "shadow_angle": -45.0,
-                "shadow_smoothing": 0.45000001788139343,
+                "shadow_distance": TEXT_SHADOW_DISTANCE,
+                "shadow_angle": TEXT_SHADOW_ANGLE,
+                "shadow_smoothing": TEXT_SHADOW_SMOOTHING,
                 "transform_x": 0.0,
                 "transform_y": float(caption_profile["transform_y"]),
                 "line_max_width": float(caption_profile["max_width_ratio"]),
@@ -2101,6 +2115,7 @@ class ProjectPostprocessCoordinator:
                         {
                             "type": "bgm",
                             "library_identity": bgm_identity,
+                            "media_path": bgm_media_path,
                             "target_start_us": 0,
                             "target_duration_us": 0,
                             "fit_to_video": True,

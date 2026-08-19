@@ -421,7 +421,7 @@ def test_catalog_contains_images_and_registered_activity_videos() -> None:
         _assets_for_media_policy(
             catalog, "activity.light_daily", "mixed", usage="seam_broll"
         )
-    ) == 14
+    ) == 11
     light_activity = recall_semantic_visual_candidates(
         "每天保持日常轻活动，比如散步或者八段锦。", catalog=catalog
     )
@@ -1736,11 +1736,39 @@ def test_recall_uses_exact_python_ranges_and_longest_alias() -> None:
 
 def test_recall_rejects_known_compounds_that_have_no_matching_asset() -> None:
     payload = recall_semantic_visual_candidates(
-        "不要吃油脂很多的鸡蛋糕，也不要吃放久的蔬菜沙拉。",
+        "不要吃油脂很多的鸡蛋糕，也不要吃放久的蔬菜沙拉，它被叫做植物三文鱼。",
         _catalog(),
     )
 
-    assert all(item["text"] not in {"鸡蛋", "蔬菜"} for item in payload["candidates"])
+    assert all(
+        item["text"] not in {"鸡蛋", "蔬菜", "三文鱼"}
+        for item in payload["candidates"]
+    )
+
+
+def test_platform_ui_quarantine_disables_assets_centrally() -> None:
+    catalog = _catalog()
+
+    assert catalog.asset("review.u0102.video.a64745b702")["auto_eligible"] is False
+    assert catalog.asset("manual.048.video.10095de4fb")["auto_eligible"] is False
+    assert frozen_visual_overlays(
+        {
+            "visual_analysis": {
+                "recipe": {
+                    "schema": RECIPE_SCHEMA_V2,
+                    "overlays": [
+                        {
+                            "asset_id": "review.u0102.video.a64745b702",
+                            "selection_mode": "auto",
+                            "manual": False,
+                            "locked": False,
+                        }
+                    ],
+                }
+            }
+        },
+        library_root=CATALOG_ROOT,
+    ) == []
 
 
 def test_recall_does_not_decide_idiom_negation_or_meta_context_locally() -> None:

@@ -304,14 +304,14 @@ def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> Non
     assert cover["line_2_color"] == "#F5F6F0"
     assert cover["line_1_y"] == pytest.approx(-160 / 1920)
     assert cover["line_2_y"] == pytest.approx(-655 / 1920)
-    assert cover["overlay_y_ratio"] == pytest.approx(0.625)
-    assert cover["overlay_height_ratio"] == pytest.approx(0.26)
-    assert cover["overlay_top_ratio"] == pytest.approx(0.495)
+    assert cover["overlay_y_ratio"] == pytest.approx(0.615)
+    assert cover["overlay_height_ratio"] == pytest.approx(0.28)
+    assert cover["overlay_top_ratio"] == pytest.approx(0.475)
     assert cover["overlay_bottom_ratio"] == pytest.approx(0.755)
     assert cover["text_scale"] == pytest.approx(1.1045453049181124)
     assert cover["auto_wrapping"] is False
-    assert cover["line_1_shadow_alpha"] == 1.0
-    assert cover["line_2_shadow_alpha"] == 1.0
+    assert cover["line_1_shadow_alpha"] == pytest.approx(0.8999999761581421)
+    assert cover["line_2_shadow_alpha"] == pytest.approx(0.8999999761581421)
     assert cover["line_1_shadow_smoothing"] == pytest.approx(0.45000001788139343)
     assert cover["line_2_shadow_smoothing"] == pytest.approx(0.45000001788139343)
 

@@ -274,19 +274,50 @@ def _compatibility_decisions(
     return decisions
 
 
-def _locked_overlays(
+def _retained_overlays(
     snapshot: Mapping[str, Any],
     catalog: SemanticVisualCatalog,
+    segment_boundaries: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     recipe = snapshot.get("recipe") if isinstance(snapshot.get("recipe"), Mapping) else {}
+    seam_analysis = (
+        snapshot.get("seam_analysis")
+        if isinstance(snapshot.get("seam_analysis"), Mapping)
+        else {}
+    )
+    preserve_seams = seam_analysis.get("status") == "SUCCESS"
+    current_boundaries = {
+        int(item.get("boundary_us") or 0)
+        for item in (segment_boundaries or [])
+        if isinstance(item, Mapping) and int(item.get("boundary_us") or 0) > 0
+    }
     locked: list[dict[str, Any]] = []
     for raw in recipe.get("overlays", []):
-        if not isinstance(raw, Mapping) or raw.get("manual") is not True or raw.get("locked") is not True:
+        if not isinstance(raw, Mapping):
+            continue
+        manual_locked = raw.get("manual") is True and raw.get("locked") is True
+        automatic_seam = (
+            preserve_seams
+            and raw.get("manual") is not True
+            and (
+                raw.get("usage") == "seam_broll"
+                or raw.get("timing_mode") == "seam_broll"
+            )
+            and int(raw.get("segment_boundary_us") or 0) in current_boundaries
+        )
+        if not manual_locked and not automatic_seam:
             continue
         overlay = dict(raw)
         asset = catalog.asset(str(overlay.get("asset_id") or ""))
         for key in ("bundle_path", "image_path", "video_path"):
             overlay.pop(key, None)
+        if asset is None and automatic_seam:
+            continue
+        if automatic_seam and asset is not None and (
+            asset.get("auto_eligible") is not True
+            or "seam_broll" not in asset.get("usage_modes", [])
+        ):
+            continue
         if asset is None:
             overlay["requires_review"] = True
         else:
@@ -335,7 +366,11 @@ def build_local_visual_result(
         if selected_candidates
         else []
     )
-    locked = _locked_overlays(visual_input.previous, catalog)
+    locked = _retained_overlays(
+        visual_input.previous,
+        catalog,
+        visual_input.segment_boundaries,
+    )
     recipe = build_visual_recipe(
         catalog=catalog,
         mapped_candidates=mapped,
@@ -344,6 +379,7 @@ def build_local_visual_result(
         locked_overlays=locked,
         segment_boundaries=visual_input.segment_boundaries or [],
         final_video_duration_us=visual_input.video_duration_us,
+        allow_legacy_seam_fallback=False,
     )
     result = {
         "analysis_status": "SUCCESS",
@@ -365,7 +401,11 @@ def empty_visual_recipe(
     visual_input: UnifiedVisualInput,
     catalog: SemanticVisualCatalog,
 ) -> dict[str, Any]:
-    overlays = _locked_overlays(visual_input.previous, catalog)
+    overlays = _retained_overlays(
+        visual_input.previous,
+        catalog,
+        visual_input.segment_boundaries,
+    )
     return {
         "schema": RECIPE_SCHEMA,
         "library_id": catalog.library_id or DEFAULT_LIBRARY_ID,

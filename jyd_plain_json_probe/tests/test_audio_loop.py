@@ -69,6 +69,18 @@ class LongAudioFakeDraft(FakeDraft):
 
 
 class AudioLoopTest(unittest.TestCase):
+    def test_render_job_rejects_empty_or_directory_audio_paths(self) -> None:
+        with self.assertRaisesRegex(FileNotFoundError, "音频路径为空"):
+            _build_audio_replacements(
+                {"audios": [{"type": "bgm", "library_identity": "music-id"}]},
+                timeline_duration_us=25_000_000,
+            )
+        with self.assertRaisesRegex(FileNotFoundError, "不存在或不是文件"):
+            _build_audio_replacements(
+                {"audios": [{"type": "bgm", "media_path": str(PROJECT_ROOT)}]},
+                timeline_duration_us=25_000_000,
+            )
+
     def test_short_bgm_repeats_and_trims_last_segment(self) -> None:
         script = FakeScript()
         changed = add_audio_track_segment(

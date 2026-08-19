@@ -945,7 +945,9 @@ def _build_audio_replacements(
 
     for item in _list_config(_value(config, "audios", "audio", default=None), "audios"):
         mode = str(_value(item, "type", "mode", default="add")).replace("_", "-")
-        media_path = _positive_path(_value(item, "media_path", "audio_path", default=""), "音频")
+        media_path = _positive_file(
+            _value(item, "media_path", "audio_path", default=""), "音频"
+        )
         source_start_us = int(_value(item, "source_start_us", default=-1))
         source_duration_us = int(_value(item, "source_duration_us", default=0))
         target_start_us = int(_value(item, "target_start_us", "start_us", default=0))
@@ -1501,9 +1503,19 @@ def _optional_float(data: Mapping[str, Any], key: str) -> float | None:
 
 
 def _positive_path(path_text: Any, label: str) -> Path:
-    path = Path(str(path_text)).expanduser().resolve()
+    raw_path = str(path_text or "").strip()
+    if not raw_path:
+        raise FileNotFoundError(f"{label}路径为空")
+    path = Path(raw_path).expanduser().resolve()
     if not path.exists():
         raise FileNotFoundError(f"{label}不存在: {path}")
+    return path
+
+
+def _positive_file(path_text: Any, label: str) -> Path:
+    path = _positive_path(path_text, label)
+    if not path.is_file():
+        raise FileNotFoundError(f"{label}不存在或不是文件: {path}")
     return path
 
 

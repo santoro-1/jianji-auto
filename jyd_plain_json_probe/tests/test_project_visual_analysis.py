@@ -260,6 +260,8 @@ def test_seam_supplement_runs_once_after_segments_exist_and_merges_recipe(
     assert len(client.calls) == 1
     assert all(candidate["usage"] == "seam_broll" for candidate in client.calls[0]["candidates"])
     assert visual["seam_analysis"]["status"] == "SUCCESS"
+    assert visual["seam_analysis"]["catalog_version"] == coordinator.catalog.catalog_version
+    assert visual["seam_analysis"]["recipe_fingerprint"]
     seam = next(
         overlay
         for overlay in visual["recipe"]["overlays"]
@@ -271,3 +273,20 @@ def test_seam_supplement_runs_once_after_segments_exist_and_merges_recipe(
         "user-1", project["project_id"], "token", item_ids=[item["item_id"]]
     )
     assert len(client.calls) == 1
+
+    store.update_item_seam_visual_analysis(
+        "user-1",
+        project["project_id"],
+        item["item_id"],
+        expected_script_sha256=visual["script_sha256"],
+        seam_analysis=dict(visual["seam_analysis"]),
+        recipe={**visual["recipe"], "overlays": [], "used_asset_ids": []},
+    )
+    repaired = coordinator.supplement_seams(
+        "user-1", project["project_id"], "token", item_ids=[item["item_id"]]
+    )
+    assert len(client.calls) == 2
+    assert any(
+        overlay.get("usage") == "seam_broll"
+        for overlay in repaired["items"][0]["visual_analysis"]["recipe"]["overlays"]
+    )

@@ -154,6 +154,7 @@ VISUAL_ALIAS_EXCLUDED_COMPOUNDS = {
     "鸡蛋": ("鸡蛋糕",),
     "蔬菜": ("蔬菜沙拉", "蔬菜色拉"),
     "青菜": ("青菜沙拉", "青菜色拉"),
+    "三文鱼": ("植物三文鱼",),
 }
 
 
@@ -1114,6 +1115,40 @@ def _load_semantic_visual_catalog_v3(
             raise SemanticVisualCatalogError("unsupported media_type/renderer pair")
         assets.append(asset)
         version_paths.extend(paths)
+    quarantine_path = catalog_root / "quarantine" / "platform_ui_pending.json"
+    if quarantine_path.exists():
+        try:
+            quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SemanticVisualCatalogError("semantic visual quarantine is unreadable") from exc
+        if (
+            not isinstance(quarantine, dict)
+            or set(quarantine) != {"schema", "status", "reason", "assets"}
+            or quarantine.get("schema") != "jyd.semantic-visual-quarantine.v1"
+            or quarantine.get("status") != "DISABLED_PENDING_MANUAL_REVIEW"
+            or not isinstance(quarantine.get("assets"), list)
+        ):
+            raise SemanticVisualCatalogError("invalid semantic visual quarantine")
+        quarantined_ids: set[str] = set()
+        for entry in quarantine["assets"]:
+            if (
+                not isinstance(entry, dict)
+                or set(entry) != {"asset_id", "name", "reason"}
+                or not str(entry.get("asset_id") or "").strip()
+                or not str(entry.get("reason") or "").strip()
+            ):
+                raise SemanticVisualCatalogError("invalid semantic visual quarantine asset")
+            asset_id = str(entry["asset_id"]).strip()
+            if asset_id in quarantined_ids:
+                raise SemanticVisualCatalogError("duplicate semantic visual quarantine asset")
+            quarantined_ids.add(asset_id)
+        if quarantined_ids.difference(asset_ids):
+            raise SemanticVisualCatalogError("semantic visual quarantine references unknown asset")
+        assets = [
+            ({**asset, "auto_eligible": False} if asset["asset_id"] in quarantined_ids else asset)
+            for asset in assets
+        ]
+        version_paths.append(quarantine_path)
     available_concepts = {
         concept_id
         for asset in assets
@@ -2383,6 +2418,7 @@ def build_visual_recipe(
     locked_overlays: Iterable[Mapping[str, Any]] = (),
     segment_boundaries: Iterable[Mapping[str, Any]] = (),
     final_video_duration_us: int | None = None,
+    allow_legacy_seam_fallback: bool = True,
 ) -> dict[str, Any]:
     """Build one priority-ordered, sentence-timed, video-level deduplicated recipe."""
 
@@ -2499,6 +2535,8 @@ def build_visual_recipe(
             else:
                 # Compatibility fallback for legacy plans created before
                 # dedicated seam candidates existed.
+                if not allow_legacy_seam_fallback:
+                    continue
                 candidates_after = [
                     (candidate_key, candidate_group)
                     for candidate_key, candidate_group in explicit_groups.items()
@@ -2754,6 +2792,8 @@ def frozen_visual_overlays(
         ):
             current_asset = current_catalog.asset(str(overlay.get("asset_id") or ""))
             if current_asset is not None:
+                if current_asset.get("auto_eligible") is not True:
+                    continue
                 defaults = current_asset["defaults"]
                 resource = current_asset["resource"]
                 media_type = current_asset["media_type"]

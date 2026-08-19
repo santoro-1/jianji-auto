@@ -5423,8 +5423,8 @@
 
             const overlay = document.getElementById('video-preview-cover-overlay');
             const coverStyle = activeLayoutProfileConfig()?.cover || {};
-            const overlayYRatio = Number(coverStyle.overlay_y_ratio ?? 0.625);
-            const overlayHeightRatio = Number(coverStyle.overlay_height_ratio ?? 0.26);
+            const overlayYRatio = Number(coverStyle.overlay_y_ratio ?? 0.615);
+            const overlayHeightRatio = Number(coverStyle.overlay_height_ratio ?? 0.28);
             overlay.style.top = `${displayedHeight * (overlayYRatio - overlayHeightRatio / 2)}px`;
             overlay.style.height = `${displayedHeight * overlayHeightRatio}px`;
             const line1 = document.getElementById('video-preview-cover-line-1');

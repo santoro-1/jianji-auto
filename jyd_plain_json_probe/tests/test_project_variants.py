@@ -174,7 +174,11 @@ class ProjectVariantTest(unittest.TestCase):
                     filename=segment.name,
                     managed_path=str(segment),
                     external_ref={"video_index": segment_index},
-                    metadata={"start_seconds": segment_index - 1, "end_seconds": segment_index},
+                    metadata={
+                        "start_seconds": segment_index - 1,
+                        "end_seconds": segment_index,
+                        "actual_duration_us": 1_000_000,
+                    },
                 )
             self.store.configure_item_postprocess(
                 "user", project["project_id"], item["item_id"],
@@ -327,8 +331,8 @@ class ProjectVariantTest(unittest.TestCase):
             self.assertEqual(job["cover"]["line_2_size"], 22.0)
             self.assertAlmostEqual(job["cover"]["line_1_y"], -160 / 1920)
             self.assertAlmostEqual(job["cover"]["line_2_y"], -655 / 1920)
-            self.assertEqual(job["cover"]["overlay_y_ratio"], 0.625)
-            self.assertEqual(job["cover"]["overlay_height_ratio"], 0.26)
+            self.assertEqual(job["cover"]["overlay_y_ratio"], 0.615)
+            self.assertEqual(job["cover"]["overlay_height_ratio"], 0.28)
             self.assertEqual(len(job["effects"]), 1)
             self.assertGreaterEqual(len(job["stickers"]), 1)
         operation = next(

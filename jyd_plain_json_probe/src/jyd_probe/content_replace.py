@@ -1034,6 +1034,11 @@ def _replace_cover_text_fonts_in_data(
                     stroke_color="",
                     stroke_width=None,
                     line_max_width=0.86,
+                    shadow_color=shadow_color,
+                    shadow_alpha=shadow_alpha,
+                    shadow_distance=shadow_distance,
+                    shadow_angle=shadow_angle,
+                    shadow_smoothing=shadow_smoothing,
                 )
                 material.update(
                     {

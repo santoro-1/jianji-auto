@@ -512,6 +512,7 @@ def test_real_segment_boundary_flows_into_local_seam_broll_recipe(tmp_path: Path
                     "metadata": {
                         "start_seconds": 0.0,
                         "end_seconds": 2.0,
+                        "actual_duration_us": 2_000_000,
                         "script_text": "前面先热身。",
                     },
                 },
@@ -523,6 +524,7 @@ def test_real_segment_boundary_flows_into_local_seam_broll_recipe(tmp_path: Path
                     "metadata": {
                         "start_seconds": 2.0,
                         "end_seconds": 6.0,
+                        "actual_duration_us": 4_000_000,
                         "script_text": "接着做胯下击掌燃脂操，保持呼吸。",
                     },
                 },

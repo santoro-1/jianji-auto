@@ -20,6 +20,52 @@ from .semantic_visuals import (
 from .unified_visual_plan import UnifiedVisualInput, prepare_unified_visual_input
 
 
+def _seam_recipe_fingerprint(recipe: Mapping[str, Any]) -> str:
+    """Hash automatic seam overlays so stale success metadata cannot skip repair."""
+
+    rows = []
+    for raw in recipe.get("overlays", []):
+        if (
+            not isinstance(raw, Mapping)
+            or raw.get("manual") is True
+            or (
+                raw.get("usage") != "seam_broll"
+                and raw.get("timing_mode") != "seam_broll"
+            )
+        ):
+            continue
+        rows.append(
+            {
+                key: raw.get(key)
+                for key in (
+                    "overlay_id",
+                    "candidate_id",
+                    "concept_id",
+                    "asset_id",
+                    "segment_boundary_us",
+                    "start_us",
+                    "duration_us",
+                    "source_start_us",
+                    "source_duration_us",
+                    "enabled",
+                )
+            }
+        )
+    encoded = json.dumps(
+        sorted(
+            rows,
+            key=lambda item: (
+                int(item.get("start_us") or 0),
+                str(item.get("overlay_id") or ""),
+            ),
+        ),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 VISUAL_ANALYSIS_BATCH_CONCURRENCY = 10
 _DECISION_KEYS = {
     "candidate_id",
@@ -425,10 +471,16 @@ class ProjectVisualAnalysisCoordinator:
             )
             signature = _candidate_set_sha256(request_payload)
             previous_seam = (item.get("visual_analysis") or {}).get("seam_analysis")
+            current_recipe = (item.get("visual_analysis") or {}).get("recipe")
+            current_fingerprint = _seam_recipe_fingerprint(
+                current_recipe if isinstance(current_recipe, Mapping) else {}
+            )
             if (
                 isinstance(previous_seam, Mapping)
                 and previous_seam.get("status") == "SUCCESS"
                 and previous_seam.get("candidate_set_sha256") == signature
+                and previous_seam.get("catalog_version") == self.catalog.catalog_version
+                and previous_seam.get("recipe_fingerprint") == current_fingerprint
             ):
                 continue
             targets.append(
@@ -496,6 +548,7 @@ class ProjectVisualAnalysisCoordinator:
                         merged_recipe = self._merge_seam_recipe(
                             target.visual_input.previous, seam_recipe
                         )
+                        recipe_fingerprint = _seam_recipe_fingerprint(merged_recipe)
                         self.store.update_item_seam_visual_analysis(
                             owner_user_id,
                             project_id,
@@ -504,6 +557,8 @@ class ProjectVisualAnalysisCoordinator:
                             seam_analysis={
                                 "status": "SUCCESS",
                                 "candidate_set_sha256": signature,
+                                "catalog_version": self.catalog.catalog_version,
+                                "recipe_fingerprint": recipe_fingerprint,
                                 "decisions": list(result["decisions"]),
                                 "mapped_candidates": mapped,
                                 "provider_request_id": result.get("provider_request_id"),
