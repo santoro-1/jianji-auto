@@ -20,6 +20,7 @@ from jyd_probe.caption_alignment import (  # noqa: E402
 )
 from jyd_probe.project_postprocess import (  # noqa: E402
     ProjectPostprocessCoordinator,
+    bind_semantic_overlays_to_render_cues,
     draft_recipe_sha256,
 )
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
@@ -45,6 +46,129 @@ def _health_music_intent() -> dict[str, object]:
         "avoid_traits": ["strong_vocals", "dense_arrangement"],
         "confidence": 0.9,
     }
+
+
+def test_explicit_visual_starts_on_final_caption_containing_keyword() -> None:
+    script = "你如果能够做到，在七天之内坚持吃苹果"
+    apple_start = script.index("苹果")
+    overlays = [
+        {
+            "overlay_id": "apple-image",
+            "candidate_id": "vc_apple",
+            "usage": "explicit",
+            "timing_mode": "sentence",
+            "selection_mode": "auto",
+            "manual": False,
+            "media_type": "image",
+            "start_us": 0,
+            "duration_us": 2_500_000,
+            "timing_source": "funasr_phrase_timestamps",
+        }
+    ]
+    render_cues = [
+        {"start_us": 0, "duration_us": 1_000_000, "text": "你如果能够做到"},
+        {
+            "start_us": 1_000_000,
+            "duration_us": 1_500_000,
+            "text": "在七天之内坚持吃苹果",
+        },
+    ]
+    candidate_request = {
+        "candidates": [
+            {
+                "candidate_id": "vc_apple",
+                "text": "苹果",
+                "char_start": apple_start,
+                "char_end": apple_start + 2,
+            }
+        ]
+    }
+
+    resolved = bind_semantic_overlays_to_render_cues(
+        script, overlays, render_cues, candidate_request
+    )
+
+    assert resolved[0]["start_us"] == 1_000_000
+    assert resolved[0]["duration_us"] == 1_500_000
+    assert resolved[0]["timing_source"] == "final_caption_cue"
+    assert resolved[0]["analysis_timing_source"] == "funasr_phrase_timestamps"
+    assert resolved[0]["caption_anchor_text"] == "在七天之内坚持吃苹果"
+
+
+def test_caption_binding_does_not_move_manual_or_seam_visuals() -> None:
+    script = "坚持吃苹果"
+    candidate_request = {
+        "candidates": [
+            {
+                "candidate_id": "vc_apple",
+                "text": "苹果",
+                "char_start": 3,
+                "char_end": 5,
+            }
+        ]
+    }
+    overlays = [
+        {
+            "candidate_id": "vc_apple",
+            "manual": True,
+            "start_us": 200_000,
+            "duration_us": 500_000,
+        },
+        {
+            "candidate_id": "vs_mood",
+            "usage": "seam_broll",
+            "timing_mode": "seam_broll",
+            "start_us": 700_000,
+            "duration_us": 1_000_000,
+        },
+    ]
+
+    resolved = bind_semantic_overlays_to_render_cues(
+        script,
+        overlays,
+        [{"start_us": 0, "duration_us": 1_000_000, "text": script}],
+        candidate_request,
+    )
+
+    assert resolved == overlays
+
+
+def test_unmappable_final_captions_skip_only_automatic_explicit_visuals() -> None:
+    overlays = [
+        {
+            "candidate_id": "vc_apple",
+            "manual": False,
+            "timing_mode": "sentence",
+            "start_us": 0,
+            "duration_us": 1_000_000,
+        },
+        {
+            "candidate_id": "vs_mood",
+            "usage": "seam_broll",
+            "timing_mode": "seam_broll",
+            "start_us": 1_000_000,
+            "duration_us": 1_000_000,
+        },
+    ]
+    candidate_request = {
+        "candidates": [
+            {
+                "candidate_id": "vc_apple",
+                "text": "苹果",
+                "char_start": 3,
+                "char_end": 5,
+            }
+        ]
+    }
+
+    resolved = bind_semantic_overlays_to_render_cues(
+        "坚持吃苹果",
+        overlays,
+        [{"start_us": 0, "duration_us": 1_000_000, "text": "错误字幕"}],
+        candidate_request,
+    )
+
+    assert resolved == [overlays[1]]
 
 
 class ProjectPostprocessApiTest(unittest.TestCase):

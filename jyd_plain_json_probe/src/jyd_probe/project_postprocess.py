@@ -1190,6 +1190,154 @@ def _caption_display_text(value: str) -> tuple[str, set[int]]:
     return cleaned, {position for position in preferred_breaks if 0 < position < len(cleaned)}
 
 
+def _caption_script_offsets(value: str) -> tuple[str, list[int]]:
+    """Return rendered caption text plus each character's source-script offset."""
+
+    source = str(value or "")
+    normalized: list[str] = []
+    normalized_offsets: list[int] = []
+    pending_space: int | None = None
+    for index, character in enumerate(source):
+        if character.isspace():
+            if normalized and pending_space is None:
+                pending_space = index
+            continue
+        if pending_space is not None:
+            normalized.append(" ")
+            normalized_offsets.append(pending_space)
+            pending_space = None
+        normalized.append(character)
+        normalized_offsets.append(index)
+
+    normalized_text = "".join(normalized)
+    display: list[str] = []
+    offsets: list[int] = []
+    for index, character in enumerate(normalized_text):
+        if (
+            character in _HIDDEN_CAPTION_PUNCTUATION
+            and not _is_numeric_separator(normalized_text, index)
+        ):
+            continue
+        display.append(character)
+        offsets.append(normalized_offsets[index])
+    return "".join(display).strip(), offsets
+
+
+def _uses_final_caption_anchor(overlay: dict[str, Any]) -> bool:
+    candidate_id = str(overlay.get("candidate_id") or "")
+    return (
+        candidate_id.startswith("vc_")
+        and overlay.get("manual") is not True
+        and str(overlay.get("selection_mode") or "auto") != "manual"
+        and str(overlay.get("timing_mode") or "sentence") == "sentence"
+        and str(overlay.get("usage") or "explicit") != "seam_broll"
+    )
+
+
+def bind_semantic_overlays_to_render_cues(
+    original_script: str,
+    overlays: Iterable[dict[str, Any]],
+    render_cues: Iterable[dict[str, Any]],
+    candidate_request: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Start explicit automatic visuals on the final cue containing the keyword."""
+
+    original = [dict(item) for item in overlays]
+    candidates = {
+        str(item.get("candidate_id") or ""): item
+        for item in (candidate_request or {}).get("candidates", [])
+        if isinstance(item, dict) and str(item.get("candidate_id") or "")
+    }
+    if not original or not candidates:
+        return original
+
+    def without_unresolved_automatic() -> list[dict[str, Any]]:
+        return [item for item in original if not _uses_final_caption_anchor(item)]
+
+    script_display, script_offsets = _caption_script_offsets(original_script)
+    if not script_display or len(script_display) != len(script_offsets):
+        return without_unresolved_automatic()
+
+    cue_ranges: list[tuple[int, int, int, int, str]] = []
+    display_cursor = 0
+    for raw in render_cues:
+        if not isinstance(raw, dict):
+            return without_unresolved_automatic()
+        try:
+            cue_display, _breaks = _caption_display_text(str(raw.get("text") or ""))
+            cue_start_us = int(raw.get("start_us") or 0)
+            cue_duration_us = int(raw.get("duration_us") or 0)
+        except (CaptionLayoutReviewRequired, TypeError, ValueError):
+            return without_unresolved_automatic()
+        next_cursor = display_cursor + len(cue_display)
+        if (
+            cue_duration_us <= 0
+            or next_cursor > len(script_display)
+            or script_display[display_cursor:next_cursor] != cue_display
+        ):
+            return without_unresolved_automatic()
+        cue_ranges.append(
+            (
+                script_offsets[display_cursor],
+                script_offsets[next_cursor - 1] + 1,
+                cue_start_us,
+                cue_start_us + cue_duration_us,
+                cue_display,
+            )
+        )
+        display_cursor = next_cursor
+    if display_cursor != len(script_display):
+        return without_unresolved_automatic()
+
+    bound: list[dict[str, Any]] = []
+    for overlay in original:
+        candidate_id = str(overlay.get("candidate_id") or "")
+        if not _uses_final_caption_anchor(overlay):
+            bound.append(overlay)
+            continue
+        candidate = candidates.get(candidate_id)
+        if not isinstance(candidate, dict):
+            continue
+        try:
+            keyword_start = int(candidate.get("char_start"))
+            keyword_end = int(candidate.get("char_end"))
+            old_start_us = int(overlay.get("start_us") or 0)
+            old_end_us = old_start_us + int(overlay.get("duration_us") or 0)
+        except (TypeError, ValueError):
+            continue
+        anchor = next(
+            (
+                cue
+                for cue in cue_ranges
+                if cue[0] < keyword_end and keyword_start < cue[1]
+            ),
+            None,
+        )
+        if anchor is None:
+            continue
+        _cue_char_start, _cue_char_end, cue_start_us, cue_end_us, cue_text = anchor
+        new_end_us = max(old_end_us, cue_end_us)
+        new_duration_us = new_end_us - cue_start_us
+        source_duration_us = overlay.get("source_duration_us")
+        if isinstance(source_duration_us, int) and source_duration_us > 0:
+            new_duration_us = min(new_duration_us, source_duration_us)
+        if new_duration_us <= 0:
+            continue
+        previous_timing_source = str(overlay.get("timing_source") or "")
+        overlay.update(
+            {
+                "start_us": cue_start_us,
+                "duration_us": new_duration_us,
+                "timing_source": "final_caption_cue",
+                "caption_anchor_text": cue_text,
+            }
+        )
+        if previous_timing_source and previous_timing_source != "final_caption_cue":
+            overlay["analysis_timing_source"] = previous_timing_source
+        bound.append(overlay)
+    return bound
+
+
 def _trailing_sentence_break(text: str) -> str:
     normalized = str(text or "").rstrip()
     if not normalized:
@@ -2134,10 +2282,20 @@ class ProjectPostprocessCoordinator:
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
         video_duration_us = item_video_duration_us(item)
+        visual_analysis = dict(item.get("visual_analysis") or {})
         visual_overlays = bound_visual_overlays_to_video(
             apply_layout_to_visual_overlays(
-                frozen_visual_overlays(
-                    item, library_root=self.semantic_visual_library_root
+                bind_semantic_overlays_to_render_cues(
+                    str(item.get("script_text") or ""),
+                    frozen_visual_overlays(
+                        item, library_root=self.semantic_visual_library_root
+                    ),
+                    subtitles["render_cues"],
+                    (
+                        dict(visual_analysis.get("candidate_request") or {})
+                        if isinstance(visual_analysis.get("candidate_request"), dict)
+                        else None
+                    ),
                 ),
                 profile_id,
             ),

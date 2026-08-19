@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-008",
+  "original_name": "manual_大蒜.mp4",
+  "source_sha256": "f28e4ead3a2d91dca398bfa77fb7fdff9afb2aef7200524cb13d0ee32e673a3e",
+  "content_sha256": "f28e4ead3a2d91dca398bfa77fb7fdff9afb2aef7200524cb13d0ee32e673a3e",
+  "fps": "60/1",
+  "duration_us": 5339002,
+  "width": 1080,
+  "height": 1332,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 5339002,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0061.video.40976d2d4c",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

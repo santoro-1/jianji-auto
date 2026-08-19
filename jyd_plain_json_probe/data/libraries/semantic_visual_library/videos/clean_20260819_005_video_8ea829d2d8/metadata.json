@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-005",
+  "original_name": "秋日银杏街景.mp4",
+  "source_sha256": "8ea829d2d8a038e1d9c5fb84c717d0f6a1859c14f0a25019b4c648c473e3ad45",
+  "content_sha256": "8ea829d2d8a038e1d9c5fb84c717d0f6a1859c14f0a25019b4c648c473e3ad45",
+  "fps": "60/1",
+  "duration_us": 6385011,
+  "width": 1080,
+  "height": 1444,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 6385011,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0042.video.93e2eea161",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

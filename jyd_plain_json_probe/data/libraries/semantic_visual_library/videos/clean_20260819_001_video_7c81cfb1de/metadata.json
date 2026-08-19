@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-001",
+  "original_name": "上下摆臂.mp4",
+  "source_sha256": "7c81cfb1dea7d000c1c2d4ed2c8c8bc5898f579566d7890828f277f9d9ed691b",
+  "content_sha256": "7c81cfb1dea7d000c1c2d4ed2c8c8bc5898f579566d7890828f277f9d9ed691b",
+  "fps": "60/1",
+  "duration_us": 6176009,
+  "width": 1080,
+  "height": 2400,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 6176009,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "manual.048.video.10095de4fb",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

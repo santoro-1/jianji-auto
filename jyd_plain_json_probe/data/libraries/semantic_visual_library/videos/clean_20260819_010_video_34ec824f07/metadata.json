@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-010",
+  "original_name": "菠菜鸡蛋汤.mp4",
+  "source_sha256": "34ec824f07f5d5c2fa5387260740a5c0b7495d3bc3a7a1d03b30dde50c9ddbcd",
+  "content_sha256": "34ec824f07f5d5c2fa5387260740a5c0b7495d3bc3a7a1d03b30dde50c9ddbcd",
+  "fps": "60/1",
+  "duration_us": 8196009,
+  "width": 1080,
+  "height": 1268,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 8196009,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0077.video.1eaa547446",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

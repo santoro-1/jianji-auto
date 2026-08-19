@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-007",
+  "original_name": "枸杞.mp4",
+  "source_sha256": "0e0bc73e023a935d9a43b7a2b3bb96ef6d6fd81be7d0f73423c3d4e50a076731",
+  "content_sha256": "0e0bc73e023a935d9a43b7a2b3bb96ef6d6fd81be7d0f73423c3d4e50a076731",
+  "fps": "60/1",
+  "duration_us": 4806009,
+  "width": 1080,
+  "height": 1610,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 4806009,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0060.video.e329aacbfa",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

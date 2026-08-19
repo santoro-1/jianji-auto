@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-003",
+  "original_name": "玉米鸡蛋蔬菜水煮餐.mp4",
+  "source_sha256": "8dcb4ea0c7a6be65336b5b3eceae9ee74807aed72a1eca5a1c87e6d0e2f4ccd0",
+  "content_sha256": "8dcb4ea0c7a6be65336b5b3eceae9ee74807aed72a1eca5a1c87e6d0e2f4ccd0",
+  "fps": "60/1",
+  "duration_us": 4202812,
+  "width": 1080,
+  "height": 2400,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 4202812,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0020.video.507d6ee47f",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

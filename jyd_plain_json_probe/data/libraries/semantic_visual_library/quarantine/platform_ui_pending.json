@@ -3,58 +3,230 @@
   "status": "DISABLED_PENDING_MANUAL_REVIEW",
   "reason": "platform_ui_or_player_overlay",
   "assets": [
-    {"asset_id": "manual.048.video.10095de4fb", "name": "上下摆臂", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "manual.056.video.609531a24e", "name": "站姿扭腰动作", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0020.video.507d6ee47f", "name": "玉米鸡蛋蔬菜水煮餐", "reason": "play_button_visible"},
-    {"asset_id": "review.u0034.video.0fa094a4f3", "name": "倒温水", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0042.video.93e2eea161", "name": "秋日银杏街景", "reason": "catalog_marked_embedded"},
-    {"asset_id": "review.u0046.video.b438b99f2f", "name": "凉拌海带", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0060.video.e329aacbfa", "name": "枸杞", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0061.video.40976d2d4c", "name": "大蒜", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0075.video.bdfa56baf2", "name": "海带", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0077.video.1eaa547446", "name": "菠菜鸡蛋汤", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0083.video.113d91a6c4", "name": "苹果梨去核", "reason": "play_button_visible"},
-    {"asset_id": "review.u0084.video.a48ccec361", "name": "绿豆生姜汤", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0089.video.53e6d68225", "name": "丝瓜鸡蛋汤", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0102.video.a64745b702", "name": "西红柿去皮", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0103.video.278ae8075a", "name": "坐姿踮脚", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0104.video.48be7e8b16", "name": "蜂巢蜜", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0111.video.fb02d5d0c2", "name": "雨中荷塘", "reason": "catalog_marked_embedded"},
-    {"asset_id": "review.u0113.video.0348aae870", "name": "热水", "reason": "play_button_visible"},
-    {"asset_id": "review.u0118.video.2c328482b0", "name": "生姜水", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0123.video.95528198ed", "name": "蜂巢蜜", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0131.video.b36bf97ee8", "name": "称体重", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0140.video.15b5a0e7df", "name": "日常步行", "reason": "catalog_marked_embedded"},
-    {"asset_id": "review.u0141.video.f5fa7e1647", "name": "站立上举运动", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0144.video.64dc59739c", "name": "菜市场猪肉", "reason": "catalog_marked_embedded"},
-    {"asset_id": "review.u0150.video.670ab9b41a", "name": "煮鸡蛋", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0169.video.23fc32881d", "name": "泡脚", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0171.video.cc36577888", "name": "虾仁拌黄瓜", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0174.video.d41ab7f8ab", "name": "鲜莲子", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0187.video.7aaf47316e", "name": "柚子", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0224.video.a73208368a", "name": "菠菜猪肝汤", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0235.video.feb63d391f", "name": "意式咖啡萃取", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0242.video.011aee5b2b", "name": "番茄采摘", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0264.video.5d53fbb619", "name": "蜂蜜", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0275.video.03be926bc5", "name": "紫菜虾皮鸡蛋汤", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0280.video.946f759f1a", "name": "菜市场蔬菜", "reason": "catalog_marked_embedded"},
-    {"asset_id": "review.u0291.video.6ab39a99c4", "name": "芹菜黄豆汤", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0310.video.63b1064065", "name": "剥橙子", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0317.video.e79db70509", "name": "烧水", "reason": "catalog_marked_embedded"},
-    {"asset_id": "review.u0325.video.a4ae2206b9", "name": "西红柿酸奶燕麦", "reason": "play_button_visible"},
-    {"asset_id": "review.u0361.video.1e8db50869", "name": "黄瓜鸡蛋汤", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0410.video.1aa5ad676c", "name": "油腻辛辣食物", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0421.video.3017691222", "name": "红薯", "reason": "loading_indicator_visible"},
-    {"asset_id": "review.u0422.video.506d3e8a60", "name": "坐姿运动", "reason": "app_or_player_chrome_visible"},
-    {"asset_id": "review.u0427.video.84d8c4717f", "name": "一杯水", "reason": "play_button_visible"},
-    {"asset_id": "review.u0453.video.b4c6a6dcb6", "name": "草莓酸奶水果碗", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.001.video.0acd36aeb5", "name": "鱼丸青菜汤与韭黄炒鸡蛋", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.012.video.40af9611e5", "name": "素食家常餐", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.017.video.ab8e7a8cd1", "name": "湖边慢走休息", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.018.video.bd046fca01", "name": "亲子家常晚餐", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.021.video.fd64795cf2", "name": "丰盛家庭餐", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.026.video.e74d4bb115", "name": "一日三餐餐盘", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.029.video.68731f13cd", "name": "虾仁粗粮能量碗", "reason": "catalog_marked_embedded"},
-    {"asset_id": "broll.20260814.031.video.80eb4148e8", "name": "虾仁牛肉滑蛋藜麦饭", "reason": "catalog_marked_embedded"}
+    {
+      "asset_id": "manual.048.video.10095de4fb",
+      "name": "上下摆臂",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "manual.056.video.609531a24e",
+      "name": "站姿扭腰动作",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0020.video.507d6ee47f",
+      "name": "玉米鸡蛋蔬菜水煮餐",
+      "reason": "play_button_visible"
+    },
+    {
+      "asset_id": "review.u0034.video.0fa094a4f3",
+      "name": "倒温水",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0042.video.93e2eea161",
+      "name": "秋日银杏街景",
+      "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0046.video.b438b99f2f",
+      "name": "凉拌海带",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0060.video.e329aacbfa",
+      "name": "枸杞",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0061.video.40976d2d4c",
+      "name": "大蒜",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0075.video.bdfa56baf2",
+      "name": "海带",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0077.video.1eaa547446",
+      "name": "菠菜鸡蛋汤",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0083.video.113d91a6c4",
+      "name": "苹果梨去核",
+      "reason": "play_button_visible"
+    },
+    {
+      "asset_id": "review.u0084.video.a48ccec361",
+      "name": "绿豆生姜汤",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0089.video.53e6d68225",
+      "name": "丝瓜鸡蛋汤",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0102.video.a64745b702",
+      "name": "西红柿去皮",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0103.video.278ae8075a",
+      "name": "坐姿踮脚",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0104.video.48be7e8b16",
+      "name": "蜂巢蜜",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0111.video.fb02d5d0c2",
+      "name": "雨中荷塘",
+      "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0113.video.0348aae870",
+      "name": "热水",
+      "reason": "play_button_visible"
+    },
+    {
+      "asset_id": "review.u0118.video.2c328482b0",
+      "name": "生姜水",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0123.video.95528198ed",
+      "name": "蜂巢蜜",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0131.video.b36bf97ee8",
+      "name": "称体重",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0140.video.15b5a0e7df",
+      "name": "日常步行",
+      "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0141.video.f5fa7e1647",
+      "name": "站立上举运动",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0144.video.64dc59739c",
+      "name": "菜市场猪肉",
+      "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0150.video.670ab9b41a",
+      "name": "煮鸡蛋",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0169.video.23fc32881d",
+      "name": "泡脚",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0171.video.cc36577888",
+      "name": "虾仁拌黄瓜",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0174.video.d41ab7f8ab",
+      "name": "鲜莲子",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0187.video.7aaf47316e",
+      "name": "柚子",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0224.video.a73208368a",
+      "name": "菠菜猪肝汤",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0235.video.feb63d391f",
+      "name": "意式咖啡萃取",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0242.video.011aee5b2b",
+      "name": "番茄采摘",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0264.video.5d53fbb619",
+      "name": "蜂蜜",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0275.video.03be926bc5",
+      "name": "紫菜虾皮鸡蛋汤",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0280.video.946f759f1a",
+      "name": "菜市场蔬菜",
+      "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0291.video.6ab39a99c4",
+      "name": "芹菜黄豆汤",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0310.video.63b1064065",
+      "name": "剥橙子",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0317.video.e79db70509",
+      "name": "烧水",
+      "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0325.video.a4ae2206b9",
+      "name": "西红柿酸奶燕麦",
+      "reason": "play_button_visible"
+    },
+    {
+      "asset_id": "review.u0361.video.1e8db50869",
+      "name": "黄瓜鸡蛋汤",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0410.video.1aa5ad676c",
+      "name": "油腻辛辣食物",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0421.video.3017691222",
+      "name": "红薯",
+      "reason": "loading_indicator_visible"
+    },
+    {
+      "asset_id": "review.u0422.video.506d3e8a60",
+      "name": "坐姿运动",
+      "reason": "app_or_player_chrome_visible"
+    },
+    {
+      "asset_id": "review.u0427.video.84d8c4717f",
+      "name": "一杯水",
+      "reason": "play_button_visible"
+    },
+    {
+      "asset_id": "review.u0453.video.b4c6a6dcb6",
+      "name": "草莓酸奶水果碗",
+      "reason": "catalog_marked_embedded"
+    }
   ]
 }

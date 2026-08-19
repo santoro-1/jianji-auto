@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-006",
+  "original_name": "凉拌海带.mp4",
+  "source_sha256": "b2c0f19f83cbfb648ebc75c2587c372e6e8b2742aae796fa49c01f4aece91fc5",
+  "content_sha256": "b2c0f19f83cbfb648ebc75c2587c372e6e8b2742aae796fa49c01f4aece91fc5",
+  "fps": "60/1",
+  "duration_us": 6199002,
+  "width": 1080,
+  "height": 1170,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 6199002,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0046.video.b438b99f2f",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

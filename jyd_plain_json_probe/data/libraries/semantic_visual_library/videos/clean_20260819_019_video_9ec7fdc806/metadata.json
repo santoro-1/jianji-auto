@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-019",
+  "original_name": "review_u0118_video_2c328482b0.mp4",
+  "source_sha256": "9ec7fdc80655d028ef119881cfa7c13d570eab756bdf62dfb0909fc4d73e10c6",
+  "content_sha256": "9ec7fdc80655d028ef119881cfa7c13d570eab756bdf62dfb0909fc4d73e10c6",
+  "fps": "253/12",
+  "duration_us": 10814667,
+  "width": 1080,
+  "height": 1490,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 10814667,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0118.video.2c328482b0",
+    "cleaning_method": "codex_trim_crop_then_qa",
+    "review_date": "2026-08-19"
+  }
+}

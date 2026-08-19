@@ -1,0 +1,21 @@
+{
+  "schema": "jyd.semantic-video-metadata.v1",
+  "review_id": "CLEAN-20260819-009",
+  "original_name": "海带.mp4",
+  "source_sha256": "d62dc9dafa69482bb22353200c8c4da1eb717cc091b74470b447b733f6a1e594",
+  "content_sha256": "d62dc9dafa69482bb22353200c8c4da1eb717cc091b74470b447b733f6a1e594",
+  "fps": "60/1",
+  "duration_us": 5108005,
+  "width": 1080,
+  "height": 1638,
+  "has_audio": true,
+  "review_decision": "APPROVED_CLEAN",
+  "approved_source_start_us": 0,
+  "approved_source_end_us": 5108005,
+  "review_notes": "已去除播放器按钮、加载图标或应用界面，并完成完整解码与抽帧复核",
+  "lineage": {
+    "source_asset_id": "review.u0075.video.bdfa56baf2",
+    "cleaning_method": "manual_trim_then_codex_qa",
+    "review_date": "2026-08-19"
+  }
+}

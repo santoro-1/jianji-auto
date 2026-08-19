@@ -94835,7 +94835,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_001_video_0acd36aeb5/video.mp4",
@@ -94889,7 +94890,7 @@
       "person_status": "unidentifiable",
       "brand_status": "none",
       "health_claim_status": "general_wellness",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.food_drink",
@@ -95853,7 +95854,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_012_video_40af9611e5/video.mp4",
@@ -95905,7 +95907,7 @@
       "person_status": "identifiable",
       "brand_status": "none",
       "health_claim_status": "general_wellness",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.food_drink",
@@ -96301,7 +96303,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_017_video_ab8e7a8cd1/video.mp4",
@@ -96353,7 +96356,7 @@
       "person_status": "identifiable",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness",
@@ -96399,7 +96402,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_018_video_bd046fca01/video.mp4",
@@ -96457,7 +96461,7 @@
       "person_status": "identifiable",
       "brand_status": "none",
       "health_claim_status": "none",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness",
@@ -96683,7 +96687,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_021_video_fd64795cf2/video.mp4",
@@ -96736,7 +96741,7 @@
       "person_status": "identifiable",
       "brand_status": "none",
       "health_claim_status": "general_wellness",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness",
@@ -97161,7 +97166,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_026_video_e74d4bb115/video.mp4",
@@ -97209,7 +97215,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "specific_claim",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness",
@@ -97417,7 +97423,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_029_video_68731f13cd/video.mp4",
@@ -97475,7 +97482,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "general_wellness",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.food_drink",
@@ -97618,7 +97625,8 @@
         "人工逐条审片",
         "网络素材",
         "空镜专用",
-        "视频"
+        "视频",
+        "逐秒抽帧复核无平台界面"
       ],
       "resource": {
         "video": "videos/broll_20260814_031_video_80eb4148e8/video.mp4",
@@ -97676,7 +97684,7 @@
       "person_status": "unknown",
       "brand_status": "none",
       "health_claim_status": "general_wellness",
-      "platform_ui_status": "embedded",
+      "platform_ui_status": "none",
       "video_taxonomy": {
         "l1_domain_ids": [
           "l1.activity_wellness",
@@ -97705,6 +97713,3722 @@
         ],
         "fallback_policy": "video_only_explicit_whitelist",
         "review_status": "CODEX_REVIEWED_EDITORIAL_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.001.video.7c81cfb1de",
+      "concept_ids": [
+        "activity.aerobic"
+      ],
+      "name": "上下摆臂",
+      "description": "画面主体为上下摆臂，可用于脚本提到相关概念时补充画面；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "有氧运动",
+        "上下摆臂",
+        "人工审片",
+        "动态",
+        "视频",
+        "动作",
+        "运动视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_001_video_7c81cfb1de/video.mp4",
+        "preview": "videos/clean_20260819_001_video_7c81cfb1de/poster.png",
+        "metadata": "videos/clean_20260819_001_video_7c81cfb1de/metadata.json",
+        "duration_us": 6176009,
+        "width": 1080,
+        "height": 2400,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "bottom_center",
+        "scale": 0.615,
+        "opacity": 1,
+        "duration_us": 4000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": false,
+        "fit": "contain"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.aerobic"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.aerobic"
+      ],
+      "trigger_basis": {
+        "activity.aerobic": "exact_subject"
+      },
+      "visual_actions": [
+        "training"
+      ],
+      "usage_modes": [
+        "action_demo"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": false,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "unknown",
+      "health_claim_status": "unknown",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.cardio"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.aerobic"
+        ],
+        "action_ids": [
+          "training"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "BASELINE_COMPAT_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.002.video.3617dc90a5",
+      "concept_ids": [
+        "activity.waist_twist"
+      ],
+      "name": "站姿扭腰动作",
+      "description": "画面主体为站姿扭腰动作，可用于脚本提到相关概念时补充画面；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "有氧运动",
+        "扭腰",
+        "站姿扭腰动作",
+        "人工审片",
+        "动态",
+        "视频",
+        "动作",
+        "运动视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_002_video_3617dc90a5/video.mp4",
+        "preview": "videos/clean_20260819_002_video_3617dc90a5/poster.png",
+        "metadata": "videos/clean_20260819_002_video_3617dc90a5/metadata.json",
+        "duration_us": 9240998,
+        "width": 1080,
+        "height": 2400,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "bottom_center",
+        "scale": 0.615,
+        "opacity": 1,
+        "duration_us": 4000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": false,
+        "fit": "contain"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.waist_twist"
+        ],
+        "expresses": [],
+        "related": [
+          "activity.aerobic"
+        ]
+      },
+      "auto_trigger_concept_ids": [
+        "activity.waist_twist"
+      ],
+      "trigger_basis": {
+        "activity.waist_twist": "exact_subject"
+      },
+      "visual_actions": [
+        "training"
+      ],
+      "usage_modes": [
+        "action_demo"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": false,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "unknown",
+      "health_claim_status": "unknown",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.mobility"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.waist_twist"
+        ],
+        "action_ids": [
+          "training"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "BASELINE_COMPAT_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.003.video.8dcb4ea0c7",
+      "concept_ids": [
+        "food.corn"
+      ],
+      "name": "玉米鸡蛋蔬菜水煮餐",
+      "description": "多种食物均为清晰共同主体且全程一致；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_003_video_8dcb4ea0c7/video.mp4",
+        "preview": "videos/clean_20260819_003_video_8dcb4ea0c7/poster.png",
+        "metadata": "videos/clean_20260819_003_video_8dcb4ea0c7/metadata.json",
+        "duration_us": 4202812,
+        "width": 1080,
+        "height": 2400,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 4202812,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.corn"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.corn"
+      ],
+      "trigger_basis": {
+        "food.corn": "exact_subject"
+      },
+      "visual_actions": [
+        "cooking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.egg",
+          "l2.food.staple",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "food.corn"
+        ],
+        "action_ids": [
+          "cooking"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.004.video.7b5d064880",
+      "concept_ids": [
+        "drink.water"
+      ],
+      "name": "倒温水",
+      "description": "前段为干净倒水画面末段带播放器加载图标；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "逻辑裁剪",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_004_video_7b5d064880/video.mp4",
+        "preview": "videos/clean_20260819_004_video_7b5d064880/poster.png",
+        "metadata": "videos/clean_20260819_004_video_7b5d064880/metadata.json",
+        "duration_us": 4667007,
+        "width": 1080,
+        "height": 1444,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 4667007,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "drink.water"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "drink.water"
+      ],
+      "trigger_basis": {
+        "drink.water": "exact_subject"
+      },
+      "visual_actions": [
+        "pouring"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.drink.water"
+        ],
+        "l3_exact_concept_ids": [
+          "drink.water"
+        ],
+        "action_ids": [
+          "pouring"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.005.video.8ea829d2d8",
+      "concept_ids": [
+        "season.autumn"
+      ],
+      "name": "秋日银杏街景",
+      "description": "画面始终为稳定秋日银杏街景；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_005_video_8ea829d2d8/video.mp4",
+        "preview": "videos/clean_20260819_005_video_8ea829d2d8/poster.png",
+        "metadata": "videos/clean_20260819_005_video_8ea829d2d8/metadata.json",
+        "duration_us": 6385011,
+        "width": 1080,
+        "height": 1444,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "season.autumn"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "season.autumn"
+      ],
+      "trigger_basis": {
+        "season.autumn": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.weather_season"
+        ],
+        "l3_exact_concept_ids": [
+          "season.autumn"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.weather_season"
+        ],
+        "fallback_concept_ids": [
+          "scene.weather_season",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.006.video.b2c0f19f83",
+      "concept_ids": [
+        "food.kelp"
+      ],
+      "name": "凉拌海带",
+      "description": "主体始终为凉拌海带成品；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_006_video_b2c0f19f83/video.mp4",
+        "preview": "videos/clean_20260819_006_video_b2c0f19f83/poster.png",
+        "metadata": "videos/clean_20260819_006_video_b2c0f19f83/metadata.json",
+        "duration_us": 6199002,
+        "width": 1080,
+        "height": 1170,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.kelp"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.kelp"
+      ],
+      "trigger_basis": {
+        "food.kelp": "exact_subject"
+      },
+      "visual_actions": [
+        "mixing"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.cold_salad",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "food.kelp"
+        ],
+        "action_ids": [
+          "mixing"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.007.video.0e0bc73e02",
+      "concept_ids": [
+        "food.goji_berry"
+      ],
+      "name": "枸杞",
+      "description": "主体始终为枸杞近景；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_007_video_0e0bc73e02/video.mp4",
+        "preview": "videos/clean_20260819_007_video_0e0bc73e02/poster.png",
+        "metadata": "videos/clean_20260819_007_video_0e0bc73e02/metadata.json",
+        "duration_us": 4806009,
+        "width": 1080,
+        "height": 1610,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 4806009,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.goji_berry"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.goji_berry"
+      ],
+      "trigger_basis": {
+        "food.goji_berry": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "food.goji_berry"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.008.video.f28e4ead3a",
+      "concept_ids": [
+        "food.garlic"
+      ],
+      "name": "大蒜",
+      "description": "主体始终为大蒜但末段出现播放器加载图标；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "逻辑裁剪",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_008_video_f28e4ead3a/video.mp4",
+        "preview": "videos/clean_20260819_008_video_f28e4ead3a/poster.png",
+        "metadata": "videos/clean_20260819_008_video_f28e4ead3a/metadata.json",
+        "duration_us": 5339002,
+        "width": 1080,
+        "height": 1332,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.garlic"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.garlic"
+      ],
+      "trigger_basis": {
+        "food.garlic": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "food.garlic"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.009.video.d62dc9dafa",
+      "concept_ids": [
+        "food.kelp"
+      ],
+      "name": "海带",
+      "description": "海带原料和食用场景始终一致；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_009_video_d62dc9dafa/video.mp4",
+        "preview": "videos/clean_20260819_009_video_d62dc9dafa/poster.png",
+        "metadata": "videos/clean_20260819_009_video_d62dc9dafa/metadata.json",
+        "duration_us": 5108005,
+        "width": 1080,
+        "height": 1638,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.kelp"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.kelp"
+      ],
+      "trigger_basis": {
+        "food.kelp": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "food.kelp"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.010.video.34ec824f07",
+      "concept_ids": [
+        "dish.spinach_egg_soup"
+      ],
+      "name": "菠菜鸡蛋汤",
+      "description": "菠菜鸡蛋汤制作和成品始终一致；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_010_video_34ec824f07/video.mp4",
+        "preview": "videos/clean_20260819_010_video_34ec824f07/poster.png",
+        "metadata": "videos/clean_20260819_010_video_34ec824f07/metadata.json",
+        "duration_us": 8196009,
+        "width": 1080,
+        "height": 1268,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.spinach_egg_soup"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.spinach_egg_soup"
+      ],
+      "trigger_basis": {
+        "dish.spinach_egg_soup": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.spinach_egg_soup"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.011.video.ff4736330f",
+      "concept_ids": [
+        "food.apple"
+      ],
+      "name": "苹果梨去核",
+      "description": "苹果和梨去核动作清楚且无无关镜头；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_011_video_ff4736330f/video.mp4",
+        "preview": "videos/clean_20260819_011_video_ff4736330f/poster.png",
+        "metadata": "videos/clean_20260819_011_video_ff4736330f/metadata.json",
+        "duration_us": 7000000,
+        "width": 1080,
+        "height": 966,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.apple"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.apple"
+      ],
+      "trigger_basis": {
+        "food.apple": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.fruit"
+        ],
+        "l3_exact_concept_ids": [
+          "food.apple"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.012.video.7c281291bd",
+      "concept_ids": [
+        "food.mung_bean"
+      ],
+      "name": "绿豆生姜汤",
+      "description": "绿豆生姜煮制过程一致但末段出现加载图标；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "逻辑裁剪",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_012_video_7c281291bd/video.mp4",
+        "preview": "videos/clean_20260819_012_video_7c281291bd/poster.png",
+        "metadata": "videos/clean_20260819_012_video_7c281291bd/metadata.json",
+        "duration_us": 7826087,
+        "width": 1080,
+        "height": 958,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.mung_bean"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.mung_bean"
+      ],
+      "trigger_basis": {
+        "food.mung_bean": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup",
+          "l2.food.bean_soy",
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "food.mung_bean"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.013.video.95e59a92be",
+      "concept_ids": [
+        "dish.loofah_egg_soup"
+      ],
+      "name": "丝瓜鸡蛋汤",
+      "description": "全程清楚展示丝瓜鸡蛋汤；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_013_video_95e59a92be/video.mp4",
+        "preview": "videos/clean_20260819_013_video_95e59a92be/poster.png",
+        "metadata": "videos/clean_20260819_013_video_95e59a92be/metadata.json",
+        "duration_us": 8837838,
+        "width": 1080,
+        "height": 1090,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.loofah_egg_soup"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.loofah_egg_soup"
+      ],
+      "trigger_basis": {
+        "dish.loofah_egg_soup": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.loofah_egg_soup"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.014.video.c0d8e40a0d",
+      "concept_ids": [
+        "food.tomato"
+      ],
+      "name": "西红柿去皮",
+      "description": "全程为西红柿烤皮和剥皮过程；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_014_video_c0d8e40a0d/video.mp4",
+        "preview": "videos/clean_20260819_014_video_c0d8e40a0d/poster.png",
+        "metadata": "videos/clean_20260819_014_video_c0d8e40a0d/metadata.json",
+        "duration_us": 9333018,
+        "width": 1080,
+        "height": 1164,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.tomato"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.tomato"
+      ],
+      "trigger_basis": {
+        "food.tomato": "exact_subject"
+      },
+      "visual_actions": [
+        "peeling"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "food.tomato"
+        ],
+        "action_ids": [
+          "peeling"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.015.video.974a864490",
+      "concept_ids": [
+        "activity.seated_heel_raise"
+      ],
+      "name": "坐姿踮脚",
+      "description": "动作清晰且可作为低强度坐姿活动；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_015_video_974a864490/video.mp4",
+        "preview": "videos/clean_20260819_015_video_974a864490/poster.png",
+        "metadata": "videos/clean_20260819_015_video_974a864490/metadata.json",
+        "duration_us": 7812081,
+        "width": 1080,
+        "height": 1458,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.seated_heel_raise"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.seated_heel_raise"
+      ],
+      "trigger_basis": {
+        "activity.seated_heel_raise": "exact_subject"
+      },
+      "visual_actions": [
+        "training"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.activity.mobility"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.seated_heel_raise"
+        ],
+        "action_ids": [
+          "training"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.light_daily",
+          "activity.mobility"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.016.video.0135d888f1",
+      "concept_ids": [
+        "food.honey"
+      ],
+      "name": "蜂巢蜜",
+      "description": "全程清晰展示蜂巢和蜂蜜；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_016_video_0135d888f1/video.mp4",
+        "preview": "videos/clean_20260819_016_video_0135d888f1/poster.png",
+        "metadata": "videos/clean_20260819_016_video_0135d888f1/metadata.json",
+        "duration_us": 10020202,
+        "width": 1080,
+        "height": 1656,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.honey"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.honey"
+      ],
+      "trigger_basis": {
+        "food.honey": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "food.honey"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.017.video.88c3021cbb",
+      "concept_ids": [
+        "scene.lotus_pond",
+        "scene.rainy_nature"
+      ],
+      "name": "雨中荷塘",
+      "description": "全程稳定展示雨中荷叶和池塘可作自然空镜；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_017_video_88c3021cbb/video.mp4",
+        "preview": "videos/clean_20260819_017_video_88c3021cbb/poster.png",
+        "metadata": "videos/clean_20260819_017_video_88c3021cbb/metadata.json",
+        "duration_us": 9620000,
+        "width": 1080,
+        "height": 1672,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.lotus_pond",
+          "scene.rainy_nature"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.lotus_pond",
+        "scene.rainy_nature"
+      ],
+      "trigger_basis": {
+        "scene.lotus_pond": "exact_subject",
+        "scene.rainy_nature": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.scene.nature"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.lotus_pond",
+          "scene.rainy_nature"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.nature"
+        ],
+        "fallback_concept_ids": [
+          "scene.nature",
+          "editorial.mood_atmosphere"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.018.video.f38ff8b000",
+      "concept_ids": [
+        "drink.hot_water"
+      ],
+      "name": "热水",
+      "description": "全程清晰展示热水倒杯和端起；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_018_video_f38ff8b000/video.mp4",
+        "preview": "videos/clean_20260819_018_video_f38ff8b000/poster.png",
+        "metadata": "videos/clean_20260819_018_video_f38ff8b000/metadata.json",
+        "duration_us": 8800000,
+        "width": 1080,
+        "height": 1334,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "drink.hot_water"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "drink.hot_water"
+      ],
+      "trigger_basis": {
+        "drink.hot_water": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.drink.water"
+        ],
+        "l3_exact_concept_ids": [
+          "drink.hot_water"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.019.video.9ec7fdc806",
+      "concept_ids": [
+        "drink.ginger_water"
+      ],
+      "name": "生姜水",
+      "description": "全程清晰展示生姜煮水和成品；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_019_video_9ec7fdc806/video.mp4",
+        "preview": "videos/clean_20260819_019_video_9ec7fdc806/poster.png",
+        "metadata": "videos/clean_20260819_019_video_9ec7fdc806/metadata.json",
+        "duration_us": 10814667,
+        "width": 1080,
+        "height": 1490,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "drink.ginger_water"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "drink.ginger_water"
+      ],
+      "trigger_basis": {
+        "drink.ginger_water": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.drink.wellness",
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "drink.ginger_water"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.020.video.5c24623fc6",
+      "concept_ids": [
+        "food.honey"
+      ],
+      "name": "蜂巢蜜",
+      "description": "全程清晰展示切开蜂巢和蜂蜜；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_020_video_5c24623fc6/video.mp4",
+        "preview": "videos/clean_20260819_020_video_5c24623fc6/poster.png",
+        "metadata": "videos/clean_20260819_020_video_5c24623fc6/metadata.json",
+        "duration_us": 10217333,
+        "width": 1080,
+        "height": 1704,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.honey"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.honey"
+      ],
+      "trigger_basis": {
+        "food.honey": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "food.honey"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.021.video.4ee99a3699",
+      "concept_ids": [
+        "activity.weigh_in"
+      ],
+      "name": "称体重",
+      "description": "全程为人物站上体重秤且不含效果对比；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_021_video_4ee99a3699/video.mp4",
+        "preview": "videos/clean_20260819_021_video_4ee99a3699/poster.png",
+        "metadata": "videos/clean_20260819_021_video_4ee99a3699/metadata.json",
+        "duration_us": 9029996,
+        "width": 1080,
+        "height": 1384,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.weigh_in"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.weigh_in"
+      ],
+      "trigger_basis": {
+        "activity.weigh_in": "exact_subject"
+      },
+      "visual_actions": [
+        "weighing"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.daily_life_scene"
+        ],
+        "l2_category_ids": [
+          "l2.activity.health_tracking",
+          "l2.object.daily"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.weigh_in"
+        ],
+        "action_ids": [
+          "weighing"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.health_tracking"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.022.video.5959ebc8a0",
+      "concept_ids": [
+        "activity.walking"
+      ],
+      "name": "日常步行",
+      "description": "全程为普通人物在街道步行可补足日常轻活动；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_022_video_5959ebc8a0/video.mp4",
+        "preview": "videos/clean_20260819_022_video_5959ebc8a0/poster.png",
+        "metadata": "videos/clean_20260819_022_video_5959ebc8a0/metadata.json",
+        "duration_us": 5516779,
+        "width": 1080,
+        "height": 1688,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.walking"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.walking"
+      ],
+      "trigger_basis": {
+        "activity.walking": "exact_subject"
+      },
+      "visual_actions": [
+        "walking"
+      ],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.walking"
+        ],
+        "action_ids": [
+          "walking"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.light_daily",
+          "editorial.leisure_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.023.video.344555d924",
+      "concept_ids": [
+        "activity.standing_arm_raise"
+      ],
+      "name": "站立上举运动",
+      "description": "线稿动画持续展示站立上举动作但不采信升阳功效说法；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_023_video_344555d924/video.mp4",
+        "preview": "videos/clean_20260819_023_video_344555d924/poster.png",
+        "metadata": "videos/clean_20260819_023_video_344555d924/metadata.json",
+        "duration_us": 8012870,
+        "width": 1080,
+        "height": 1334,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.standing_arm_raise"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.standing_arm_raise"
+      ],
+      "trigger_basis": {
+        "activity.standing_arm_raise": "exact_subject"
+      },
+      "visual_actions": [
+        "training"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.mobility"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.standing_arm_raise"
+        ],
+        "action_ids": [
+          "training"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.mobility"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.024.video.648ca507a1",
+      "concept_ids": [
+        "scene.food_market"
+      ],
+      "name": "菜市场猪肉",
+      "description": "全程清晰展示菜市场切分猪肉；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_024_video_648ca507a1/video.mp4",
+        "preview": "videos/clean_20260819_024_video_648ca507a1/poster.png",
+        "metadata": "videos/clean_20260819_024_video_648ca507a1/metadata.json",
+        "duration_us": 11434343,
+        "width": 1080,
+        "height": 1292,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.food_market"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.food_market"
+      ],
+      "trigger_basis": {
+        "scene.food_market": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene",
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.meat_seafood",
+          "l2.scene.market_public"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.food_market"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.market_public"
+        ],
+        "fallback_concept_ids": [
+          "scene.market_public",
+          "editorial.leisure_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.025.video.f9def0132e",
+      "concept_ids": [
+        "dish.boiled_egg"
+      ],
+      "name": "煮鸡蛋",
+      "description": "全程清晰展示鸡蛋煮制和剥壳成品；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_025_video_f9def0132e/video.mp4",
+        "preview": "videos/clean_20260819_025_video_f9def0132e/poster.png",
+        "metadata": "videos/clean_20260819_025_video_f9def0132e/metadata.json",
+        "duration_us": 11836735,
+        "width": 1080,
+        "height": 1498,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.boiled_egg"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.boiled_egg"
+      ],
+      "trigger_basis": {
+        "dish.boiled_egg": "exact_subject"
+      },
+      "visual_actions": [
+        "cooking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.prepared",
+          "l2.food.egg"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.boiled_egg"
+        ],
+        "action_ids": [
+          "cooking"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.026.video.374b0e2f7f",
+      "concept_ids": [
+        "activity.foot_soak"
+      ],
+      "name": "泡脚",
+      "description": "全程清晰展示双脚足浴；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_026_video_374b0e2f7f/video.mp4",
+        "preview": "videos/clean_20260819_026_video_374b0e2f7f/poster.png",
+        "metadata": "videos/clean_20260819_026_video_374b0e2f7f/metadata.json",
+        "duration_us": 12619048,
+        "width": 1080,
+        "height": 1732,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.foot_soak"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.foot_soak"
+      ],
+      "trigger_basis": {
+        "activity.foot_soak": "exact_subject"
+      },
+      "visual_actions": [
+        "soaking"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.self_care"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.foot_soak"
+        ],
+        "action_ids": [
+          "soaking"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.self_care"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.027.video.3976cb5e30",
+      "concept_ids": [
+        "dish.shrimp_cucumber_salad"
+      ],
+      "name": "虾仁拌黄瓜",
+      "description": "前段集中展示菜品拌制后段人物出镜占比增大；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "逻辑裁剪",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_027_video_3976cb5e30/video.mp4",
+        "preview": "videos/clean_20260819_027_video_3976cb5e30/poster.png",
+        "metadata": "videos/clean_20260819_027_video_3976cb5e30/metadata.json",
+        "duration_us": 6545022,
+        "width": 1080,
+        "height": 1248,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.shrimp_cucumber_salad"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.shrimp_cucumber_salad"
+      ],
+      "trigger_basis": {
+        "dish.shrimp_cucumber_salad": "exact_subject"
+      },
+      "visual_actions": [
+        "mixing"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.prepared",
+          "l2.food.meat_seafood",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.shrimp_cucumber_salad"
+        ],
+        "action_ids": [
+          "mixing"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.028.video.cd4a535704",
+      "concept_ids": [
+        "food.fresh_lotus_seed"
+      ],
+      "name": "鲜莲子",
+      "description": "全程为鲜莲子剥壳去芯；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_028_video_cd4a535704/video.mp4",
+        "preview": "videos/clean_20260819_028_video_cd4a535704/poster.png",
+        "metadata": "videos/clean_20260819_028_video_cd4a535704/metadata.json",
+        "duration_us": 13502667,
+        "width": 1080,
+        "height": 1322,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.fresh_lotus_seed"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.fresh_lotus_seed"
+      ],
+      "trigger_basis": {
+        "food.fresh_lotus_seed": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.other_ingredient"
+        ],
+        "l3_exact_concept_ids": [
+          "food.fresh_lotus_seed"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.029.video.d1eabc8fa5",
+      "concept_ids": [
+        "food.pomelo"
+      ],
+      "name": "柚子",
+      "description": "全程清晰展示柚子果肉；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_029_video_d1eabc8fa5/video.mp4",
+        "preview": "videos/clean_20260819_029_video_d1eabc8fa5/poster.png",
+        "metadata": "videos/clean_20260819_029_video_d1eabc8fa5/metadata.json",
+        "duration_us": 13003344,
+        "width": 1080,
+        "height": 1262,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.pomelo"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.pomelo"
+      ],
+      "trigger_basis": {
+        "food.pomelo": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.fruit"
+        ],
+        "l3_exact_concept_ids": [
+          "food.pomelo"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.030.video.ec2a8f0aa8",
+      "concept_ids": [
+        "dish.spinach_pork_liver_soup"
+      ],
+      "name": "菠菜猪肝汤",
+      "description": "全程稳定展示菠菜猪肝汤；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_030_video_ec2a8f0aa8/video.mp4",
+        "preview": "videos/clean_20260819_030_video_ec2a8f0aa8/poster.png",
+        "metadata": "videos/clean_20260819_030_video_ec2a8f0aa8/metadata.json",
+        "duration_us": 4311864,
+        "width": 1080,
+        "height": 1212,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 4311864,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.spinach_pork_liver_soup"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.spinach_pork_liver_soup"
+      ],
+      "trigger_basis": {
+        "dish.spinach_pork_liver_soup": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup",
+          "l2.food.meat_seafood",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.spinach_pork_liver_soup"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.031.video.88ca14ad48",
+      "concept_ids": [
+        "drink.espresso"
+      ],
+      "name": "意式咖啡萃取",
+      "description": "全程稳定展示咖啡机萃取；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_031_video_88ca14ad48/video.mp4",
+        "preview": "videos/clean_20260819_031_video_88ca14ad48/poster.png",
+        "metadata": "videos/clean_20260819_031_video_88ca14ad48/metadata.json",
+        "duration_us": 16535187,
+        "width": 1080,
+        "height": 1558,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "drink.espresso"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "drink.espresso"
+      ],
+      "trigger_basis": {
+        "drink.espresso": "exact_subject"
+      },
+      "visual_actions": [
+        "brewing"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.drink.coffee"
+        ],
+        "l3_exact_concept_ids": [
+          "drink.espresso"
+        ],
+        "action_ids": [
+          "brewing"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.032.video.8487b92c05",
+      "concept_ids": [
+        "scene.farm"
+      ],
+      "name": "番茄采摘",
+      "description": "全程在番茄园展示新鲜番茄；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_032_video_8487b92c05/video.mp4",
+        "preview": "videos/clean_20260819_032_video_8487b92c05/poster.png",
+        "metadata": "videos/clean_20260819_032_video_8487b92c05/metadata.json",
+        "duration_us": 20009333,
+        "width": 1080,
+        "height": 1710,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.farm"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.farm"
+      ],
+      "trigger_basis": {
+        "scene.farm": "exact_subject"
+      },
+      "visual_actions": [
+        "harvesting"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene",
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.farm"
+        ],
+        "action_ids": [
+          "harvesting"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.033.video.9bab776da9",
+      "concept_ids": [
+        "food.honey"
+      ],
+      "name": "蜂蜜",
+      "description": "全程清晰展示蜂蜜装罐；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_033_video_9bab776da9/video.mp4",
+        "preview": "videos/clean_20260819_033_video_9bab776da9/poster.png",
+        "metadata": "videos/clean_20260819_033_video_9bab776da9/metadata.json",
+        "duration_us": 21520000,
+        "width": 1080,
+        "height": 1660,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.honey"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.honey"
+      ],
+      "trigger_basis": {
+        "food.honey": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.condiment_herb"
+        ],
+        "l3_exact_concept_ids": [
+          "food.honey"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.034.video.3b44378f38",
+      "concept_ids": [
+        "dish.seaweed_dried_shrimp_egg_soup"
+      ],
+      "name": "紫菜虾皮鸡蛋汤",
+      "description": "全程稳定展示紫菜虾皮鸡蛋汤；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_034_video_3b44378f38/video.mp4",
+        "preview": "videos/clean_20260819_034_video_3b44378f38/poster.png",
+        "metadata": "videos/clean_20260819_034_video_3b44378f38/metadata.json",
+        "duration_us": 20523158,
+        "width": 1080,
+        "height": 1176,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.seaweed_dried_shrimp_egg_soup"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.seaweed_dried_shrimp_egg_soup"
+      ],
+      "trigger_basis": {
+        "dish.seaweed_dried_shrimp_egg_soup": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup",
+          "l2.food.egg",
+          "l2.food.meat_seafood",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.seaweed_dried_shrimp_egg_soup"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.035.video.194903ef22",
+      "concept_ids": [
+        "scene.vegetable_market"
+      ],
+      "name": "菜市场蔬菜",
+      "description": "全程展示市场里的多种蔬菜；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_035_video_194903ef22/video.mp4",
+        "preview": "videos/clean_20260819_035_video_194903ef22/poster.png",
+        "metadata": "videos/clean_20260819_035_video_194903ef22/metadata.json",
+        "duration_us": 11527313,
+        "width": 1080,
+        "height": 1594,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "scene.vegetable_market"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "scene.vegetable_market"
+      ],
+      "trigger_basis": {
+        "scene.vegetable_market": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.daily_life_scene",
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.vegetable",
+          "l2.scene.market_public"
+        ],
+        "l3_exact_concept_ids": [
+          "scene.vegetable_market"
+        ],
+        "action_ids": [],
+        "scene_ids": [
+          "l2.scene.market_public"
+        ],
+        "fallback_concept_ids": [
+          "scene.market_public",
+          "editorial.leisure_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.036.video.9d596e82d3",
+      "concept_ids": [
+        "dish.celery_soybean_soup"
+      ],
+      "name": "芹菜黄豆汤",
+      "description": "开头出现无关生肉处理后段才转为芹菜黄豆汤；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "逻辑裁剪",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_036_video_9d596e82d3/video.mp4",
+        "preview": "videos/clean_20260819_036_video_9d596e82d3/poster.png",
+        "metadata": "videos/clean_20260819_036_video_9d596e82d3/metadata.json",
+        "duration_us": 24000000,
+        "width": 1080,
+        "height": 1880,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.celery_soybean_soup"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.celery_soybean_soup"
+      ],
+      "trigger_basis": {
+        "dish.celery_soybean_soup": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup",
+          "l2.food.bean_soy",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.celery_soybean_soup"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.037.video.bd12a87eb0",
+      "concept_ids": [
+        "food.orange"
+      ],
+      "name": "剥橙子",
+      "description": "全程清晰展示橙子剥皮；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_037_video_bd12a87eb0/video.mp4",
+        "preview": "videos/clean_20260819_037_video_bd12a87eb0/poster.png",
+        "metadata": "videos/clean_20260819_037_video_bd12a87eb0/metadata.json",
+        "duration_us": 24020000,
+        "width": 1080,
+        "height": 1054,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.orange"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.orange"
+      ],
+      "trigger_basis": {
+        "food.orange": "exact_subject"
+      },
+      "visual_actions": [
+        "peeling"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.fruit"
+        ],
+        "l3_exact_concept_ids": [
+          "food.orange"
+        ],
+        "action_ids": [
+          "peeling"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.038.video.f5b6752354",
+      "concept_ids": [
+        "activity.boil_water"
+      ],
+      "name": "烧水",
+      "description": "全程展示电水壶烧水倒水和放置；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_038_video_f5b6752354/video.mp4",
+        "preview": "videos/clean_20260819_038_video_f5b6752354/poster.png",
+        "metadata": "videos/clean_20260819_038_video_f5b6752354/metadata.json",
+        "duration_us": 35527313,
+        "width": 1080,
+        "height": 1446,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.boil_water"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.boil_water"
+      ],
+      "trigger_basis": {
+        "activity.boil_water": "exact_subject"
+      },
+      "visual_actions": [
+        "cooking"
+      ],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness",
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.activity.food_prep",
+          "l2.drink.water"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.boil_water"
+        ],
+        "action_ids": [
+          "cooking"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.food_preparation",
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.039.video.a4913aaa03",
+      "concept_ids": [
+        "dish.tomato_yogurt_oatmeal"
+      ],
+      "name": "西红柿酸奶燕麦",
+      "description": "全程展示西红柿酸奶燕麦拌制；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_039_video_a4913aaa03/video.mp4",
+        "preview": "videos/clean_20260819_039_video_a4913aaa03/poster.png",
+        "metadata": "videos/clean_20260819_039_video_a4913aaa03/metadata.json",
+        "duration_us": 13016949,
+        "width": 1080,
+        "height": 1288,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.tomato_yogurt_oatmeal"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.tomato_yogurt_oatmeal"
+      ],
+      "trigger_basis": {
+        "dish.tomato_yogurt_oatmeal": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.prepared",
+          "l2.food.staple",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.tomato_yogurt_oatmeal"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.040.video.c335568529",
+      "concept_ids": [
+        "dish.cucumber_egg_soup"
+      ],
+      "name": "黄瓜鸡蛋汤",
+      "description": "全程为手机画面中的黄瓜鸡蛋汤制作；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_040_video_c335568529/video.mp4",
+        "preview": "videos/clean_20260819_040_video_c335568529/poster.png",
+        "metadata": "videos/clean_20260819_040_video_c335568529/metadata.json",
+        "duration_us": 53000000,
+        "width": 1080,
+        "height": 1422,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "dish.cucumber_egg_soup"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "dish.cucumber_egg_soup"
+      ],
+      "trigger_basis": {
+        "dish.cucumber_egg_soup": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.dish.soup",
+          "l2.food.egg",
+          "l2.food.vegetable"
+        ],
+        "l3_exact_concept_ids": [
+          "dish.cucumber_egg_soup"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.041.video.1b6176d8b5",
+      "concept_ids": [
+        "food.spicy_oily_food"
+      ],
+      "name": "油腻辛辣食物",
+      "description": "全程展示重油重辣的菜品特写；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_041_video_1b6176d8b5/video.mp4",
+        "preview": "videos/clean_20260819_041_video_1b6176d8b5/poster.png",
+        "metadata": "videos/clean_20260819_041_video_1b6176d8b5/metadata.json",
+        "duration_us": 6519439,
+        "width": 1080,
+        "height": 1450,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.spicy_oily_food"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.spicy_oily_food"
+      ],
+      "trigger_basis": {
+        "food.spicy_oily_food": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.other_ingredient"
+        ],
+        "l3_exact_concept_ids": [
+          "food.spicy_oily_food"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.042.video.cabd531519",
+      "concept_ids": [
+        "food.sweet_potato"
+      ],
+      "name": "红薯",
+      "description": "全程清晰展示蒸熟红薯；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_042_video_cabd531519/video.mp4",
+        "preview": "videos/clean_20260819_042_video_cabd531519/poster.png",
+        "metadata": "videos/clean_20260819_042_video_cabd531519/metadata.json",
+        "duration_us": 8000000,
+        "width": 1080,
+        "height": 1510,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "food.sweet_potato"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "food.sweet_potato"
+      ],
+      "trigger_basis": {
+        "food.sweet_potato": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.staple"
+        ],
+        "l3_exact_concept_ids": [
+          "food.sweet_potato"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.043.video.245ef032e1",
+      "concept_ids": [
+        "activity.seated_exercise"
+      ],
+      "name": "坐姿运动",
+      "description": "全程展示坐姿手臂摆动和腿部动作不按文件名误标扭腰；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_043_video_245ef032e1/video.mp4",
+        "preview": "videos/clean_20260819_043_video_245ef032e1/poster.png",
+        "metadata": "videos/clean_20260819_043_video_245ef032e1/metadata.json",
+        "duration_us": 6600000,
+        "width": 1080,
+        "height": 1532,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "activity.seated_exercise"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "activity.seated_exercise"
+      ],
+      "trigger_basis": {
+        "activity.seated_exercise": "exact_subject"
+      },
+      "visual_actions": [
+        "training"
+      ],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.activity_wellness"
+        ],
+        "l2_category_ids": [
+          "l2.activity.light_daily",
+          "l2.activity.mobility"
+        ],
+        "l3_exact_concept_ids": [
+          "activity.seated_exercise"
+        ],
+        "action_ids": [
+          "training"
+        ],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "activity.light_daily",
+          "activity.mobility"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.044.video.4de875d70d",
+      "concept_ids": [
+        "drink.water"
+      ],
+      "name": "一杯水",
+      "description": "画面稳定展示透明杯中饮用水；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_044_video_4de875d70d/video.mp4",
+        "preview": "videos/clean_20260819_044_video_4de875d70d/poster.png",
+        "metadata": "videos/clean_20260819_044_video_4de875d70d/metadata.json",
+        "duration_us": 11523158,
+        "width": 1080,
+        "height": 1546,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "drink.water"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "drink.water"
+      ],
+      "trigger_basis": {
+        "drink.water": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "full_screen_broll",
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.drink.water"
+        ],
+        "l3_exact_concept_ids": [
+          "drink.water"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
+      }
+    },
+    {
+      "asset_id": "clean.20260819.045.video.d678b89691",
+      "concept_ids": [
+        "meal.fruit_bowl"
+      ],
+      "name": "草莓酸奶水果碗",
+      "description": "全程展示草莓酸奶谷物水果碗制作；净化版已移除播放器或应用界面。",
+      "media_type": "video",
+      "renderer": "video_overlay",
+      "tags": [
+        "人工逐条审片",
+        "网络素材",
+        "窄语义",
+        "视频",
+        "自动空镜仅使用干净源窗口",
+        "播放器界面净化版"
+      ],
+      "resource": {
+        "video": "videos/clean_20260819_045_video_d678b89691/video.mp4",
+        "preview": "videos/clean_20260819_045_video_d678b89691/poster.png",
+        "metadata": "videos/clean_20260819_045_video_d678b89691/metadata.json",
+        "duration_us": 37511811,
+        "width": 1080,
+        "height": 996,
+        "has_audio": true
+      },
+      "defaults": {
+        "corner": "center",
+        "scale": 1.0,
+        "opacity": 1.0,
+        "duration_us": 5000000,
+        "source_start_us": 0,
+        "mute": true,
+        "loop": true,
+        "fit": "cover"
+      },
+      "semantic_roles": {
+        "depicts": [
+          "meal.fruit_bowl"
+        ],
+        "expresses": [],
+        "related": []
+      },
+      "auto_trigger_concept_ids": [
+        "meal.fruit_bowl"
+      ],
+      "trigger_basis": {
+        "meal.fruit_bowl": "exact_subject"
+      },
+      "visual_actions": [],
+      "usage_modes": [
+        "seam_broll"
+      ],
+      "cleanliness_grade": "A",
+      "auto_eligible": true,
+      "requires_clip": false,
+      "loop_allowed": true,
+      "rights_status": "attributed",
+      "person_status": "unknown",
+      "brand_status": "none",
+      "health_claim_status": "none",
+      "platform_ui_status": "none",
+      "video_taxonomy": {
+        "l1_domain_ids": [
+          "l1.food_drink"
+        ],
+        "l2_category_ids": [
+          "l2.food.fruit",
+          "l2.meal.general"
+        ],
+        "l3_exact_concept_ids": [
+          "meal.fruit_bowl"
+        ],
+        "action_ids": [],
+        "scene_ids": [],
+        "fallback_concept_ids": [
+          "editorial.meal_daily"
+        ],
+        "fallback_policy": "video_only_explicit_whitelist",
+        "review_status": "CODEX_REVIEWED_V1"
       }
     }
   ]
