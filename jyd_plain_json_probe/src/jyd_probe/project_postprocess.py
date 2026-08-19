@@ -80,7 +80,7 @@ TEXT_SHADOW_ANGLE = -45.0
 TEXT_SHADOW_SMOOTHING = 0.45000001788139343
 BGM_CROSSFADE_US = 200_000
 BGM_FADE_IN_US = 5_000_000
-VIDEO_FADE_OUT_US = 2_000_000
+VIDEO_FADE_OUT_US = 0
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
 FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
 
@@ -1926,8 +1926,11 @@ def _uses_validated_subtitle_boundaries(analysis: dict[str, Any]) -> bool:
     """Only v20+ subtitle contracts may turn provider preferences into hard beats."""
 
     subtitle_version = str(analysis.get("subtitle_prompt_version") or "")
-    if subtitle_version == "jyd.subtitle-analysis.prompt.v20":
-        return True
+    subtitle_match = re.fullmatch(
+        r"jyd\.subtitle-analysis\.prompt\.v(\d+)", subtitle_version
+    )
+    if subtitle_match:
+        return int(subtitle_match.group(1)) >= 20
     prompt_version = str(analysis.get("prompt_version") or "")
     match = re.fullmatch(r"jyd\.content-analysis\.prompt\.v(\d+)", prompt_version)
     return bool(match and int(match.group(1)) >= 20)

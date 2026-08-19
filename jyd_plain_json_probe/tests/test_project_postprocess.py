@@ -20,6 +20,7 @@ from jyd_probe.caption_alignment import (  # noqa: E402
 )
 from jyd_probe.project_postprocess import (  # noqa: E402
     ProjectPostprocessCoordinator,
+    _uses_validated_subtitle_boundaries,
     bind_semantic_overlays_to_render_cues,
     draft_recipe_sha256,
 )
@@ -46,6 +47,18 @@ def _health_music_intent() -> dict[str, object]:
         "avoid_traits": ["strong_vocals", "dense_arrangement"],
         "confidence": 0.9,
     }
+
+
+def test_validated_subtitle_boundary_version_accepts_v20_and_newer() -> None:
+    assert _uses_validated_subtitle_boundaries(
+        {"subtitle_prompt_version": "jyd.subtitle-analysis.prompt.v20"}
+    )
+    assert _uses_validated_subtitle_boundaries(
+        {"subtitle_prompt_version": "jyd.subtitle-analysis.prompt.v22"}
+    )
+    assert not _uses_validated_subtitle_boundaries(
+        {"subtitle_prompt_version": "jyd.subtitle-analysis.prompt.v19"}
+    )
 
 
 def test_explicit_visual_starts_on_final_caption_containing_keyword() -> None:
@@ -949,7 +962,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 self.assertTrue(job["audios"][1]["align_to_end"])
                 self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)
                 self.assertEqual(job["audios"][1]["fade_in_us"], 5_000_000)
-                self.assertEqual(job["source"]["fade_out_us"], 2_000_000)
+                self.assertEqual(job["source"]["fade_out_us"], 0)
                 self.assertEqual(
                     [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],
                     [

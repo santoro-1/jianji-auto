@@ -305,7 +305,7 @@ class ProjectVariantTest(unittest.TestCase):
             self.assertTrue(job["audios"][1]["align_to_end"])
             self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)
             self.assertEqual(job["audios"][1]["fade_in_us"], 5_000_000)
-            self.assertEqual(job["source"]["fade_out_us"], 2_000_000)
+            self.assertEqual(job["source"]["fade_out_us"], 0)
             self.assertEqual(
                 [text["text"] for text in job["texts"]],
                 [

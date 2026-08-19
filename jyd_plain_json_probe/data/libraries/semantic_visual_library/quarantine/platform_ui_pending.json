@@ -227,6 +227,11 @@
       "asset_id": "review.u0453.video.b4c6a6dcb6",
       "name": "草莓酸奶水果碗",
       "reason": "catalog_marked_embedded"
+    },
+    {
+      "asset_id": "review.u0231.video.7fd4918808",
+      "name": "高温天气",
+      "reason": "unrelated_news_anchor_content"
     }
   ]
 }
