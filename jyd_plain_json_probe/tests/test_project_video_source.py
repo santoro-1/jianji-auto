@@ -65,3 +65,54 @@ def test_project_segment_boundaries_preserve_next_segment_script_and_time(
         2_200_000,
         2_700_000,
     ]
+
+
+def test_provider_tails_are_trimmed_at_seams_and_kept_on_final_segment(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "padded-1.mp4"
+    second = tmp_path / "padded-2.mp4"
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    item = {
+        "outputs": {
+            "base_video": {
+                "managed_path": str(tmp_path / "base.mp4"),
+                "metadata": {"segment_count": 2},
+                "external_ref": {"source_task_ids": ["task-1", "task-2"]},
+            },
+            "original_video_segments": [
+                {
+                    "status": "READY",
+                    "managed_path": str(first),
+                    "external_ref": {"video_index": 1, "remote_task_id": "task-1"},
+                    "metadata": {
+                        "start_seconds": 0.0,
+                        "end_seconds": 2.5,
+                        "speech_duration_seconds": 2.5,
+                        "generation_tail_seconds": 2.0,
+                        "actual_duration_us": 4_600_000,
+                    },
+                },
+                {
+                    "status": "READY",
+                    "managed_path": str(second),
+                    "external_ref": {"video_index": 2, "remote_task_id": "task-2"},
+                    "metadata": {
+                        "start_seconds": 2.5,
+                        "end_seconds": 5.0,
+                        "speech_duration_seconds": 2.5,
+                        "generation_tail_seconds": 2.0,
+                        "actual_duration_us": 4_700_000,
+                    },
+                },
+            ],
+        }
+    }
+
+    source = build_project_video_source(item)
+    assert [entry["target_duration_us"] for entry in source["items"]] == [
+        2_500_000,
+        4_500_000,
+    ]
+    assert project_segment_boundaries(item)[0]["boundary_us"] == 2_500_000

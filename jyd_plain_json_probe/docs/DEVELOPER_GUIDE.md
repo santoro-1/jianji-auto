@@ -652,8 +652,9 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 所有非空白字符必须精确一致，`~` 不作通配符。每条 cue 的真实 `start_us/end_us` 是唯一
 时间锚点，cue 内字符时间只做确定性比例派生。Prompt v19 及更早的普通断点进入排版时仍是软偏好；
 本地只把高置信的“类别/问题/评价 → 答案”和较长编号项提升为强语义边界，允许它们在整句
-未超宽时增加一条字幕。Prompt v20 的字幕已经过云端原文、长度、最少断点和安全词边界硬校验，
-其 `prefer` 断点全部作为不可跨越边界，本地只能在单个语义段实际超宽时继续细分。旧模型偏好不能仅为节奏增加字幕数量，避免旧分析产生
+未超宽时增加一条字幕。Prompt v20+ 的字幕已经过云端原文、长度和安全词边界硬校验；v23
+默认仍使用最少断点，但三个以上同构并列项允许多一个结构断点。其 `prefer` 断点全部作为
+不可跨越边界，本地只能在单个语义段实际超宽时继续细分。旧模型偏好不能仅为节奏增加字幕数量，避免旧分析产生
 “第一｜脂肪”或“世界冠军｜张雒”一类短碎片。`project_postprocess.py` 先按每条 raw cue、
 段落和除顿号外的显式标点建立不可跨越子句，
 再用 `jieba==0.42.1` 的确定性词典分词（`HMM=False`）、词性、数字单位、结构助词和真实字体
@@ -667,7 +668,8 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 多余断点在不超宽子句内仍可删除，超宽子句只遍历通用
 分词允许的字符位置，并以模型断点作为小权重偏好；结构助词不得位于行首/行尾，动词与
 结果/趋向补语之间属于硬禁切边界，量词、连接词
-和名词组合使用通用语法罚分。短标点片段不得跨普通逗号或句号强制吞并后文，任何重新分配的
+和名词组合使用通用语法罚分；完整名词主语后接“已经/正在”等副词引导的谓语时，优先在
+主谓之间断开，并禁止把副词单独留在上一字幕末尾。短标点片段不得跨普通逗号或句号强制吞并后文，任何重新分配的
 时间都必须留在当前子句和 raw cue 范围内。不能为了行宽均衡拆成“情｜绪”“弯｜路”
 “四十｜多”“破罐子｜破摔”或让一条字幕同时包含相邻 raw cues。
 
@@ -899,10 +901,10 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
 
 ## 15. 新版工作台 2026-08-05 细节修正
 
-- 4A 通过数字人工作台接口启动时使用 `exact_timestamps` 内部模式：各段音频时长先向上取整
-  到 RunningHub 接受的整秒，不使用旧版上传音频的静音尾垫；仅整个任务最后一段由云端把
-  `end_time` 再加 1 秒用于表情收尾。音频本身不补静音，工作台接收的最后一段计划时长已含
-  这 1 秒，4B 和变体不得裁掉。
+- 4A 通过数字人工作台接口启动时使用 `exact_timestamps` 内部模式。云端把口播分段限制为
+  32.8 秒，并仅在 RunningHub 临时上传音频中为每段追加 2 秒静音；工作台同步的已审核音频、
+  raw cues 和字幕时间轴不变。原始分段元数据携带 `speech_duration_seconds` 与
+  `generation_tail_seconds`：剪映主轨裁掉中间段生成尾，只在最后一段保留生成尾供 2 秒渐隐。
 - `/api/new/postprocess/options` 返回 `default_font_identity`；当前默认是
   `resource_id:7244518590332801592`（`DouyinSansBold`）。前端新配置以此初始化，历史行的
   `settings.postprocess.font_identity` 优先级更高。
@@ -927,7 +929,13 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
 - 每行 `visual_analysis` 保存原始三字段计划、兼容决策、映射状态和最终 `recipe`。用户保存后条目标记
   `selection_mode=manual`；重新分析只能保留并尊重锁定人工项。
 - MiniMax raw cues 尚未产生时允许先保存语义计划并将 mapping 标为失败；时间轴到达或变化后，
-  `project_audio.py` 只重新执行本地字符时间映射和冻结配方，不再次调用 Ark。
+  `project_audio.py` 只重新执行本地字符时间映射和冻结配方，不再次调用 Ark。连续空格或换行
+  被 MiniMax 省略时，每个原文字符仍保留；同一空白间隙内的后续字符压为零时长锚点，保证
+  时间单调。服务启动后及运行中每分钟检查一次内容/视觉分析状态，`PENDING` 超过 15 分钟
+  标记为中断并恢复显式重试权限。
+- 启动时使用当前 catalog 扫描已有成功视觉计划。旧 anchor/concept 仍属于新候选集合时，
+  `unified_visual_plan.py` 直接用新 catalog 重选素材、重绑 raw cues 并冻结配方；不兼容时清空
+  自动计划并标记 `VISUAL_CATALOG_CHANGED`，等待用户显式重试。两条路径都不得请求 Ark。
 - 浏览器播放预览和 `project_postprocess.py` / `project_variants.py` 的 4B 冻结任务读取同一
   `mixed` 配方。`image_apply.py` 写入真实 photo 轨道，`video_overlay_apply.py` 写入原生 video
   material/segment，支持源片截取、静音、cover/contain；单项失败按 optional 跳过。语义视频

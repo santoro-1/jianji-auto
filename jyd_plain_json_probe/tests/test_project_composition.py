@@ -781,6 +781,8 @@ class ProjectCompositionApiTest(unittest.TestCase):
                         "script_text": "第一条。",
                         "start_seconds": 0.0,
                         "end_seconds": 3.0,
+                        "speech_duration_seconds": 3.0,
+                        "generation_tail_seconds": 2.0,
                         "quality_variant": "seedvr2_upscaled",
                         "source_download_url": (
                             "/api/workbench/tasks/remote-item-1/videos/1/source"
@@ -940,6 +942,12 @@ class ProjectCompositionApiTest(unittest.TestCase):
                 self.assertEqual(
                     segment_asset["metadata"]["actual_duration_us"],
                     2_990_000,
+                )
+                self.assertEqual(
+                    segment_asset["metadata"]["speech_duration_seconds"], 3.0
+                )
+                self.assertEqual(
+                    segment_asset["metadata"]["generation_tail_seconds"], 2.0
                 )
                 self.assertTrue(
                     segment_asset["metadata"]["source_is_available_on_cloud"]

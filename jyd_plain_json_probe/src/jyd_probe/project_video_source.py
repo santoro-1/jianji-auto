@@ -84,13 +84,49 @@ def _actual_segment_duration_us(asset: dict[str, Any]) -> int:
     return probe_video_duration_us(str(asset["managed_path"]))
 
 
+def _speech_segment_duration_us(asset: dict[str, Any]) -> int:
+    metadata = asset.get("metadata")
+    if not isinstance(metadata, dict):
+        return 0
+    try:
+        explicit = float(metadata.get("speech_duration_seconds") or 0)
+        if explicit > 0:
+            return round(explicit * 1_000_000)
+        start = float(metadata.get("start_seconds") or 0)
+        end = float(metadata.get("end_seconds") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, round((end - start) * 1_000_000))
+
+
+def _generation_tail_us(asset: dict[str, Any]) -> int:
+    metadata = asset.get("metadata")
+    if not isinstance(metadata, dict):
+        return 0
+    try:
+        return max(
+            0,
+            round(float(metadata.get("generation_tail_seconds") or 0) * 1_000_000),
+        )
+    except (TypeError, ValueError):
+        return 0
+
+
 def _segment_timeline(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Build one cumulative timeline from the actual segment media files."""
+    """Build the edited timeline, trimming provider-only tails at seams."""
 
     cursor_us = 0
     timeline: list[dict[str, Any]] = []
-    for asset in segments:
-        duration_us = _actual_segment_duration_us(asset)
+    for position, asset in enumerate(segments):
+        actual_duration_us = _actual_segment_duration_us(asset)
+        duration_us = actual_duration_us
+        speech_duration_us = _speech_segment_duration_us(asset)
+        generation_tail_us = _generation_tail_us(asset)
+        if speech_duration_us > 0 and generation_tail_us > 0:
+            expected_duration_us = speech_duration_us
+            if position == len(segments) - 1:
+                expected_duration_us += generation_tail_us
+            duration_us = min(actual_duration_us, expected_duration_us)
         if duration_us <= 0:
             raise ValueError(f"原始分段 {_segment_index(asset)} 的实际视频时长无效")
         start_us = cursor_us
@@ -101,6 +137,7 @@ def _segment_timeline(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "start_us": start_us,
                 "end_us": cursor_us,
                 "duration_us": duration_us,
+                "actual_duration_us": actual_duration_us,
             }
         )
     return timeline

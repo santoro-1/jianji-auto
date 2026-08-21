@@ -1206,6 +1206,8 @@ class ProjectCompositionCoordinator:
                     "start_seconds": video.get("start_seconds"),
                     "end_seconds": video.get("end_seconds"),
                     "actual_duration_us": actual_duration_us,
+                    "speech_duration_seconds": video.get("speech_duration_seconds"),
+                    "generation_tail_seconds": video.get("generation_tail_seconds"),
                     "script_text": video.get("script_text"),
                     "quality_variant": video.get("quality_variant"),
                     "enhanced_by": (
