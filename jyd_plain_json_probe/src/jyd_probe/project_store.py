@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import json
 import logging
 from pathlib import Path
 import sqlite3
 import threading
+import time
 from typing import Any, Iterator
 import uuid
 
@@ -24,6 +25,7 @@ from .semantic_visuals import (
 PROJECT_SCHEMA_VERSION = 11
 logger = logging.getLogger("jyd_probe.workbench")
 MAX_PROJECT_ITEMS = 500
+ANALYSIS_PENDING_TIMEOUT_SECONDS = 15 * 60
 
 PROJECT_ITEM_STATUSES = {
     "DRAFT",
@@ -73,6 +75,16 @@ class ProjectRevisionConflict(ValueError):
 
 def _now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _timestamp_is_older_than(value: Any, cutoff: datetime) -> bool:
+    try:
+        parsed = datetime.fromisoformat(str(value or ""))
+    except ValueError:
+        return True
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=cutoff.tzinfo)
+    return parsed <= cutoff
 
 
 def _json(value: Any) -> str:
@@ -450,7 +462,10 @@ class ProjectStore:
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._schema_lock = threading.Lock()
+        self._pending_recovery_lock = threading.Lock()
+        self._last_pending_recovery_monotonic = 0.0
         self._initialize()
+        self.startup_recovered_analysis_count = self.recover_stale_analysis_pending()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30, isolation_level=None)
@@ -834,6 +849,106 @@ class ProjectStore:
             )
             self._refresh_project_status(connection, project_id, now=now)
 
+    def recover_stale_analysis_pending(
+        self,
+        *,
+        max_age_seconds: int = ANALYSIS_PENDING_TIMEOUT_SECONDS,
+        force: bool = True,
+    ) -> int:
+        """Make interrupted model-analysis snapshots retryable without a new request."""
+
+        if not force:
+            elapsed = time.monotonic() - self._last_pending_recovery_monotonic
+            if elapsed < 60:
+                return 0
+        with self._pending_recovery_lock:
+            if not force:
+                elapsed = time.monotonic() - self._last_pending_recovery_monotonic
+                if elapsed < 60:
+                    return 0
+            now_value = datetime.now().astimezone()
+            cutoff = now_value - timedelta(seconds=max(1, int(max_age_seconds)))
+            recovered = 0
+            affected_projects: set[str] = set()
+            with self._transaction() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT item_id, project_id, script_text,
+                           content_analysis_json, visual_analysis_json
+                    FROM project_items
+                    """
+                ).fetchall()
+                for row in rows:
+                    content = _content_analysis_snapshot(
+                        _object(row["content_analysis_json"], {}),
+                        str(row["script_text"]),
+                    )
+                    visual = _visual_analysis_snapshot(
+                        _object(row["visual_analysis_json"], {}),
+                        str(row["script_text"]),
+                    )
+                    content_stale = (
+                        content.get("overall_status") == "PENDING"
+                        and _timestamp_is_older_than(content.get("requested_at"), cutoff)
+                    )
+                    visual_stale = (
+                        visual.get("analysis_status") == "PENDING"
+                        and _timestamp_is_older_than(visual.get("requested_at"), cutoff)
+                    )
+                    if not content_stale and not visual_stale:
+                        continue
+                    error = {
+                        "code": "ANALYSIS_INTERRUPTED",
+                        "summary": "上次分析已中断或超时，可直接重试",
+                    }
+                    now = now_value.isoformat(timespec="seconds")
+                    if content_stale:
+                        completed_branches = sum(
+                            str(content.get(key) or "").upper() == "SUCCESS"
+                            for key in (
+                                "music_analysis_status",
+                                "subtitle_analysis_status",
+                                "title_analysis_status",
+                            )
+                        )
+                        content["overall_status"] = (
+                            "PARTIAL" if completed_branches else "FAILED"
+                        )
+                        content["errors"] = {
+                            **dict(content.get("errors") or {}),
+                            "request": error,
+                        }
+                        content["analyzed_at"] = now
+                    if visual_stale:
+                        visual.update(
+                            {
+                                "analysis_status": "FAILED",
+                                "mapping_status": "FAILED",
+                                "error": error,
+                                "analyzed_at": now,
+                                "cache_hit": False,
+                                "cacheable": False,
+                                "revision": int(visual.get("revision") or 0) + 1,
+                            }
+                        )
+                    connection.execute(
+                        """
+                        UPDATE project_items
+                        SET content_analysis_json=?, visual_analysis_json=?, updated_at=?
+                        WHERE item_id=?
+                        """,
+                        (_json(content), _json(visual), now, row["item_id"]),
+                    )
+                    affected_projects.add(str(row["project_id"]))
+                    recovered += 1
+                for project_id in affected_projects:
+                    connection.execute(
+                        "UPDATE projects SET updated_at=? WHERE project_id=?",
+                        (now_value.isoformat(timespec="seconds"), project_id),
+                    )
+            self._last_pending_recovery_monotonic = time.monotonic()
+            return recovered
+
     def create_project(
         self,
         *,
@@ -926,6 +1041,7 @@ class ProjectStore:
         limit: int = 50,
         offset: int = 0,
     ) -> dict[str, Any]:
+        self.recover_stale_analysis_pending(force=False)
         owner_id = str(owner_user_id or "").strip()
         safe_limit = min(max(int(limit), 1), 100)
         safe_offset = max(int(offset), 0)
@@ -958,9 +1074,28 @@ class ProjectStore:
         }
 
     def get_project(self, owner_user_id: str, project_id: str) -> dict[str, Any]:
+        self.recover_stale_analysis_pending(force=False)
         with self._connect() as connection:
             row = self._owned_project(connection, owner_user_id, project_id)
             return self._project_payload(connection, row["project_id"])
+
+    def visual_analysis_recovery_projects(self) -> list[dict[str, Any]]:
+        """Return projects that have a locally reusable visual-analysis snapshot."""
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT DISTINCT p.project_id
+                FROM projects p
+                JOIN project_items i ON i.project_id=p.project_id
+                WHERE json_extract(i.visual_analysis_json, '$.analysis_status')='SUCCESS'
+                ORDER BY p.updated_at DESC
+                """
+            ).fetchall()
+            return [
+                self._project_payload(connection, str(row["project_id"]))
+                for row in rows
+            ]
 
     def update_project(
         self,
@@ -3818,6 +3953,69 @@ class ProjectStore:
             connection.execute(
                 "UPDATE projects SET updated_at=? WHERE project_id=?",
                 (analyzed_at, project_id),
+            )
+        return True
+
+    def invalidate_item_visual_analysis_for_catalog(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        expected_script_sha256: str,
+        candidate_request: dict[str, Any],
+        recipe: dict[str, Any],
+    ) -> bool:
+        """Drop an incompatible saved plan and leave the item ready for explicit retry."""
+
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            script = str(item["script_text"])
+            if _script_sha256(script) != expected_script_sha256:
+                return False
+            snapshot = _visual_analysis_snapshot(
+                _object(item["visual_analysis_json"], {}), script
+            )
+            now = _now()
+            snapshot.update(
+                {
+                    "analysis_status": "NOT_REQUESTED",
+                    "mapping_status": "NOT_REQUESTED",
+                    "catalog_version": candidate_request.get("catalog_version"),
+                    "candidate_set_sha256": _visual_candidate_set_sha256(
+                        candidate_request
+                    ),
+                    "candidate_request": candidate_request,
+                    "visual_plan": [],
+                    "decisions": [],
+                    "mapped_candidates": [],
+                    "recipe": recipe,
+                    "error": {
+                        "code": "VISUAL_CATALOG_CHANGED",
+                        "summary": "新版素材目录与旧视觉计划不兼容，请重新分析此条",
+                    },
+                    "cache_hit": False,
+                    "cacheable": False,
+                    "analyzed_at": now,
+                    "invalidated_reason": "VISUAL_CATALOG_CHANGED",
+                    "invalidated_at": now,
+                    "bound_audio_asset_id": item["current_audio_asset_id"],
+                    "raw_cues_sha256": _raw_cues_sha256(
+                        _object(item["subtitles_json"], _default_subtitles()).get(
+                            "raw_cues", []
+                        )
+                    ),
+                    "revision": int(snapshot.get("revision") or 0) + 1,
+                }
+            )
+            connection.execute(
+                "UPDATE project_items SET visual_analysis_json=?, updated_at=? WHERE item_id=?",
+                (_json(snapshot), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET updated_at=? WHERE project_id=?",
+                (now, project_id),
             )
         return True
 

@@ -13,7 +13,7 @@ from .project_export_naming import audio_export_filename
 from .project_store import ProjectStore
 from .logging_config import log_event
 from .semantic_visuals import SemanticVisualCatalog
-from .unified_visual_plan import remap_saved_visual_plan
+from .unified_visual_plan import refresh_saved_visual_item
 
 
 REMOTE_AUDIO_ACTIVE = {
@@ -555,13 +555,26 @@ class ProjectAudioCoordinator:
                                     None,
                                 )
                                 if isinstance(updated_item, Mapping):
-                                    remap_saved_visual_plan(
-                                        self.store,
-                                        owner_user_id=owner_user_id,
-                                        project_id=project_id,
-                                        item=updated_item,
-                                        catalog=self.visual_catalog,
-                                    )
+                                    try:
+                                        refresh_saved_visual_item(
+                                            self.store,
+                                            owner_user_id=owner_user_id,
+                                            project_id=project_id,
+                                            item=updated_item,
+                                            catalog=self.visual_catalog,
+                                        )
+                                    except Exception as exc:
+                                        log_event(
+                                            logger,
+                                            "workbench.visual_local_remap_failed",
+                                            "声音已完成，但视觉计划本地重映射失败",
+                                            level=logging.WARNING,
+                                            component="workbench",
+                                            user_id=owner_user_id,
+                                            project_id=project_id,
+                                            item_id=local_item_id,
+                                            error_type=type(exc).__name__,
+                                        )
                     if not already_downloaded or local_item_id in caption_recovery_item_ids:
                         project = self.store.get_project(owner_user_id, project_id)
                         local_by_item = {item["item_id"]: item for item in project["items"]}

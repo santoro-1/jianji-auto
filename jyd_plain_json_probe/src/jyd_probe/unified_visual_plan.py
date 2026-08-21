@@ -430,6 +430,7 @@ def remap_saved_visual_plan(
     project_id: str,
     item: Mapping[str, Any],
     catalog: SemanticVisualCatalog,
+    allow_catalog_refresh: bool = False,
 ) -> bool:
     """Rebind a saved semantic decision after MiniMax raw cues change, without Ark."""
 
@@ -441,12 +442,27 @@ def remap_saved_visual_plan(
     if not isinstance(plan, list) or not isinstance(stored_request, Mapping):
         return False
     visual_input = prepare_unified_visual_input(item, catalog)
-    if (
+    candidate_changed = (
         stored_request.get("catalog_version")
         != visual_input.candidate_request.get("catalog_version")
         or candidate_set_sha256(stored_request)
         != candidate_set_sha256(visual_input.candidate_request)
-    ):
+    )
+    if candidate_changed and not allow_catalog_refresh:
+        return False
+    try:
+        validated = validate_remote_visual_plan(
+            {
+                "visual_analysis_status": "SUCCESS",
+                "visual_catalog_version": visual_input.candidate_request.get(
+                    "catalog_version"
+                ),
+                "visual_plan": plan,
+            },
+            candidate_request=visual_input.candidate_request,
+        )
+        reusable_plan = list(validated["visual_plan"])
+    except (KeyError, TypeError, ValueError):
         return False
     script = str(item.get("script_text") or "")
     script_sha256 = hashlib.sha256(script.encode("utf-8")).hexdigest()
@@ -462,7 +478,7 @@ def remap_saved_visual_plan(
         result, recipe = build_local_visual_result(
             script=script,
             visual_input=visual_input,
-            plan=[dict(value) for value in plan if isinstance(value, Mapping)],
+            plan=reusable_plan,
             catalog=catalog,
             provider_payload=previous,
         )
@@ -489,7 +505,7 @@ def remap_saved_visual_plan(
                 "candidate_set_sha256": candidate_set_sha256(
                     visual_input.candidate_request
                 ),
-                "visual_plan": list(plan),
+                "visual_plan": reusable_plan,
                 "decisions": [],
                 "mapped_candidates": [],
                 "provider_request_id": previous.get("provider_request_id"),
@@ -504,3 +520,84 @@ def remap_saved_visual_plan(
                 "summary": str(summary)[:500],
             },
         )
+
+
+def refresh_saved_visual_item(
+    store: Any,
+    *,
+    owner_user_id: str,
+    project_id: str,
+    item: Mapping[str, Any],
+    catalog: SemanticVisualCatalog,
+) -> str:
+    """Refresh one saved plan locally; return unchanged, remapped, or retryable."""
+
+    previous = item.get("visual_analysis")
+    if (
+        not isinstance(previous, Mapping)
+        or previous.get("analysis_status") != "SUCCESS"
+    ):
+        return "unchanged"
+    visual_input = prepare_unified_visual_input(item, catalog)
+    current_hash = candidate_set_sha256(visual_input.candidate_request)
+    needs_refresh = (
+        previous.get("mapping_status") != "SUCCESS"
+        or previous.get("catalog_version") != catalog.catalog_version
+        or previous.get("candidate_set_sha256") != current_hash
+    )
+    if not needs_refresh:
+        return "unchanged"
+    if remap_saved_visual_plan(
+        store,
+        owner_user_id=owner_user_id,
+        project_id=project_id,
+        item=item,
+        catalog=catalog,
+        allow_catalog_refresh=True,
+    ):
+        return "remapped"
+    script = str(item.get("script_text") or "")
+    if store.invalidate_item_visual_analysis_for_catalog(
+        owner_user_id,
+        project_id,
+        str(item.get("item_id") or ""),
+        expected_script_sha256=hashlib.sha256(script.encode("utf-8")).hexdigest(),
+        candidate_request=visual_input.candidate_request,
+        recipe=empty_visual_recipe(visual_input, catalog),
+    ):
+        return "retryable"
+    return "unchanged"
+
+
+def refresh_saved_visual_plans_for_catalog(
+    store: Any,
+    catalog: SemanticVisualCatalog,
+) -> dict[str, int]:
+    """Refresh reusable visual plans locally after raw-cue or catalog changes."""
+
+    stats = {"scanned": 0, "remapped": 0, "retryable": 0, "failed": 0}
+    for project in store.visual_analysis_recovery_projects():
+        owner_user_id = str((project.get("owner") or {}).get("user_id") or "")
+        project_id = str(project.get("project_id") or "")
+        if not owner_user_id or not project_id:
+            continue
+        for item in project.get("items", []):
+            if not isinstance(item, Mapping):
+                continue
+            try:
+                outcome = refresh_saved_visual_item(
+                    store,
+                    owner_user_id=owner_user_id,
+                    project_id=project_id,
+                    item=item,
+                    catalog=catalog,
+                )
+            except Exception:
+                stats["scanned"] += 1
+                stats["failed"] += 1
+                continue
+            if outcome == "unchanged":
+                continue
+            stats["scanned"] += 1
+            stats[outcome] += 1
+    return stats

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 import threading
 from typing import Any
@@ -11,6 +12,7 @@ from jyd_probe.semantic_visuals import load_semantic_visual_catalog
 from jyd_probe.unified_visual_plan import (
     build_local_visual_result,
     prepare_unified_visual_input,
+    refresh_saved_visual_item,
 )
 
 
@@ -256,6 +258,65 @@ def test_saved_plan_rebinds_after_raw_cues_without_another_cloud_call(
     rebound = rebound_project["items"][0]
     assert rebound["visual_analysis"]["mapping_status"] == "SUCCESS"
     assert len(rebound["visual_analysis"]["recipe"]["overlays"]) == 1
+    assert len(client.calls) == 1
+
+
+def test_saved_plan_refreshes_to_compatible_new_catalog_without_cloud(
+    tmp_path: Path,
+) -> None:
+    store, project, _script = _project(tmp_path, with_raw_cues=True)
+    catalog = load_semantic_visual_catalog(CATALOG_ROOT)
+    client = UnifiedClient()
+    analyzed = ProjectContentAnalysisCoordinator(
+        store, client, visual_catalog=catalog
+    ).analyze("user-1", project["project_id"], "token")
+    item = analyzed["items"][0]
+    refreshed_catalog = replace(catalog, catalog_version="sha256:test-new-catalog")
+
+    outcome = refresh_saved_visual_item(
+        store,
+        owner_user_id="user-1",
+        project_id=project["project_id"],
+        item=item,
+        catalog=refreshed_catalog,
+    )
+
+    refreshed = store.get_project("user-1", project["project_id"])["items"][0]
+    assert outcome == "remapped"
+    assert refreshed["visual_analysis"]["catalog_version"] == refreshed_catalog.catalog_version
+    assert refreshed["visual_analysis"]["mapping_status"] == "SUCCESS"
+    assert len(client.calls) == 1
+
+
+def test_incompatible_new_catalog_becomes_explicitly_retryable_without_cloud(
+    tmp_path: Path,
+) -> None:
+    store, project, _script = _project(tmp_path, with_raw_cues=True)
+    catalog = load_semantic_visual_catalog(CATALOG_ROOT)
+    client = UnifiedClient()
+    analyzed = ProjectContentAnalysisCoordinator(
+        store, client, visual_catalog=catalog
+    ).analyze("user-1", project["project_id"], "token")
+    item = analyzed["items"][0]
+    empty_catalog = replace(
+        catalog,
+        catalog_version="sha256:test-empty-catalog",
+        concepts=(),
+        assets=(),
+    )
+
+    outcome = refresh_saved_visual_item(
+        store,
+        owner_user_id="user-1",
+        project_id=project["project_id"],
+        item=item,
+        catalog=empty_catalog,
+    )
+
+    refreshed = store.get_project("user-1", project["project_id"])["items"][0]
+    assert outcome == "retryable"
+    assert refreshed["visual_analysis"]["analysis_status"] == "NOT_REQUESTED"
+    assert refreshed["visual_analysis"]["error"]["code"] == "VISUAL_CATALOG_CHANGED"
     assert len(client.calls) == 1
 
 

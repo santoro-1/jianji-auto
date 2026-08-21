@@ -184,15 +184,26 @@ class ProjectAudioApiTest(unittest.TestCase):
             RecoveryClient(),
             storage_root=self.root / "storage",
             max_audio_bytes=1024 * 1024,
+            visual_catalog=object(),
         )
 
-        recovered = coordinator.sync("recovery-user", project_id, "token")
+        with patch(
+            "jyd_probe.project_audio.refresh_saved_visual_item"
+        ) as refresh_visual:
+            recovered = coordinator.sync("recovery-user", project_id, "token")
 
         row = recovered["items"][0]
         self.assertEqual(row["outputs"]["audio"]["asset_id"], asset["asset_id"])
         self.assertEqual(row["subtitles"]["bound_audio_asset_id"], asset["asset_id"])
         self.assertEqual(row["subtitles"]["status"], "READY")
         self.assertEqual(row["subtitles"]["raw_cues"][0]["text"], "保留旧音频并恢复字幕。")
+        refresh_visual.assert_called_once()
+        self.assertEqual(
+            refresh_visual.call_args.kwargs["item"]["subtitles"]["raw_cues"][0][
+                "text"
+            ],
+            "保留旧音频并恢复字幕。",
+        )
 
     def test_pending_audio_operation_resumes_after_application_restart(self) -> None:
         user = {"user_id": "restart-user", "username": "tester", "enabled": True}

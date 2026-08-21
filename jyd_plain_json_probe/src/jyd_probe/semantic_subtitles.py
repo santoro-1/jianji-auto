@@ -264,6 +264,13 @@ def map_subtitle_units_to_raw_cues(
                     raw_cue_index = character_ranges[max(previous_positions)][2]
                 elif next_positions:
                     raw_cue_index = character_ranges[min(next_positions)][2]
+            if unit["kind"] == "whitespace":
+                # MiniMax cues commonly omit spaces and line breaks. Consecutive
+                # omitted whitespace units therefore resolve to the same gap. Keep
+                # each source character, but clamp its zero-width interval to the
+                # preceding unit so the sequence remains monotonic.
+                start_us = max(start_us, previous_end_us)
+                end_us = max(end_us, start_us)
             if start_us < previous_end_us or end_us < start_us or (
                 end_us == start_us and unit["kind"] != "whitespace"
             ):

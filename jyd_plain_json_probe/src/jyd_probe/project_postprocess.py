@@ -913,7 +913,7 @@ def _discouraged_break_offsets(text: str) -> dict[int, float]:
             # A conjunction normally belongs to the following coordination.
             penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
         elif left_flag in {"d", "df", "zg"} and right_flag.startswith(
-            ("a", "v", "d", "m", "q", "n")
+            ("a", "v", "d", "m", "q", "n", "p")
         ):
             penalties[boundary] = max(penalties.get(boundary, 0.0), 8.0)
     return penalties
@@ -967,7 +967,7 @@ def _dependency_break_offsets(text: str) -> set[int]:
         elif left_flag.startswith(("p", "c")):
             dependencies.add(boundary)
         elif left_flag in {"d", "df", "zg"} and right_flag.startswith(
-            ("a", "v", "d", "m", "q", "n")
+            ("a", "v", "d", "m", "q", "n", "p")
         ):
             dependencies.add(boundary)
         elif left_flag.startswith("a") and right_nominal:
@@ -1022,9 +1022,10 @@ def _preferred_syntax_break_offsets(text: str) -> set[int]:
         cursor = end
 
     preferred: set[int] = set()
-    for left, right in zip(tagged, tagged[1:]):
+    for index, (left, right) in enumerate(zip(tagged, tagged[1:])):
         left_word, left_flag, _left_start, boundary = left
         right_word, right_flag, _right_start, right_end = right
+        following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
         if left_word in {"的", "地", "得"} and (
             right_flag.startswith(("m", "q")) or right_flag == "j"
         ):
@@ -1035,6 +1036,14 @@ def _preferred_syntax_break_offsets(text: str) -> set[int]:
             preferred.add(boundary)
         elif left_flag.startswith(("m", "q")) and right_flag.startswith("v"):
             # Completed quantity/time phrase before a new predicate.
+            preferred.add(boundary)
+        elif (
+            _is_nominal_flag(left_flag)
+            and right_flag in {"d", "df", "zg"}
+            and following_flag.startswith(("a", "n", "p", "v"))
+        ):
+            # Complete subject before an adverb-led predicate:
+            # 八十几岁很多人|已经在坐轮椅。
             preferred.add(boundary)
         elif (
             left_flag.startswith("v")

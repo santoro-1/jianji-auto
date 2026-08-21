@@ -221,6 +221,60 @@ def test_contiguous_raw_cues_remain_hard_timing_boundaries() -> None:
     )
 
 
+def test_consecutive_omitted_whitespace_uses_one_monotonic_gap() -> None:
+    script = "第一段\n\n第二段"
+    units = _units(
+        [
+            ("第一段", "phrase", "none", "prefer"),
+            ("\n", "whitespace", "none", "allow"),
+            ("\n", "whitespace", "none", "allow"),
+            ("第二段", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [
+        {"start_us": 0, "end_us": 1_000_000, "text": "第一段"},
+        {"start_us": 1_200_000, "end_us": 2_200_000, "text": "第二段"},
+    ]
+
+    timed = map_subtitle_units_to_raw_cues(script, units, raw_cues)
+
+    assert [item["text"] for item in timed] == ["第一段", "\n", "\n", "第二段"]
+    assert timed[1]["start_us"] == 1_000_000
+    assert timed[1]["end_us"] == 1_200_000
+    assert timed[2]["start_us"] == 1_200_000
+    assert timed[2]["end_us"] == 1_200_000
+    assert timed[3]["start_us"] == 1_200_000
+
+
+def test_local_reflow_prefers_complete_subject_before_adverbial_predicate() -> None:
+    script = "八十几岁很多人已经在坐轮椅，"
+    units = _units(
+        [
+            ("八十几岁很多", "phrase", "none", "prefer"),
+            ("人已经在坐轮椅，", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 3_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(
+            script,
+            units,
+            raw_cues,
+            prompt_version="jyd.subtitle-analysis.prompt.v23",
+        ),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    assert mapping["status"] == "SUCCESS"
+    assert [cue["text"] for cue in render_cues] == [
+        "八十几岁很多人",
+        "已经在坐轮椅",
+    ]
+
+
 def test_overwide_semantic_group_is_repaired_without_discarding_other_ai_breaks() -> None:
     script = "百分之八十四另外一部分就叫到肌肉和肝脏成为肌糖原和肝糖原呼吸排出"
     units = _units(

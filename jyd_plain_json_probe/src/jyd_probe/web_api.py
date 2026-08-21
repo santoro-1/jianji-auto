@@ -71,6 +71,7 @@ from .project_visual_analysis import ProjectVisualAnalysisCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
 from .semantic_visuals import load_semantic_visual_catalog
+from .unified_visual_plan import refresh_saved_visual_plans_for_catalog
 from .layout_profiles import (
     DEFAULT_LAYOUT_PROFILE,
     LAYOUT_PROFILE_FONT_IDENTITY,
@@ -1689,6 +1690,23 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     )
     render_queue = RenderJobQueue(settings)
     project_store = ProjectStore(render_queue.store.path)
+    if project_store.startup_recovered_analysis_count:
+        print(
+            "[JYD] 已将 "
+            f"{project_store.startup_recovered_analysis_count} 条中断或超时的分析恢复为可重试",
+            flush=True,
+        )
+    visual_refresh = refresh_saved_visual_plans_for_catalog(
+        project_store, semantic_visual_catalog
+    )
+    if visual_refresh["scanned"]:
+        print(
+            "[JYD] 新版素材目录本地刷新："
+            f"重映射 {visual_refresh['remapped']} 条，"
+            f"需显式重试 {visual_refresh['retryable']} 条，"
+            f"本地刷新异常 {visual_refresh['failed']} 条",
+            flush=True,
+        )
     recovered_composition_starts = (
         project_store.recover_interrupted_composition_starts()
     )
