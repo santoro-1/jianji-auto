@@ -1200,21 +1200,19 @@ def _caption_display_text(value: str) -> tuple[str, set[int]]:
 
 
 def _caption_script_offsets(value: str) -> tuple[str, list[int]]:
-    """Return rendered caption text plus each character's source-script offset."""
+    """Return alignment text plus each visible character's source-script offset.
+
+    Final captions intentionally omit source line breaks and surrounding spaces.
+    Treat every whitespace character as layout-only here so a list written on
+    separate source lines can still bind its visuals to the matching final cue.
+    """
 
     source = str(value or "")
     normalized: list[str] = []
     normalized_offsets: list[int] = []
-    pending_space: int | None = None
     for index, character in enumerate(source):
         if character.isspace():
-            if normalized and pending_space is None:
-                pending_space = index
             continue
-        if pending_space is not None:
-            normalized.append(" ")
-            normalized_offsets.append(pending_space)
-            pending_space = None
         normalized.append(character)
         normalized_offsets.append(index)
 
@@ -1260,43 +1258,47 @@ def bind_semantic_overlays_to_render_cues(
     if not original or not candidates:
         return original
 
-    def without_unresolved_automatic() -> list[dict[str, Any]]:
-        return [item for item in original if not _uses_final_caption_anchor(item)]
-
     script_display, script_offsets = _caption_script_offsets(original_script)
     if not script_display or len(script_display) != len(script_offsets):
-        return without_unresolved_automatic()
+        return original
 
     cue_ranges: list[tuple[int, int, int, int, str]] = []
     display_cursor = 0
     for raw in render_cues:
         if not isinstance(raw, dict):
-            return without_unresolved_automatic()
+            return original
         try:
-            cue_display, _breaks = _caption_display_text(str(raw.get("text") or ""))
+            cue_anchor_text, _breaks = _caption_display_text(
+                str(raw.get("text") or "")
+            )
+            cue_display = "".join(
+                character
+                for character in cue_anchor_text
+                if not character.isspace()
+            )
             cue_start_us = int(raw.get("start_us") or 0)
             cue_duration_us = int(raw.get("duration_us") or 0)
         except (CaptionLayoutReviewRequired, TypeError, ValueError):
-            return without_unresolved_automatic()
+            return original
         next_cursor = display_cursor + len(cue_display)
         if (
             cue_duration_us <= 0
             or next_cursor > len(script_display)
             or script_display[display_cursor:next_cursor] != cue_display
         ):
-            return without_unresolved_automatic()
+            return original
         cue_ranges.append(
             (
                 script_offsets[display_cursor],
                 script_offsets[next_cursor - 1] + 1,
                 cue_start_us,
                 cue_start_us + cue_duration_us,
-                cue_display,
+                cue_anchor_text,
             )
         )
         display_cursor = next_cursor
     if display_cursor != len(script_display):
-        return without_unresolved_automatic()
+        return original
 
     bound: list[dict[str, Any]] = []
     for overlay in original:
@@ -1306,6 +1308,7 @@ def bind_semantic_overlays_to_render_cues(
             continue
         candidate = candidates.get(candidate_id)
         if not isinstance(candidate, dict):
+            bound.append(overlay)
             continue
         try:
             keyword_start = int(candidate.get("char_start"))
@@ -1313,6 +1316,7 @@ def bind_semantic_overlays_to_render_cues(
             old_start_us = int(overlay.get("start_us") or 0)
             old_end_us = old_start_us + int(overlay.get("duration_us") or 0)
         except (TypeError, ValueError):
+            bound.append(overlay)
             continue
         anchor = next(
             (
@@ -1323,6 +1327,7 @@ def bind_semantic_overlays_to_render_cues(
             None,
         )
         if anchor is None:
+            bound.append(overlay)
             continue
         _cue_char_start, _cue_char_end, cue_start_us, cue_end_us, cue_text = anchor
         new_end_us = max(old_end_us, cue_end_us)
@@ -1331,6 +1336,7 @@ def bind_semantic_overlays_to_render_cues(
         if isinstance(source_duration_us, int) and source_duration_us > 0:
             new_duration_us = min(new_duration_us, source_duration_us)
         if new_duration_us <= 0:
+            bound.append(overlay)
             continue
         previous_timing_source = str(overlay.get("timing_source") or "")
         overlay.update(

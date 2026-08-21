@@ -146,7 +146,7 @@ def test_caption_binding_does_not_move_manual_or_seam_visuals() -> None:
     assert resolved == overlays
 
 
-def test_unmappable_final_captions_skip_only_automatic_explicit_visuals() -> None:
+def test_unmappable_final_captions_keep_original_visual_timing() -> None:
     overlays = [
         {
             "candidate_id": "vc_apple",
@@ -181,7 +181,66 @@ def test_unmappable_final_captions_skip_only_automatic_explicit_visuals() -> Non
         candidate_request,
     )
 
-    assert resolved == [overlays[1]]
+    assert resolved == overlays
+
+
+def test_caption_binding_ignores_source_list_line_breaks_and_spaces() -> None:
+    script = (
+        "姐姐一定要认真听。\n"
+        "第一个水煮虾配清炒菠菜\n"
+        "第二个菌菇炒鸡胸肉"
+    )
+    shrimp_start = script.index("水煮虾")
+    mushroom_start = script.index("菌菇")
+    overlays = [
+        {
+            "candidate_id": "vc_shrimp",
+            "manual": False,
+            "selection_mode": "auto",
+            "usage": "explicit",
+            "timing_mode": "sentence",
+            "start_us": 900_000,
+            "duration_us": 1_800_000,
+        },
+        {
+            "candidate_id": "vc_mushroom",
+            "manual": False,
+            "selection_mode": "auto",
+            "usage": "explicit",
+            "timing_mode": "sentence",
+            "start_us": 2_700_000,
+            "duration_us": 1_800_000,
+        },
+    ]
+    render_cues = [
+        {"start_us": 0, "duration_us": 1_000_000, "text": "姐姐一定要认真听"},
+        {"start_us": 1_000_000, "duration_us": 1_500_000, "text": "第一个水煮虾配清炒菠菜"},
+        {"start_us": 2_500_000, "duration_us": 1_500_000, "text": "第二个菌菇炒鸡胸肉"},
+    ]
+    candidate_request = {
+        "candidates": [
+            {
+                "candidate_id": "vc_shrimp",
+                "char_start": shrimp_start,
+                "char_end": shrimp_start + len("水煮虾"),
+            },
+            {
+                "candidate_id": "vc_mushroom",
+                "char_start": mushroom_start,
+                "char_end": mushroom_start + len("菌菇"),
+            },
+        ]
+    }
+
+    resolved = bind_semantic_overlays_to_render_cues(
+        script, overlays, render_cues, candidate_request
+    )
+
+    assert len(resolved) == 2
+    assert resolved[0]["start_us"] == 1_000_000
+    assert resolved[0]["caption_anchor_text"] == "第一个水煮虾配清炒菠菜"
+    assert resolved[1]["start_us"] == 2_500_000
+    assert resolved[1]["caption_anchor_text"] == "第二个菌菇炒鸡胸肉"
 
 
 class ProjectPostprocessApiTest(unittest.TestCase):

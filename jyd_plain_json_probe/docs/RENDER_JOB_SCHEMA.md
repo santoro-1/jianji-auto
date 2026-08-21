@@ -87,6 +87,11 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 完整、已审核的 MiniMax 音频作为独立音轨从 0 开始写入。这样接缝没有静音停顿，末尾又保留
 真实运动画面用于渐隐，并且不会因供应商 MP4 容器时长误差逐段累计字幕偏移。
 
+历史数字人任务若没有 `generation_tail_seconds`，且原始分段实际总长比 4A 记录的批准音频
+时间轴短 50 毫秒以上，4B 自动改用已经按批准音频标准化的 `base_video`。这项兼容保护避免
+`fit_to_video` 把累计的供应商/SeedVR2 容器短差转化为片尾口播截断；带生成尾的新任务仍保留
+独立 `video_sequence`，不会进入该回退分支。
+
 模板模式用于套用已经存在的剪映草稿。模板可能是明文，也可能是高版本加密草稿；加密草稿会按 `decrypt` 配置自动解密到工作副本：
 
 ```json

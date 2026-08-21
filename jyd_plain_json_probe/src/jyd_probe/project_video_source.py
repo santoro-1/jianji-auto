@@ -7,6 +7,7 @@ from .draft_factory import probe_video_duration_us
 
 
 WORKBENCH_DISSOLVE_DURATION_US = 250_000
+LEGACY_SEQUENCE_SHORTFALL_TOLERANCE_US = 50_000
 
 
 def _segment_index(asset: dict[str, Any]) -> int:
@@ -143,6 +144,65 @@ def _segment_timeline(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return timeline
 
 
+def _planned_speech_timeline(
+    segments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build the approved speech timeline for a normalized legacy base video."""
+
+    cursor_us = 0
+    timeline: list[dict[str, Any]] = []
+    for asset in segments:
+        duration_us = _speech_segment_duration_us(asset)
+        if duration_us <= 0:
+            return []
+        start_us = cursor_us
+        cursor_us += duration_us
+        timeline.append(
+            {
+                "asset": asset,
+                "start_us": start_us,
+                "end_us": cursor_us,
+                "duration_us": duration_us,
+            }
+        )
+    return timeline
+
+
+def _legacy_sequence_needs_normalized_base(
+    base: dict[str, Any],
+    segments: list[dict[str, Any]],
+    timeline: list[dict[str, Any]],
+) -> bool:
+    """Protect approved speech when historical provider clips run short.
+
+    Tasks created before provider-only generation tails were frozen can have
+    every RunningHub/SeedVR2 MP4 a few frames shorter than its approved audio
+    slice.  Rebuilding Jianying from those raw files accumulates the shortfall,
+    and ``fit_to_video`` then removes audible speech from the end.  The cloud
+    base video is already normalized to the approved audio timeline, so use it
+    for this historical-only case.  Tail-aware tasks must keep their independent
+    clips so internal tails can still be trimmed and the final tail retained.
+    """
+
+    if not segments or not timeline:
+        return False
+    if all(_generation_tail_us(asset) > 0 for asset in segments):
+        return False
+    metadata = base.get("metadata")
+    if not isinstance(metadata, dict):
+        return False
+    try:
+        planned_duration_us = int(metadata.get("planned_duration_us") or 0)
+    except (TypeError, ValueError):
+        return False
+    actual_timeline_us = int(timeline[-1]["end_us"])
+    return (
+        planned_duration_us > 0
+        and planned_duration_us - actual_timeline_us
+        > LEGACY_SEQUENCE_SHORTFALL_TOLERANCE_US
+    )
+
+
 def build_normalized_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
     """Return the normalized base video used by preview, captions, and export."""
 
@@ -204,6 +264,10 @@ def project_segment_boundaries(item: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     try:
         timeline = _segment_timeline(segments)
+        if _legacy_sequence_needs_normalized_base(base, segments, timeline):
+            planned_timeline = _planned_speech_timeline(segments)
+            if planned_timeline:
+                timeline = planned_timeline
     except (FileNotFoundError, RuntimeError, ValueError):
         # A wrong seam is more harmful than omitting an optional seam overlay.
         return []
@@ -261,6 +325,8 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
         )
 
     timeline = _segment_timeline(segments)
+    if _legacy_sequence_needs_normalized_base(base, segments, timeline):
+        return normalized_source
     source_items: list[dict[str, Any]] = []
     for entry in timeline:
         asset = entry["asset"]
