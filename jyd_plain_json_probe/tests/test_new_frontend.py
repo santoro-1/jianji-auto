@@ -118,6 +118,15 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn('id="project-selector-toolbar"', html)
         self.assertIn("beginNewProjectBatch", html)
         self.assertIn("switchWorkspaceProject", html)
+        self.assertIn("reconcileInactiveCompositionProjects", html)
+        self.assertIn("INACTIVE_COMPOSITION_SYNC_INTERVAL_MS = 60000", html)
+        self.assertIn("projectHasActiveComposition(project)", html)
+        self.assertIn("project.project_id !== activeProject?.project_id", html)
+        self.assertIn(
+            "workspaceApi(`/api/new/projects/${projectId}/composition/status`)",
+            html,
+        )
+        self.assertIn("void reconcileInactiveCompositionProjects(false)", html)
         self.assertIn('id="delete-current-project-toolbar"', html)
         self.assertIn("deleteCurrentProjectBatch", html)
         self.assertIn('id="article-type-filter"', html)

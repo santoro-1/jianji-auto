@@ -1034,6 +1034,12 @@
         let compositionStatusRequestInFlight = false;
         let compositionStatusPollFailureCount = 0;
         const COMPOSITION_STATUS_WARNING_THRESHOLD = 3;
+        let inactiveCompositionSyncTimer = null;
+        let inactiveCompositionSyncInFlight = false;
+        const INACTIVE_COMPOSITION_SYNC_INTERVAL_MS = 60000;
+        const COMPOSITION_ACTIVE_ITEM_STATUSES = Object.freeze([
+            'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'
+        ]);
         let postprocessStatusPollTimer = null;
         let variantStatusPollTimer = null;
         let isGeneratingComposition = false;
@@ -1566,6 +1572,12 @@
             ].includes(item.status));
         }
 
+        function projectHasActiveComposition(project) {
+            return (project?.items || []).some((item) =>
+                COMPOSITION_ACTIVE_ITEM_STATUSES.includes(item.status)
+            );
+        }
+
         function projectHasPendingWork(project) {
             if (!project) return false;
             if (projectHasActiveItems(project)) return true;
@@ -1621,6 +1633,52 @@
             availableProjects = Array.isArray(listing.projects) ? listing.projects : [];
             renderProjectSelector(preferredProjectId);
             return listing;
+        }
+
+        function scheduleInactiveCompositionSync(delayMs = INACTIVE_COMPOSITION_SYNC_INTERVAL_MS) {
+            clearTimeout(inactiveCompositionSyncTimer);
+            inactiveCompositionSyncTimer = setTimeout(() => {
+                void reconcileInactiveCompositionProjects(true);
+            }, Math.max(0, Number(delayMs) || 0));
+        }
+
+        async function reconcileInactiveCompositionProjects(refreshListing = true) {
+            if (inactiveCompositionSyncInFlight) return;
+            inactiveCompositionSyncInFlight = true;
+            try {
+                if (refreshListing) {
+                    const listing = await workspaceApi('/api/new/projects?limit=100&offset=0');
+                    availableProjects = Array.isArray(listing.projects) ? listing.projects : [];
+                }
+                const candidates = [...availableProjects].filter((project) =>
+                    project?.project_id
+                    && project.project_id !== activeProject?.project_id
+                    && projectHasActiveComposition(project)
+                );
+                for (const candidate of candidates) {
+                    const projectId = candidate.project_id;
+                    try {
+                        const synced = await workspaceApi(`/api/new/projects/${projectId}/composition/status`);
+                        const listedIndex = availableProjects.findIndex(
+                            (project) => project.project_id === projectId
+                        );
+                        if (listedIndex >= 0) availableProjects[listedIndex] = synced;
+                        if (activeProject?.project_id === projectId) {
+                            syncProjectInputs(synced, { renderTable: !projectHasActiveItems(synced) });
+                        }
+                    } catch (_) {
+                        // Other projects are best-effort reconciliation. Their
+                        // own page keeps the existing visible retry and error flow.
+                    }
+                }
+                renderProjectSelector(activeProject?.project_id || '');
+            } catch (_) {
+                // An expired session or temporary local/cloud failure must not
+                // interrupt the project currently being edited.
+            } finally {
+                inactiveCompositionSyncInFlight = false;
+                scheduleInactiveCompositionSync();
+            }
         }
 
         function resetWorkspaceForNewBatch({ notify = true } = {}) {
@@ -1891,8 +1949,10 @@
                 } else {
                     resetWorkspaceForNewBatch({ notify: false });
                 }
+                void reconcileInactiveCompositionProjects(false);
             } catch (error) {
                 showToast('项目加载失败', error.message, 'warning');
+                scheduleInactiveCompositionSync();
             }
         }
 
