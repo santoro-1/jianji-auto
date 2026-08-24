@@ -101,6 +101,27 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/api/new/projects/{project_id}/ltx/generate", paths)
         self.assertIn("/api/new/projects/{project_id}/ltx/refresh", paths)
 
+    def test_ltx_row_and_selected_generation_never_use_image_composition(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        single_start = page.index("async function runSingleVideo")
+        single_end = page.index("async function generateSelectedAudio", single_start)
+        single = page[single_start:single_end]
+        self.assertIn("await startGlobalLtxGeneration([script])", single)
+        self.assertLess(
+            single.index("await startGlobalLtxGeneration([script])"),
+            single.index("script.allowedActions?.start_composition"),
+        )
+
+        selected_start = page.index("async function generateSelectedVideos")
+        selected_end = page.index("async function", selected_start + 1)
+        selected = page[selected_start:selected_end]
+        self.assertIn("await startGlobalLtxGeneration(missingBase)", selected)
+        self.assertLess(
+            selected.index("await startGlobalLtxGeneration(missingBase)"),
+            selected.index("item.allowedActions?.start_composition"),
+        )
+
     def test_header_switch_selects_ltx_inside_the_same_workbench_page(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 

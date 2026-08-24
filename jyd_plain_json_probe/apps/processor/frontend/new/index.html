@@ -4390,6 +4390,10 @@
                 await startGlobalH3Generation([script]);
                 return;
             }
+            if (isLtxGenerationMode()) {
+                await startGlobalLtxGeneration([script]);
+                return;
+            }
             if (!(script.allowedActions?.start_composition || script.allowedActions?.retry_composition)) {
                 showToast('暂时不能生成本条视频', '当前行正在处理，或缺少已经确认的声音/图片。', 'warning');
                 return;
@@ -4793,6 +4797,14 @@
                 return;
             }
             const missingBase = unfinished.filter((item) => !item.baseVideo);
+            if (isLtxGenerationMode()) {
+                if (missingBase.length) {
+                    await startGlobalLtxGeneration(missingBase);
+                } else {
+                    await startGlobalPostprocess(unfinished.map((item) => item.id));
+                }
+                return;
+            }
             const blocked = missingBase.filter((item) => !(item.allowedActions?.start_composition || item.allowedActions?.retry_composition));
             if (blocked.length) {
                 showToast('部分选中任务暂不可生成', `有 ${blocked.length} 条正在运行或缺少图片，请调整选择后再试。`, 'warning');
