@@ -22,10 +22,15 @@ import threading
 import traceback
 import uuid
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 import zipfile
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import (
+    Body,
+    FastAPI,
+    HTTPException,
+    Request,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -35,20 +40,28 @@ from .audio_catalog import AudioCatalog, CombinedAudioCatalog
 from .asset_admin import AssetAdminCatalog
 from .browser_preview import BrowserPreviewError, browser_preview_path
 from .caption_alignment import FunASRCaptionAligner
-from .auth_center import AuthCenterClient, AuthCenterError, AuthHandoffStore
+from .auth_center import (
+    AuthCenterClient,
+    AuthCenterError,
+    AuthHandoffStore,
+    create_local_workbench_handoff,
+)
 from .admin_auth import AdminAuth
 from .draft_crypto import is_plain_json_file
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .music_matching import MusicProfileMatcher
 from .logging_config import log_event
+from .h3_handoff import H3HandoffError, import_h3_handoff
 from .project_store import ProjectRevisionConflict, ProjectStore
+from .user_templates import UserTemplateStore
 from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
 from .project_composition import (
     ProjectCompositionCoordinator,
     ProjectCompositionStartDispatcher,
 )
+from .project_h3 import ProjectH3Coordinator
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
 from .project_export_naming import (
@@ -70,6 +83,7 @@ from .project_video_source import project_segment_boundaries
 from .project_visual_analysis import ProjectVisualAnalysisCoordinator
 from .render_job import run_render_job
 from .runtime_paths import detect_jianying_draft_root, libraries_root, project_root, resource_path
+from .runtime_control import RuntimeControl
 from .semantic_visuals import load_semantic_visual_catalog
 from .unified_visual_plan import refresh_saved_visual_plans_for_catalog
 from .layout_profiles import (
@@ -176,6 +190,7 @@ class WebApiSettings:
     bootstrap_site_user: bool = True
     auth_server_url: str = "http://127.0.0.1:8000"
     shared_processor_url: str = ""
+    ltx_workbench_url: str = ""
     auth_authority: bool = False
     auth_timeout_seconds: int = 15
     asr_base_url: str = ""
@@ -1504,6 +1519,8 @@ def _is_admin_protected_path(path: str) -> bool:
 
 
 def _is_site_protected_path(path: str) -> bool:
+    if path.startswith("/api/runtime/pages"):
+        return False
     if path == "/app/new/login":
         return False
     if path in {
@@ -1515,9 +1532,12 @@ def _is_site_protected_path(path: str) -> bool:
         "/api/auth/logout",
         "/api/auth/session",
         "/api/auth/handoff",
+        "/api/auth/local-handoff",
         "/api/auth/center/login",
         "/api/auth/center/verify",
         "/api/auth/center/handoff",
+        "/api/runtime/status",
+        "/api/runtime/shutdown",
     }:
         return False
     if path.startswith("/api/agents/"):
@@ -1544,6 +1564,23 @@ def _safe_site_next(value: str) -> str:
         if _is_site_protected_path(candidate) and not _is_admin_protected_path(candidate):
             return candidate
     return "/app"
+
+
+def _safe_peer_next(value: str, *, fallback: str = "/") -> str:
+    candidate = value.strip()
+    if candidate.startswith("/") and not candidate.startswith("//"):
+        return candidate
+    return fallback
+
+
+def _workbench_environment(auth_server_url: str) -> str:
+    hostname = (urlparse(auth_server_url).hostname or "").lower()
+    return "local" if hostname in {"127.0.0.1", "localhost", "::1"} else "production"
+
+
+def _default_ltx_workbench_url(auth_server_url: str) -> str:
+    port = 8792 if _workbench_environment(auth_server_url) == "local" else 8791
+    return f"http://127.0.0.1:{port}"
 
 
 def default_settings() -> WebApiSettings:
@@ -1621,6 +1658,7 @@ def default_settings() -> WebApiSettings:
         shared_processor_url=os.environ.get(
             "JYD_SHARED_PROCESSOR_URL", ""
         ).strip(),
+        ltx_workbench_url=os.environ.get("JYD_LTX_WORKBENCH_URL", "").strip(),
         auth_authority=_as_bool(os.environ.get("JYD_AUTH_AUTHORITY", "false")),
         auth_timeout_seconds=_env_positive_int("JYD_AUTH_TIMEOUT_SECONDS", 15),
         asr_base_url=os.environ.get(
@@ -1639,6 +1677,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     settings = settings or default_settings()
     print(f"[JYD] 剪映草稿目录: {settings.default_draft_root}", flush=True)
     app = FastAPI(title="Jianying Render API", version="0.1.0")
+    runtime_control = RuntimeControl()
     semantic_visual_catalog = load_semantic_visual_catalog(
         SEMANTIC_VISUAL_LIBRARY_ROOT
     )
@@ -1690,6 +1729,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     )
     render_queue = RenderJobQueue(settings)
     project_store = ProjectStore(render_queue.store.path)
+    user_template_store = UserTemplateStore(
+        settings.storage_root / "user_templates",
+        libraries_root=LIBRARIES_ROOT,
+    )
     if project_store.startup_recovered_analysis_count:
         print(
             "[JYD] 已将 "
@@ -1748,8 +1791,36 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.auth_handoffs = auth_handoffs
     app.state.agent_token = agent_token
     app.state.project_store = project_store
+    app.state.user_template_store = user_template_store
     app.state.project_result_library = project_result_library
     app.state.composition_start_dispatcher = composition_start_dispatcher
+    app.state.runtime_control = runtime_control
+
+    @app.post("/api/runtime/pages")
+    def runtime_page_open() -> dict[str, str]:
+        return {"lease_id": runtime_control.open_page()}
+
+    @app.post("/api/runtime/pages/{lease_id}")
+    def runtime_page_heartbeat(lease_id: str) -> dict[str, bool]:
+        if not runtime_control.touch_page(lease_id):
+            raise HTTPException(status_code=404, detail="页面租约已失效")
+        return {"ok": True}
+
+    @app.post("/api/runtime/pages/{lease_id}/close")
+    def runtime_page_close(lease_id: str) -> dict[str, bool]:
+        runtime_control.close_page(lease_id)
+        return {"ok": True}
+
+    @app.get("/api/runtime/status")
+    def runtime_status() -> dict[str, object]:
+        return runtime_control.status()
+
+    @app.post("/api/runtime/shutdown")
+    def runtime_shutdown(request: Request) -> dict[str, bool]:
+        token = request.headers.get("x-workbench-manager-token", "")
+        if not runtime_control.request_shutdown(token):
+            raise HTTPException(status_code=403, detail="无权关闭工作台")
+        return {"ok": True}
 
     def is_managed_project_file(path: Path) -> bool:
         resolved = path.resolve()
@@ -1885,6 +1956,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def new_frontend_trailing_slash() -> RedirectResponse:
         return RedirectResponse("/app/new", status_code=303)
 
+    @app.get("/app/new/generate")
+    def new_generation_frontend() -> FileResponse:
+        return new_frontend_file("index.html")
+
     @app.get("/app/new/gallery")
     def new_gallery_frontend() -> FileResponse:
         return new_frontend_file("gallery.html")
@@ -1957,6 +2032,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             user = None
             center_online = False
         admin_authenticated = admin_auth.verify_token(request.cookies.get(admin_auth.cookie_name, ""))
+        workbench_environment = _workbench_environment(settings.auth_server_url)
         return {
             "authenticated": user is not None or admin_authenticated,
             "username": str(user.get("username", "")) if user else (admin_auth.username if admin_authenticated else ""),
@@ -1964,6 +2040,15 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "auth_authority": settings.auth_authority,
             "auth_server_url": settings.auth_server_url,
             "shared_processor_url": settings.shared_processor_url,
+            "ltx_workbench_url": settings.ltx_workbench_url
+            or _default_ltx_workbench_url(settings.auth_server_url),
+            "ltx_workbench_handoff_url": (
+                "/api/auth/handoff-to?target=ltx&next=%2F" if user else ""
+            ),
+            "workbench_environment": workbench_environment,
+            "workbench_environment_label": (
+                "本地测试" if workbench_environment == "local" else "生产环境"
+            ),
             "auth_center_online": center_online,
         }
 
@@ -1991,6 +2076,133 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "is_admin": user.get("is_admin") is True,
         }
 
+    @app.get("/api/new/jianying-templates")
+    def list_jianying_templates(request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        return {"templates": user_template_store.list(user["user_id"])}
+
+    @app.post("/api/new/jianying-templates", status_code=201)
+    def create_jianying_template(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return user_template_store.create(user["user_id"], str(payload.get("name") or ""))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/new/jianying-templates/{template_id}/draft-files")
+    async def upload_jianying_template_draft_file(
+        template_id: str, request: Request, path: str
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        content = await request.body()
+        if len(content) > settings.max_draft_import_bytes:
+            raise HTTPException(status_code=413, detail="单个草稿文件过大")
+        try:
+            return user_template_store.upload_draft_file(
+                user["user_id"], template_id, path, content
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/new/jianying-templates/{template_id}/analyze")
+    def analyze_jianying_template(template_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return user_template_store.analyze(user["user_id"], template_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/new/jianying-templates/{template_id}/resource-files")
+    async def upload_jianying_template_resource_file(
+        template_id: str,
+        request: Request,
+        resource_key: str,
+        path: str,
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        content = await request.body()
+        if len(content) > settings.max_draft_import_bytes:
+            raise HTTPException(status_code=413, detail="单个资源文件过大")
+        try:
+            return user_template_store.upload_resource_file(
+                user["user_id"], template_id, resource_key, path, content
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/new/jianying-templates/{template_id}/resources/complete")
+    def complete_jianying_template_resources(
+        template_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return user_template_store.complete_resources(user["user_id"], template_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.patch("/api/new/jianying-templates/{template_id}")
+    def rename_jianying_template(
+        template_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return user_template_store.rename(
+                user["user_id"], template_id, str(payload.get("name") or "")
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.delete("/api/new/jianying-templates/{template_id}")
+    def delete_jianying_template(template_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        projects = project_store.list_projects(user["user_id"], limit=10_000, offset=0)
+        for project in projects.get("projects", []):
+            binding = dict(project.get("settings") or {}).get("jianying_template")
+            if isinstance(binding, dict) and binding.get("template_id") == template_id:
+                raise HTTPException(status_code=409, detail="模板正在被项目使用，请先取消选择")
+        try:
+            user_template_store.delete(user["user_id"], template_id)
+            return {"ok": True}
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/jianying-template")
+    def select_project_jianying_template(
+        project_id: str, request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+            project_settings = dict(project.get("settings") or {})
+            template_id = str(payload.get("template_id") or "").strip()
+            if template_id:
+                binding = user_template_store.render_binding(user["user_id"], template_id)
+                project_settings["jianying_template"] = {
+                    "template_id": binding["template_id"],
+                    "name": binding["name"],
+                }
+            else:
+                project_settings.pop("jianying_template", None)
+            return project_store.update_project(
+                user["user_id"], project_id, settings=project_settings
+            )
+        except (KeyError, FileNotFoundError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.post("/api/new/projects", status_code=201)
     def create_new_project(
         request: Request, payload: dict[str, Any] = Body(...)
@@ -2009,6 +2221,24 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 ),
             )
         except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/import-h3-handoff", status_code=201)
+    def import_h3_project_handoff(
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        require_local_file_access(request)
+        user = current_project_user(request)
+        try:
+            return import_h3_handoff(
+                project_store,
+                owner_user_id=user["user_id"],
+                owner_username=user["username"],
+                project_name=str(payload.get("name") or "H3 自动后期项目"),
+                manifest_path=str(payload.get("manifest_path") or ""),
+            )
+        except H3HandoffError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/new/projects")
@@ -2817,6 +3047,362 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             max_video_bytes=settings.max_video_upload_bytes,
         )
 
+    def project_h3_coordinator(client: AuthCenterClient) -> ProjectH3Coordinator:
+        caption_aligner = (
+            FunASRCaptionAligner(
+                settings.asr_base_url,
+                timeout_seconds=settings.asr_timeout_seconds,
+                shared_token=settings.asr_shared_token,
+            )
+            if settings.asr_base_url
+            else None
+        )
+        return ProjectH3Coordinator(
+            project_store,
+            client,
+            storage_root=settings.storage_root,
+            max_video_bytes=settings.max_video_upload_bytes,
+            caption_aligner=caption_aligner,
+            require_precise_alignment=settings.asr_required,
+        )
+
+    @app.get("/api/new/h3/accounts")
+    def list_new_h3_accounts(request: Request) -> dict[str, Any]:
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).accounts(token)
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/h3/settings")
+    def update_new_project_h3_settings(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        image_ids = payload.get("identity_image_ids")
+        if not isinstance(image_ids, list):
+            raise HTTPException(
+                status_code=422, detail="identity_image_ids 必须是数组"
+            )
+        try:
+            return project_store.set_h3_configuration(
+                user["user_id"],
+                project_id,
+                identity_image_ids=image_ids,
+                defaults=(
+                    payload.get("defaults")
+                    if isinstance(payload.get("defaults"), dict)
+                    else {}
+                ),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.put("/api/new/projects/{project_id}/generation-mode")
+    def update_new_project_generation_mode(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.set_generation_mode(
+                user["user_id"], project_id, str(payload.get("mode") or "")
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.patch(
+        "/api/new/projects/{project_id}/items/{item_id}/h3/overrides"
+    )
+    def update_new_project_h3_item_overrides(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            return project_store.set_h3_item_overrides(
+                user["user_id"], project_id, item_id, payload
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/h3/reference-video",
+        status_code=201,
+    )
+    async def upload_new_project_h3_reference_video(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        filename: str = "",
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        content = await request.body()
+        if not content:
+            raise HTTPException(status_code=422, detail="H3 参考视频不能为空")
+        if len(content) > settings.max_video_upload_bytes:
+            raise HTTPException(status_code=413, detail="H3 参考视频超过大小限制")
+        safe_name = _safe_filename(
+            filename or request.headers.get("x-filename") or "reference.mp4"
+        )
+        if Path(safe_name).suffix.lower() not in {".mp4", ".mov", ".mkv", ".webm"}:
+            raise HTTPException(status_code=422, detail="H3 参考视频格式不支持")
+        directory = (
+            settings.storage_root
+            / "new_projects"
+            / project_id
+            / item_id
+            / "h3_reference"
+        )
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"{uuid.uuid4().hex}_{safe_name}"
+        target.write_bytes(content)
+        try:
+            return project_store.add_h3_reference_video(
+                owner_user_id=user["user_id"],
+                project_id=project_id,
+                item_id=item_id,
+                filename=safe_name,
+                managed_path=str(target),
+                metadata={
+                    "size_bytes": len(content),
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                },
+            )
+        except KeyError as exc:
+            _unlink_if_exists(target)
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ValueError as exc:
+            _unlink_if_exists(target)
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/h3/audio-review")
+    def review_new_project_h3_audio(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        item_ids = payload.get("item_ids")
+        if item_ids is not None and not isinstance(item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是数组")
+        try:
+            return project_h3_coordinator(client).approve_audio(
+                user["user_id"],
+                project_id,
+                token,
+                item_ids=item_ids,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/h3/prepare", status_code=201)
+    def prepare_new_project_h3(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        selected = payload.get("selected_account_ids")
+        if not isinstance(selected, list):
+            raise HTTPException(
+                status_code=422, detail="selected_account_ids 必须是数组"
+            )
+        item_ids = payload.get("item_ids")
+        if item_ids is not None and not isinstance(item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是数组")
+        try:
+            return project_h3_coordinator(client).prepare(
+                user["user_id"],
+                project_id,
+                token,
+                idempotency_key=str(payload.get("idempotency_key") or ""),
+                selected_account_ids=selected,
+                item_ids=item_ids,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/h3/confirm")
+    def confirm_new_project_h3(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(status_code=409, detail="请明确确认 H3 分段费用")
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).confirm(
+                user["user_id"], project_id, token
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/h3/status")
+    def sync_new_project_h3(
+        project_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).sync(
+                user["user_id"], project_id, token
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/h3/segments/{segment_id}/regeneration/prepare"
+    )
+    def prepare_new_project_h3_regeneration(
+        project_id: str, segment_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).prepare_regeneration(
+                user["user_id"], project_id, token, segment_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/h3/segments/{segment_id}/regeneration/confirm"
+    )
+    def confirm_new_project_h3_regeneration(
+        project_id: str,
+        segment_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        if payload.get("cost_confirmed") is not True:
+            raise HTTPException(status_code=409, detail="请明确确认 H3 级联重生成费用")
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).confirm_regeneration(
+                user["user_id"],
+                project_id,
+                token,
+                segment_id,
+                request_key=str(payload.get("request_key") or ""),
+                quote_token=str(payload.get("quote_token") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/h3/segments/{segment_id}/retry/prepare"
+    )
+    def prepare_new_project_h3_retry(
+        project_id: str, segment_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).prepare_retry(
+                user["user_id"], project_id, token, segment_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/h3/segments/{segment_id}/retry/confirm"
+    )
+    def confirm_new_project_h3_retry(
+        project_id: str,
+        segment_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).confirm_retry(
+                user["user_id"],
+                project_id,
+                token,
+                segment_id,
+                request_key=str(payload.get("request_key") or ""),
+                quote_token=str(payload.get("quote_token") or ""),
+                cost_confirmed=payload.get("cost_confirmed") is True,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post(
+        "/api/new/projects/{project_id}/h3/segments/{segment_id}/cancel"
+    )
+    def cancel_new_project_h3_segment(
+        project_id: str,
+        segment_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        try:
+            return project_h3_coordinator(client).cancel_segment(
+                user["user_id"],
+                project_id,
+                token,
+                segment_id,
+                request_key=str(payload.get("request_key") or ""),
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     default_subtitle_font_identity = "resource_id:7244518590332801592"
 
     def project_postprocess_resources() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2878,6 +3464,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             caption_aligner=caption_aligner,
             require_precise_alignment=settings.asr_required,
             semantic_visual_library_root=semantic_visual_catalog.root,
+            semantic_visual_catalog=semantic_visual_catalog,
         )
 
     def project_variant_coordinator() -> ProjectVariantCoordinator:
@@ -3695,6 +4282,19 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 if str(item.get("item_id") or "").strip()
             ]
             current_project = project_store.get_project(user["user_id"], project_id)
+            project_template = dict(current_project.get("settings") or {}).get(
+                "jianying_template"
+            )
+            trusted_template: dict[str, Any] | None = None
+            if isinstance(project_template, dict) and project_template.get("template_id"):
+                trusted_template = user_template_store.render_binding(
+                    user["user_id"], str(project_template["template_id"])
+                )
+            items = [dict(item) for item in items]
+            for item in items:
+                item.pop("jianying_template", None)
+                if trusted_template is not None:
+                    item["jianying_template"] = trusted_template
             requested_set = set(requested_item_ids)
             needs_seam_analysis = any(
                 str(item.get("item_id") or "") in requested_set
@@ -4520,6 +5120,30 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         set_site_token_cookie(response, access_token)
         return response
 
+    @app.post("/api/auth/local-handoff")
+    def create_local_auth_handoff(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        manager_token = request.headers.get("x-workbench-manager-token", "")
+        if not runtime_control.manager_authorized(manager_token):
+            raise HTTPException(status_code=403, detail="无权创建本地登录接力")
+        access_token = str(payload.get("access_token") or "").strip()
+        if not access_token:
+            raise HTTPException(status_code=422, detail="本地登录接力数据无效")
+        return {
+            "handoff_code": auth_handoffs.issue(access_token),
+            "expires_in": auth_handoffs.lifetime_seconds,
+        }
+
+    @app.get("/api/auth/local-handoff")
+    def accept_local_auth_handoff(code: str = "", next: str = "/app") -> Response:
+        access_token = auth_handoffs.consume(code)
+        if not access_token:
+            raise HTTPException(status_code=401, detail="本地登录接力码无效或已过期")
+        response = RedirectResponse(_safe_site_next(next), status_code=303)
+        set_site_token_cookie(response, access_token)
+        return response
+
     @app.get("/api/auth/handoff-to")
     def auth_handoff_to_target(request: Request, target: str = "", next: str = "/app") -> Response:
         if settings.auth_authority or auth_center is None:
@@ -4527,22 +5151,58 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         destinations = {
             "local": "http://127.0.0.1:8010",
             "shared": settings.shared_processor_url.rstrip("/"),
+            "ltx": (
+                settings.ltx_workbench_url
+                or _default_ltx_workbench_url(settings.auth_server_url)
+            ).rstrip("/"),
         }
         destination = destinations.get(target)
         if not destination:
             detail = "尚未设置其他工作台" if target == "shared" else "处理位置无效"
             raise HTTPException(status_code=400, detail=detail)
+        handoff_path = "/api/auth/handoff"
+        target_next = _safe_site_next(next)
+        if target == "ltx":
+            parsed_destination = urlparse(destination)
+            if (
+                parsed_destination.scheme not in {"http", "https"}
+                or not parsed_destination.netloc
+            ):
+                raise HTTPException(status_code=500, detail="对口型工作台地址配置无效")
+            destination = (
+                f"{parsed_destination.scheme}://{parsed_destination.netloc}"
+            )
+            handoff_path = "/api/session/handoff"
+            target_next = _safe_peer_next(next)
         current_origin = f"{request.url.scheme}://{request.url.netloc}".rstrip("/")
         if destination == current_origin:
             return RedirectResponse(_safe_site_next(next), status_code=303)
         access_token = request.cookies.get(site_auth.cookie_name, "")
+        if target == "ltx" and runtime_control.manager_token:
+            user = verify_site_token(access_token)
+            if user is None:
+                raise HTTPException(status_code=401, detail="当前登录已经失效，请重新登录")
+            try:
+                code = create_local_workbench_handoff(
+                    destination,
+                    runtime_control.manager_token,
+                    {"access_token": access_token, "user": user},
+                    path="/api/session/local-handoff",
+                )
+                redirect_url = (
+                    f"{destination}/api/session/local-handoff"
+                    f"?code={quote(code, safe='')}&next={quote(target_next, safe='/')}"
+                )
+                return RedirectResponse(redirect_url, status_code=303)
+            except AuthCenterError:
+                pass
         try:
             code = auth_center.create_handoff(access_token)
         except AuthCenterError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         redirect_url = (
-            f"{destination}/api/auth/handoff"
-            f"?code={quote(code, safe='')}&next={quote(_safe_site_next(next), safe='/')}"
+            f"{destination}{handoff_path}"
+            f"?code={quote(code, safe='')}&next={quote(target_next, safe='/')}"
         )
         return RedirectResponse(redirect_url, status_code=303)
 

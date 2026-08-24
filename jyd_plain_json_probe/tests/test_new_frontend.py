@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import os
 import shutil
 import sys
 import unittest
@@ -18,6 +19,59 @@ from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
 class NewFrontendTest(unittest.TestCase):
+    def test_h3_row_override_markup_uses_existing_escape_helper(self) -> None:
+        page = (PROJECT_ROOT / "apps" / "processor" / "frontend" / "new" / "index.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("escapeAttr(", page)
+        self.assertIn("escapeHtml(values.megapixels ?? '')", page)
+
+    def test_h3_reference_video_upload_keeps_unicode_filename_out_of_headers(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("filename=${encodeURIComponent(file.name)}", page)
+        self.assertNotIn("'X-Filename': file.name", page)
+
+    def test_h3_confirmation_uses_the_current_generation_tail(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("0.1 秒仅扩大生成窗口", page)
+        self.assertNotIn("0.5 秒仅扩大生成窗口", page)
+
+    def test_workspace_is_split_into_audio_and_generation_pages(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('href="/app/new" data-workspace-nav="audio"', page)
+        self.assertIn('href="/app/new/generate" data-workspace-nav="generate"', page)
+        self.assertIn('dataset.workspacePage', page)
+        self.assertIn('audio-page-only', page)
+        self.assertIn('generation-page-only', page)
+
+    def test_header_switch_opens_same_environment_ltx_in_new_tab(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('id="ltx-workbench-link"', page)
+        self.assertIn('target="_blank"', page)
+        self.assertIn('rel="noopener noreferrer"', page)
+        self.assertNotIn(
+            'class="hidden xl:flex items-center gap-1 ml-5',
+            page,
+        )
+        self.assertIn("session.ltx_workbench_url", page)
+        self.assertIn("session.ltx_workbench_handoff_url", page)
+        self.assertIn("session.workbench_environment_label", page)
+
+    def test_workbench_pages_report_runtime_leases(self) -> None:
+        runtime_script = (
+            PROJECT_ROOT / "apps" / "processor" / "frontend" / "workbench-runtime.js"
+        ).read_text(encoding="utf-8")
+        self.assertIn("/api/runtime/pages", runtime_script)
+        self.assertIn('window.addEventListener("pagehide"', runtime_script)
+        for name in ("index.html", "login.html", "gallery.html", "voice-library.html"):
+            page = (FRONTEND_ROOT / name).read_text(encoding="utf-8")
+            self.assertIn("/app-static/workbench-runtime.js", page, name)
+
     def setUp(self) -> None:
         self.root = (
             PROJECT_ROOT / "runtime" / "test_tmp" / f"new_frontend_{uuid.uuid4().hex}"
@@ -31,6 +85,7 @@ class NewFrontendTest(unittest.TestCase):
             admin_session_secret="admin-secret",
             auth_authority=False,
             auth_server_url="http://127.0.0.1:8000",
+            ltx_workbench_url="http://127.0.0.1:8792",
             execution_mode="agent",
         )
         for directory in (
@@ -40,6 +95,44 @@ class NewFrontendTest(unittest.TestCase):
             self.settings.audio_library_root,
         ):
             directory.mkdir(parents=True, exist_ok=True)
+
+    def test_runtime_page_lease_and_manager_shutdown_require_token(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"PUBLIC_WORKBENCH_MANAGER_TOKEN": "manager-secret"},
+        ):
+            with TestClient(create_app(self.settings)) as client:
+                self.assertEqual(
+                    client.get("/api/runtime/status").json()["active_pages"],
+                    0,
+                )
+                opened = client.post("/api/runtime/pages")
+                self.assertEqual(opened.status_code, 200)
+                lease_id = opened.json()["lease_id"]
+                status = client.get("/api/runtime/status").json()
+                self.assertEqual(status["active_pages"], 1)
+                self.assertTrue(status["seen_page"])
+                self.assertEqual(
+                    client.post(f"/api/runtime/pages/{lease_id}").status_code,
+                    200,
+                )
+                self.assertEqual(
+                    client.post(f"/api/runtime/pages/{lease_id}/close").status_code,
+                    200,
+                )
+                self.assertEqual(
+                    client.get("/api/runtime/status").json()["active_pages"],
+                    0,
+                )
+                self.assertEqual(client.post("/api/runtime/shutdown").status_code, 403)
+                accepted = client.post(
+                    "/api/runtime/shutdown",
+                    headers={"X-Workbench-Manager-Token": "manager-secret"},
+                )
+                self.assertEqual(accepted.status_code, 200)
+                self.assertTrue(
+                    client.get("/api/runtime/status").json()["shutdown_requested"]
+                )
 
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
@@ -180,9 +273,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("生成结果", html)
         self.assertIn("--table-header-accent: #818cf8", html)
         self.assertIn("--table-header-accent: #2dd4bf", html)
-        self.assertEqual(html.count('scope="col" class="table-header-input'), 12)
+        self.assertEqual(html.count('scope="col" class="table-header-input'), 13)
         self.assertEqual(html.count('scope="col" class="table-header-output'), 3)
-        self.assertIn('colspan="15"', html)
+        self.assertIn('colspan="16"', html)
         self.assertLess(html.index(">画面</th>"), html.index(">姿态</th>"))
         self.assertLess(html.index(">姿态</th>"), html.index(">背景音乐</th>"))
         self.assertIn("handleRowLayoutProfileChange", html)
@@ -327,6 +420,10 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/audio/generate", workspace)
         self.assertIn("/audio/status", workspace)
         self.assertIn("digital-human-resolution", workspace)
+        self.assertIn('<option value="loop_anchor">首尾同图（默认）</option>', workspace)
+        self.assertIn('id="h3-tail-seconds" type="number" min="0" max="1" step="0.1" value="0.1"', workspace)
+        self.assertIn("continuity_mode: document.getElementById('h3-continuity').value || 'loop_anchor'", workspace)
+        self.assertIn("generation_tail_seconds: Number(document.getElementById('h3-tail-seconds').value || 0.1)", workspace)
         self.assertIn('type="number" min="1" step="1" value="1024"', workspace)
         self.assertNotIn('<option value="2048">', workspace)
         self.assertIn("/digital-human-settings", workspace)
@@ -401,6 +498,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("continueFinalGenerationAfterComposition", workspace)
         self.assertIn("setFinalGenerationPhase('composition')", workspace)
         self.assertIn("startGlobalPostprocess()", workspace)
+        self.assertIn("/h3/overrides", workspace)
+        self.assertIn("高级覆盖（可选）", workspace)
+        self.assertIn("completedTargets.map(item => item.id)", workspace)
         final_flow = workspace[
             workspace.index("async function startGlobalFinalVideoGeneration()") :
             workspace.index("async function retryFailedCompositionItems()")
@@ -662,7 +762,12 @@ class NewFrontendTest(unittest.TestCase):
 
     def test_new_pages_require_login_but_login_and_logo_are_public(self) -> None:
         with TestClient(create_app(self.settings)) as client:
-            for path in ("/app/new", "/app/new/gallery", "/app/new/voices"):
+            for path in (
+                "/app/new",
+                "/app/new/generate",
+                "/app/new/gallery",
+                "/app/new/voices",
+            ):
                 response = client.get(path, follow_redirects=False)
                 self.assertEqual(response.status_code, 303, path)
                 self.assertEqual(
@@ -727,6 +832,7 @@ class NewFrontendTest(unittest.TestCase):
 
                 expected_files = {
                     "/app/new": "index.html",
+                    "/app/new/generate": "index.html",
                     "/app/new/gallery": "gallery.html",
                     "/app/new/voices": "voice-library.html",
                 }
@@ -746,6 +852,9 @@ class NewFrontendTest(unittest.TestCase):
                 session = client.get("/api/auth/session")
                 self.assertTrue(session.json()["authenticated"])
                 self.assertEqual(session.json()["username"], "tester")
+                self.assertEqual(session.json()["ltx_workbench_url"], "http://127.0.0.1:8792")
+                self.assertEqual(session.json()["workbench_environment"], "local")
+                self.assertEqual(session.json()["workbench_environment_label"], "本地测试")
 
                 logout = client.post("/api/auth/logout")
                 self.assertEqual(logout.status_code, 200)

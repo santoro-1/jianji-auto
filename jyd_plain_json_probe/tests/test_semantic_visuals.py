@@ -510,6 +510,9 @@ def test_v3_exact_video_precedes_video_l2_fallback(tmp_path: Path) -> None:
                 "phrase_char_start": 0,
                 "phrase_char_end": 9,
                 "phrase_text": "保持日常轻活动。",
+                "usage": "seam_broll",
+                "direct_concept_ids": ["activity.light_daily"],
+                "segment_boundary_us": 2_000_000,
             }
         ],
         decisions=[
@@ -517,7 +520,8 @@ def test_v3_exact_video_precedes_video_l2_fallback(tmp_path: Path) -> None:
                 "candidate_id": candidate["candidate_id"],
                 "decision": "SHOW",
                 "concept_id": "activity.light_daily",
-                "priority": 1,
+                "priority": 2,
+                "usage": "seam_broll",
                 "confidence": 0.95,
                 "reason_code": "LITERAL_CONCRETE_OBJECT",
             }
@@ -1302,6 +1306,9 @@ def test_enrichment_uses_video_level_asset_deduplication() -> None:
             "start_us": start_us,
             "duration_us": 1_800_000,
             "usage": "enrichment",
+            "direct_concept_ids": [
+                candidate["allowed_concepts"][0]["concept_id"]
+            ],
         }
         for candidate, start_us in zip(
             candidates,
@@ -1346,7 +1353,7 @@ def test_enrichment_uses_video_level_asset_deduplication() -> None:
     assert too_early["overlays"] == []
 
 
-def test_enrichment_prefers_direct_apple_video_over_model_editorial_pool() -> None:
+def test_enrichment_does_not_replace_editorial_choice_with_direct_apple() -> None:
     catalog = _catalog()
     candidate = {
         "candidate_id": "ve_exact_apple",
@@ -1383,12 +1390,10 @@ def test_enrichment_prefers_direct_apple_video_over_model_editorial_pool() -> No
         media_policy="mixed",
     )
 
-    overlay = recipe["overlays"][0]
-    assert overlay["concept_id"] == "food.apple"
-    assert "food.apple" in catalog.asset(overlay["asset_id"])["concept_ids"]
+    assert recipe["overlays"] == []
 
 
-def test_missing_seam_decision_uses_editorial_candidate_instead_of_next_cake() -> None:
+def test_missing_seam_decision_keeps_original_transition_without_fallback() -> None:
     catalog = _catalog_with_editorial_broll()
     seam = {
         "candidate_id": "vs_boundary_editorial",
@@ -1441,12 +1446,9 @@ def test_missing_seam_decision_uses_editorial_candidate_instead_of_next_cake() -
         final_video_duration_us=10_000_000,
     )
 
-    seam_overlay = next(
-        overlay for overlay in recipe["overlays"] if overlay["usage"] == "seam_broll"
+    assert all(
+        overlay.get("usage") != "seam_broll" for overlay in recipe["overlays"]
     )
-    assert seam_overlay["concept_id"] == "editorial.mood_atmosphere"
-    assert seam_overlay["reason_code"] == "LOCAL_EDITORIAL_SEAM_FALLBACK"
-    assert seam_overlay["asset_id"] != "review.u0006.video.59499a298d"
 
 
 def test_cake_video_is_not_eligible_for_seam_broll() -> None:
@@ -2348,6 +2350,9 @@ def test_segment_boundary_uses_corresponding_unused_seam_broll(tmp_path: Path) -
                 "start_us": 1_000_000,
                 "duration_us": 800_000,
                 "video_duration_us": 5_000_000,
+                "usage": "seam_broll",
+                "direct_concept_ids": ["food.beef"],
+                "segment_boundary_us": 1_000_000,
             }
         ],
         decisions=[
@@ -2355,6 +2360,7 @@ def test_segment_boundary_uses_corresponding_unused_seam_broll(tmp_path: Path) -
                 "candidate_id": candidate["candidate_id"],
                 "decision": "SHOW",
                 "concept_id": "food.beef",
+                "usage": "seam_broll",
                 "confidence": 1.0,
             }
         ],

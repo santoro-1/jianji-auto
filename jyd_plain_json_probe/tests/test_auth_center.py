@@ -15,7 +15,11 @@ from fastapi.testclient import TestClient
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from jyd_probe.auth_center import AuthCenterClient, AuthCenterError  # noqa: E402
+from jyd_probe.auth_center import (  # noqa: E402
+    AuthCenterClient,
+    AuthCenterError,
+    create_local_workbench_handoff,
+)
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
@@ -67,6 +71,30 @@ class AuthCenterTest(unittest.TestCase):
             )
         self.assertEqual(result["access_token"], "center-token")
         self.assertEqual(result["user"]["username"], "tester")
+
+    def test_local_workbench_handoff_uses_manager_secret(self) -> None:
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response({"handoff_code": "local-code", "expires_in": 60}),
+        ) as request_mock:
+            code = create_local_workbench_handoff(
+                "http://127.0.0.1:8791",
+                "manager-secret",
+                {
+                    "access_token": "center-token",
+                    "user": {"username": "tester"},
+                },
+                path="/api/session/local-handoff",
+            )
+        request = request_mock.call_args.args[0]
+        self.assertEqual(code, "local-code")
+        self.assertEqual(
+            request.headers["X-workbench-manager-token"], "manager-secret"
+        )
+        self.assertEqual(
+            json.loads(request.data.decode("utf-8"))["access_token"],
+            "center-token",
+        )
 
     def test_content_analysis_forwards_one_exact_script_with_long_timeout(self) -> None:
         payload = {"overall_status": "SUCCESS"}
@@ -219,6 +247,7 @@ class AuthCenterTest(unittest.TestCase):
             auth_authority=False,
             auth_server_url="https://auth.lanyingjk01.com",
             shared_processor_url="http://192.168.11.28:8000",
+            ltx_workbench_url="http://127.0.0.1:8791",
             execution_mode="agent",
         )
         for directory in (
@@ -294,7 +323,8 @@ class AuthCenterTest(unittest.TestCase):
                 "jyd_probe.auth_center.AuthCenterClient.consume_handoff",
                 return_value={"access_token": "center-token", "user": user},
             ):
-                with TestClient(create_app(settings)) as client:
+                app = create_app(settings)
+                with TestClient(app) as client:
                     client.post(
                         "/api/auth/login",
                         json={"username": "tester", "password": "pass123", "next": "/app"},
@@ -310,6 +340,33 @@ class AuthCenterTest(unittest.TestCase):
                         )
                     )
 
+                    to_ltx = client.get(
+                        "/api/auth/handoff-to?target=ltx&next=/",
+                        follow_redirects=False,
+                    )
+                    self.assertEqual(to_ltx.status_code, 303)
+                    self.assertEqual(
+                        to_ltx.headers["location"],
+                        "http://127.0.0.1:8791/api/session/handoff"
+                        "?code=one-time-code&next=/",
+                    )
+
+                    app.state.runtime_control.manager_token = "manager-secret"
+                    with patch(
+                        "jyd_probe.web_api.create_local_workbench_handoff",
+                        return_value="local-code",
+                    ):
+                        to_local_ltx = client.get(
+                            "/api/auth/handoff-to?target=ltx&next=/",
+                            follow_redirects=False,
+                        )
+                    self.assertEqual(to_local_ltx.status_code, 303)
+                    self.assertEqual(
+                        to_local_ltx.headers["location"],
+                        "http://127.0.0.1:8791/api/session/local-handoff"
+                        "?code=local-code&next=/",
+                    )
+
                     accepted = client.get(
                         "/api/auth/handoff?code=one-time-code&next=/app",
                         follow_redirects=False,
@@ -317,6 +374,63 @@ class AuthCenterTest(unittest.TestCase):
                     self.assertEqual(accepted.status_code, 303)
                     self.assertEqual(accepted.headers["location"], "/app")
                     self.assertIn("jyd_site_session=center-token", accepted.headers["set-cookie"])
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_local_handoff_endpoint_is_manager_only_and_one_time(self) -> None:
+        root = PROJECT_ROOT / "runtime" / "test_tmp" / f"local_handoff_{uuid.uuid4().hex}"
+        root.mkdir(parents=True)
+        settings = WebApiSettings(
+            storage_root=root / "storage",
+            template_library_root=root / "templates",
+            default_draft_root=root / "drafts",
+            audio_library_root=root / "audio",
+            admin_password="admin-pass",
+            admin_session_secret="admin-secret",
+            auth_authority=False,
+            auth_server_url="https://auth.lanyingjk01.com",
+            execution_mode="agent",
+        )
+        for directory in (
+            settings.storage_root,
+            settings.template_library_root,
+            settings.default_draft_root,
+            settings.audio_library_root,
+        ):
+            directory.mkdir(parents=True, exist_ok=True)
+        try:
+            app = create_app(settings)
+            app.state.runtime_control.manager_token = "manager-secret"
+            with TestClient(app) as client:
+                payload = {
+                    "access_token": "center-token",
+                    "user": {"username": "tester"},
+                }
+                self.assertEqual(
+                    client.post("/api/auth/local-handoff", json=payload).status_code,
+                    403,
+                )
+                created = client.post(
+                    "/api/auth/local-handoff",
+                    json=payload,
+                    headers={"X-Workbench-Manager-Token": "manager-secret"},
+                )
+                self.assertEqual(created.status_code, 200)
+                code = created.json()["handoff_code"]
+                accepted = client.get(
+                    f"/api/auth/local-handoff?code={code}&next=/app/new/generate",
+                    follow_redirects=False,
+                )
+                self.assertEqual(accepted.status_code, 303)
+                self.assertEqual(accepted.headers["location"], "/app/new/generate")
+                self.assertIn(
+                    "jyd_site_session=center-token", accepted.headers["set-cookie"]
+                )
+                reused = client.get(
+                    f"/api/auth/local-handoff?code={code}&next=/app",
+                    follow_redirects=False,
+                )
+                self.assertEqual(reused.status_code, 401)
         finally:
             shutil.rmtree(root, ignore_errors=True)
 

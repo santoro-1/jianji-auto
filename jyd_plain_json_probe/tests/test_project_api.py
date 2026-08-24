@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from jyd_probe.project_store import ProjectStore  # noqa: E402
+from jyd_probe.project_store import PROJECT_SCHEMA_VERSION, ProjectStore  # noqa: E402
 from jyd_probe.task_store import SQLiteTaskStore  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
@@ -577,7 +577,7 @@ class ProjectApiTest(unittest.TestCase):
                 "SELECT value FROM project_schema_meta WHERE key='version'"
             ).fetchone()[0]
         self.assertEqual(render_schema_version, "1")
-        self.assertEqual(project_schema_version, "10")
+        self.assertEqual(project_schema_version, str(PROJECT_SCHEMA_VERSION))
 
     def test_operations_are_idempotent_and_external_links_are_preserved(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")

@@ -4,7 +4,10 @@ from pathlib import Path
 from typing import Any
 
 from jyd_probe.project_store import ProjectStore
-from jyd_probe.project_visual_analysis import ProjectVisualAnalysisCoordinator
+from jyd_probe.project_visual_analysis import (
+    ProjectVisualAnalysisCoordinator,
+    _is_strong_automatic_broll_decision,
+)
 from jyd_probe.semantic_visuals import load_semantic_visual_catalog
 
 
@@ -78,6 +81,38 @@ def _project(tmp_path: Path, script: str) -> tuple[ProjectStore, dict[str, Any]]
         },
     )
     return store, store.get_project("user-1", project["project_id"])
+
+
+def test_automatic_broll_gate_rejects_editorial_and_non_direct_matches() -> None:
+    candidate = {
+        "candidate_id": "vs_1",
+        "direct_concept_ids": ["food.apple"],
+    }
+    strong = {
+        "candidate_id": "vs_1",
+        "decision": "SHOW",
+        "concept_id": "food.apple",
+        "usage": "literal",
+        "confidence": 0.96,
+        "reason_code": "MATCH_EXACT_OBJECT",
+    }
+
+    assert _is_strong_automatic_broll_decision(strong, candidate) is True
+    assert _is_strong_automatic_broll_decision(
+        {
+            **strong,
+            "concept_id": "editorial.mood_atmosphere",
+            "usage": "editorial_context",
+            "reason_code": "MATCH_EDITORIAL_CONTEXT",
+        },
+        candidate,
+    ) is False
+    assert _is_strong_automatic_broll_decision(
+        {**strong, "concept_id": "activity.walk"}, candidate
+    ) is False
+    assert _is_strong_automatic_broll_decision(
+        {**strong, "confidence": 0.89}, candidate
+    ) is False
 
 
 def test_analysis_builds_recipe_from_cloud_context_and_local_time(tmp_path: Path) -> None:

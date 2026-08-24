@@ -188,6 +188,10 @@ python -m pip install pytest
   -ExecutionMode embedded
 ```
 
+该正式源码入口默认连接 `https://video.lanyingjk01.com`，并与生产对口型入口
+`http://127.0.0.1:8791` 成对。需要显式联调其他数字人服务或对口型地址时，使用
+`-DigitalHumanServerUrl` 和 `-LtxWorkbenchUrl` 参数覆盖，不要把正式入口写到测试端口。
+
 访问：
 
 ```text
@@ -450,6 +454,13 @@ data/template_library/<template_id>/
 - `/api/new/projects/{id}/voice`：原子地把已保存音色设为项目默认值并应用到全部脚本行。
 - `/api/new/projects/{id}/items/{item_id}/voice`：覆盖单个脚本行的音色。
 - `/api/new/projects/{id}/audio*`：项目声音生成、状态同步、单行重试、试听和下载。
+- `/api/new/h3/accounts`：读取安全 H3 执行账号摘要。
+- `/api/new/projects/{id}/h3/settings`：H3 批次人物图与默认参数。
+- `/api/new/projects/{id}/items/{item_id}/h3/reference-video`：逐行参考视频素材版本。
+- `/api/new/projects/{id}/items/{item_id}/h3/overrides`：逐行 H3 差异参数。
+- `/api/new/projects/{id}/h3/audio-review`：显式审核所选 MiniMax 音频，不触发 H3 费用。
+- `/api/new/projects/{id}/h3/prepare|confirm|status`：所选行 H3 费用快照、确认和结果回填；
+  `/h3/segments/*` 提供段级重试、主动重生成、取消和下载。
 - `/api/new/projects/{id}/composition*`：4A 画面启动、真实状态同步和失败阶段重试。
 - `/api/new/projects/{id}/items/{item_id}/base-video`：下载当前标准化基础视频。
 - `/api/new/postprocess/options`：返回实际可读的真实字体和现有 BGM 素材。
@@ -458,9 +469,19 @@ data/template_library/<template_id>/
 - `GET/POST /api/new/projects/{id}/items/{item_id}/current-video`：下载当前视频或上传本地视频并切换版本。
 - `GET /api/new/projects/{id}/videos/download`：一次性 ZIP 下载项目所有未变体当前成片。
 - `/api/new/projects/{id}/items/{item_id}/original-materials`：下载单个原始片段或包含顺序清单的多片段 ZIP。
+- `POST /api/new/projects/import-h3-handoff`：新交接导入 `h3.jyd_handoff.v2`，历史读取兼容 v1。
+  v2 必须声明完整 H3 原生音画母版、`separate_h3_generated_audio` 分轨策略、H3 权威音频和
+  `h3_segment_windows_then_funasr` 字幕来源。交接编号检查和项目、H3 权威音频、H3 分段字幕
+  窗口、静音 `base_video`、外部关联写入必须位于同一个 `BEGIN IMMEDIATE` 事务；相同账号和
+  `handoff_id` 的并发请求返回同一项目，任何中途异常整体回滚。输入 MiniMax 音频/raw cues
+  只保留 provenance，不能进入 v2 最终播放时间线。
+- 4B Coordinator 复用 `create_app()` 启动时已校验并计算摘要的语义视觉 catalog；生成、预览和
+  导出不得对整套媒体重复做 SHA-256。素材 catalog 更新后通过重启服务加载新快照。
 
-新版浏览器入口为 `/app/new`，成果库为 `/app/new/gallery`，声音中心为
-`/app/new/voices`。三页均受普通站点会话保护；公开的 `/app/new/login` 调用现有
+新版浏览器把同一项目拆成两个主工作页：`/app/new` 负责脚本导入、声音生成、试听与审核，
+`/app/new/generate` 负责图片、逐行参考视频、画面参数、生成状态和结果检查。两页复用同一
+`index.html` 和项目 API，以路径选择显示职责，不复制前端状态或数据库记录。成果库为
+`/app/new/gallery`，声音中心为 `/app/new/voices`。这些页面均受普通站点会话保护；公开的 `/app/new/login` 调用现有
 `/api/auth/login`，由工作台后端向数字人账号中心验证账号并把令牌保存在 HTTP-only
 Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/api/auth/logout`
 退出，不得读取或保存数字人访问令牌。
@@ -477,6 +498,19 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 保存全部成功原始分段及标准化 `base_video`，并按真实后端状态驱动页面。
 它不添加字幕/BGM、不创建最终 `composition_video`，也不生成变体。音频完成后到 4A
 启动前，图片仍可替换；4A 上传的永远是提交时的当前图片。
+
+H3 画面链由 `project_h3.py` 单独编排，入口位于 `/app/new/generate`。它只消费调用时显式
+选择的 `item_ids`：读取每行最新且 `provider_status=SUCCESS` 的 MiniMax 历史音频（即使当前
+播放音频已经是上一版 H3 权威音频），上传该行冻结参考视频和项目有序 0～4 张人物图，再把
+批次默认参数及 `settings.h3.overrides` 交给云端。`AWAITING_REVIEW` 必须先走
+`h3/audio-review`；`h3/confirm` 不得改写声音审核。云端成功后，`project_h3_media.py` 保留并
+合并每段 H3 原生音画、归零时间戳、拆出静音基础视频和 H3 权威音频，并以实际分段窗口调用
+FunASR；回填只更新原 `ProjectItem`。未选行不继承批次状态，前端自动后期也只提交当前
+`remote_batch_id` 对应且已回填的行。换人物图/批次参数使项目 H3 画面失效，换行级覆盖或
+参考视频只使该行失效；待确认、排队或运行期间一律禁止修改输入或用新幂等键重复准备。
+新配置默认 `continuity_mode=loop_anchor`、`generation_tail_seconds=0.1`。`loop_anchor` 至少需要
+1 张有序人物图；第一张由云端固定映射为 `<Picture 1>` 并同时描述为每段首帧和尾帧，不得沿用
+普通多图模式把参考视频抽帧插到第一槽。`fast` 与 `soft_chain` 仍是合法行级覆盖。
 项目分辨率变更使既有基础视频失效时，`project_composition.py` 检测
 `DIGITAL_HUMAN_RESOLUTION_CHANGED`。已有云端数字人源片段的行只调用
 `AuthCenterClient.backfill_workbench_video_enhancement()`，不上传图片、不调用数字人启动接口；
@@ -976,13 +1010,13 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   同一素材同时带 `seam_broll` 和其他用途时仍可用于拼接点。v2 继续兼容
   `空镜/相关素材/b-roll/enrichment` tags。v3 的
   `semantic_roles.related` 是非自动关系，不能作为空镜开关。锚点输入显式携带
-  `usage=enrichment/seam_broll` 和所在短语上下文；直接强相关返回 priority 2，同场景、动作或
-  类别下自然且不误导的宽相关允许 priority 1 自动使用，priority 0 只供审核。通用空镜由
+  `usage=enrichment/seam_broll` 和所在短语上下文；自动空镜必须是脚本直接召回的同一具体对象、
+  动作或明确场景并返回 priority 2。priority 1、编辑型氛围及分类宽回退只供审核。通用空镜由
   `VISUAL_BROLL_TARGET_INTERVAL_SECONDS=10` 控制约每 10 秒一次的目标尝试；
   本地在目标点附近只提交确有获准素材支撑的相关短句，普通空镜之间仍至少留 6 秒空窗；接缝
   空镜不重置这个间隔。该值是
   尝试间隔而非配额，匹配不到即保留数字人口播。普通全屏空镜先于显式小窗占位；本地按精确
-  动作/对象、同类场景或分类回退、编辑型空镜池依次选材，存在精确视频时拒绝宽泛编辑池。
+  动作、对象或明确场景的直接概念选材，不再自动进入编辑型空镜池或宽分类回退。
   首轮显式语义和通用空镜仍在统一内容分析的一次模型调用内完成；数字人真实分段尚未生成，
   因此接缝候选不能在首轮可靠产生。
 - `project_video_source.py` 从当前 `source_task_ids` 绑定的最新原始数字人分段读取下一段脚本，并用
@@ -991,8 +1025,9 @@ Collector 和 Render Agent 是两个不同角色。Collector 在线只表示网�
   冻结配方前自动调用一次轻量视觉接口，只提交新增的
   `seam_broll` 候选，不重跑音乐、标题、字幕或普通空镜，也不覆盖首轮视觉方案。候选集合摘要
   成功落盘后重复 4B 不再请求；旧多段项目重刷 4B 会自动补齐。候选上下文固定为上一段末句加
-  下一段首句，不得向下一段后续句子扩张；云端在专用连接处空镜池内允许自然且不误导的弱匹配，
-  仍须拒绝无关或误导素材。4B 在 ASR/raw cues
+  下一段首句，不得向下一段后续句子扩张；云端只允许 `direct_concept_ids` 中同一具体对象、动作
+  或明确场景的强匹配。本地同时拒绝编辑型原因码、低于 0.90 的置信度和非直接概念；没有通过时
+  不再生成任何本地氛围兜底。4B 在 ASR/raw cues
   已就绪后的本地重映射阶段把边界传给统一配方。接缝有对应未用视频时生成覆盖真实边界前后各
   0.5 秒的 `seam_broll`，否则不新增 overlay；底层 `video_sequence` 和 250ms 溶解始终
   保留。补分析失败或没有达到语义门槛时继续 4B 并保留原溶解。配方先登记手工项，再按接缝、

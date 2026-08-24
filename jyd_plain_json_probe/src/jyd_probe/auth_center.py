@@ -18,6 +18,57 @@ class AuthCenterError(RuntimeError):
         self.status_code = status_code
 
 
+def create_local_workbench_handoff(
+    base_url: str,
+    manager_token: str,
+    login_payload: dict[str, Any],
+    *,
+    path: str,
+    timeout_seconds: float = 4.0,
+) -> str:
+    """Create a one-time ticket on the other bundled local service."""
+
+    normalized = str(base_url or "").strip().rstrip("/")
+    parsed = urlsplit(normalized)
+    if parsed.scheme not in {"http", "https"} or parsed.hostname not in {
+        "127.0.0.1",
+        "localhost",
+        "::1",
+    }:
+        raise AuthCenterError("本地工作台地址无效", status_code=500)
+    token = str(manager_token or "").strip()
+    access_token = str(login_payload.get("access_token") or "").strip()
+    user = login_payload.get("user")
+    if not token or not access_token or not isinstance(user, dict):
+        raise AuthCenterError("本地登录接力数据无效", status_code=401)
+    request = Request(
+        f"{normalized}{path}",
+        data=json.dumps(
+            {"access_token": access_token, "user": user}, ensure_ascii=False
+        ).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
+            "X-Workbench-Manager-Token": token,
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=max(1.0, float(timeout_seconds))) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise AuthCenterError(
+            f"本地工作台登录接力失败（HTTP {exc.code}）",
+            status_code=exc.code,
+        ) from exc
+    except (URLError, TimeoutError, OSError, ValueError) as exc:
+        raise AuthCenterError("本地工作台登录接力失败") from exc
+    code = str(payload.get("handoff_code") or "") if isinstance(payload, dict) else ""
+    if not code:
+        raise AuthCenterError("本地工作台没有返回登录接力码")
+    return code
+
+
 class AuthHandoffStore:
     """Short-lived, one-time tickets for moving a browser session between hosts."""
 
@@ -360,6 +411,111 @@ class AuthCenterClient:
             ],
         )
 
+    def list_h3_execution_accounts(self, token: str) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/h3-execution-accounts",
+            {"access_token": token},
+        )
+
+    def approve_h3_audio_source(
+        self,
+        token: str,
+        *,
+        audio_batch_id: str,
+        audio_item_id: str,
+        audio_generation_version: int,
+    ) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/h3-audio-sources/approve",
+            {
+                "access_token": token,
+                "audio_batch_id": audio_batch_id,
+                "audio_item_id": audio_item_id,
+                "audio_generation_version": int(audio_generation_version),
+            },
+        )
+
+    def prepare_h3_batch(self, token: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/h3-batches/prepare",
+            {"access_token": token, **payload},
+            timeout_seconds=360.0,
+        )
+
+    def confirm_h3_batch(self, token: str, batch_id: str) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-batches/{batch_id}/confirm",
+            {"access_token": token, "cost_confirmed": True},
+            timeout_seconds=120.0,
+        )
+
+    def get_h3_batch(self, token: str, batch_id: str) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-batches/{batch_id}",
+            {"access_token": token},
+        )
+
+    def prepare_h3_segment_regeneration(
+        self, token: str, segment_id: str
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-segments/{segment_id}/regeneration/prepare",
+            {"access_token": token},
+        )
+
+    def confirm_h3_segment_regeneration(
+        self,
+        token: str,
+        segment_id: str,
+        *,
+        request_key: str,
+        quote_token: str,
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-segments/{segment_id}/regeneration/confirm",
+            {
+                "access_token": token,
+                "request_key": request_key,
+                "quote_token": quote_token,
+                "cost_confirmed": True,
+            },
+        )
+
+    def prepare_h3_segment_retry(
+        self, token: str, segment_id: str
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-segments/{segment_id}/retry/prepare",
+            {"access_token": token},
+        )
+
+    def confirm_h3_segment_retry(
+        self,
+        token: str,
+        segment_id: str,
+        *,
+        request_key: str,
+        quote_token: str,
+        cost_confirmed: bool,
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-segments/{segment_id}/retry/confirm",
+            {
+                "access_token": token,
+                "request_key": request_key,
+                "quote_token": quote_token,
+                "cost_confirmed": bool(cost_confirmed),
+            },
+        )
+
+    def cancel_h3_segment(
+        self, token: str, segment_id: str, *, request_key: str
+    ) -> dict[str, Any]:
+        return self._post(
+            f"/api/workbench/h3-segments/{segment_id}/cancel",
+            {"access_token": token, "request_key": request_key},
+        )
+
     def create_workbench_audio_batch(
         self, token: str, payload: dict[str, Any]
     ) -> dict[str, Any]:
@@ -476,6 +632,26 @@ class AuthCenterClient:
             max_bytes=max_bytes,
             timeout_seconds=300.0,
             failure_message="下载基础视频失败",
+        )
+
+    def download_h3_segment_video(
+        self,
+        token: str,
+        segment_id: str,
+        target: Path,
+        *,
+        max_bytes: int,
+    ) -> int:
+        clean_segment_id = str(segment_id or "").strip()
+        if not clean_segment_id:
+            raise ValueError("H3 分段编号不能为空")
+        return self._download(
+            f"/api/workbench/h3-segments/{clean_segment_id}/video",
+            token,
+            target,
+            max_bytes=max_bytes,
+            timeout_seconds=300.0,
+            failure_message="下载 H3 标准化分段失败",
         )
 
     def _download(

@@ -20,6 +20,7 @@ jyd_plain_json_probe/dist/
 jyd_plain_json_probe/release/
 jyd_plain_json_probe/.packaged-test-state/
 jyd_plain_json_probe/.processor-test-state/
+jyd_plain_json_probe/.codex_tmp/
 jyd_plain_json_probe/dev_artifacts/
 jyd_plain_json_probe/runtime/
 
@@ -52,6 +53,7 @@ jyd_plain_json_probe/.pytest_codex_*/
 jyd_plain_json_probe/data/libraries/audio_library/files/
 jyd_plain_json_probe/data/libraries/audio_library/metadata/
 jyd_plain_json_probe/data/libraries/audio_library/files.zip
+jyd_plain_json_probe/data/libraries.zip
 jyd_plain_json_probe/data/libraries/semantic_visual_library/bundles/
 jyd_plain_json_probe/data/libraries/semantic_visual_library/videos/
 

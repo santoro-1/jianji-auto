@@ -1,0 +1,714 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+from typing import Any, Callable
+
+from .auth_center import AuthCenterClient
+from .caption_alignment import CaptionAlignmentError
+from .project_h3_media import H3MediaAssets, prepare_h3_media
+from .project_store import ProjectStore
+
+
+H3_MODE = "minimax_h3_ref2va"
+
+
+class ProjectH3Coordinator:
+    """Bind the cloud H3 quote/confirm lifecycle to an existing JYD project."""
+
+    def __init__(
+        self,
+        store: ProjectStore,
+        client: AuthCenterClient,
+        *,
+        storage_root: Path | None = None,
+        max_video_bytes: int = 2 * 1024 * 1024 * 1024,
+        caption_aligner: Any = None,
+        require_precise_alignment: bool = False,
+        media_preparer: Callable[..., H3MediaAssets] = prepare_h3_media,
+    ):
+        self.store = store
+        self.client = client
+        self.storage_root = (
+            Path(storage_root).resolve() if storage_root is not None else None
+        )
+        self.max_video_bytes = int(max_video_bytes)
+        self.caption_aligner = caption_aligner
+        self.require_precise_alignment = bool(require_precise_alignment)
+        self.media_preparer = media_preparer
+
+    def accounts(self, token: str) -> dict[str, Any]:
+        return self.client.list_h3_execution_accounts(token)
+
+    @staticmethod
+    def _h3_settings(project: dict[str, Any]) -> dict[str, Any]:
+        settings = (
+            project.get("settings")
+            if isinstance(project.get("settings"), dict)
+            else {}
+        )
+        h3 = settings.get("h3") if isinstance(settings.get("h3"), dict) else {}
+        if settings.get("generation_mode") != H3_MODE:
+            raise ValueError("请先把项目生成方式切换为 MiniMax H3")
+        return h3
+
+    @staticmethod
+    def _target_items(
+        project: dict[str, Any], item_ids: list[str] | None
+    ) -> list[dict[str, Any]]:
+        items = [value for value in project.get("items", []) if isinstance(value, dict)]
+        if item_ids is None:
+            return items
+        clean_ids = [str(value or "").strip() for value in item_ids]
+        if not clean_ids or any(not value for value in clean_ids):
+            raise ValueError("H3 至少需要选择一条脚本")
+        if len(set(clean_ids)) != len(clean_ids):
+            raise ValueError("H3 脚本选择不能重复")
+        by_id = {str(item.get("item_id") or ""): item for item in items}
+        missing = [value for value in clean_ids if value not in by_id]
+        if missing:
+            raise ValueError("H3 选择中包含不属于当前项目的脚本")
+        return [by_id[value] for value in clean_ids]
+
+    @staticmethod
+    def _latest_minimax_audio(item: dict[str, Any]) -> dict[str, Any] | None:
+        history = item.get("asset_history", {}).get("audio", [])
+        candidates = [
+            value
+            for value in history
+            if isinstance(value, dict)
+            and value.get("source_type") == "minimax"
+            and value.get("status") == "READY"
+        ]
+        return candidates[-1] if candidates else None
+
+    def approve_audio(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        item_ids: list[str] | None,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        self._h3_settings(project)
+        targets = self._target_items(project, item_ids)
+        reviewed: list[str] = []
+        for item in targets:
+            audio = self._latest_minimax_audio(item)
+            if audio is None:
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行还没有可审核的 MiniMax 完整音频"
+                )
+            audio_ref = audio.get("external_ref", {})
+            if not audio_ref.get("batch_id") or not audio_ref.get("remote_item_id"):
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行 MiniMax 声音缺少云端版本信息"
+                )
+            result = self.client.approve_h3_audio_source(
+                token,
+                audio_batch_id=str(audio_ref["batch_id"]),
+                audio_item_id=str(audio_ref["remote_item_id"]),
+                audio_generation_version=int(audio_ref.get("generation_version") or 1),
+            )
+            if str(result.get("status") or "").upper() != "SUCCESS":
+                raise ValueError(f"第 {item.get('row_key')} 行声音审核未成功")
+            self.store.mark_h3_audio_reviewed(
+                owner_user_id,
+                project_id,
+                str(item["item_id"]),
+                asset_id=str(audio["asset_id"]),
+                reviewed_at=str(result.get("reviewed_at") or ""),
+            )
+            reviewed.append(str(item["item_id"]))
+        return {
+            "project": self.store.get_project(owner_user_id, project_id),
+            "reviewed_item_ids": reviewed,
+        }
+
+    def prepare(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        idempotency_key: str,
+        selected_account_ids: list[int],
+        item_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        clean_key = str(idempotency_key or "").strip()
+        if not clean_key:
+            raise ValueError("H3 费用预览幂等键不能为空")
+        if (
+            not selected_account_ids
+            or any(
+                type(value) is not int or value <= 0
+                for value in selected_account_ids
+            )
+            or len(set(selected_account_ids)) != len(selected_account_ids)
+        ):
+            raise ValueError("请选择有效且不重复的 H3 执行账号")
+        project = self.store.get_project(owner_user_id, project_id)
+        h3 = self._h3_settings(project)
+        target_items = self._target_items(project, item_ids)
+        if h3.get("prepare_key") == clean_key and h3.get("remote_batch_id"):
+            snapshot = self.client.get_h3_batch(
+                token, str(h3["remote_batch_id"])
+            )
+            project = self.store.set_h3_batch_snapshot(
+                owner_user_id,
+                project_id,
+                prepare_key=clean_key,
+                snapshot=snapshot,
+            )
+            return {"project": project, "h3_batch": snapshot}
+        if str(h3.get("remote_status") or "").upper() in {
+            "AWAITING_COST_CONFIRMATION",
+            "ACTIVE",
+            "QUEUED",
+            "RUNNING",
+        }:
+            raise ValueError(
+                "当前 H3 批次尚未结束，不能用新的幂等键重复计算或提交"
+            )
+
+        image_by_id = {
+            str(value.get("image_id")): value
+            for value in project.get("input_images", [])
+            if isinstance(value, dict)
+        }
+        cloud_images: list[str] = []
+        for image_id in h3.get("identity_image_ids") or []:
+            image = image_by_id.get(str(image_id))
+            if image is None:
+                raise ValueError("H3 人物参考图已经不存在，请重新选择")
+            path = Path(str(image.get("managed_path") or ""))
+            if not path.is_file():
+                raise ValueError(
+                    f"H3 人物参考图文件不存在: {image.get('filename') or image_id}"
+                )
+            uploaded = self.client.upload_workbench_batch_asset(
+                token,
+                path,
+                kind="image",
+                filename=str(image.get("filename") or path.name),
+            )
+            asset_id = str(uploaded.get("asset_id") or "").strip()
+            if not asset_id:
+                raise ValueError("数字人网站没有返回 H3 人物图素材编号")
+            cloud_images.append(asset_id)
+
+        rows: list[dict[str, Any]] = []
+        for item in target_items:
+            audio = self._latest_minimax_audio(item)
+            audio_ref = (
+                audio.get("external_ref", {}) if isinstance(audio, dict) else {}
+            )
+            if not audio_ref.get("batch_id") or not audio_ref.get("remote_item_id"):
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行还没有可复用的 MiniMax 完整音频"
+                )
+            provider_status = str(audio.get("metadata", {}).get("provider_status") or "")
+            if provider_status != "SUCCESS":
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行 MiniMax 声音尚未审核，请先试听并审核所选声音"
+                )
+            reference = item.get("inputs", {}).get("h3_reference_video")
+            if not isinstance(reference, dict):
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行尚未绑定 H3 参考视频"
+                )
+            path = Path(str(reference.get("managed_path") or ""))
+            if not path.is_file():
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行 H3 参考视频文件不存在"
+                )
+            uploaded = self.client.upload_workbench_batch_asset(
+                token,
+                path,
+                kind="video",
+                filename=str(reference.get("filename") or path.name),
+            )
+            video_asset_id = str(uploaded.get("asset_id") or "").strip()
+            if not video_asset_id:
+                raise ValueError("数字人网站没有返回 H3 参考视频素材编号")
+            item_settings = (
+                item.get("settings")
+                if isinstance(item.get("settings"), dict)
+                else {}
+            )
+            item_h3 = (
+                item_settings.get("h3")
+                if isinstance(item_settings.get("h3"), dict)
+                else {}
+            )
+            row: dict[str, Any] = {
+                "row_id": str(item.get("row_key") or item.get("item_id")),
+                "script_text": str(item.get("script_text") or ""),
+                "video_asset_id": video_asset_id,
+                "audio_batch_id": str(audio_ref["batch_id"]),
+                "audio_item_id": str(audio_ref["remote_item_id"]),
+                "audio_generation_version": int(
+                    audio_ref.get("generation_version") or 1
+                ),
+            }
+            overrides = (
+                item_h3.get("overrides")
+                if isinstance(item_h3.get("overrides"), dict)
+                else {}
+            )
+            if overrides:
+                row["overrides"] = overrides
+            rows.append(row)
+
+        defaults = (
+            h3.get("defaults") if isinstance(h3.get("defaults"), dict) else {}
+        )
+        snapshot = self.client.prepare_h3_batch(
+            token,
+            {
+                "name": str(project.get("name") or "JYD H3 批次"),
+                "request_key": clean_key,
+                "reference_image_asset_ids": cloud_images,
+                "selected_account_ids": selected_account_ids,
+                "defaults": {
+                    "continuity_mode": defaults.get(
+                        "continuity_mode", "loop_anchor"
+                    ),
+                    "generation_tail_seconds": defaults.get(
+                        "generation_tail_seconds", 0.1
+                    ),
+                    "resolution": {
+                        "aspect_ratio": defaults.get(
+                            "aspect_ratio", "9:16 (Portrait Widescreen)"
+                        ),
+                        "megapixels": defaults.get("megapixels", 1.0),
+                        "multiple": 32,
+                    },
+                },
+                "rows": rows,
+            },
+        )
+        batch_id = str(snapshot.get("batch_id") or "").strip()
+        if not batch_id:
+            raise ValueError("数字人网站没有返回 H3 批次编号")
+        self.store.add_link(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            system="runninghub_h3",
+            relation="generation_batch",
+            external_id=batch_id,
+            metadata={"prepare_key": clean_key},
+        )
+        project = self.store.set_h3_batch_snapshot(
+            owner_user_id,
+            project_id,
+            prepare_key=clean_key,
+            snapshot=snapshot,
+        )
+        return {"project": project, "h3_batch": snapshot}
+
+    def confirm(
+        self, owner_user_id: str, project_id: str, token: str
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        h3 = self._h3_settings(project)
+        batch_id = str(h3.get("remote_batch_id") or "")
+        if not batch_id:
+            raise ValueError("请先计算 H3 分段与费用")
+        snapshot = self.client.confirm_h3_batch(token, batch_id)
+        project = self.store.set_h3_batch_snapshot(
+            owner_user_id,
+            project_id,
+            prepare_key=str(h3.get("prepare_key") or ""),
+            snapshot=snapshot,
+        )
+        return {"project": project, "h3_batch": snapshot}
+
+    @staticmethod
+    def _require_project_segment(
+        project: dict[str, Any], segment_id: str
+    ) -> dict[str, Any]:
+        clean_id = str(segment_id or "").strip()
+        for item in project.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            h3 = item.get("settings", {}).get("h3", {})
+            for segment in h3.get("segments", []) if isinstance(h3, dict) else []:
+                if (
+                    isinstance(segment, dict)
+                    and str(segment.get("segment_id") or "") == clean_id
+                ):
+                    return segment
+        raise KeyError("H3 分段不属于当前项目或已失效")
+
+    def prepare_regeneration(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        segment_id: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        self._h3_settings(project)
+        self._require_project_segment(project, segment_id)
+        return self.client.prepare_h3_segment_regeneration(token, segment_id)
+
+    def confirm_regeneration(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        segment_id: str,
+        *,
+        request_key: str,
+        quote_token: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        h3 = self._h3_settings(project)
+        self._require_project_segment(project, segment_id)
+        snapshot = self.client.confirm_h3_segment_regeneration(
+            token,
+            segment_id,
+            request_key=str(request_key or "").strip(),
+            quote_token=str(quote_token or "").strip(),
+        )
+        project = self.store.set_h3_batch_snapshot(
+            owner_user_id,
+            project_id,
+            prepare_key=str(h3.get("prepare_key") or ""),
+            snapshot=snapshot,
+        )
+        return {"project": project, "h3_batch": snapshot}
+
+    def prepare_retry(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        segment_id: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        self._h3_settings(project)
+        self._require_project_segment(project, segment_id)
+        return self.client.prepare_h3_segment_retry(token, segment_id)
+
+    def confirm_retry(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        segment_id: str,
+        *,
+        request_key: str,
+        quote_token: str,
+        cost_confirmed: bool,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        h3 = self._h3_settings(project)
+        self._require_project_segment(project, segment_id)
+        snapshot = self.client.confirm_h3_segment_retry(
+            token,
+            segment_id,
+            request_key=str(request_key or "").strip(),
+            quote_token=str(quote_token or "").strip(),
+            cost_confirmed=cost_confirmed,
+        )
+        project = self.store.set_h3_batch_snapshot(
+            owner_user_id,
+            project_id,
+            prepare_key=str(h3.get("prepare_key") or ""),
+            snapshot=snapshot,
+        )
+        return {"project": project, "h3_batch": snapshot}
+
+    def cancel_segment(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        segment_id: str,
+        *,
+        request_key: str,
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        h3 = self._h3_settings(project)
+        self._require_project_segment(project, segment_id)
+        snapshot = self.client.cancel_h3_segment(
+            token, segment_id, request_key=str(request_key or "").strip()
+        )
+        project = self.store.set_h3_batch_snapshot(
+            owner_user_id,
+            project_id,
+            prepare_key=str(h3.get("prepare_key") or ""),
+            snapshot=snapshot,
+        )
+        return {"project": project, "h3_batch": snapshot}
+
+    def sync(
+        self, owner_user_id: str, project_id: str, token: str
+    ) -> dict[str, Any]:
+        project = self.store.get_project(owner_user_id, project_id)
+        h3 = self._h3_settings(project)
+        batch_id = str(h3.get("remote_batch_id") or "")
+        if not batch_id:
+            return {"project": project, "h3_batch": None}
+        snapshot = self.client.get_h3_batch(token, batch_id)
+        project = self.store.set_h3_batch_snapshot(
+            owner_user_id,
+            project_id,
+            prepare_key=str(h3.get("prepare_key") or ""),
+            snapshot=snapshot,
+        )
+        if self.storage_root is not None:
+            project = self._materialize_ready_items(
+                owner_user_id,
+                project_id,
+                token,
+                project=project,
+                snapshot=snapshot,
+            )
+        return {"project": project, "h3_batch": snapshot}
+
+    @staticmethod
+    def _segment_signature(segments: list[dict[str, Any]]) -> str:
+        payload = [
+            {
+                "segment_id": str(segment.get("segment_id") or ""),
+                "index": int(segment.get("index") or 0),
+                "video": str(segment.get("normalized_video_download_url") or ""),
+            }
+            for segment in segments
+        ]
+        return hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+    @staticmethod
+    def _ready_segments(remote_item: dict[str, Any]) -> list[dict[str, Any]] | None:
+        raw_segments = remote_item.get("segments")
+        if not isinstance(raw_segments, list) or not raw_segments:
+            return None
+        segments = [value for value in raw_segments if isinstance(value, dict)]
+        if len(segments) != len(raw_segments):
+            return None
+        try:
+            segments.sort(key=lambda value: int(value.get("index")))
+            indexes = [int(value.get("index")) for value in segments]
+        except (TypeError, ValueError):
+            return None
+        if indexes != list(range(len(segments))):
+            return None
+        for segment in segments:
+            if (
+                str(segment.get("status") or "").upper() != "SUCCESS"
+                or not str(segment.get("segment_id") or "").strip()
+                or not str(segment.get("normalized_video_download_url") or "").strip()
+                or not str(segment.get("script_text") or "").strip()
+            ):
+                return None
+        return segments
+
+    def _materialize_ready_items(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        project: dict[str, Any],
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        remote_by_row = {
+            str(value.get("row_id") or ""): value
+            for value in snapshot.get("items", [])
+            if isinstance(value, dict)
+        }
+        for item in project.get("items", []):
+            if not isinstance(item, dict):
+                continue
+            remote_item = remote_by_row.get(str(item.get("row_key") or ""))
+            if not isinstance(remote_item, dict):
+                continue
+            remote_item = {
+                "batch_id": snapshot.get("batch_id"),
+                **remote_item,
+            }
+            segments = self._ready_segments(remote_item)
+            if segments is None:
+                continue
+            self._materialize_item(
+                owner_user_id,
+                project_id,
+                token,
+                item=item,
+                remote_item=remote_item,
+                segments=segments,
+            )
+            project = self.store.get_project(owner_user_id, project_id)
+        return project
+
+    def _materialize_item(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        item: dict[str, Any],
+        remote_item: dict[str, Any],
+        segments: list[dict[str, Any]],
+    ) -> None:
+        signature = self._segment_signature(segments)
+        outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
+        current_audio = outputs.get("audio") if isinstance(outputs.get("audio"), dict) else {}
+        current_base = (
+            outputs.get("base_video")
+            if isinstance(outputs.get("base_video"), dict)
+            else {}
+        )
+        if (
+            current_audio.get("metadata", {}).get("h3_segment_signature") == signature
+            and current_base.get("metadata", {}).get("h3_segment_signature") == signature
+        ):
+            return
+        assert self.storage_root is not None
+        item_id = str(item["item_id"])
+        target_dir = (
+            self.storage_root
+            / "projects"
+            / str(owner_user_id)
+            / project_id
+            / item_id
+            / "h3"
+            / signature
+        )
+        segment_dir = target_dir / "segments"
+        segment_paths: list[Path] = []
+        for segment in segments:
+            index = int(segment["index"])
+            target = segment_dir / f"segment-{index + 1:03d}.mp4"
+            if not target.is_file() or target.stat().st_size <= 0:
+                temporary = target.with_suffix(".mp4.tmp")
+                try:
+                    self.client.download_h3_segment_video(
+                        token,
+                        str(segment["segment_id"]),
+                        temporary,
+                        max_bytes=self.max_video_bytes,
+                    )
+                    if not temporary.is_file() or temporary.stat().st_size <= 0:
+                        raise ValueError("数字人网站返回了空的 H3 分段视频")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    temporary.replace(target)
+                finally:
+                    temporary.unlink(missing_ok=True)
+            segment_paths.append(target)
+        assets = self.media_preparer(
+            segment_paths=segment_paths,
+            segment_texts=[str(value["script_text"]) for value in segments],
+            script_text=str(item.get("script_text") or ""),
+            target_dir=target_dir,
+        )
+        common_metadata = {
+            "h3_segment_signature": signature,
+            "remote_batch_id": remote_item.get("batch_id"),
+            "remote_item_id": remote_item.get("item_id"),
+            "source_segment_ids": [str(value["segment_id"]) for value in segments],
+            "authoritative_av": "h3_generated",
+        }
+        self.store.add_asset(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="h3_master_av",
+            source_type="h3",
+            status="READY",
+            filename=f"{item.get('row_key')}-H3原生成片.mp4",
+            managed_path=str(assets.master_av_path),
+            metadata=common_metadata,
+        )
+        audio = self.store.add_asset(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="audio",
+            source_type="h3",
+            status="READY",
+            filename=f"{item.get('row_key')}-H3权威音频.wav",
+            managed_path=str(assets.authoritative_audio_path),
+            external_ref={
+                "batch_id": remote_item.get("batch_id"),
+                "remote_item_id": remote_item.get("item_id"),
+                "generation_version": 1,
+            },
+            metadata=common_metadata,
+            make_current=True,
+        )
+        subtitles: dict[str, Any] = {
+            "source": "h3_generated_audio",
+            "raw_cues": [dict(value) for value in assets.raw_cues],
+            "render_cues": [dict(value) for value in assets.raw_cues],
+            "bound_audio_asset_id": audio["asset_id"],
+            "bound_video_asset_id": None,
+            "style": item.get("subtitles", {}).get("style", {}),
+            "status": "READY",
+            "overflow_risk": False,
+            "review_reason": None,
+        }
+        if self.caption_aligner is not None:
+            try:
+                subtitles["asr_alignment"] = self.caption_aligner.align(
+                    assets.authoritative_audio_path,
+                    script=str(item.get("script_text") or ""),
+                    raw_cues=assets.raw_cues,
+                    audio_asset_id=str(audio["asset_id"]),
+                    audio_version=audio.get("version"),
+                )
+            except CaptionAlignmentError as exc:
+                subtitles.update(
+                    {
+                        "status": "REVIEW_REQUIRED",
+                        "review_reason": str(exc),
+                        "asr_alignment": {
+                            "status": "FAILED",
+                            "reason_code": exc.code,
+                            "reason_summary": str(exc)[:500],
+                        },
+                    }
+                )
+        elif self.require_precise_alignment:
+            subtitles.update(
+                {
+                    "status": "REVIEW_REQUIRED",
+                    "review_reason": "当前音频尚未配置本地 ASR 精确字幕服务",
+                    "asr_alignment": {
+                        "status": "FAILED",
+                        "reason_code": "ASR_ALIGNMENT_REQUIRED",
+                        "reason_summary": "当前音频尚未配置本地 ASR 精确字幕服务",
+                    },
+                }
+            )
+        base = self.store.add_asset(
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="base_video",
+            source_type="h3",
+            status="READY",
+            filename=f"{item.get('row_key')}-H3静音底片.mp4",
+            managed_path=str(assets.silent_base_video_path),
+            metadata=common_metadata,
+            make_current=True,
+        )
+        subtitles["bound_video_asset_id"] = base["asset_id"]
+        self.store.set_item_subtitles(
+            owner_user_id,
+            project_id,
+            item_id,
+            subtitles,
+        )

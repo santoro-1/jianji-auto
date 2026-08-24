@@ -54,6 +54,7 @@ from .semantic_subtitles import (
     semantic_break_groups,
 )
 from .semantic_visuals import (
+    SemanticVisualCatalog,
     SemanticVisualCatalogError,
     fixed_nameplate_overlay,
     frozen_visual_overlays,
@@ -2134,6 +2135,7 @@ class ProjectPostprocessCoordinator:
         caption_aligner: Any | None = None,
         require_precise_alignment: bool = False,
         semantic_visual_library_root: Path | None = None,
+        semantic_visual_catalog: SemanticVisualCatalog | None = None,
     ) -> None:
         self.store = store
         self.render_queue = render_queue
@@ -2166,12 +2168,14 @@ class ProjectPostprocessCoordinator:
                 / "semantic_visual_library"
             )
         ).resolve()
-        try:
-            self.semantic_visual_catalog = load_semantic_visual_catalog(
-                self.semantic_visual_library_root
-            )
-        except SemanticVisualCatalogError:
-            self.semantic_visual_catalog = None
+        self.semantic_visual_catalog = semantic_visual_catalog
+        if self.semantic_visual_catalog is None:
+            try:
+                self.semantic_visual_catalog = load_semantic_visual_catalog(
+                    self.semantic_visual_library_root
+                )
+            except SemanticVisualCatalogError:
+                self.semantic_visual_catalog = None
 
     def _automatic_bgm_mix(
         self,
@@ -2306,7 +2310,9 @@ class ProjectPostprocessCoordinator:
                 bind_semantic_overlays_to_render_cues(
                     str(item.get("script_text") or ""),
                     frozen_visual_overlays(
-                        item, library_root=self.semantic_visual_library_root
+                        item,
+                        library_root=self.semantic_visual_library_root,
+                        catalog=self.semantic_visual_catalog,
                     ),
                     subtitles["render_cues"],
                     (
@@ -2619,6 +2625,7 @@ class ProjectPostprocessCoordinator:
                     else None
                 ),
                 bgm_loudness=dict(selected.get("bgm_mix") or {}),
+                jianying_template=dict(selected.get("jianying_template") or {}),
             )
             updated_project = self.store.set_item_subtitles(
                 owner_user_id, project_id, item["item_id"], subtitles

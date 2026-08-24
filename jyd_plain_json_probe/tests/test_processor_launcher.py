@@ -22,7 +22,13 @@ from apps.processor.processor_windows import (  # noqa: E402
 
 class ProcessorLauncherTest(unittest.TestCase):
     def test_standalone_launcher_opens_the_new_workspace_on_port_8010(self) -> None:
-        self.assertEqual(build_parser().parse_args([]).port, 8010)
+        default_args = build_parser().parse_args([])
+        self.assertEqual(default_args.port, 8010)
+        self.assertEqual(default_args.render_job, "")
+        self.assertEqual(
+            build_parser().parse_args(["--render-job", "job.json"]).render_job,
+            "job.json",
+        )
         self.assertEqual(_workspace_path("standalone"), "/app/new")
         self.assertEqual(_workspace_path("shared"), "/app")
 
@@ -43,6 +49,31 @@ class ProcessorLauncherTest(unittest.TestCase):
         )
         self.assertIn('apps" / "collector" / "frontend', processor_spec)
         self.assertIn('"tkinter.filedialog"', processor_spec)
+
+    def test_source_launchers_keep_production_and_test_workbenches_paired(self) -> None:
+        production = (PROJECT_ROOT / "start_processor.ps1").read_text(encoding="utf-8")
+        test = (PROJECT_ROOT / "start_test_processor.ps1").read_text(encoding="utf-8")
+
+        self.assertIn(
+            '[string]$DigitalHumanServerUrl = "https://video.lanyingjk01.com"',
+            production,
+        )
+        self.assertIn(
+            '[string]$LtxWorkbenchUrl = "http://127.0.0.1:8791"',
+            production,
+        )
+        self.assertNotIn(
+            '$env:JYD_LTX_WORKBENCH_URL = "http://127.0.0.1:8792"',
+            production,
+        )
+        self.assertIn(
+            '$env:JYD_AUTH_SERVER_URL = "http://127.0.0.1:8000"',
+            test,
+        )
+        self.assertIn(
+            '$env:JYD_LTX_WORKBENCH_URL = "http://127.0.0.1:8792"',
+            test,
+        )
 
     def test_reads_shared_config_written_with_utf8_bom(self) -> None:
         root = PROJECT_ROOT / "runtime" / "test_tmp" / f"processor_config_{uuid.uuid4().hex}"

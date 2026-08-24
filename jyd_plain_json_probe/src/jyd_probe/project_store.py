@@ -33,6 +33,10 @@ PROJECT_ITEM_STATUSES = {
     "AUDIO_RUNNING",
     "AUDIO_READY",
     "AUDIO_FAILED",
+    "H3_COST_PENDING",
+    "H3_QUEUED",
+    "H3_RUNNING",
+    "H3_FAILED",
     "COMPOSITION_QUEUED",
     "DIGITAL_HUMAN_RUNNING",
     "VIDEO_ENHANCING",
@@ -50,6 +54,8 @@ PROJECT_ITEM_STATUSES = {
 ACTIVE_ITEM_STATUSES = {
     "AUDIO_QUEUED",
     "AUDIO_RUNNING",
+    "H3_QUEUED",
+    "H3_RUNNING",
     "COMPOSITION_QUEUED",
     "DIGITAL_HUMAN_RUNNING",
     "VIDEO_ENHANCING",
@@ -64,6 +70,7 @@ IMAGE_EDITABLE_ITEM_STATUSES = EDITABLE_ITEM_STATUSES
 
 FAILED_ITEM_STATUSES = {
     "AUDIO_FAILED",
+    "H3_FAILED",
     "COMPOSITION_FAILED",
     "VARIANT_FAILED",
 }
@@ -1034,6 +1041,209 @@ class ProjectStore:
                 )
         return self.get_project(owner_id, project_id)
 
+    def import_h3_handoff_project(
+        self,
+        *,
+        owner_user_id: str,
+        owner_username: str,
+        project_name: str,
+        row_key: str,
+        script_text: str,
+        handoff_id: str,
+        audio_filename: str,
+        audio_managed_path: str,
+        audio_metadata: dict[str, Any],
+        base_video_filename: str,
+        base_video_managed_path: str,
+        base_video_metadata: dict[str, Any],
+        subtitles: dict[str, Any],
+        link_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Atomically import one immutable H3 handoff and deduplicate it per owner."""
+
+        owner_id = str(owner_user_id or "").strip()
+        if not owner_id:
+            raise ValueError("项目必须绑定有效账号")
+        clean_handoff_id = str(handoff_id or "").strip()
+        if not clean_handoff_id:
+            raise ValueError("H3 交接编号不能为空")
+        clean_row_key = _clean_row_key(row_key, 1)
+        clean_script = _clean_script(script_text)
+        clean_name = _clean_name(project_name)
+        clean_audio_filename = Path(str(audio_filename or "")).name.strip()
+        clean_audio_path = str(audio_managed_path or "").strip()
+        clean_video_filename = Path(str(base_video_filename or "")).name.strip()
+        clean_video_path = str(base_video_managed_path or "").strip()
+        if not all(
+            (
+                clean_audio_filename,
+                clean_audio_path,
+                clean_video_filename,
+                clean_video_path,
+            )
+        ):
+            raise ValueError("H3 交接音视频素材信息不完整")
+        if not all(
+            isinstance(value, dict)
+            for value in (
+                audio_metadata,
+                base_video_metadata,
+                subtitles,
+                link_metadata,
+            )
+        ):
+            raise ValueError("H3 交接元数据格式错误")
+
+        system = "h3_workbench"
+        relation = "imported_handoff"
+        project_id = uuid.uuid4().hex
+        item_id = uuid.uuid4().hex
+        audio_asset_id = uuid.uuid4().hex
+        base_video_asset_id = uuid.uuid4().hex
+        now = _now()
+        settings = {"source_workbench": "minimax_h3_ref2va"}
+        with self._transaction() as connection:
+            existing = connection.execute(
+                """
+                SELECT p.project_id
+                FROM project_links AS link
+                JOIN projects AS p ON p.project_id = link.project_id
+                WHERE p.owner_user_id=? AND link.system=?
+                  AND link.relation=? AND link.external_id=?
+                ORDER BY link.rowid DESC
+                LIMIT 1
+                """,
+                (owner_id, system, relation, clean_handoff_id),
+            ).fetchone()
+            if existing is not None:
+                return self._project_payload(connection, existing["project_id"])
+
+            project_no = self._next_project_no(connection)
+            connection.execute(
+                """
+                INSERT INTO projects(
+                    project_id, project_no, owner_user_id, owner_username,
+                    name, status, revision, settings_json, created_at, updated_at
+                ) VALUES(?, ?, ?, ?, ?, 'DRAFT', 1, ?, ?, ?)
+                """,
+                (
+                    project_id,
+                    project_no,
+                    owner_id,
+                    str(owner_username or "").strip()[:120],
+                    clean_name,
+                    _json(settings),
+                    now,
+                    now,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO project_items(
+                    item_id, project_id, row_key, position, script_text,
+                    status, subtitles_json, content_analysis_json, settings_json,
+                    created_at, updated_at
+                ) VALUES(?, ?, ?, 1, ?, 'DRAFT', ?, ?, ?, ?, ?)
+                """,
+                (
+                    item_id,
+                    project_id,
+                    clean_row_key,
+                    clean_script,
+                    _json(_default_subtitles()),
+                    _json(_default_content_analysis(clean_script)),
+                    _json(settings),
+                    now,
+                    now,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO project_assets(
+                    asset_id, project_id, item_id, asset_type, version,
+                    status, source_type, filename, managed_path,
+                    external_ref_json, metadata_json, created_at, updated_at
+                ) VALUES(?, ?, ?, 'audio', 1, 'READY', 'h3_handoff', ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    audio_asset_id,
+                    project_id,
+                    item_id,
+                    clean_audio_filename,
+                    clean_audio_path,
+                    _json({}),
+                    _json(audio_metadata),
+                    now,
+                    now,
+                ),
+            )
+            item = self._owned_item(connection, project_id, item_id)
+            self._set_current_asset(
+                connection,
+                item,
+                asset_id=audio_asset_id,
+                asset_type="audio",
+                source_type="h3_handoff",
+                asset_status="READY",
+                now=now,
+            )
+            bound_subtitles = dict(subtitles)
+            bound_subtitles["bound_audio_asset_id"] = audio_asset_id
+            connection.execute(
+                "UPDATE project_items SET subtitles_json=?, updated_at=? WHERE item_id=?",
+                (_json(bound_subtitles), now, item_id),
+            )
+            connection.execute(
+                """
+                INSERT INTO project_assets(
+                    asset_id, project_id, item_id, asset_type, version,
+                    status, source_type, filename, managed_path,
+                    external_ref_json, metadata_json, created_at, updated_at
+                ) VALUES(?, ?, ?, 'base_video', 1, 'READY', 'h3_handoff', ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    base_video_asset_id,
+                    project_id,
+                    item_id,
+                    clean_video_filename,
+                    clean_video_path,
+                    _json({}),
+                    _json(base_video_metadata),
+                    now,
+                    now,
+                ),
+            )
+            item = self._owned_item(connection, project_id, item_id)
+            self._set_current_asset(
+                connection,
+                item,
+                asset_id=base_video_asset_id,
+                asset_type="base_video",
+                source_type="h3_handoff",
+                asset_status="READY",
+                now=now,
+            )
+            connection.execute(
+                """
+                INSERT INTO project_links(
+                    link_id, project_id, item_id, system, relation,
+                    external_id, metadata_json, created_at
+                ) VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    uuid.uuid4().hex,
+                    project_id,
+                    item_id,
+                    system,
+                    relation,
+                    clean_handoff_id,
+                    _json(link_metadata),
+                    now,
+                ),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+            return self._project_payload(connection, project_id)
+
     def list_projects(
         self,
         owner_user_id: str,
@@ -1718,6 +1928,7 @@ class ProjectStore:
         layout_profile: str | None = None,
         automatic_bgm_volume: float | None = None,
         bgm_loudness: dict[str, Any] | None = None,
+        jianying_template: dict[str, Any] | None = None,
         force_invalidate: bool = False,
         preserve_auto_bgm: bool = False,
     ) -> dict[str, Any]:
@@ -1745,6 +1956,8 @@ class ProjectStore:
             raise ValueError("自动 BGM 音量必须在 0 到 1 之间")
         if bgm_loudness is not None and not isinstance(bgm_loudness, dict):
             raise ValueError("BGM 响度快照必须是对象")
+        if jianying_template is not None and not isinstance(jianying_template, dict):
+            raise ValueError("剪映模板绑定必须是对象")
         clean_layout_profile = (
             normalize_layout_profile(layout_profile)
             if layout_profile is not None
@@ -1818,6 +2031,11 @@ class ProjectStore:
                     "bgm_identity": None,
                     "reason_code": "WAITING_FOR_4B",
                 }
+            if jianying_template is not None:
+                if jianying_template:
+                    requested["jianying_template"] = dict(jianying_template)
+                else:
+                    requested.pop("jianying_template", None)
             if settings.get("postprocess") == requested and not force_invalidate:
                 return self.get_project(owner_user_id, project_id)
             settings["postprocess"] = requested
@@ -2775,6 +2993,504 @@ class ProjectStore:
                 """,
                 (_json(project_settings), now, project_id),
             )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_h3_configuration(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        identity_image_ids: list[str],
+        defaults: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Freeze project-level H3 inputs while retaining paid history."""
+
+        clean_ids = list(
+            dict.fromkeys(str(value or "").strip() for value in identity_image_ids)
+        )
+        clean_ids = [value for value in clean_ids if value]
+        if len(clean_ids) > 4:
+            raise ValueError("H3 人物参考图最多选择 4 张")
+        if not isinstance(defaults, dict):
+            raise ValueError("H3 默认参数必须是对象")
+        continuity = str(
+            defaults.get("continuity_mode") or "loop_anchor"
+        ).strip()
+        if continuity not in {"loop_anchor", "fast", "soft_chain"}:
+            raise ValueError("H3 衔接模式无效")
+        aspect = str(
+            defaults.get("aspect_ratio") or "9:16 (Portrait Widescreen)"
+        ).strip()
+        if aspect not in {
+            "9:16 (Portrait Widescreen)",
+            "16:9 (Widescreen)",
+        }:
+            raise ValueError("H3 画面比例无效")
+        try:
+            megapixels = float(defaults.get("megapixels", 1.0))
+            tail = float(defaults.get("generation_tail_seconds", 0.1))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("H3 清晰度或时长余量格式错误") from exc
+        if not 0.2 <= megapixels <= 2.0:
+            raise ValueError("H3 清晰度必须在 0.2–2.0 MP")
+        if not 0 <= tail <= 1:
+            raise ValueError("H3 时长余量必须在 0–1 秒")
+        normalized_defaults = {
+            "continuity_mode": continuity,
+            "aspect_ratio": aspect,
+            "megapixels": round(megapixels, 2),
+            "multiple": 32,
+            "generation_tail_seconds": round(tail, 3),
+        }
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            if clean_ids:
+                placeholders = ",".join("?" for _ in clean_ids)
+                found = {
+                    str(row["image_id"])
+                    for row in connection.execute(
+                        f"SELECT image_id FROM project_input_images "
+                        f"WHERE project_id=? AND image_id IN ({placeholders})",
+                        (project_id, *clean_ids),
+                    ).fetchall()
+                }
+                if found != set(clean_ids):
+                    raise KeyError("H3 人物参考图不存在")
+            settings = _object(project["settings_json"], {})
+            previous = (
+                settings.get("h3") if isinstance(settings.get("h3"), dict) else {}
+            )
+            current_contract = {
+                "identity_image_ids": list(previous.get("identity_image_ids") or []),
+                "defaults": dict(previous.get("defaults") or {}),
+            }
+            next_contract = {
+                "identity_image_ids": clean_ids,
+                "defaults": normalized_defaults,
+            }
+            if (
+                settings.get("generation_mode") == "minimax_h3_ref2va"
+                and current_contract == next_contract
+            ):
+                return self._project_payload(connection, project_id)
+            rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=?", (project_id,)
+            ).fetchall()
+            if any(str(row["status"]) in ACTIVE_ITEM_STATUSES for row in rows):
+                raise ValueError("H3 批次正在生成，完成后才能修改人物图或批次参数")
+            settings["generation_mode"] = "minimax_h3_ref2va"
+            settings["h3"] = {
+                "schema": "jyd.project-h3.v1",
+                **next_contract,
+                "config_version": int(previous.get("config_version") or 0) + 1,
+                "remote_batch_id": None,
+                "remote_status": None,
+                "fee_snapshot": None,
+                "prepare_key": None,
+            }
+            now = _now()
+            connection.execute(
+                "UPDATE projects SET settings_json=?, revision=revision+1, "
+                "updated_at=? WHERE project_id=?",
+                (_json(settings), now, project_id),
+            )
+            for item in rows:
+                item_settings = _object(item["settings_json"], {})
+                h3 = (
+                    item_settings.get("h3")
+                    if isinstance(item_settings.get("h3"), dict)
+                    else {}
+                )
+                item_settings["h3"] = {
+                    **h3,
+                    "remote_item_id": None,
+                    "remote_status": None,
+                    "invalidated_reason": "H3_PROJECT_INPUT_CHANGED",
+                }
+                subtitles = _object(item["subtitles_json"], _default_subtitles())
+                subtitles["render_cues"] = []
+                subtitles["bound_video_asset_id"] = None
+                subtitles["status"] = (
+                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+                )
+                next_status = (
+                    "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                )
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET current_base_video_asset_id=NULL, current_video_asset_id=NULL,
+                        subtitles_json=?, settings_json=?, status=?, updated_at=?
+                    WHERE item_id=?
+                    """,
+                    (
+                        _json(subtitles),
+                        _json(item_settings),
+                        next_status,
+                        now,
+                        item["item_id"],
+                    ),
+                )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_h3_item_overrides(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        overrides: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(overrides, dict):
+            raise ValueError("H3 行级覆盖必须是对象")
+        normalized: dict[str, Any] = {}
+        direction = str(overrides.get("user_direction") or "").strip()
+        if len(direction) > 1000:
+            raise ValueError("H3 本行补充方向不能超过 1000 字")
+        if direction:
+            normalized["user_direction"] = direction
+        continuity = str(overrides.get("continuity_mode") or "").strip()
+        if continuity:
+            if continuity not in {"loop_anchor", "fast", "soft_chain"}:
+                raise ValueError("H3 本行衔接模式无效")
+            normalized["continuity_mode"] = continuity
+        aspect = str(overrides.get("aspect_ratio") or "").strip()
+        if aspect:
+            if aspect not in {
+                "9:16 (Portrait Widescreen)",
+                "16:9 (Widescreen)",
+            }:
+                raise ValueError("H3 本行画面比例无效")
+            normalized["aspect_ratio"] = aspect
+        raw_mp = overrides.get("megapixels")
+        if raw_mp not in {None, ""}:
+            try:
+                megapixels = float(raw_mp)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("H3 本行清晰度格式错误") from exc
+            if not 0.2 <= megapixels <= 2.0:
+                raise ValueError("H3 本行清晰度必须在 0.2–2.0 MP")
+            normalized["megapixels"] = round(megapixels, 2)
+
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            item_settings = _object(item["settings_json"], {})
+            h3 = item_settings.get("h3") if isinstance(item_settings.get("h3"), dict) else {}
+            if dict(h3.get("overrides") or {}) == normalized:
+                return self._project_payload(connection, project_id)
+            project_settings = _object(project["settings_json"], {})
+            project_h3 = project_settings.get("h3") if isinstance(project_settings.get("h3"), dict) else {}
+            if str(project_h3.get("remote_status") or "").upper() in {
+                "ACTIVE", "QUEUED", "RUNNING"
+            }:
+                raise ValueError("H3 批次正在生成，完成后才能修改行级参数")
+            if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，不能修改 H3 行级参数")
+            item_settings["h3"] = {
+                **h3,
+                "overrides": normalized,
+                "remote_item_id": None,
+                "remote_status": None,
+                "invalidated_reason": "H3_ITEM_OVERRIDE_CHANGED",
+            }
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            subtitles["render_cues"] = []
+            subtitles["bound_video_asset_id"] = None
+            subtitles["status"] = "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+            now = _now()
+            next_status = "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+            connection.execute(
+                """
+                UPDATE project_items
+                SET current_base_video_asset_id=NULL, current_video_asset_id=NULL,
+                    subtitles_json=?, settings_json=?, status=?, updated_at=?
+                WHERE item_id=?
+                """,
+                (_json(subtitles), _json(item_settings), next_status, now, item_id),
+            )
+            project_settings["generation_mode"] = "minimax_h3_ref2va"
+            project_settings["h3"] = {
+                "schema": "jyd.project-h3.v1",
+                **project_h3,
+                "remote_batch_id": None,
+                "remote_status": None,
+                "fee_snapshot": None,
+                "prepare_key": None,
+            }
+            connection.execute(
+                "UPDATE projects SET settings_json=?, revision=revision+1, updated_at=? WHERE project_id=?",
+                (_json(project_settings), now, project_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_generation_mode(
+        self, owner_user_id: str, project_id: str, mode: str
+    ) -> dict[str, Any]:
+        clean_mode = str(mode or "").strip()
+        if clean_mode not in {"runninghub_digital_human", "minimax_h3_ref2va"}:
+            raise ValueError("画面生成方式无效")
+        if clean_mode == "minimax_h3_ref2va":
+            raise ValueError("切换 H3 时请同时保存 H3 参数")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=?", (project_id,)
+            ).fetchall()
+            if any(str(row["status"]) in ACTIVE_ITEM_STATUSES for row in rows):
+                raise ValueError("当前有任务正在生成，完成后才能切换画面生成方式")
+            settings = _object(project["settings_json"], {})
+            if settings.get("generation_mode") == clean_mode:
+                return self._project_payload(connection, project_id)
+            settings["generation_mode"] = clean_mode
+            now = _now()
+            connection.execute(
+                "UPDATE projects SET settings_json=?, revision=revision+1, updated_at=? "
+                "WHERE project_id=?",
+                (_json(settings), now, project_id),
+            )
+            for item in rows:
+                subtitles = _object(item["subtitles_json"], _default_subtitles())
+                subtitles["render_cues"] = []
+                subtitles["bound_video_asset_id"] = None
+                subtitles["status"] = (
+                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+                )
+                next_status = (
+                    "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                )
+                connection.execute(
+                    "UPDATE project_items SET current_base_video_asset_id=NULL, "
+                    "current_video_asset_id=NULL, subtitles_json=?, status=?, updated_at=? "
+                    "WHERE item_id=?",
+                    (_json(subtitles), next_status, now, item["item_id"]),
+                )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def add_h3_reference_video(
+        self,
+        *,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        filename: str,
+        managed_path: str,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Version one row reference video and invalidate H3/downstream only."""
+
+        clean_name = Path(str(filename or "")).name.strip()
+        clean_path = str(managed_path or "").strip()
+        if not clean_name or not clean_path:
+            raise ValueError("H3 参考视频信息不完整")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            project_settings = _object(project["settings_json"], {})
+            project_h3 = project_settings.get("h3") if isinstance(project_settings.get("h3"), dict) else {}
+            if str(project_h3.get("remote_status") or "").upper() in {
+                "ACTIVE", "QUEUED", "RUNNING"
+            }:
+                raise ValueError("H3 批次正在生成，完成后才能替换参考视频")
+            if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，不能替换 H3 参考视频")
+            version = int(
+                connection.execute(
+                    "SELECT COALESCE(MAX(version),0)+1 FROM project_assets "
+                    "WHERE item_id=? AND asset_type='h3_reference_video'",
+                    (item_id,),
+                ).fetchone()[0]
+            )
+            asset_id = uuid.uuid4().hex
+            now = _now()
+            connection.execute(
+                """
+                INSERT INTO project_assets(
+                    asset_id, project_id, item_id, asset_type, version,
+                    status, source_type, filename, managed_path,
+                    external_ref_json, metadata_json, created_at, updated_at
+                ) VALUES(?, ?, ?, 'h3_reference_video', ?, 'READY',
+                         'project_upload', ?, ?, '{}', ?, ?, ?)
+                """,
+                (
+                    asset_id,
+                    project_id,
+                    item_id,
+                    version,
+                    clean_name,
+                    clean_path,
+                    _json(metadata),
+                    now,
+                    now,
+                ),
+            )
+            item_settings = _object(item["settings_json"], {})
+            h3 = (
+                item_settings.get("h3")
+                if isinstance(item_settings.get("h3"), dict)
+                else {}
+            )
+            item_settings["h3"] = {
+                **h3,
+                "reference_video_asset_id": asset_id,
+                "reference_video_version": version,
+                "remote_item_id": None,
+                "remote_status": None,
+                "invalidated_reason": "H3_REFERENCE_VIDEO_CHANGED",
+            }
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            subtitles["render_cues"] = []
+            subtitles["bound_video_asset_id"] = None
+            subtitles["status"] = (
+                "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+            )
+            next_status = "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+            connection.execute(
+                """
+                UPDATE project_items
+                SET current_base_video_asset_id=NULL, current_video_asset_id=NULL,
+                    subtitles_json=?, settings_json=?, status=?, updated_at=?
+                WHERE item_id=?
+                """,
+                (_json(subtitles), _json(item_settings), next_status, now, item_id),
+            )
+            settings = project_settings
+            h3_project = project_h3
+            settings["generation_mode"] = "minimax_h3_ref2va"
+            settings["h3"] = {
+                "schema": "jyd.project-h3.v1",
+                **h3_project,
+                "remote_batch_id": None,
+                "remote_status": None,
+                "fee_snapshot": None,
+                "prepare_key": None,
+            }
+            connection.execute(
+                "UPDATE projects SET settings_json=?, revision=revision+1, "
+                "updated_at=? WHERE project_id=?",
+                (_json(settings), now, project_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def mark_h3_audio_reviewed(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        asset_id: str,
+        reviewed_at: str,
+    ) -> dict[str, Any]:
+        """Persist the explicit cloud review on the exact MiniMax audio asset."""
+
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            self._owned_item(connection, project_id, item_id)
+            row = connection.execute(
+                """
+                SELECT metadata_json FROM project_assets
+                WHERE asset_id=? AND project_id=? AND item_id=?
+                  AND asset_type='audio' AND source_type='minimax'
+                """,
+                (asset_id, project_id, item_id),
+            ).fetchone()
+            if row is None:
+                raise KeyError("MiniMax 声音素材不存在或已失效")
+            metadata = _object(row["metadata_json"], {})
+            metadata["provider_status"] = "SUCCESS"
+            metadata["h3_reviewed_at"] = str(reviewed_at or _now())
+            now = _now()
+            connection.execute(
+                "UPDATE project_assets SET metadata_json=?, updated_at=? WHERE asset_id=?",
+                (_json(metadata), now, asset_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
+    def set_h3_batch_snapshot(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        prepare_key: str,
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(snapshot, dict):
+            raise ValueError("H3 批次快照格式错误")
+        remote_batch_id = str(snapshot.get("batch_id") or "").strip()
+        if not remote_batch_id:
+            raise ValueError("H3 批次编号缺失")
+        remote_status = str(snapshot.get("status") or "").strip().upper()
+        remote_items = {
+            str(value.get("row_id") or ""): value
+            for value in snapshot.get("items", [])
+            if isinstance(value, dict)
+        }
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            settings = _object(project["settings_json"], {})
+            h3 = settings.get("h3") if isinstance(settings.get("h3"), dict) else {}
+            settings["generation_mode"] = "minimax_h3_ref2va"
+            settings["h3"] = {
+                "schema": "jyd.project-h3.v1",
+                **h3,
+                "remote_batch_id": remote_batch_id,
+                "remote_status": remote_status,
+                "fee_snapshot": snapshot.get("fee_snapshot"),
+                "prepare_key": str(prepare_key or h3.get("prepare_key") or ""),
+                "last_synced_at": _now(),
+            }
+            now = _now()
+            connection.execute(
+                "UPDATE projects SET settings_json=?, updated_at=? WHERE project_id=?",
+                (_json(settings), now, project_id),
+            )
+            rows = connection.execute(
+                "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
+                (project_id,),
+            ).fetchall()
+            for item in rows:
+                remote = remote_items.get(str(item["row_key"]))
+                # A partial H3 batch deliberately leaves unselected project rows
+                # untouched. Never inherit the project-level remote status here.
+                if remote is None:
+                    continue
+                remote_item_status = str(remote.get("status") or remote_status).upper()
+                if remote_status == "AWAITING_COST_CONFIRMATION":
+                    item_status = "H3_COST_PENDING"
+                elif remote_item_status in {"FAILED", "PARTIAL_FAILED"}:
+                    item_status = "H3_FAILED"
+                elif remote_status in {"ACTIVE", "QUEUED", "RUNNING"}:
+                    item_status = "H3_RUNNING"
+                else:
+                    item_status = str(item["status"])
+                item_settings = _object(item["settings_json"], {})
+                item_h3 = (
+                    item_settings.get("h3")
+                    if isinstance(item_settings.get("h3"), dict)
+                    else {}
+                )
+                item_settings["h3"] = {
+                    **item_h3,
+                    "remote_item_id": remote.get("item_id"),
+                    "remote_batch_id": remote_batch_id,
+                    "remote_status": remote_item_status,
+                    "segments": (
+                        remote.get("segments")
+                        if isinstance(remote.get("segments"), list)
+                        else []
+                    ),
+                    "invalidated_reason": None,
+                }
+                connection.execute(
+                    "UPDATE project_items SET settings_json=?, status=?, "
+                    "updated_at=? WHERE item_id=?",
+                    (_json(item_settings), item_status, now, item["item_id"]),
+                )
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
@@ -4324,6 +5040,42 @@ class ProjectStore:
             ).fetchone()
             return self._link_payload(row)
 
+    def find_project_by_link(
+        self,
+        *,
+        owner_user_id: str,
+        system: str,
+        relation: str,
+        external_id: str,
+    ) -> dict[str, Any] | None:
+        values = [str(value or "").strip() for value in (system, relation, external_id)]
+        if not all(values):
+            raise ValueError("外部关联的系统、关系和编号不能为空")
+        clean_system, clean_relation, clean_external_id = values
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT p.project_id
+                FROM project_links AS link
+                JOIN projects AS p ON p.project_id = link.project_id
+                WHERE p.owner_user_id=?
+                  AND link.system=?
+                  AND link.relation=?
+                  AND link.external_id=?
+                ORDER BY link.rowid DESC
+                LIMIT 1
+                """,
+                (
+                    str(owner_user_id or "").strip(),
+                    clean_system,
+                    clean_relation,
+                    clean_external_id,
+                ),
+            ).fetchone()
+            if row is None:
+                return None
+            return self._project_payload(connection, row["project_id"])
+
     @staticmethod
     def _next_project_no(connection: sqlite3.Connection) -> str:
         day_key = datetime.now().astimezone().strftime("%Y%m%d")
@@ -4690,6 +5442,18 @@ class ProjectStore:
                 "settings": item_settings,
                 "inputs": {
                     "image": current_image,
+                    "h3_reference_video": (
+                        by_id.get(
+                            str(
+                                item_settings.get("h3", {}).get(
+                                    "reference_video_asset_id"
+                                )
+                                or ""
+                            )
+                        )
+                        if isinstance(item_settings.get("h3"), dict)
+                        else None
+                    ),
                     "image_mapping_target": item_settings.get("image_mapping_target")
                     is True,
                 },

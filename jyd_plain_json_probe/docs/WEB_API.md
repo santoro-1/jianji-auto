@@ -677,7 +677,8 @@ GET  /api/digital-human/tasks/{item_id}/videos/{video_index}
 
 ```text
 普通用户生成页：http://127.0.0.1:8010/app
-新版工作台：      http://127.0.0.1:8010/app/new
+脚本与声音：      http://127.0.0.1:8010/app/new
+上传与生成：      http://127.0.0.1:8010/app/new/generate
 新版登录页：      http://127.0.0.1:8010/app/new/login
 管理员登录页：  http://127.0.0.1:8010/admin/login
 高级设置页：    http://127.0.0.1:8010/app/advanced

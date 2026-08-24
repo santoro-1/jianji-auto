@@ -115,6 +115,20 @@ def _configure_environment() -> tuple[Path, Path]:
         "JYD_SHARED_PROCESSOR_URL",
         shared_processor_url,
     )
+    workbench_environment = (
+        "local"
+        if urlparse(auth_server_url).hostname in {"127.0.0.1", "localhost", "::1"}
+        else "production"
+    )
+    os.environ.setdefault(
+        "JYD_LTX_WORKBENCH_URL",
+        config.get("ltx_workbench_url", "").strip()
+        or (
+            "http://127.0.0.1:8792"
+            if workbench_environment == "local"
+            else "http://127.0.0.1:8791"
+        ),
+    )
     os.environ.setdefault(
         "JYD_AUTH_AUTHORITY",
         auth_authority,
@@ -344,6 +358,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="")
     parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument(
+        "--render-job",
+        default="",
+        help="只执行指定的 jyd.render_job.v1 文件，完成后退出",
+    )
     parser.add_argument("--execution-mode", choices=("embedded", "agent"), default="embedded")
     parser.add_argument(
         "--deployment-mode",
@@ -379,6 +398,18 @@ def main(argv: list[str] | None = None) -> int:
     asr_process: subprocess.Popen[bytes] | None = None
     try:
         app_root, data_root = _configure_environment()
+        if args.render_job:
+            configure_file_logging(
+                data_root / "logs",
+                "render.log",
+                logger_name="jyd_probe.render",
+                propagate=False,
+            )
+            from jyd_probe.render_job import run_render_job_file
+
+            result = run_render_job_file(args.render_job)
+            print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+            return 0
         asr_process = _start_embedded_asr(app_root, data_root, startup_config)
         configure_file_logging(data_root / "logs", "workbench.log")
         configure_file_logging(
@@ -429,7 +460,20 @@ def main(argv: list[str] | None = None) -> int:
 
         import uvicorn
 
-        uvicorn.run(app, host=host, port=args.port, log_config=None)
+        server = uvicorn.Server(
+            uvicorn.Config(app, host=host, port=args.port, log_config=None)
+        )
+
+        def request_graceful_shutdown() -> None:
+            app.state.runtime_control.shutdown_requested.wait()
+            server.should_exit = True
+
+        threading.Thread(
+            target=request_graceful_shutdown,
+            name="jyd-managed-shutdown",
+            daemon=True,
+        ).start()
+        server.run()
         return 0
     except BaseException as exc:
         details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))

@@ -41,6 +41,9 @@ $env:JYD_TEXT_TEMPLATE_LIBRARY_ROOT = Join-Path $Test.Libraries "text_template_l
 $env:JYD_DECRYPT_WORK_ROOT = Join-Path $Test.Root "decrypted"
 $env:JYD_ADMIN_COOKIE_NAME = "jyd_admin_session_test"
 $env:JYD_SITE_COOKIE_NAME = "jyd_site_session_test"
+$env:JYD_AUTH_SERVER_URL = "http://127.0.0.1:8000"
+$env:JYD_LTX_WORKBENCH_URL = "http://127.0.0.1:8792"
+$env:JYD_AUTH_AUTHORITY = "false"
 
 Write-Host ('[TEST] Website: http://127.0.0.1:{0}/app' -f $Port)
 Write-Host ('[TEST] Data root: {0}' -f $Test.Root)

@@ -2106,7 +2106,7 @@ def _choose_ranked_broll_asset(
     usage: str,
     used_asset_ids: set[str],
 ) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    """Prefer direct facts, then safe taxonomy fallback, then editorial pools."""
+    """Resolve only the model-selected concept to an exact automatic asset."""
 
     allowed_ids = [
         str(item.get("concept_id") or "")
@@ -2114,58 +2114,26 @@ def _choose_ranked_broll_asset(
         if isinstance(item, Mapping) and str(item.get("concept_id") or "")
     ]
     selected_id = str(decision.get("concept_id") or "")
-    direct_ids = [
+    direct_ids = {
         str(value)
         for value in candidate.get("direct_concept_ids", ())
         if str(value) in allowed_ids and not str(value).startswith("editorial.")
-    ]
-    if not direct_ids:
-        direct_ids = [
-            value for value in allowed_ids if not value.startswith("editorial.")
-        ]
-
-    def ordered_unique(values: Iterable[str]) -> list[str]:
-        result: list[str] = []
-        for value in values:
-            if value and value not in result:
-                result.append(value)
-        return result
-
-    factual_ids = ordered_unique(
-        ([selected_id] if selected_id in direct_ids else [])
-        + direct_ids
-        + [
-            value
-            for value in allowed_ids
-            if not value.startswith("editorial.")
-        ]
+    }
+    if selected_id not in direct_ids:
+        return None
+    asset = _choose_unused_asset(
+        catalog=catalog,
+        mapped=mapped,
+        candidate=candidate,
+        concept_id=selected_id,
+        media_policy="video_only",
+        usage=usage,
+        used_asset_ids=used_asset_ids,
+        match_tier="exact",
     )
-    editorial_ids = ordered_unique(
-        ([selected_id] if selected_id.startswith("editorial.") else [])
-        + [value for value in allowed_ids if value.startswith("editorial.")]
-    )
-    tiers = (
-        ((concept_id, "exact") for concept_id in factual_ids),
-        ((concept_id, "fallback") for concept_id in factual_ids),
-        ((concept_id, "any") for concept_id in editorial_ids),
-    )
-    for tier in tiers:
-        for concept_id, match_tier in tier:
-            asset = _choose_unused_asset(
-                catalog=catalog,
-                mapped=mapped,
-                candidate=candidate,
-                concept_id=concept_id,
-                media_policy="video_only",
-                usage=usage,
-                used_asset_ids=used_asset_ids,
-                match_tier=match_tier,
-            )
-            if asset is not None:
-                resolved_decision = dict(decision)
-                resolved_decision["concept_id"] = concept_id
-                return resolved_decision, asset
-    return None
+    if asset is None:
+        return None
+    return dict(decision), asset
 
 
 def _target_sentence_range(
@@ -2418,7 +2386,6 @@ def build_visual_recipe(
     locked_overlays: Iterable[Mapping[str, Any]] = (),
     segment_boundaries: Iterable[Mapping[str, Any]] = (),
     final_video_duration_us: int | None = None,
-    allow_legacy_seam_fallback: bool = True,
 ) -> dict[str, Any]:
     """Build one priority-ordered, sentence-timed, video-level deduplicated recipe."""
 
@@ -2471,12 +2438,6 @@ def build_visual_recipe(
         group.sort(key=lambda item: int(item["candidate"].get("char_start", 0)))
 
     automatic: list[dict[str, Any]] = []
-    seam_group_keys: set[tuple[int, int]] = set()
-    dedicated_seams = [
-        candidate
-        for candidate in mapped.values()
-        if str(candidate.get("usage") or "") == "seam_broll"
-    ]
     for raw_boundary in sorted(
         (item for item in segment_boundaries if isinstance(item, Mapping)),
         key=lambda item: int(item.get("boundary_us") or 0),
@@ -2490,69 +2451,12 @@ def build_visual_recipe(
             if int(entry["candidate"].get("segment_boundary_us") or 0)
             == boundary_us
         ]
-        key: tuple[int, int] | None = None
         if matching_seam:
             group = matching_seam
         else:
-            matching_candidates = [
-                candidate
-                for candidate in dedicated_seams
-                if int(candidate.get("segment_boundary_us") or 0) == boundary_us
-            ]
-            if matching_candidates:
-                # A model omission at a seam must not borrow a concrete object
-                # selected for the following sentence.  Use only the dedicated
-                # candidate's editorial pools as a deterministic local fallback.
-                candidate = matching_candidates[0]
-                editorial_ids = [
-                    str(concept.get("concept_id") or "")
-                    for concept in candidate.get("allowed_concepts", ())
-                    if isinstance(concept, Mapping)
-                    and str(concept.get("concept_id") or "").startswith("editorial.")
-                ]
-                if not editorial_ids:
-                    continue
-                concept_id = (
-                    "editorial.mood_atmosphere"
-                    if "editorial.mood_atmosphere" in editorial_ids
-                    else editorial_ids[0]
-                )
-                group = [
-                    {
-                        "candidate": candidate,
-                        "decision": {
-                            "candidate_id": candidate.get("candidate_id"),
-                            "decision": "SHOW",
-                            "concept_id": concept_id,
-                            "usage": "seam_broll",
-                            "confidence": 1.0,
-                            "importance": 0.0,
-                            "reason_code": "LOCAL_EDITORIAL_SEAM_FALLBACK",
-                        },
-                        "usage": "seam_broll",
-                    }
-                ]
-            else:
-                # Compatibility fallback for legacy plans created before
-                # dedicated seam candidates existed.
-                if not allow_legacy_seam_fallback:
-                    continue
-                candidates_after = [
-                    (candidate_key, candidate_group)
-                    for candidate_key, candidate_group in explicit_groups.items()
-                    if candidate_key not in seam_group_keys
-                    and int(candidate_group[0]["candidate"].get("start_us", 0))
-                    + int(candidate_group[0]["candidate"].get("duration_us", 0))
-                    > boundary_us
-                    and int(candidate_group[0]["candidate"].get("start_us", 0))
-                    >= boundary_us - 300_000
-                ]
-                if not candidates_after:
-                    continue
-                key, group = min(
-                    candidates_after,
-                    key=lambda value: int(value[1][0]["candidate"].get("start_us", 0)),
-                )
+            # A seam without a model-approved strong match stays as the original
+            # digital-human transition. Never invent an editorial fallback.
+            continue
         # One short full-screen insert is enough to cover a digital-human seam.
         # Never turn a one-second seam into a rapid multi-asset list.
         rapid = False
@@ -2617,9 +2521,6 @@ def build_visual_recipe(
         used_asset_ids.update(
             str(asset["asset_id"]) for _entry, _decision, asset in chosen
         )
-        if key is not None:
-            seam_group_keys.add(key)
-
     # Reserve full-screen B-roll before scheduling small semantic images/videos.
     # This prevents dense explicit overlays from consuming every eligible slot.
     for entry in sorted(enrichment_entries, key=_entry_priority):
@@ -2757,7 +2658,10 @@ def build_visual_recipe(
 
 
 def frozen_visual_overlays(
-    item: Mapping[str, Any], *, library_root: str | Path | None = None
+    item: Mapping[str, Any],
+    *,
+    library_root: str | Path | None = None,
+    catalog: SemanticVisualCatalog | None = None,
 ) -> list[dict[str, Any]]:
     """Return enabled overlays and resolve v2 paths only at render-job time."""
 
@@ -2767,8 +2671,8 @@ def frozen_visual_overlays(
         return []
     schema = str(recipe["schema"])
     resolved_root = Path(library_root).expanduser().resolve() if library_root else None
-    current_catalog = None
-    if resolved_root is not None:
+    current_catalog = catalog
+    if current_catalog is None and resolved_root is not None:
         try:
             current_catalog = load_semantic_visual_catalog(resolved_root)
         except SemanticVisualCatalogError:
@@ -2792,7 +2696,10 @@ def frozen_visual_overlays(
         ):
             current_asset = current_catalog.asset(str(overlay.get("asset_id") or ""))
             if current_asset is not None:
-                if current_asset.get("auto_eligible") is not True:
+                if (
+                    current_catalog.schema == CATALOG_SCHEMA_V3
+                    and current_asset.get("auto_eligible") is not True
+                ):
                     continue
                 defaults = current_asset["defaults"]
                 resource = current_asset["resource"]

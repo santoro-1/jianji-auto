@@ -107,13 +107,40 @@ _REASON_CODES = {
     "SKIP_NO_ASSET",
     "SKIP_UNRELATED",
 }
-_POSITIVE_MATCH_REASONS = {
+_STRONG_AUTOMATIC_BROLL_REASONS = {
     "LITERAL_CONCRETE_OBJECT",
     "MATCH_EXACT_OBJECT",
     "MATCH_SAME_ACTION",
     "MATCH_SAME_SCENE",
-    "MATCH_EDITORIAL_CONTEXT",
 }
+_STRONG_AUTOMATIC_BROLL_USAGES = {
+    "literal",
+    "ingredient",
+    "meal_example",
+    "action",
+    "scene",
+}
+_STRONG_AUTOMATIC_BROLL_MIN_CONFIDENCE = 0.90
+
+
+def _is_strong_automatic_broll_decision(
+    decision: Mapping[str, Any], candidate: Mapping[str, Any]
+) -> bool:
+    """Accept only a confident concept directly recalled from the script."""
+
+    direct_concept_ids = {
+        str(value)
+        for value in candidate.get("direct_concept_ids", ())
+        if str(value)
+    }
+    return (
+        decision.get("decision") == "SHOW"
+        and float(decision.get("confidence") or 0.0)
+        >= _STRONG_AUTOMATIC_BROLL_MIN_CONFIDENCE
+        and str(decision.get("concept_id") or "") in direct_concept_ids
+        and decision.get("reason_code") in _STRONG_AUTOMATIC_BROLL_REASONS
+        and decision.get("usage") in _STRONG_AUTOMATIC_BROLL_USAGES
+    )
 
 
 def _candidate_set_sha256(request: Mapping[str, Any]) -> str:
@@ -525,15 +552,22 @@ class ProjectVisualAnalysisCoordinator:
                             video_duration_us=target.visual_input.video_duration_us,
                             asr_alignment=target.visual_input.asr_alignment,
                         )
+                        candidates_by_id = {
+                            str(candidate["candidate_id"]): candidate
+                            for candidate in target.request["candidates"]
+                        }
                         approved = [
                             {
                                 **dict(decision),
                                 "usage": "seam_broll",
                             }
                             for decision in result["decisions"]
-                            if decision.get("decision") == "SHOW"
-                            and float(decision.get("confidence") or 0.0) >= 0.85
-                            and decision.get("reason_code") in _POSITIVE_MATCH_REASONS
+                            if _is_strong_automatic_broll_decision(
+                                decision,
+                                candidates_by_id.get(
+                                    str(decision.get("candidate_id") or ""), {}
+                                ),
+                            )
                         ]
                         manual = self._manual_overlays(target.visual_input.previous)
                         seam_recipe = build_visual_recipe(

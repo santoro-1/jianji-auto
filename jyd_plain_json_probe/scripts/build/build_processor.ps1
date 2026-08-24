@@ -2,6 +2,7 @@ param(
     [string]$Python = "",
     [switch]$Clean,
     [switch]$UpdateOnly,
+    [switch]$SkipArchive,
     [string]$DigitalHumanServerUrl = "",
     [string]$AsrBundleRoot = "",
     [ValidateSet("standalone", "shared")]
@@ -191,14 +192,18 @@ try {
         throw "UpdateOnly package must not contain a data directory: $DataDir"
     }
 
-    $ArchiveArguments = @{
-        SourceDirectory = $DistDir
-        DestinationPath = $ZipPath
-        CompressionLevel = $CompressionLevel
-    }
-    Write-ReleaseArchive @ArchiveArguments
     Write-Host "Processor build: $DistDir"
-    Write-Host "Release archive: $ZipPath"
+    if ($SkipArchive) {
+        Write-Host "Release archive skipped."
+    } else {
+        $ArchiveArguments = @{
+            SourceDirectory = $DistDir
+            DestinationPath = $ZipPath
+            CompressionLevel = $CompressionLevel
+        }
+        Write-ReleaseArchive @ArchiveArguments
+        Write-Host "Release archive: $ZipPath"
+    }
 } finally {
     Pop-Location
 }

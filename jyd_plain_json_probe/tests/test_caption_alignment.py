@@ -126,6 +126,41 @@ class CaptionAlignmentTests(unittest.TestCase):
             hashlib.sha256(self.script.encode("utf-8")).hexdigest(),
         )
 
+    def test_h3_segment_windows_allow_funasr_to_follow_generated_audio_timing(self) -> None:
+        script = "第一段。第二段。"
+        h3_segment_windows = [
+            {"text": "第一段。", "start_us": 0, "duration_us": 5_875_000},
+            {
+                "text": "第二段。",
+                "start_us": 5_875_000,
+                "duration_us": 4_458_333,
+            },
+        ]
+        payload = {
+            "model": "paraformer-zh",
+            "tokens": [
+                {"text": "第", "startSeconds": 1.0, "endSeconds": 1.2},
+                {"text": "一", "startSeconds": 1.3, "endSeconds": 1.5},
+                {"text": "段", "startSeconds": 1.6, "endSeconds": 1.8},
+                {"text": "第", "startSeconds": 7.0, "endSeconds": 7.2},
+                {"text": "二", "startSeconds": 7.3, "endSeconds": 7.5},
+                {"text": "段", "startSeconds": 7.6, "endSeconds": 7.8},
+            ],
+        }
+
+        alignment = build_alignment(
+            script,
+            h3_segment_windows,
+            payload,
+            audio_asset_id="h3-generated-audio",
+            audio_version=1,
+        )
+
+        self.assertEqual(alignment["ranges"][0]["start_us"], 1_000_000)
+        self.assertEqual(alignment["ranges"][3]["start_us"], 7_000_000)
+        self.assertEqual(alignment["ranges"][3]["raw_cue_index"], 1)
+        self.assertEqual(alignment["exact_match_ratio"], 1.0)
+
     def test_empty_full_result_retries_contextual_chunks_and_merges_timestamps(self) -> None:
         script = "你好世界"
         raw_cues = [{"text": script, "start_us": 0, "duration_us": 4_000_000}]

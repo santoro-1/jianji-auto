@@ -3,6 +3,8 @@ param(
     [string]$HostAddress = "",
     [int]$Port = 8010,
     [string]$DraftRoot = "",
+    [string]$DigitalHumanServerUrl = "https://video.lanyingjk01.com",
+    [string]$LtxWorkbenchUrl = "http://127.0.0.1:8791",
     [ValidateSet("embedded", "agent")]
     [string]$ExecutionMode = "embedded",
     [ValidateSet("standalone", "shared")]
@@ -32,7 +34,8 @@ $env:JYD_DECRYPT_WORK_ROOT = Join-Path $ProjectRoot "runtime\decrypted_work"
 $env:JYD_ADMIN_COOKIE_NAME = "jyd_admin_session"
 $env:JYD_SITE_COOKIE_NAME = "jyd_site_session"
 $env:JYD_ALLOW_LOCAL_FILE_ACCESS = "true"
-$env:JYD_AUTH_SERVER_URL = "http://127.0.0.1:8000"
+$env:JYD_AUTH_SERVER_URL = $DigitalHumanServerUrl.TrimEnd("/")
+$env:JYD_LTX_WORKBENCH_URL = $LtxWorkbenchUrl.TrimEnd("/")
 $env:JYD_AUTH_AUTHORITY = "false"
 if (-not $HostAddress) {
     $HostAddress = if ($ProcessingMode -eq "standalone") { "127.0.0.1" } else { "0.0.0.0" }
@@ -48,4 +51,7 @@ if ($DraftRoot) {
     Remove-Item Env:JYD_WEB_DRAFT_ROOT -ErrorAction SilentlyContinue
 }
 $env:JYD_EXECUTION_MODE = $ExecutionMode
+Write-Host ('[PRODUCTION] Website: http://127.0.0.1:{0}/app/new' -f $Port)
+Write-Host ('[PRODUCTION] Digital human server: {0}' -f $env:JYD_AUTH_SERVER_URL)
+Write-Host ('[PRODUCTION] Lip-sync workbench: {0}' -f $env:JYD_LTX_WORKBENCH_URL)
 & $Python -u (Join-Path $ProjectRoot "apps\processor\run_web_api.py") --host $HostAddress --port $Port

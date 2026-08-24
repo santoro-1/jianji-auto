@@ -10,6 +10,7 @@ from jyd_probe.project_content_analysis import ProjectContentAnalysisCoordinator
 from jyd_probe.project_store import ProjectStore
 from jyd_probe.semantic_visuals import load_semantic_visual_catalog
 from jyd_probe.unified_visual_plan import (
+    _compatibility_decisions,
     build_local_visual_result,
     prepare_unified_visual_input,
     refresh_saved_visual_item,
@@ -375,7 +376,7 @@ def test_invalid_visual_plan_does_not_discard_content_branches(tmp_path: Path) -
     assert item["visual_analysis"]["recipe"]["overlays"] == []
 
 
-def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
+def test_one_cloud_call_skips_long_gap_when_only_taxonomy_fallback_exists(
     tmp_path: Path,
 ) -> None:
     script = "控制体重需要长期坚持，日常轻活动和生活安排都要逐步调整。" * 8
@@ -415,15 +416,8 @@ def test_one_cloud_call_can_schedule_tagged_broll_in_a_real_long_gap(
         for anchor in client.calls[0]["visual_context"]["anchors"]
     )
     assert set(analysis["visual_plan"][0]) == {"anchor_id", "concept_id", "priority"}
-    overlay = analysis["recipe"]["overlays"][0]
-    assert overlay["usage"] == "enrichment"
-    selected = catalog.asset(overlay["asset_id"])
-    assert selected is not None
-    assert "full_screen_broll" in selected["usage_modes"]
-    assert overlay["media_type"] == "video"
-    assert overlay["start_us"] >= 10_000_000
-    assert overlay["source_start_us"] >= 0
-    assert overlay["corner"] == "center"
+    assert analysis["decisions"][0]["decision"] == "SHOW"
+    assert analysis["recipe"]["overlays"] == []
 
 
 def test_enrichment_priority_one_requires_review(tmp_path: Path) -> None:
@@ -456,6 +450,44 @@ def test_enrichment_priority_one_requires_review(tmp_path: Path) -> None:
     assert analysis["visual_plan"][0]["priority"] == 1
     assert analysis["decisions"][0]["decision"] == "REVIEW"
     assert analysis["recipe"]["overlays"] == []
+
+
+def test_enrichment_priority_two_still_requires_a_direct_script_concept() -> None:
+    candidate_request = {
+        "candidates": [
+            {
+                "candidate_id": "ve_0",
+                "char_start": 0,
+                "usage": "enrichment",
+                "direct_concept_ids": ["food.apple"],
+                "allowed_concepts": [
+                    {"concept_id": "food.apple", "description": "苹果"},
+                    {
+                        "concept_id": "editorial.mood_atmosphere",
+                        "description": "泛氛围",
+                    },
+                ],
+            }
+        ]
+    }
+
+    weak = _compatibility_decisions(
+        [
+            {
+                "anchor_id": "START",
+                "concept_id": "editorial.mood_atmosphere",
+                "priority": 2,
+            }
+        ],
+        candidate_request,
+    )
+    strong = _compatibility_decisions(
+        [{"anchor_id": "START", "concept_id": "food.apple", "priority": 2}],
+        candidate_request,
+    )
+
+    assert weak[0]["decision"] == "REVIEW"
+    assert strong[0]["decision"] == "SHOW"
 
 
 def test_real_activity_script_uses_explicit_action_video_in_one_cloud_call(

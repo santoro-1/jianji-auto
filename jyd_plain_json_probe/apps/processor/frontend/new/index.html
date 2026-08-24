@@ -11,6 +11,12 @@
     <!-- Locally bundled UI styles: the workbench must remain usable without CDN access. -->
     <link rel="stylesheet" href="/app-static/new/tailwind.generated.css">
     <link rel="stylesheet" href="/app-static/new/vendor/fontawesome/css/all.min.css">
+    <script src="/app-static/workbench-runtime.js" defer></script>
+    <script>
+        document.documentElement.dataset.workspacePage = window.location.pathname.endsWith('/generate')
+            ? 'generate'
+            : 'audio';
+    </script>
     <style>
         body {
             background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #0f0b29 50%, #030712 100%);
@@ -220,6 +226,36 @@
         }
         tbody tr:hover .table-actions-column {
             background: #151b31;
+        }
+        html[data-workspace-page="audio"] .generation-page-only,
+        html[data-workspace-page="generate"] .audio-page-only {
+            display: none !important;
+        }
+        .workspace-nav-link {
+            color: #d1d5db;
+            border: 1px solid transparent;
+        }
+        .workspace-nav-link:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        html[data-workspace-page="audio"] [data-workspace-nav="audio"],
+        html[data-workspace-page="generate"] [data-workspace-nav="generate"] {
+            color: #fff;
+            background: rgba(99, 102, 241, 0.1);
+            border-color: rgba(99, 102, 241, 0.3);
+            box-shadow: inset 0 1px 8px rgba(99, 102, 241, 0.08);
+        }
+        html[data-workspace-page="audio"] #synthesis-table {
+            min-width: 920px;
+        }
+        html[data-workspace-page="audio"] #synthesis-table th:nth-child(n+6):nth-child(-n+15),
+        html[data-workspace-page="audio"] #synthesis-table td:nth-child(n+6):nth-child(-n+15) {
+            display: none !important;
+        }
+        html[data-workspace-page="generate"] #synthesis-table th:nth-child(4),
+        html[data-workspace-page="generate"] #synthesis-table td:nth-child(4) {
+            display: none !important;
         }
     </style>
 </head>
@@ -555,11 +591,17 @@
                     <h1 class="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brand-accent bg-clip-text text-transparent">公域闪剪视频</h1>
                     <p class="text-[10px] text-brand-accent font-semibold tracking-widest uppercase">Video Synthesis Platform</p>
                 </div>
+                <div class="flex items-center gap-1 ml-5 p-1 rounded-xl border border-white/10 bg-black/20 whitespace-nowrap" aria-label="工作台切换">
+                    <span class="px-3 py-2 rounded-lg bg-gradient-to-r from-brand-primary to-brand-secondary text-[11px] font-bold text-white shadow-lg" aria-current="page">数字人工作台</span>
+                    <a id="ltx-workbench-link" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-lg text-[11px] font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all">对口型工作台 <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[9px]"></i></a>
+                    <span id="workbench-environment" class="px-2 text-[9px] font-semibold text-brand-accent whitespace-nowrap">当前环境</span>
+                </div>
             </div>
 
             <!-- Header Menu -->
             <nav class="hidden md:flex items-center gap-1">
-                <a href="/app/new" class="px-4 py-2 rounded-xl text-sm font-semibold bg-brand-primary/10 border border-brand-primary/30 text-white transition-all shadow-inner"><i class="fa-solid fa-sliders mr-1.5 text-brand-accent"></i>核心工作台</a>
+                <a href="/app/new" data-workspace-nav="audio" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-wave-square mr-1.5 text-brand-accent"></i>脚本与声音</a>
+                <a href="/app/new/generate" data-workspace-nav="generate" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-film mr-1.5 text-brand-accent"></i>上传与生成</a>
                 <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
                 <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-microphone-lines mr-1.5"></i>声音克隆中心</a>
                 <button id="activity-button" type="button" onclick="openActivityModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i>运行记录<span id="activity-count" class="hidden ml-1.5 min-w-5 px-1.5 py-0.5 rounded-full bg-brand-primary/20 text-[9px] text-brand-accent"></span></button>
@@ -597,7 +639,7 @@
             <section id="input-sidebar" class="lg:col-span-4 flex flex-col gap-5 h-full overflow-y-auto pr-2 narrow-scrollbar pb-6">
                 
                 <!-- Input 1: Excel/CSV Import -->
-                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                <div class="audio-page-only glass-panel rounded-2xl p-5 shadow-lg">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="font-bold text-sm text-white flex items-center gap-2">
                             <span class="w-6 h-6 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs"><i class="fa-solid fa-file-excel"></i></span>
@@ -654,7 +696,7 @@
                 </div>
 
                 <!-- Input 2: Voice Prototype Selector (Compact layout with inner scroll) -->
-                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                <div class="audio-page-only glass-panel rounded-2xl p-5 shadow-lg">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
                         <span class="w-6 h-6 rounded bg-brand-primary/20 text-brand-primary flex items-center justify-center text-xs"><i class="fa-solid fa-microphone-lines"></i></span>
                         2. 选择项目默认配音声音
@@ -727,10 +769,10 @@
                 </div>
 
                 <!-- Input 3: Images Upload & Distribution Strategy -->
-                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                <div class="generation-page-only glass-panel rounded-2xl p-5 shadow-lg">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
                         <span class="w-6 h-6 rounded bg-brand-secondary/20 text-brand-secondary flex items-center justify-center text-xs"><i class="fa-solid fa-images"></i></span>
-                        3. 导入图片集与分配策略
+                        1. 导入图片集与分配策略
                     </h3>
 
                     <!-- Image Dropzone -->
@@ -785,18 +827,74 @@
                     </div>
                 </div>
 
-                <!-- Input 4: Project-wide digital-human generation settings -->
-                <div class="glass-panel rounded-2xl p-5 shadow-lg">
+                <!-- Input 4: Project-wide generation settings -->
+                <div class="generation-page-only glass-panel rounded-2xl p-5 shadow-lg">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
                         <span class="w-6 h-6 rounded bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-xs"><i class="fa-solid fa-expand"></i></span>
-                        4. 数字人画面设置
+                        2. 画面生成方式
                     </h3>
-                    <label for="digital-human-resolution" class="block text-xs font-bold text-gray-300 mb-2">最长边分辨率</label>
-                    <div class="flex items-center rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 focus-within:border-brand-accent">
-                        <input id="digital-human-resolution" type="number" min="1" step="1" value="1024" onchange="saveDigitalHumanResolution(this)" class="min-w-0 w-full bg-transparent py-2.5 text-xs text-white focus:outline-none" inputmode="numeric">
-                        <span class="text-[10px] text-gray-500 whitespace-nowrap">像素</span>
+                    <select id="generation-mode" onchange="handleGenerationModeChange(this.value)" class="w-full rounded-xl border border-slate-700/80 bg-slate-950/80 px-3 py-2.5 text-xs font-semibold text-white focus:border-brand-accent focus:outline-none">
+                        <option value="runninghub_digital_human">普通数字人</option>
+                        <option value="minimax_h3_ref2va">MiniMax H3 多参考</option>
+                    </select>
+
+                    <div id="standard-generation-settings" class="mt-4">
+                        <label for="digital-human-resolution" class="block text-xs font-bold text-gray-300 mb-2">最长边分辨率</label>
+                        <div class="flex items-center rounded-xl border border-slate-700/80 bg-slate-950/70 px-3 focus-within:border-brand-accent">
+                            <input id="digital-human-resolution" type="number" min="1" step="1" value="1024" onchange="saveDigitalHumanResolution(this)" class="min-w-0 w-full bg-transparent py-2.5 text-xs text-white focus:outline-none" inputmode="numeric">
+                            <span class="text-[10px] text-gray-500 whitespace-nowrap">像素</span>
+                        </div>
+                        <p id="digital-human-resolution-hint" class="text-[10px] text-gray-500 mt-2 leading-relaxed">直接输入需要的最长边像素，默认 1024；按当前项目保存，全部分段共用。</p>
                     </div>
-                    <p id="digital-human-resolution-hint" class="text-[10px] text-gray-500 mt-2 leading-relaxed">直接输入需要的最长边像素，默认 1024；按当前项目保存，全部分段共用。</p>
+
+                    <div id="h3-generation-settings" class="hidden mt-4 space-y-3">
+                        <div class="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] font-bold text-cyan-200">人物参考图 <span id="h3-identity-count">0 / 4</span></span>
+                                <button type="button" onclick="clearH3IdentityImages()" class="text-[9px] text-gray-400 hover:text-white">清空</button>
+                            </div>
+                            <p class="mt-1 text-[9px] leading-relaxed text-gray-500">默认首尾同图模式至少选择 1 张，第一张同时约束每段首帧和尾帧；2～4 张时其余图片补充人物身份。第 6 个接口留给尾帧串行模式。</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="text-[10px] text-gray-400">衔接
+                                <select id="h3-continuity" onchange="saveH3Settings(false)" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                                    <option value="loop_anchor">首尾同图（默认）</option>
+                                    <option value="fast">快速并行</option>
+                                    <option value="soft_chain">连续（尾帧）</option>
+                                </select>
+                            </label>
+                            <label class="text-[10px] text-gray-400">画面比例
+                                <select id="h3-aspect" onchange="saveH3Settings(false)" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                                    <option value="9:16 (Portrait Widescreen)">9:16 竖屏</option>
+                                    <option value="16:9 (Widescreen)">16:9 横屏</option>
+                                </select>
+                            </label>
+                            <label class="text-[10px] text-gray-400">清晰度（MP）
+                                <input id="h3-megapixels" type="number" min="0.2" max="2" step="0.1" value="1" onchange="saveH3Settings(false)" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                            </label>
+                            <label class="text-[10px] text-gray-400">生成余量（秒）
+                                <input id="h3-tail-seconds" type="number" min="0" max="1" step="0.1" value="0.1" onchange="saveH3Settings(false)" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                            </label>
+                        </div>
+                        <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] font-bold text-white">批量绑定参考视频</span>
+                                <button type="button" onclick="triggerFileInput('h3-reference-videos-input')" class="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[9px] font-semibold text-cyan-200 hover:text-white"><i class="fa-solid fa-video mr-1"></i>选择多个视频</button>
+                            </div>
+                            <input id="h3-reference-videos-input" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm" multiple class="hidden" onchange="handleH3ReferenceVideosUpload(event)">
+                            <div class="grid grid-cols-2 gap-2">
+                                <select id="h3-video-mapping" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                                    <option value="loop">依次循环</option>
+                                    <option value="count">每个视频连续复用</option>
+                                </select>
+                                <input id="h3-video-reuse-count" type="number" min="1" max="100" value="1" title="每个视频连续复用的脚本行数" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                            </div>
+                            <input id="h3-video-scope" type="text" placeholder="绑定范围：留空=全部；或 3,5,8-12" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white placeholder:text-slate-600">
+                            <p id="h3-reference-summary" class="text-[9px] leading-relaxed text-gray-500">尚未绑定参考视频。每行可不同；也可在表格中单独替换。</p>
+                        </div>
+                        <button id="btn-review-h3-audio" type="button" onclick="reviewH3TargetAudio()" class="w-full rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-headphones mr-1"></i>试听后，审核所选声音</button>
+                        <p id="h3-batch-summary" class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-[9px] leading-relaxed text-gray-400">先生成并审核声音，再绑定每行参考视频；点击下方“生成 H3 成片”会先计算分段与费用。</p>
+                    </div>
                 </div>
             </section>
 
@@ -812,11 +910,11 @@
                                 <span id="input-sidebar-toggle-label">收起输入</span>
                             </button>
                             <div>
-                                <h2 class="font-extrabold text-sm text-white flex items-center gap-2">
+                                <h2 id="workspace-table-title" class="font-extrabold text-sm text-white flex items-center gap-2">
                                     <i class="fa-solid fa-list-check text-brand-accent"></i>
-                                    视频片段生成配置表
+                                    脚本与声音审核表
                                 </h2>
-                                <p class="text-[10px] text-gray-400 mt-0.5">请校对脚本与配音素材。您可以双击编辑内容，对生成的克隆语音进行预览或重试。</p>
+                                <p id="workspace-table-description" class="text-[10px] text-gray-400 mt-0.5">导入并校对脚本，选择声音，生成、试听和审核每行音频。</p>
                             </div>
                         </div>
                         <div class="flex flex-wrap items-center justify-end gap-2">
@@ -853,17 +951,17 @@
                         <button type="button" onclick="clearRowSelection()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 text-[10px] text-gray-400 hover:text-white">清空</button>
                         <span class="hidden sm:inline h-5 w-px bg-slate-700"></span>
                         <button type="button" onclick="analyzeSelectedRows()" class="px-3 py-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/5 text-[10px] font-semibold text-cyan-200 hover:text-white"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>统一分析</button>
-                        <button id="btn-refresh-previews" type="button" onclick="refreshBatchPostprocessPreviews()" title="有勾选时刷新选中任务；未勾选时刷新全部已有数字人画面的任务" class="px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-arrows-rotate mr-1"></i>刷新预览</button>
-                        <button id="btn-download-selected-videos" type="button" onclick="downloadSelectedProjectVideos()" title="有勾选时下载选中任务；未勾选时下载全部已完成普通成片" class="px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-file-arrow-down mr-1"></i>下载视频</button>
-                        <button type="button" onclick="applyLayoutProfileToSelected('standing')" class="px-3 py-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/5 text-[10px] font-semibold text-emerald-200 hover:text-white"><i class="fa-solid fa-person mr-1"></i>设为站姿</button>
-                        <button type="button" onclick="applyLayoutProfileToSelected('seated')" class="px-3 py-1.5 rounded-lg border border-amber-400/30 bg-amber-400/5 text-[10px] font-semibold text-amber-200 hover:text-white"><i class="fa-solid fa-chair mr-1"></i>设为坐姿</button>
-                        <button type="button" onclick="generateSelectedAudio()" class="px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white"><i class="fa-solid fa-wave-square mr-1"></i>生成声音</button>
-                        <button type="button" onclick="generateSelectedVideos()" class="px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white"><i class="fa-solid fa-film mr-1"></i>生成完整成片</button>
+                        <button id="btn-refresh-previews" type="button" onclick="refreshBatchPostprocessPreviews()" title="有勾选时刷新选中任务；未勾选时刷新全部已有数字人画面的任务" class="generation-page-only px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-arrows-rotate mr-1"></i>刷新预览</button>
+                        <button id="btn-download-selected-videos" type="button" onclick="downloadSelectedProjectVideos()" title="有勾选时下载选中任务；未勾选时下载全部已完成普通成片" class="generation-page-only px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-file-arrow-down mr-1"></i>下载视频</button>
+                        <button type="button" onclick="applyLayoutProfileToSelected('standing')" class="generation-page-only px-3 py-1.5 rounded-lg border border-emerald-400/30 bg-emerald-400/5 text-[10px] font-semibold text-emerald-200 hover:text-white"><i class="fa-solid fa-person mr-1"></i>设为站姿</button>
+                        <button type="button" onclick="applyLayoutProfileToSelected('seated')" class="generation-page-only px-3 py-1.5 rounded-lg border border-amber-400/30 bg-amber-400/5 text-[10px] font-semibold text-amber-200 hover:text-white"><i class="fa-solid fa-chair mr-1"></i>设为坐姿</button>
+                        <button type="button" onclick="generateSelectedAudio()" class="audio-page-only px-3 py-1.5 rounded-lg border border-indigo-400/30 bg-indigo-400/5 text-[10px] font-semibold text-indigo-200 hover:text-white"><i class="fa-solid fa-wave-square mr-1"></i>生成声音</button>
+                        <button type="button" onclick="generateSelectedVideos()" class="generation-page-only px-3 py-1.5 rounded-lg border border-fuchsia-400/30 bg-fuchsia-400/5 text-[10px] font-semibold text-fuchsia-200 hover:text-white"><i class="fa-solid fa-film mr-1"></i>生成完整成片</button>
                     </div>
 
                     <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
                     <div class="overflow-x-auto relative flex-1 overflow-y-auto">
-                        <table class="w-full table-fixed border-collapse text-left text-xs min-w-[1770px]">
+                        <table id="synthesis-table" class="w-full table-fixed border-collapse text-left text-xs min-w-[1900px]">
                             <thead class="text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
                                     <th scope="col" class="table-header-input px-3 py-3.5 w-12 text-center whitespace-nowrap"><input id="select-all-project-items" type="checkbox" aria-label="全选脚本行" onchange="toggleSelectAllRows(this.checked)" class="rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary"></th>
@@ -872,6 +970,7 @@
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-32">声音原型</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-36">声音预览</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center">画面</th>
+                                    <th scope="col" class="table-header-input h3-only-column hidden px-4 py-3.5 w-36 text-center whitespace-nowrap">H3 参考视频</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">姿态</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center">背景音乐</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
@@ -886,7 +985,7 @@
                             <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
                                 <!-- Placeholders when empty -->
                                 <tr id="empty-table-placeholder">
-                                    <td colspan="15" class="px-6 py-20 text-center text-gray-500">
+                                    <td colspan="16" class="px-6 py-20 text-center text-gray-500">
                                         <div class="flex flex-col items-center justify-center">
                                             <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
                                             <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
@@ -916,27 +1015,27 @@
                                 <span class="text-[10px] font-bold text-brand-accent font-mono" id="composition-progress-text">0%</span>
                             </div>
 
-                            <button id="btn-generate-voice-preview" disabled onclick="generateAllVoicePreviews()" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                            <button id="btn-generate-voice-preview" disabled onclick="generateAllVoicePreviews()" class="audio-page-only w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-wave-square"></i>
                                 <span>生成声音预览和脚本分析</span>
                             </button>
                             
-                            <button id="btn-start-composition" disabled onclick="startGlobalFinalVideoGeneration()" class="w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
+                            <button id="btn-start-composition" disabled onclick="startGlobalFinalVideoGeneration()" class="generation-page-only w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                                 生成完整成片
                             </button>
 
-                            <button id="btn-download-project-audios" disabled onclick="downloadProjectAudios()" title="打包下载当前已经完成的声音" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                            <button id="btn-download-project-audios" disabled onclick="downloadProjectAudios()" title="打包下载当前已经完成的声音" class="audio-page-only w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-file-zipper"></i>
                                 <span>一键下载声音</span>
                             </button>
 
-                            <button id="btn-download-project-videos" disabled onclick="downloadProjectVideos()" title="导出并打包当前已经完成预览的未变体视频" class="w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                            <button id="btn-download-project-videos" disabled onclick="downloadProjectVideos()" title="导出并打包当前已经完成预览的未变体视频" class="generation-page-only w-full md:w-auto px-6 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                 <i class="fa-solid fa-file-zipper"></i>
                                 <span>一键下载视频</span>
                             </button>
 
-                            <div class="flex w-full md:w-auto" aria-label="生成变体控制">
+                            <div class="generation-page-only flex w-full md:w-auto" aria-label="生成变体控制">
                                 <button id="btn-generate-variants" disabled onclick="startGlobalVariantGeneration()" class="flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
                                     <i class="fa-solid fa-code-branch"></i>
                                     <span>生成变体</span>
@@ -986,6 +1085,9 @@
         let uploadedScripts = [];
         let uploadedImages = [];
         let currentMappingImageIds = [];
+        let h3IdentityImageIds = [];
+        let h3StatusPollTimer = null;
+        let isGeneratingH3 = false;
         let scriptImportMode = 'create';
         const selectedProjectItemIds = new Set();
         let activeArticleTypeFilter = '';
@@ -1454,6 +1556,376 @@
             return result;
         }
 
+        function isH3GenerationMode() {
+            return (activeProject?.settings?.generation_mode || 'runninghub_digital_human') === 'minimax_h3_ref2va';
+        }
+
+        async function handleGenerationModeChange(mode) {
+            if (!activeProject?.project_id) {
+                showToast('请先导入脚本', '创建批次后才能选择画面生成方式。', 'warning');
+                document.getElementById('generation-mode').value = 'runninghub_digital_human';
+                return;
+            }
+            try {
+                const project = mode === 'minimax_h3_ref2va'
+                    ? await saveH3Settings(false)
+                    : await workspaceApi(`/api/new/projects/${activeProject.project_id}/generation-mode`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode: 'runninghub_digital_human' })
+                    });
+                syncProjectInputs(project);
+                showToast('画面生成方式已切换', mode === 'minimax_h3_ref2va' ? '当前批次将使用 H3 多参考生成。' : '当前批次将使用普通数字人生成。', 'success');
+            } catch (error) {
+                syncProjectInputs(activeProject);
+                showToast('切换失败', error.message, 'warning');
+            }
+        }
+
+        function currentH3Defaults() {
+            return {
+                continuity_mode: document.getElementById('h3-continuity').value || 'loop_anchor',
+                aspect_ratio: document.getElementById('h3-aspect').value || '9:16 (Portrait Widescreen)',
+                megapixels: Number(document.getElementById('h3-megapixels').value || 1),
+                generation_tail_seconds: Number(document.getElementById('h3-tail-seconds').value || 0.1)
+            };
+        }
+
+        async function saveH3Settings(showNotice = true) {
+            if (!activeProject?.project_id) throw new Error('请先创建项目');
+            const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/settings`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    identity_image_ids: h3IdentityImageIds,
+                    defaults: currentH3Defaults()
+                })
+            });
+            if (showNotice) showToast('H3 参数已保存', '人物图和生成参数已绑定当前批次。', 'success');
+            return project;
+        }
+
+        async function toggleH3IdentityImage(imageId, event) {
+            event.stopPropagation();
+            if (!isH3GenerationMode()) return;
+            const exists = h3IdentityImageIds.includes(imageId);
+            if (!exists && h3IdentityImageIds.length >= 4) {
+                showToast('最多选择 4 张', '多图模式会自动占用第 1 个接口，第 6 个接口留给连续模式尾帧。', 'warning');
+                return;
+            }
+            h3IdentityImageIds = exists
+                ? h3IdentityImageIds.filter(value => value !== imageId)
+                : [...h3IdentityImageIds, imageId];
+            try {
+                syncProjectInputs(await saveH3Settings(false));
+            } catch (error) {
+                syncProjectInputs(activeProject);
+                showToast('人物图保存失败', error.message, 'warning');
+            }
+        }
+
+        async function clearH3IdentityImages() {
+            h3IdentityImageIds = [];
+            try { syncProjectInputs(await saveH3Settings(false)); }
+            catch (error) { showToast('清空失败', error.message, 'warning'); }
+        }
+
+        function h3ScopeItems(raw) {
+            const text = String(raw || '').trim();
+            if (!text) return [...uploadedScripts];
+            const selected = new Set();
+            for (const token of text.split(/[,，\s]+/).filter(Boolean)) {
+                const range = token.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+                if (range) {
+                    let start = Number(range[1]);
+                    let end = Number(range[2]);
+                    if (start > end) [start, end] = [end, start];
+                    for (let value = start; value <= end; value += 1) selected.add(value);
+                } else if (/^\d+$/.test(token)) selected.add(Number(token));
+                else throw new Error(`无法识别绑定范围：${token}`);
+            }
+            const result = uploadedScripts.filter(item => selected.has(Number(item.displayIndex)) || selected.has(Number(item.rowKey)));
+            if (!result.length) throw new Error('绑定范围没有匹配任何脚本行');
+            return result;
+        }
+
+        async function uploadH3ReferenceVideo(item, file) {
+            return workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${item.id}/h3/reference-video?filename=${encodeURIComponent(file.name)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file
+            });
+        }
+
+        async function handleH3ReferenceVideosUpload(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length || !activeProject?.project_id) return;
+            try {
+                const targets = h3ScopeItems(document.getElementById('h3-video-scope').value);
+                const mapping = document.getElementById('h3-video-mapping').value;
+                const reuse = Math.max(1, Number(document.getElementById('h3-video-reuse-count').value || 1));
+                let project = activeProject;
+                for (let index = 0; index < targets.length; index += 1) {
+                    const fileIndex = mapping === 'count'
+                        ? Math.floor(index / reuse) % files.length
+                        : index % files.length;
+                    project = await uploadH3ReferenceVideo(targets[index], files[fileIndex]);
+                    document.getElementById('h3-reference-summary').textContent = `正在绑定 ${index + 1} / ${targets.length} 条...`;
+                }
+                syncProjectInputs(project);
+                showToast('参考视频已批量绑定', `${files.length} 个视频已映射到 ${targets.length} 条脚本。`, 'success');
+            } catch (error) {
+                showToast('参考视频绑定失败', error.message, 'warning');
+                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        async function uploadH3ReferenceVideoForRow(input, rowId) {
+            const file = input.files?.[0];
+            const item = uploadedScripts.find(value => value.id === rowId);
+            if (!file || !item) return;
+            try {
+                syncProjectInputs(await uploadH3ReferenceVideo(item, file));
+                showToast('参考视频已绑定', `任务 ${item.rowKey} 已使用 ${file.name}。`, 'success');
+            } catch (error) {
+                showToast('参考视频上传失败', error.message, 'warning');
+            } finally {
+                input.value = '';
+            }
+        }
+
+        async function saveH3RowOverride(rowId, field, rawValue) {
+            const item = uploadedScripts.find(value => value.id === rowId);
+            if (!item || !activeProject?.project_id) return;
+            const overrides = { ...(item.h3Settings?.overrides || {}) };
+            const value = field === 'megapixels'
+                ? (String(rawValue).trim() ? Number(rawValue) : '')
+                : String(rawValue || '').trim();
+            if (value === '' || value === null) delete overrides[field];
+            else overrides[field] = value;
+            try {
+                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/h3/overrides`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(overrides)
+                });
+                syncProjectInputs(project);
+            } catch (error) {
+                showToast('H3 本行参数保存失败', error.message, 'warning');
+                syncProjectInputs(activeProject);
+            }
+        }
+
+        function h3RowOverridesMarkup(script) {
+            const values = script.h3Settings?.overrides || {};
+            return `<details class="mt-2 border-t border-slate-800 pt-1 text-left">
+                <summary class="cursor-pointer text-[8px] text-gray-500 hover:text-cyan-200">高级覆盖（可选）</summary>
+                <div class="mt-1 space-y-1">
+                    <textarea rows="2" placeholder="本行补充方向；留空继承固定模板" onchange="saveH3RowOverride('${script.id}', 'user_direction', this.value)" class="w-full rounded border border-slate-800 bg-slate-950 px-1.5 py-1 text-[8px] text-white placeholder:text-slate-700">${escapeHtml(values.user_direction || '')}</textarea>
+                    <div class="grid grid-cols-2 gap-1">
+                        <select onchange="saveH3RowOverride('${script.id}', 'continuity_mode', this.value)" class="rounded border border-slate-800 bg-slate-950 px-1 py-1 text-[8px] text-white"><option value="">继承衔接</option><option value="loop_anchor" ${values.continuity_mode === 'loop_anchor' ? 'selected' : ''}>首尾同图</option><option value="fast" ${values.continuity_mode === 'fast' ? 'selected' : ''}>快速</option><option value="soft_chain" ${values.continuity_mode === 'soft_chain' ? 'selected' : ''}>连续</option></select>
+                        <input type="number" min="0.2" max="2" step="0.1" value="${escapeHtml(values.megapixels ?? '')}" placeholder="继承 MP" onchange="saveH3RowOverride('${script.id}', 'megapixels', this.value)" class="rounded border border-slate-800 bg-slate-950 px-1 py-1 text-[8px] text-white">
+                    </div>
+                    <select onchange="saveH3RowOverride('${script.id}', 'aspect_ratio', this.value)" class="w-full rounded border border-slate-800 bg-slate-950 px-1 py-1 text-[8px] text-white"><option value="">继承画幅</option><option value="9:16 (Portrait Widescreen)" ${values.aspect_ratio === '9:16 (Portrait Widescreen)' ? 'selected' : ''}>9:16</option><option value="16:9 (Widescreen)" ${values.aspect_ratio === '16:9 (Widescreen)' ? 'selected' : ''}>16:9</option></select>
+                </div>
+            </details>`;
+        }
+
+        function renderH3BatchSummary(project) {
+            const summary = document.getElementById('h3-batch-summary');
+            const referenceSummary = document.getElementById('h3-reference-summary');
+            if (!summary || !referenceSummary) return;
+            const items = Array.isArray(project?.items) ? project.items : [];
+            const bound = items.filter(item => item.inputs?.h3_reference_video).length;
+            referenceSummary.textContent = `已绑定 ${bound} / ${items.length} 条参考视频。`;
+            const h3 = project?.settings?.h3 || {};
+            const fee = h3.fee_snapshot || {};
+            const itemRows = items.map(item => {
+                const segments = Array.isArray(item.settings?.h3?.segments) ? item.settings.h3.segments : [];
+                const controls = segments.map(segment => {
+                    const id = escapeHtml(segment.segment_id || '');
+                    const actions = [
+                        segment.can_retry ? `<button onclick="h3RetrySegment('${id}')" class="text-amber-300 hover:text-white">重试</button>` : '',
+                        segment.can_regenerate ? `<button onclick="h3RegenerateSegment('${id}')" class="text-cyan-300 hover:text-white">重生成</button>` : '',
+                        segment.can_cancel ? `<button onclick="h3CancelSegment('${id}')" class="text-rose-300 hover:text-white">取消</button>` : ''
+                    ].filter(Boolean).join(' · ');
+                    return `<span class="mr-2">${Number(segment.index || 0) + 1}:${escapeHtml(segment.status || '等待')}${actions ? `（${actions}）` : ''}</span>`;
+                }).join('');
+                return segments.length ? `<div class="mt-1"><b>${escapeHtml(item.row_key)}</b> ${segments.length} 段：${controls}</div>` : '';
+            }).join('');
+            summary.innerHTML = h3.remote_batch_id
+                ? `H3 批次 ${escapeHtml(h3.remote_status || '等待')} · ${Number(fee.segment_count || 0)} 段 · 预计 ${Number(fee.estimated_paid_calls || 0)} 次付费调用${itemRows}`
+                : '先生成并审核声音，再绑定每行参考视频；点击下方“生成 H3 成片”会先计算分段与费用。';
+        }
+
+        function h3TargetItems() {
+            const selected = selectedProjectItems();
+            return selected.length ? selected : filteredProjectItems();
+        }
+
+        function latestMinimaxAudio(item) {
+            const history = Array.isArray(item?.assetHistory?.audio) ? item.assetHistory.audio : [];
+            const candidates = history.filter(asset => asset?.source_type === 'minimax' && asset?.status === 'READY');
+            return candidates.length ? candidates[candidates.length - 1] : null;
+        }
+
+        function h3AudioIsReviewed(item) {
+            return latestMinimaxAudio(item)?.metadata?.provider_status === 'SUCCESS';
+        }
+
+        async function reviewH3TargetAudio() {
+            if (!activeProject?.project_id || !isH3GenerationMode()) return;
+            const targets = h3TargetItems();
+            if (!targets.length) {
+                showToast('没有可审核的脚本', '请先导入脚本，或调整当前筛选范围。', 'warning');
+                return;
+            }
+            const missing = targets.filter(item => !latestMinimaxAudio(item));
+            if (missing.length) {
+                showToast('声音还没生成完整', `${missing.length} 条还没有 MiniMax 完整音频，先生成声音并逐条试听。`, 'warning');
+                return;
+            }
+            const pending = targets.filter(item => !h3AudioIsReviewed(item));
+            if (!pending.length) {
+                showToast('声音已审核', `当前范围 ${targets.length} 条声音都已审核。`, 'success');
+                return;
+            }
+            if (!window.confirm(`请确认已经试听当前范围的声音。\n\n将审核 ${pending.length} 条声音；这一步不会创建 H3 付费任务。`)) return;
+            const button = document.getElementById('btn-review-h3-audio');
+            button.disabled = true;
+            try {
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/audio-review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_ids: pending.map(item => item.id) })
+                });
+                syncProjectInputs(result.project);
+                showToast('声音审核完成', `${result.reviewed_item_ids?.length || pending.length} 条声音已冻结为本次 H3 输入。`, 'success');
+            } catch (error) {
+                showToast('声音审核失败', error.message, 'warning');
+            } finally {
+                button.disabled = false;
+                refreshAudioStageActions();
+            }
+        }
+
+        function selectH3Accounts(payload) {
+            return new Promise(resolve => {
+                const accounts = Array.isArray(payload?.accounts) ? payload.accounts : [];
+                const defaults = new Set(payload?.default_selected_account_ids || []);
+                const html = accounts.map(account => `<label class="flex items-center justify-between gap-3 rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-[10px]"><span><b>${escapeHtml(account.label || `账号 ${account.id}`)}</b><br><span class="text-gray-500">${escapeHtml(account.availability || '')} · 可用 ${Number(account.available_slots || 0)}/${Number(account.max_concurrent_tasks || 0)}</span></span><input class="h3-account-checkbox" type="checkbox" value="${Number(account.id)}" ${defaults.has(account.id) ? 'checked' : ''} ${account.selectable ? '' : 'disabled'}></label>`).join('');
+                openConfirmModal({
+                    title: '选择 H3 执行账号',
+                    message: '先选择本批次可参与调度的账号；下一步只计算分段和费用，不会立即付费。',
+                    confirmText: '计算分段与费用',
+                    extraHtml: `<div class="space-y-2">${html || '<p class="text-rose-300">没有可用 H3 账号</p>'}</div>`,
+                    validate: () => document.querySelectorAll('.h3-account-checkbox:checked:not(:disabled)').length > 0,
+                    onConfirm: () => resolve(Array.from(document.querySelectorAll('.h3-account-checkbox:checked:not(:disabled)')).map(input => Number(input.value))),
+                    onCancel: () => resolve(null)
+                });
+            });
+        }
+
+        async function startGlobalH3Generation() {
+            if (!activeProject?.project_id || isGeneratingH3) return;
+            const targets = h3TargetItems();
+            const missingAudio = targets.filter(item => !latestMinimaxAudio(item));
+            const unreviewedAudio = targets.filter(item => latestMinimaxAudio(item) && !h3AudioIsReviewed(item));
+            const missingReference = targets.filter(item => !item.h3ReferenceVideo);
+            if (!targets.length || missingAudio.length || unreviewedAudio.length || missingReference.length) {
+                showToast('H3 输入还不完整', `${!targets.length ? '没有选中脚本；' : ''}${missingAudio.length ? `${missingAudio.length} 条没有 MiniMax 完整音频；` : ''}${unreviewedAudio.length ? `${unreviewedAudio.length} 条声音尚未审核；` : ''}${missingReference.length ? `${missingReference.length} 条没有参考视频。` : ''}`, 'warning');
+                return;
+            }
+            isGeneratingH3 = true;
+            refreshAudioStageActions();
+            try {
+                syncProjectInputs(await saveH3Settings(false));
+                const accounts = await workspaceApi('/api/new/h3/accounts');
+                const selected = await selectH3Accounts(accounts);
+                if (!selected) return;
+                const prepared = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/prepare`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ selected_account_ids: selected, item_ids: targets.map(item => item.id), idempotency_key: globalThis.crypto?.randomUUID?.() || `h3-${Date.now()}` })
+                });
+                syncProjectInputs(prepared.project);
+                const fee = prepared.h3_batch?.fee_snapshot || {};
+                if (!window.confirm(`H3 将自动切为 ${Number(fee.segment_count || 0)} 段，预计 ${Number(fee.estimated_paid_calls || 0)} 次付费调用，可复用 ${Number(fee.reusable_result_count || 0)} 段。\n\n0.1 秒仅扩大生成窗口，最终不会机械裁掉。确认付费并开始？`)) return;
+                const confirmed = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/confirm`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cost_confirmed: true })
+                });
+                syncProjectInputs(confirmed.project);
+                showToast('H3 批次已启动', '完成后会自动合并、抽取 H3 音频并进入字幕/BGM 后期。', 'success');
+                scheduleH3StatusPoll(1000);
+            } catch (error) {
+                showToast('H3 启动失败', error.message, 'warning');
+            } finally {
+                isGeneratingH3 = false;
+                refreshAudioStageActions();
+            }
+        }
+
+        function scheduleH3StatusPoll(delay = 5000) {
+            clearTimeout(h3StatusPollTimer);
+            const remote = activeProject?.settings?.h3?.remote_status;
+            if (!['ACTIVE', 'RUNNING', 'QUEUED'].includes(remote)) return;
+            h3StatusPollTimer = setTimeout(refreshH3Status, delay);
+        }
+
+        async function refreshH3Status() {
+            if (!activeProject?.project_id || !isH3GenerationMode()) return;
+            try {
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/status`);
+                syncProjectInputs(result.project);
+                const remote = result.project?.settings?.h3?.remote_status;
+                const remoteBatchId = result.project?.settings?.h3?.remote_batch_id;
+                const completedTargets = uploadedScripts.filter(item => (
+                    remoteBatchId
+                    && item.h3Settings?.remote_batch_id === remoteBatchId
+                    && item.baseVideo
+                ));
+                if (['ACTIVE', 'RUNNING', 'QUEUED'].includes(remote)) scheduleH3StatusPoll();
+                else if (completedTargets.length && (activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess)) {
+                    showToast('H3 画面已回填', '正在继续生成字幕、BGM 和可编辑剪映预览。', 'success');
+                    await startGlobalPostprocess(completedTargets.map(item => item.id));
+                }
+            } catch (error) {
+                showToast('H3 状态刷新失败', error.message, 'warning');
+                scheduleH3StatusPoll(10000);
+            }
+        }
+
+        async function h3RetrySegment(segmentId) {
+            try {
+                const quote = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/retry/prepare`, { method: 'POST', body: '{}' });
+                const paid = Number(quote.estimated_paid_calls || 0) > 0;
+                if (!window.confirm(paid ? `重试会产生 ${quote.estimated_paid_calls} 次付费调用，继续？` : '本次只重新下载已有云端结果，不产生新的 H3 调用，继续？')) return;
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/retry/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `retry-${Date.now()}`, quote_token: quote.quote_token, cost_confirmed: paid }) });
+                syncProjectInputs(result.project); scheduleH3StatusPoll(1000);
+            } catch (error) { showToast('H3 重试失败', error.message, 'warning'); }
+        }
+
+        async function h3RegenerateSegment(segmentId) {
+            try {
+                const quote = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/regeneration/prepare`, { method: 'POST', body: '{}' });
+                if (!window.confirm(`该段及连续下游预计产生 ${Number(quote.estimated_paid_calls || 0)} 次付费调用，继续？`)) return;
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/regeneration/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `regen-${Date.now()}`, quote_token: quote.quote_token, cost_confirmed: true }) });
+                syncProjectInputs(result.project); scheduleH3StatusPoll(1000);
+            } catch (error) { showToast('H3 重生成失败', error.message, 'warning'); }
+        }
+
+        async function h3CancelSegment(segmentId) {
+            if (!window.confirm('确定取消这个 H3 分段吗？')) return;
+            try {
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/cancel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `cancel-${Date.now()}` }) });
+                syncProjectInputs(result.project);
+            } catch (error) { showToast('H3 取消失败', error.message, 'warning'); }
+        }
+
         async function loadPostprocessOptions() {
             const options = await workspaceApi('/api/new/postprocess/options');
             fontPresets = Array.isArray(options.fonts) ? options.fonts : [];
@@ -1686,6 +2158,7 @@
             clearTimeout(compositionStatusPollTimer);
             clearTimeout(postprocessStatusPollTimer);
             clearTimeout(variantStatusPollTimer);
+            clearTimeout(h3StatusPollTimer);
             activeProject = null;
             uploadedScripts = [];
             uploadedImages = [];
@@ -1785,6 +2258,19 @@
                 finalGenerationPhase = savedFinalPhase;
             }
             const mapping = project?.settings?.image_mapping || {};
+            const generationMode = project?.settings?.generation_mode || 'runninghub_digital_human';
+            const h3 = project?.settings?.h3 || {};
+            document.getElementById('generation-mode').value = generationMode;
+            document.getElementById('standard-generation-settings').classList.toggle('hidden', generationMode === 'minimax_h3_ref2va');
+            document.getElementById('h3-generation-settings').classList.toggle('hidden', generationMode !== 'minimax_h3_ref2va');
+            document.querySelectorAll('.h3-only-column').forEach((element) => element.classList.toggle('hidden', generationMode !== 'minimax_h3_ref2va'));
+            h3IdentityImageIds = Array.isArray(h3.identity_image_ids) ? [...h3.identity_image_ids] : [];
+            document.getElementById('h3-identity-count').textContent = `${h3IdentityImageIds.length} / 4`;
+            document.getElementById('h3-continuity').value = h3.defaults?.continuity_mode || 'loop_anchor';
+            document.getElementById('h3-aspect').value = h3.defaults?.aspect_ratio || '9:16 (Portrait Widescreen)';
+            document.getElementById('h3-megapixels').value = Number(h3.defaults?.megapixels ?? 1);
+            document.getElementById('h3-tail-seconds').value = Number(h3.defaults?.generation_tail_seconds ?? 0.1);
+            renderH3BatchSummary(project);
             const digitalHumanResolution = String(project?.settings?.digital_human?.resolution || '1024');
             const resolutionSelect = document.getElementById('digital-human-resolution');
             resolutionSelect.value = digitalHumanResolution;
@@ -1832,6 +2318,8 @@
                 sourceMetadata: item.settings?.source_metadata || {},
                 image: item.inputs?.image || null,
                 imageMappingTarget: item.inputs?.image_mapping_target === true,
+                h3ReferenceVideo: item.inputs?.h3_reference_video || null,
+                h3Settings: item.settings?.h3 || {},
                 voiceAssetId: item.settings?.voice_asset_id || null,
                 postprocessSettings: item.settings?.postprocess || {},
                 variantSettings: item.settings?.variants || {},
@@ -1931,6 +2419,7 @@
             scheduleCompositionStatusPoll();
             schedulePostprocessStatusPoll();
             scheduleVariantStatusPoll();
+            scheduleH3StatusPoll();
         }
 
         async function initializeProjectInputs() {
@@ -2300,13 +2789,16 @@
             container.innerHTML = '';
 
             const mappingImageIdSet = new Set(currentMappingImageIds);
+            const h3IdentitySet = new Set(h3IdentityImageIds);
             uploadedImages.forEach((image) => {
                 const isMappingImage = mappingImageIdSet.has(image.image_id);
+                const isH3Identity = h3IdentitySet.has(image.image_id);
                 const wrapper = document.createElement('div');
-                wrapper.className = `relative group aspect-square rounded-lg overflow-hidden border bg-slate-900 ${isMappingImage ? 'border-amber-400 ring-1 ring-amber-400/50' : 'border-slate-700'}`;
+                wrapper.className = `relative group aspect-square rounded-lg overflow-hidden border bg-slate-900 ${isH3Identity ? 'border-cyan-300 ring-1 ring-cyan-300/50' : (isMappingImage ? 'border-amber-400 ring-1 ring-amber-400/50' : 'border-slate-700')}`;
                 wrapper.innerHTML = `
                     <img src="${image.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="${escapeHtml(image.filename)}">
                     ${isMappingImage ? '<span class="absolute z-10 top-1.5 left-1.5 rounded bg-amber-400/95 px-1.5 py-0.5 text-[8px] font-bold text-slate-950">本次映射</span>' : ''}
+                    ${isH3GenerationMode() ? `<button type="button" onclick="toggleH3IdentityImage('${image.image_id}', event)" class="absolute z-20 bottom-1 left-1 right-1 rounded bg-slate-950/90 px-1 py-1 text-[8px] font-bold ${isH3Identity ? 'text-cyan-200 ring-1 ring-cyan-300/50' : 'text-gray-300 hover:text-white'}">${isH3Identity ? '✓ H3 人物图' : '+ 设为 H3 人物图'}</button>` : ''}
                     <button type="button" title="删除图片" aria-label="删除图片 ${escapeHtml(image.filename)}" onclick="removeImage('${image.image_id}', event)" class="absolute z-20 top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-600/95 hover:bg-red-500 text-white flex items-center justify-center text-sm shadow-lg ring-1 ring-white/30"><i class="fa-solid fa-trash-can"></i></button>
                 `;
                 container.appendChild(wrapper);
@@ -2679,11 +3171,11 @@
                     && script.subtitles?.status === 'PREVIEW_READY'
                     && ['COMPOSITION_READY', 'VARIANT_QUEUED', 'VARIANT_RUNNING', 'VARIANT_READY', 'VARIANT_FAILED'].includes(script.compositionStatus)
                 );
-                const videoStatus = ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING'].includes(script.compositionStatus)
+                const videoStatus = ['H3_QUEUED', 'H3_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING'].includes(script.compositionStatus)
                     ? 'loading'
                     : (script.compositionVideo || browserPreviewReady
                         ? 'ready'
-                        : (script.compositionStatus === 'COMPOSITION_FAILED' ? 'failed' : 'wait'));
+                        : (['H3_FAILED', 'COMPOSITION_FAILED'].includes(script.compositionStatus) ? 'failed' : 'wait'));
                 tr.setAttribute('data-video-status', videoStatus);
                 if (script.compositionVideo) {
                     tr.setAttribute('data-preview-mode', 'exported');
@@ -2761,7 +3253,7 @@
                 };
                 const visualLabel = visualStatusLabels[visualStatus] || visualStatusLabels.FAILED;
                 const canAnalyzeVisuals = Boolean(script.allowedActions?.analyze_visuals) && visualStatus !== 'PENDING';
-                const itemActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus);
+                const itemActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING', 'H3_QUEUED', 'H3_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(script.compositionStatus);
                 const audioCanReuse = Boolean(script.audio);
                 const audioWasGenerated = Boolean(script.assetHistory?.audio?.length);
                 const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
@@ -2851,6 +3343,16 @@
                                 <button type="button" ${canSetImageMappingTarget ? '' : 'disabled'} onclick="toggleRowImageMappingTarget(this, event)" class="text-[9px] ${imageMappingTarget ? 'text-amber-300 hover:text-amber-200' : (canSetImageMappingTarget ? 'text-gray-500 hover:text-amber-300' : 'text-gray-700 cursor-not-allowed')} transition-colors"><i class="fa-solid ${imageMappingTarget ? 'fa-minus' : 'fa-plus'} mr-1"></i>${imageMappingTarget ? '移出换图范围' : '加入换图范围'}</button>
                                 <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
                             </div>
+                        </div>
+                    </td>
+                    <td class="h3-only-column ${isH3GenerationMode() ? '' : 'hidden'} px-3 py-3 text-center">
+                        <div class="mx-auto w-44 rounded-lg border ${script.h3ReferenceVideo ? 'border-cyan-400/30 bg-cyan-400/5' : 'border-slate-800 bg-slate-950/50'} px-2 py-2">
+                            <div class="truncate text-[9px] ${script.h3ReferenceVideo ? 'text-cyan-200' : 'text-gray-600'}" title="${escapeHtml(script.h3ReferenceVideo?.filename || '')}">${escapeHtml(script.h3ReferenceVideo?.filename || '未绑定参考视频')}</div>
+                            <label class="mt-1 inline-block cursor-pointer text-[9px] text-gray-400 hover:text-white">
+                                <i class="fa-solid fa-upload mr-1"></i>${script.h3ReferenceVideo ? '替换' : '上传'}
+                                <input type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm" class="hidden" onchange="uploadH3ReferenceVideoForRow(this, '${script.id}')">
+                            </label>
+                            ${h3RowOverridesMarkup(script)}
                         </div>
                     </td>
                     <td class="px-3 py-4 text-center">
@@ -2964,16 +3466,16 @@
                     </td>
                     <td class="table-actions-column px-3 py-3 text-center">
                         <div class="flex flex-col items-stretch justify-center gap-1.5">
-                            <button ${itemActive ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${audioCanReuse ? '重新调用 MiniMax 生成当前行的新声音版本' : '只生成当前行声音'}" class="${singleActionClass} ${itemActive ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
+                            <button ${itemActive ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${audioCanReuse ? '重新调用 MiniMax 生成当前行的新声音版本' : '只生成当前行声音'}" class="audio-page-only ${singleActionClass} ${itemActive ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
                                 <i class="fa-solid fa-wave-square mr-1"></i>${audioCanReuse ? '重新生成声音' : (audioWasGenerated ? '重生成声音' : '生成声音')}
                             </button>
-                            <button ${itemActive || (!videoCanReuse && !script.audio) ? 'disabled' : ''} onclick="runSingleVideo(this)" title="${videoCanReuse ? '当前成片未失效，点击直接复用，不会重新调用 RunningHub' : '只生成当前行完整成片'}" class="${singleActionClass} ${itemActive || (!videoCanReuse && !script.audio) ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-secondary/30 text-fuchsia-300 hover:text-white hover:border-brand-secondary'}">
+                            <button ${itemActive || (!videoCanReuse && !script.audio) ? 'disabled' : ''} onclick="runSingleVideo(this)" title="${videoCanReuse ? '当前成片未失效，点击直接复用，不会重新调用 RunningHub' : '只生成当前行完整成片'}" class="generation-page-only ${singleActionClass} ${itemActive || (!videoCanReuse && !script.audio) ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-secondary/30 text-fuchsia-300 hover:text-white hover:border-brand-secondary'}">
                                 <i class="fa-solid fa-film mr-1"></i>${videoActionText}
                             </button>
-                            <button ${itemActive || !videoCanReuse ? 'disabled' : ''} onclick="runSingleVariants(this)" title="${variantsCanReuse ? '当前变体配置未改变，点击直接复用' : '只生成当前行变体'}" class="${singleActionClass} ${itemActive || !videoCanReuse ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-emerald-400/30 text-emerald-300 hover:text-white hover:border-emerald-300'}">
+                            <button ${itemActive || !videoCanReuse ? 'disabled' : ''} onclick="runSingleVariants(this)" title="${variantsCanReuse ? '当前变体配置未改变，点击直接复用' : '只生成当前行变体'}" class="generation-page-only ${singleActionClass} ${itemActive || !videoCanReuse ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-emerald-400/30 text-emerald-300 hover:text-white hover:border-emerald-300'}">
                                 <i class="fa-solid fa-photo-film mr-1"></i>${variantsCanReuse ? '复用变体' : (variantsWereGenerated ? '重生成变体' : '生成变体')}
                             </button>
-                            <button onclick="downloadClonedAudio(this)" title="导出音频" disabled class="btn-download-audio self-center w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed">
+                            <button onclick="downloadClonedAudio(this)" title="导出音频" disabled class="audio-page-only btn-download-audio self-center w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed">
                                 <i class="fa-solid fa-download"></i>
                             </button>
                         </div>
@@ -3795,6 +4297,19 @@
                 && rows.length > 0
                 && voicePresets.length > 0;
             setVoicePreviewButtonState(canGenerate, isGeneratingAllVoicePreviews);
+            const h3Mode = isH3GenerationMode();
+            const h3RemoteStatus = activeProject?.settings?.h3?.remote_status || '';
+            const h3Active = ['ACTIVE', 'RUNNING', 'QUEUED'].includes(h3RemoteStatus);
+            const h3Targets = h3Mode ? h3TargetItems() : [];
+            const h3InputsReady = h3Targets.length > 0 && h3Targets.every(item => h3AudioIsReviewed(item) && item.h3ReferenceVideo);
+            const h3ReviewButton = document.getElementById('btn-review-h3-audio');
+            if (h3ReviewButton) {
+                const pendingReview = h3Targets.filter(item => latestMinimaxAudio(item) && !h3AudioIsReviewed(item)).length;
+                h3ReviewButton.disabled = !h3Mode || !h3Targets.length || h3Active || isGeneratingH3;
+                h3ReviewButton.innerHTML = pendingReview
+                    ? `<i class="fa-solid fa-headphones mr-1"></i>试听后，审核所选声音（${pendingReview} 条待审核）`
+                    : '<i class="fa-solid fa-circle-check mr-1"></i>当前范围声音已审核';
+            }
             const canCompose4A = allReady
                 && Boolean(
                     activeProject?.allowed_actions?.start_composition
@@ -3807,16 +4322,25 @@
             )
                 && fontPresets.length > 0
                 && !isGeneratingPostprocess;
-            const canCompose = canCompose4A || canCompose4B;
+            const canStartH3 = h3Mode && h3InputsReady && !h3Active && !isGeneratingH3 && h3Targets.some(item => !item.baseVideo);
+            const canCompose = h3Mode ? (canStartH3 || canCompose4B) : (canCompose4A || canCompose4B);
             btnCompose.disabled = !canCompose;
-            btnCompose.innerHTML = isGeneratingComposition
+            btnCompose.innerHTML = h3Active
+                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>H3 成片生成中...</span>'
+                : (isGeneratingH3
+                    ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在计算 H3 费用...</span>'
+                    : (h3Mode && canStartH3
+                        ? '<i class="fa-solid fa-film"></i><span>生成 H3 成片</span>'
+                        : (isGeneratingComposition
                 ? '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>'
                 : (isGeneratingPostprocess
                     ? '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>'
                     : (canCompose4B
                         ? '<i class="fa-solid fa-closed-captioning"></i><span>重新生成完整成片</span>'
-                        : '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>'));
-            stageHint.textContent = '修改配置会保留历史版本，并从受影响的步骤重新生成';
+                        : '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>')))));
+            stageHint.textContent = h3Mode
+                ? (h3Active ? 'H3 分段正在云端运行；完成后自动回填并进入字幕/BGM 后期' : 'H3 以每行参考视频为动态主体，项目人物图只用于补充身份外观')
+                : '修改配置会保留历史版本，并从受影响的步骤重新生成';
             btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
@@ -6415,6 +6939,10 @@
         }
 
         async function startGlobalFinalVideoGeneration() {
+            if (isH3GenerationMode() && h3TargetItems().some(item => !item.baseVideo)) {
+                await startGlobalH3Generation();
+                return;
+            }
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allAudioReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
             const compositionTargets = uploadedScripts.filter((item) => (
@@ -6855,6 +7383,17 @@
                 const session = response.ok ? await response.json() : { authenticated: false };
                 if (!session.authenticated) throw new Error('unauthenticated');
                 authenticatedSession = session;
+                const ltxLink = document.getElementById('ltx-workbench-link');
+                if (ltxLink) {
+                    const target = String(session.ltx_workbench_handoff_url || session.ltx_workbench_url || '').trim();
+                    ltxLink.href = target || '#';
+                    ltxLink.classList.toggle('pointer-events-none', !target);
+                    ltxLink.setAttribute('aria-disabled', target ? 'false' : 'true');
+                }
+                const environmentLabel = document.getElementById('workbench-environment');
+                if (environmentLabel) {
+                    environmentLabel.textContent = session.workbench_environment_label || '当前环境';
+                }
                 document.querySelectorAll('.current-user-name').forEach((element) => {
                     element.textContent = session.username || '已登录用户';
                 });
@@ -6873,7 +7412,31 @@
             }
         }
 
+        function applyWorkspacePageChrome() {
+            const generationPage = document.documentElement.dataset.workspacePage === 'generate';
+            document.title = generationPage
+                ? '上传与生成 - 公域闪剪视频'
+                : '脚本与声音 - 公域闪剪视频';
+            const title = document.getElementById('workspace-table-title');
+            const description = document.getElementById('workspace-table-description');
+            const stageHint = document.getElementById('composition-stage-hint');
+            if (title?.lastChild) {
+                title.lastChild.textContent = generationPage ? ' 画面生成与结果检查表' : ' 脚本与声音审核表';
+            }
+            if (description) {
+                description.textContent = generationPage
+                    ? '选择已完成音频，配置人物图、参考视频、画面和后期参数，并逐行检查生成结果。'
+                    : '导入并校对脚本，选择声音，生成、试听和审核每行音频。';
+            }
+            if (stageHint) {
+                stageHint.textContent = generationPage
+                    ? '画面输入与生成结果集中在本页；脚本和声音请返回“脚本与声音”页处理。'
+                    : '声音审核完成后，前往“上传与生成”配置画面并检查视频结果。';
+            }
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
+            applyWorkspacePageChrome();
             let sidebarCollapsed = false;
             try {
                 sidebarCollapsed = localStorage.getItem(inputSidebarStorageKey) === 'true';

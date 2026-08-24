@@ -50,6 +50,19 @@ def build_content_visual_context(candidate_request: Mapping[str, Any]) -> dict[s
     for candidate in candidate_request.get("candidates", []):
         if not isinstance(candidate, Mapping):
             continue
+        usage = str(
+            candidate.get("usage")
+            or (
+                "enrichment"
+                if str(candidate.get("candidate_id") or "").startswith("ve_")
+                else "explicit"
+            )
+        )
+        direct_concept_ids = {
+            str(value)
+            for value in candidate.get("direct_concept_ids", ())
+            if str(value)
+        }
         allowed_ids: list[str] = []
         for concept in candidate.get("allowed_concepts", []):
             if not isinstance(concept, Mapping):
@@ -57,6 +70,11 @@ def build_content_visual_context(candidate_request: Mapping[str, Any]) -> dict[s
             concept_id = str(concept.get("concept_id") or "").strip()
             description = str(concept.get("description") or "").strip()
             if not concept_id or not description:
+                continue
+            if usage in {"enrichment", "seam_broll"} and (
+                concept_id not in direct_concept_ids
+                or concept_id.startswith("editorial.")
+            ):
                 continue
             concepts.setdefault(
                 concept_id,
@@ -77,14 +95,7 @@ def build_content_visual_context(candidate_request: Mapping[str, Any]) -> dict[s
                     start=char_start,
                     end=int(candidate["char_end"]),
                 ),
-                "usage": str(
-                    candidate.get("usage")
-                    or (
-                        "enrichment"
-                        if str(candidate.get("candidate_id") or "").startswith("ve_")
-                        else "explicit"
-                    )
-                ),
+                "usage": usage,
                 "allowed_concepts": allowed_ids,
             }
         )
@@ -246,6 +257,7 @@ def _compatibility_decisions(
     for item in plan:
         candidate = candidates[item["anchor_id"]]
         priority = int(item["priority"])
+        concept_id = str(item["concept_id"])
         usage = str(
             candidate.get("usage")
             or (
@@ -255,15 +267,24 @@ def _compatibility_decisions(
             )
         )
         requires_high_relevance = usage in {"enrichment", "seam_broll"}
+        direct_concept_ids = {
+            str(value)
+            for value in candidate.get("direct_concept_ids", ())
+            if str(value)
+        }
+        has_strong_broll_match = (
+            priority == 2 and concept_id in direct_concept_ids
+        )
         decisions.append(
             {
                 "candidate_id": str(candidate["candidate_id"]),
                 "decision": (
                     "REVIEW"
-                    if priority == 0 or (requires_high_relevance and priority < 2)
+                    if priority == 0
+                    or (requires_high_relevance and not has_strong_broll_match)
                     else "SHOW"
                 ),
-                "concept_id": item["concept_id"],
+                "concept_id": concept_id,
                 "priority": priority,
                 "usage": usage,
                 "importance": {0: 0.4, 1: 0.75, 2: 1.0}[priority],
@@ -379,7 +400,6 @@ def build_local_visual_result(
         locked_overlays=locked,
         segment_boundaries=visual_input.segment_boundaries or [],
         final_video_duration_us=visual_input.video_duration_us,
-        allow_legacy_seam_fallback=False,
     )
     result = {
         "analysis_status": "SUCCESS",

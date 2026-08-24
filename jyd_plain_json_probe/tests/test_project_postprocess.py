@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 import shutil
 import sys
@@ -24,6 +26,7 @@ from jyd_probe.project_postprocess import (  # noqa: E402
     bind_semantic_overlays_to_render_cues,
     draft_recipe_sha256,
 )
+from jyd_probe.h3_handoff import import_h3_handoff  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
@@ -272,6 +275,175 @@ class ProjectPostprocessApiTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_h3_handoff_4b_aligns_generated_audio_with_segment_windows(self) -> None:
+        user_id = "h3-postprocess-user"
+        script = "第一句。第二句。"
+        base_path = self.settings.storage_root / "h3-base-silent.mp4"
+        master_path = self.settings.storage_root / "h3-master-av.mp4"
+        audio_path = self.settings.storage_root / "h3-generated-full.wav"
+        cues_path = self.settings.storage_root / "h3-segment-cue-windows.json"
+        manifest_path = self.settings.storage_root / "jyd-handoff.json"
+        base_path.write_bytes(b"video-only")
+        master_path.write_bytes(b"h3-generated-audio-video")
+        audio_path.write_bytes(b"h3-generated-audio")
+        segment_ids = ["segment-1", "segment-2"]
+        cues = [
+            {"text": "第一句。", "start_seconds": 0.0, "end_seconds": 2.5},
+            {"text": "第二句。", "start_seconds": 2.5, "end_seconds": 5.0},
+        ]
+        cues_path.write_text(
+            json.dumps(cues, ensure_ascii=False), encoding="utf-8"
+        )
+        identity = {
+            "project_id": "h3-local:postprocess",
+            "segment_ids": segment_ids,
+            "schema_version": "h3.jyd_handoff.v2",
+        }
+        handoff_id = hashlib.sha256(
+            json.dumps(
+                identity,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": "h3.jyd_handoff.v2",
+                    "project_id": identity["project_id"],
+                    "handoff_id": handoff_id,
+                    "source": {"row_key": "H3-001", "script_text": script},
+                    "h3_master": {
+                        "path": str(master_path),
+                        "audio_video_pair": "h3_generated",
+                    },
+                    "base_video": {
+                        "path": str(base_path),
+                        "role": "base_video",
+                        "audio_policy": "separate_h3_generated_audio",
+                        "source_segment_ids": segment_ids,
+                    },
+                    "authoritative_audio": {
+                        "path": str(audio_path),
+                        "source": "h3_generated_audio",
+                        "timeline_start_seconds": 0.0,
+                        "reuse_once": True,
+                    },
+                    "subtitles": {
+                        "raw_cues_asset": str(cues_path),
+                        "timing_source": "h3_segment_windows_then_funasr",
+                    },
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = import_h3_handoff(
+            store,
+            owner_user_id=user_id,
+            owner_username="tester",
+            project_name="H3 4B 链路",
+            manifest_path=manifest_path,
+        )
+        item = project["items"][0]
+
+        class CapturingAligner:
+            def __init__(self) -> None:
+                self.path = None
+                self.raw_cues = None
+
+            def align(self, path, *, script, raw_cues, audio_asset_id, audio_version):
+                self.path = Path(path)
+                self.raw_cues = raw_cues
+                return build_alignment(
+                    script,
+                    raw_cues,
+                    {
+                        "tokens": [
+                            {"text": "第", "startSeconds": 0.4, "endSeconds": 0.6},
+                            {"text": "一", "startSeconds": 0.7, "endSeconds": 0.9},
+                            {"text": "句", "startSeconds": 1.0, "endSeconds": 1.2},
+                            {"text": "第", "startSeconds": 2.9, "endSeconds": 3.1},
+                            {"text": "二", "startSeconds": 3.2, "endSeconds": 3.4},
+                            {"text": "句", "startSeconds": 3.5, "endSeconds": 3.7},
+                        ]
+                    },
+                    audio_asset_id=audio_asset_id,
+                    audio_version=audio_version,
+                )
+
+        class RenderQueue:
+            def submit_batch(self, jobs, _variants):
+                return {"batch_id": "h3-batch", "job_ids": ["h3-job"]}
+
+            def get_status(self, _job_id):
+                return {"job_id": "h3-job", "status": "running"}
+
+        class EmptyMusicMatcher:
+            def snapshot(self):
+                return {"profiles": []}
+
+        font_path = self.settings.storage_root / "font.ttf"
+        font_path.write_bytes(b"font")
+        aligner = CapturingAligner()
+        coordinator = ProjectPostprocessCoordinator(
+            store,
+            RenderQueue(),
+            storage_root=self.settings.storage_root,
+            draft_root=self.settings.default_draft_root,
+            fonts=[
+                {
+                    "identity": "font-test",
+                    "name": "测试字体",
+                    "path": str(font_path),
+                    "available": True,
+                }
+            ],
+            bgm_assets=[],
+            music_matcher=EmptyMusicMatcher(),
+            caption_aligner=aligner,
+            require_precise_alignment=True,
+            semantic_visual_library_root=self.root / "missing-visual-library",
+        )
+        with patch(
+            "jyd_probe.project_postprocess.derive_project_render_cues",
+            return_value=(
+                [{"text": script, "start_us": 400_000, "duration_us": 4_200_000}],
+                {"status": "SUCCESS", "timing_source": "funasr_word_timestamps"},
+            ),
+        ), patch.object(
+            coordinator,
+            "_build_draft_job",
+            return_value={"output": {"skip_export": True}},
+        ):
+            result = coordinator.start(
+                user_id,
+                project["project_id"],
+                idempotency_key="h3-generated-audio-alignment",
+                item_settings=[
+                    {
+                        "item_id": item["item_id"],
+                        "font_identity": "font-test",
+                        "bgm_selection_mode": "manual",
+                        "bgm_identity": "",
+                    }
+                ],
+            )
+
+        self.assertEqual(aligner.path, audio_path.resolve())
+        self.assertEqual(aligner.raw_cues[1]["start_us"], 2_500_000)
+        aligned_item = store.get_project(user_id, project["project_id"])["items"][0]
+        alignment = aligned_item["subtitles"]["asr_alignment"]
+        self.assertEqual(alignment.get("status"), "SUCCESS", alignment)
+        self.assertEqual(
+            alignment["audio_asset_id"],
+            aligned_item["outputs"]["audio"]["asset_id"],
+        )
+        self.assertEqual(aligned_item["subtitles"]["status"], "PREVIEW_READY")
+        self.assertEqual(aligned_item["status"], "POSTPROCESS_RUNNING")
 
     def test_export_prepares_old_preview_draft_before_starting_mp4_export(self) -> None:
         user_id = "old-preview-user"
