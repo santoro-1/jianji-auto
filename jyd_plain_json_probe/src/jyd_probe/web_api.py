@@ -2760,7 +2760,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if not isinstance(client, LtxWorkbenchClient):
             raise HTTPException(
                 status_code=503,
-                detail="视频生成服务未正确启动，请重新启动本地工作台后重试",
+                detail=(
+                    "视频对口型服务未随主工作台启动。请关闭当前工作台，"
+                    "并通过“公域闪剪工作台”统一启动器重新打开"
+                ),
             )
         return ProjectLtxCoordinator(
             project_store,

@@ -111,7 +111,21 @@ class NewFrontendTest(unittest.TestCase):
             'class="hidden xl:flex items-center gap-1 ml-5',
             page,
         )
-        self.assertIn("session.workbench_environment_label", page)
+        self.assertNotIn('id="workbench-environment"', page)
+        self.assertNotIn("session.workbench_environment_label", page)
+
+    def test_h3_generation_resumes_an_existing_quote_before_preparing_again(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("async function resumeExistingH3Batch()", page)
+        self.assertIn("H3 费用预览已保留", page)
+        self.assertIn("正在恢复上一次已冻结的费用预览", page)
+        self.assertIn("if (await resumeExistingH3Batch()) return;", page)
+        self.assertIn("H3_RUNNING_REMOTE_STATUSES.has(h3RemoteStatus(recovered.project))", page)
+        self.assertLess(
+            page.index("if (await resumeExistingH3Batch()) return;"),
+            page.index("syncProjectInputs(await saveH3Settings(false));"),
+        )
 
     def test_workbench_pages_report_runtime_leases(self) -> None:
         runtime_script = (
