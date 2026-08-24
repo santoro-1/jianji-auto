@@ -60,14 +60,19 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("设为 H3 人物图", page)
         self.assertNotIn("toggleH3IdentityImage", page)
 
-    def test_workspace_is_split_into_audio_and_generation_pages(self) -> None:
+    def test_workspace_keeps_audio_upload_and_generation_on_one_page(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn('href="/app/new" data-workspace-nav="audio"', page)
-        self.assertIn('href="/app/new/generate" data-workspace-nav="generate"', page)
-        self.assertIn('dataset.workspacePage', page)
+        self.assertIn('href="/app/new" data-workspace-nav="workspace"', page)
+        self.assertNotIn('data-workspace-nav="audio"', page)
+        self.assertNotIn('data-workspace-nav="generate"', page)
+        self.assertIn("dataset.workspacePage = 'workspace'", page)
         self.assertIn('audio-page-only', page)
         self.assertIn('generation-page-only', page)
+        self.assertNotIn('html[data-workspace-page="audio"] .generation-page-only', page)
+        self.assertNotIn('html[data-workspace-page="generate"] .audio-page-only', page)
+        self.assertNotIn("window.location.assign(`/app/new/generate", page)
+        self.assertIn('声音、人物素材和模板可以并行准备', page)
 
     def test_ltx_is_a_third_same_page_pipeline_with_shared_postprocess(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")

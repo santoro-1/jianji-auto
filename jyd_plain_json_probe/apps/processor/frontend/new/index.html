@@ -13,9 +13,7 @@
     <link rel="stylesheet" href="/app-static/new/vendor/fontawesome/css/all.min.css">
     <script src="/app-static/workbench-runtime.js" defer></script>
     <script>
-        document.documentElement.dataset.workspacePage = window.location.pathname.endsWith('/generate')
-            ? 'generate'
-            : 'audio';
+        document.documentElement.dataset.workspacePage = 'workspace';
     </script>
     <style>
         body {
@@ -227,10 +225,6 @@
         tbody tr:hover .table-actions-column {
             background: #151b31;
         }
-        html[data-workspace-page="audio"] .generation-page-only,
-        html[data-workspace-page="generate"] .audio-page-only {
-            display: none !important;
-        }
         .workspace-nav-link {
             color: #d1d5db;
             border: 1px solid transparent;
@@ -239,23 +233,11 @@
             color: #fff;
             background: rgba(255, 255, 255, 0.05);
         }
-        html[data-workspace-page="audio"] [data-workspace-nav="audio"],
-        html[data-workspace-page="generate"] [data-workspace-nav="generate"] {
+        html[data-workspace-page="workspace"] [data-workspace-nav="workspace"] {
             color: #fff;
             background: rgba(99, 102, 241, 0.1);
             border-color: rgba(99, 102, 241, 0.3);
             box-shadow: inset 0 1px 8px rgba(99, 102, 241, 0.08);
-        }
-        html[data-workspace-page="audio"] #synthesis-table {
-            min-width: 920px;
-        }
-        html[data-workspace-page="audio"] #synthesis-table th:nth-child(n+6):nth-child(-n+15),
-        html[data-workspace-page="audio"] #synthesis-table td:nth-child(n+6):nth-child(-n+15) {
-            display: none !important;
-        }
-        html[data-workspace-page="generate"] #synthesis-table th:nth-child(4),
-        html[data-workspace-page="generate"] #synthesis-table td:nth-child(4) {
-            display: none !important;
         }
     </style>
 </head>
@@ -631,8 +613,7 @@
 
             <!-- Header Menu -->
             <nav class="hidden md:flex items-center gap-1">
-                <a href="/app/new" data-workspace-nav="audio" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-wave-square mr-1.5 text-brand-accent"></i>脚本与声音</a>
-                <a href="/app/new/generate" data-workspace-nav="generate" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-film mr-1.5 text-brand-accent"></i>上传与生成</a>
+                <a href="/app/new" data-workspace-nav="workspace" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-sliders mr-1.5 text-brand-accent"></i>核心工作台</a>
                 <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
                 <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-microphone-lines mr-1.5"></i>声音克隆中心</a>
                 <button id="activity-button" type="button" onclick="openActivityModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i>运行记录<span id="activity-count" class="hidden ml-1.5 min-w-5 px-1.5 py-0.5 rounded-full bg-brand-primary/20 text-[9px] text-brand-accent"></span></button>
@@ -1627,28 +1608,16 @@
         }
 
         async function activateLtxWorkbenchMode() {
-            if (document.documentElement.dataset.workspacePage !== 'generate') {
-                window.location.assign(`/app/new/generate${activeProject?.project_id ? `?project=${encodeURIComponent(activeProject.project_id)}` : ''}`);
-                return;
-            }
             document.getElementById('generation-mode').value = 'ltx_lip_sync';
             await handleGenerationModeChange('ltx_lip_sync');
         }
 
         async function activateStandardWorkbenchMode() {
-            if (document.documentElement.dataset.workspacePage !== 'generate') {
-                window.location.assign(`/app/new/generate${activeProject?.project_id ? `?project=${encodeURIComponent(activeProject.project_id)}` : ''}`);
-                return;
-            }
             document.getElementById('generation-mode').value = 'runninghub_digital_human';
             await handleGenerationModeChange('runninghub_digital_human');
         }
 
         async function activateH3WorkbenchMode() {
-            if (document.documentElement.dataset.workspacePage !== 'generate') {
-                window.location.assign(`/app/new/generate${activeProject?.project_id ? `?project=${encodeURIComponent(activeProject.project_id)}` : ''}`);
-                return;
-            }
             document.getElementById('generation-mode').value = 'minimax_h3_ref2va';
             await handleGenerationModeChange('minimax_h3_ref2va');
         }
@@ -7739,25 +7708,18 @@
         }
 
         function applyWorkspacePageChrome() {
-            const generationPage = document.documentElement.dataset.workspacePage === 'generate';
-            document.title = generationPage
-                ? '上传与生成 - 公域闪剪视频'
-                : '脚本与声音 - 公域闪剪视频';
+            document.title = '核心工作台 - 公域闪剪视频';
             const title = document.getElementById('workspace-table-title');
             const description = document.getElementById('workspace-table-description');
             const stageHint = document.getElementById('composition-stage-hint');
             if (title?.lastChild) {
-                title.lastChild.textContent = generationPage ? ' 画面生成与结果检查表' : ' 脚本与声音表';
+                title.lastChild.textContent = ' 视频片段生成配置表';
             }
             if (description) {
-                description.textContent = generationPage
-                    ? '选择已完成音频，配置人物图、参考视频、画面和后期参数，并逐行检查生成结果。'
-                    : '导入并校对脚本，选择声音，生成、试听和审核每行音频。';
+                description.textContent = '在同一页导入并校对脚本、生成和试听声音，同时上传人物素材、配置画面与后期并检查结果。';
             }
             if (stageHint) {
-                stageHint.textContent = generationPage
-                    ? '画面输入与生成结果集中在本页；脚本和声音请返回“脚本与声音”页处理。'
-                    : '声音试听满意后，前往“上传与生成”配置画面并检查视频结果。';
+                stageHint.textContent = '声音、人物素材和模板可以并行准备；生成视频只读取当前已经确认的声音，不会自动重新生成。';
             }
         }
 
