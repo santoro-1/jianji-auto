@@ -702,7 +702,7 @@ class ProjectCompositionCoordinator:
                 ),
             )
         except AuthCenterError as exc:
-            retryable = exc.status_code >= 500
+            retryable = exc.retryable
             self.store.transition_operation(
                 owner_user_id,
                 project_id,
@@ -713,7 +713,7 @@ class ProjectCompositionCoordinator:
                 item_status=(
                     "COMPOSITION_QUEUED" if retryable else "COMPOSITION_FAILED"
                 ),
-                error_code=type(exc).__name__,
+                error_code=exc.error_code,
                 error_message=str(exc),
             )
         except Exception as exc:

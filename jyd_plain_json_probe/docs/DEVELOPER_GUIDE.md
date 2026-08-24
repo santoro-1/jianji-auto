@@ -146,6 +146,13 @@ Collector 位于 `data/logs/collector.log`，`server.log` 只保留启动和致�
 `%LOCALAPPDATA%/JianyingRenderAgent/logs/agent.log`。本地日志默认单文件 10 MB、保留 14 天，
 写入前统一脱敏，不得记录访问令牌、API Key、完整脚本或完整请求体。
 
+AuthCenterError 必须保留云端返回的业务正文，并用稳定错误码区分失败类型：
+DIGITAL_HUMAN_REQUEST_REJECTED 表示 4xx 业务拒绝，不能伪装成断网；
+DIGITAL_HUMAN_AUTH_EXPIRED / DIGITAL_HUMAN_FORBIDDEN 表示账号问题；
+DIGITAL_HUMAN_CONNECTION_FAILED 和 DIGITAL_HUMAN_SERVER_UNAVAILABLE 才允许按
+服务器暂时不可用处理。4A 状态轮询结束后，前端显示最近一次失败操作的真实正文；只有连接
+失败或 5xx 使用“数字人服务器暂时不可用”标题。
+
 `GET /api/new/projects/{project_id}/diagnostics` 仅允许项目所有者下载临时 ZIP。摘要不得包含
 脚本文本、素材路径、操作 `payload/result` 或错误正文；日志仅从 14 天内的 `workbench.log`、
 `render.log`、`collector.log` 及其轮转文件中选取与当前 `project_id`、`operation_id` 或
@@ -455,12 +462,17 @@ data/template_library/<template_id>/
 - `/api/new/projects/{id}/items/{item_id}/voice`：覆盖单个脚本行的音色。
 - `/api/new/projects/{id}/audio*`：项目声音生成、状态同步、单行重试、试听和下载。
 - `/api/new/h3/accounts`：读取安全 H3 执行账号摘要。
-- `/api/new/projects/{id}/h3/settings`：H3 批次人物图与默认参数。
+- `/api/new/projects/{id}/h3/settings`：H3 默认参数；历史 `identity_image_ids` 仅兼容读取，正式前端
+  不再维护第二套人物图选择。
 - `/api/new/projects/{id}/items/{item_id}/h3/reference-video`：逐行参考视频素材版本。
 - `/api/new/projects/{id}/items/{item_id}/h3/overrides`：逐行 H3 差异参数。
-- `/api/new/projects/{id}/h3/audio-review`：显式审核所选 MiniMax 音频，不触发 H3 费用。
+- `/api/new/projects/{id}/h3/audio-review`：保留给兼容调用的音频锁定接口；正式前端不暴露
+  独立按钮，`h3/prepare` 会在“生成视频”后自动锁定所选 MiniMax 音频，且不触发 H3 费用。
 - `/api/new/projects/{id}/h3/prepare|confirm|status`：所选行 H3 费用快照、确认和结果回填；
   `/h3/segments/*` 提供段级重试、主动重生成、取消和下载。
+- `/api/new/projects/{id}/ltx/state|generate|refresh`：同步 JYD 权威原稿与最新 MiniMax 音频，启动或
+  刷新隐藏 LTX/SeedVR2 引擎；`PUT /items/{item_id}/ltx/source-video` 版本化上传源视频并只失效
+  该行画面与后期，`POST /items/{item_id}/ltx/retry` 只重试该行失败引擎阶段。
 - `/api/new/projects/{id}/composition*`：4A 画面启动、真实状态同步和失败阶段重试。
 - `/api/new/projects/{id}/items/{item_id}/base-video`：下载当前标准化基础视频。
 - `/api/new/postprocess/options`：返回实际可读的真实字体和现有 BGM 素材。
@@ -500,17 +512,35 @@ Cookie 中。前端只通过 `/api/auth/session` 读取用户摘要，通过 `/a
 启动前，图片仍可替换；4A 上传的永远是提交时的当前图片。
 
 H3 画面链由 `project_h3.py` 单独编排，入口位于 `/app/new/generate`。它只消费调用时显式
-选择的 `item_ids`：读取每行最新且 `provider_status=SUCCESS` 的 MiniMax 历史音频（即使当前
-播放音频已经是上一版 H3 权威音频），上传该行冻结参考视频和项目有序 0～4 张人物图，再把
-批次默认参数及 `settings.h3.overrides` 交给云端。`AWAITING_REVIEW` 必须先走
-`h3/audio-review`；`h3/confirm` 不得改写声音审核。云端成功后，`project_h3_media.py` 保留并
+选择的 `item_ids`：读取每行最新 MiniMax 历史音频（即使当前播放音频已经是上一版 H3 权威
+音频），在 `h3/prepare` 内自动把 `AWAITING_REVIEW` 锁定为本次输入；原稿使用当前音频元数据
+哈希所绑定的 raw cues 文本，不再拿可后改的表格标点做远端严格比较。每行人物图直接读取
+`inputs.image`，相同图片只上传一次，云端 row 合同只为该行提交一个
+`reference_image_asset_ids`；图片的逐行循环或一图多行完全沿用现有 `image_mapping`。然后上传
+该行冻结参考视频，把批次默认参数及 `settings.h3.overrides` 交给云端。正式前端只
+保留声音预览和“生成视频”，不展示第二个审核操作；`h3/confirm` 仍只确认 H3 费用，不改写
+声音版本。云端成功后，`project_h3_media.py` 保留并
 合并每段 H3 原生音画、归零时间戳、拆出静音基础视频和 H3 权威音频，并以实际分段窗口调用
 FunASR；回填只更新原 `ProjectItem`。未选行不继承批次状态，前端自动后期也只提交当前
 `remote_batch_id` 对应且已回填的行。换人物图/批次参数使项目 H3 画面失效，换行级覆盖或
 参考视频只使该行失效；待确认、排队或运行期间一律禁止修改输入或用新幂等键重复准备。
-新配置默认 `continuity_mode=loop_anchor`、`generation_tail_seconds=0.1`。`loop_anchor` 至少需要
-1 张有序人物图；第一张由云端固定映射为 `<Picture 1>` 并同时描述为每段首帧和尾帧，不得沿用
-普通多图模式把参考视频抽帧插到第一槽。`fast` 与 `soft_chain` 仍是合法行级覆盖。
+
+视频对口型是同一 `/app/new/generate` 中的第三种画面生成方式，不是第二套页面或账号。前端只展示
+“视频对口型”“人物视频”等业务文案，不暴露内部引擎名、分段实现或清晰化节点名。项目
+`settings.generation_mode` 的三个正式值为 `runninghub_digital_human`、`minimax_h3_ref2va` 和
+`ltx_lip_sync`。`project_ltx.py` 只把当前原稿、最新 READY MiniMax 历史音频引用和每行源视频交给
+本机回环 LTX 引擎；该引擎按 20 秒以内分段执行 LTX，再固定逐段执行 SeedVR2 48G。完成的基础
+视频回填为 `source_type=ltx`，之后继续走与另外两条路线完全相同的字幕、BGM、语义视觉、剪映
+模板、完整预览、变体和成果链。普通数字人的服务商临时 2 秒静音不能进入 LTX：LTX 始终使用
+MiniMax 原音；从 H3 切回普通数字人或 LTX 时，`ProjectStore.set_generation_mode` 恢复最新
+MiniMax 音频及其保存的 raw cues。替换 LTX 源视频只清除该行当前基础视频和后期结果；LTX 或
+SeedVR2 运行期间，隐藏引擎拒绝原稿、声音版本和源视频变化，避免已计费任务与当前输入脱节。
+源码联调必须从 `ltx_lip_sync_workbench/START-LOCAL.cmd` 统一启动；该入口生成一次性管理令牌并
+同时传给 `8010` 与 `8791`。分别手工启动而没有共享令牌时，JYD 不创建内部引擎客户端，也不会
+接受视频上传。
+新配置默认 `continuity_mode=loop_anchor`、`generation_tail_seconds=0.1`。`loop_anchor` 要求目标行
+已有图片分配；该图由云端固定映射为 `<Picture 1>` 并同时描述为每段首帧和尾帧，不得沿用普通
+多图模式把参考视频抽帧插到第一槽。`fast` 与 `soft_chain` 仍是合法行级覆盖。
 项目分辨率变更使既有基础视频失效时，`project_composition.py` 检测
 `DIGITAL_HUMAN_RESOLUTION_CHANGED`。已有云端数字人源片段的行只调用
 `AuthCenterClient.backfill_workbench_video_enhancement()`，不上传图片、不调用数字人启动接口；

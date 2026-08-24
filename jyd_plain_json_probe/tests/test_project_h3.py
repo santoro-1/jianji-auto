@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 import sys
 
@@ -17,6 +18,7 @@ from jyd_probe.project_store import ProjectStore  # noqa: E402
 class FakeH3Client:
     def __init__(self) -> None:
         self.uploads: list[tuple[str, str]] = []
+        self.approvals: list[dict[str, object]] = []
         self.prepared: dict | None = None
         self.snapshot = {
             "batch_id": "h3-batch-1",
@@ -39,6 +41,7 @@ class FakeH3Client:
         return {"accounts": [{"id": 7}], "token_seen": token}
 
     def approve_h3_audio_source(self, token: str, **kwargs: object) -> dict:
+        self.approvals.append(dict(kwargs))
         return {
             **kwargs,
             "status": "SUCCESS",
@@ -96,12 +99,28 @@ class FakeH3Client:
 class FakeCaptionAligner:
     def align(self, audio_path: Path, **kwargs: object) -> dict:
         assert audio_path.is_file()
+        script = str(kwargs["script"])
+        split = max(1, len(script) // 2)
         return {
+            "schema": "jyd.asr-caption-alignment.v1",
             "status": "SUCCESS",
             "audio_asset_id": kwargs["audio_asset_id"],
             "audio_version": kwargs["audio_version"],
-            "script_sha256": "fake",
-            "words": [],
+            "script_sha256": hashlib.sha256(script.encode()).hexdigest(),
+            "ranges": [
+                {
+                    "start": 0,
+                    "end": split,
+                    "start_us": 100_000,
+                    "end_us": 900_000,
+                },
+                {
+                    "start": split,
+                    "end": len(script),
+                    "start_us": 1_000_000,
+                    "end_us": 1_900_000,
+                },
+            ],
         }
 
 
@@ -169,6 +188,9 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
         managed_path=str(image_path),
     )
     image_id = project["image_id"]
+    store.apply_image_strategy(
+        "user-1", project_id, strategy="loop", reuse_count=1
+    )
     audio_path = tmp_path / "voice.mp3"
     audio_path.write_bytes(b"audio")
     audio_asset = store.add_asset(
@@ -187,6 +209,25 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
         },
         metadata={"provider_status": "AWAITING_REVIEW"},
         make_current=True,
+    )
+    store.set_item_subtitles(
+        "user-1",
+        project_id,
+        item_id,
+        {
+            "source": "minimax_timestamps",
+            "raw_cues": [
+                {
+                    "text": "第一条台词。",
+                    "start_us": 0,
+                    "duration_us": 2_000_000,
+                    "end_us": 2_000_000,
+                }
+            ],
+            "render_cues": [],
+            "bound_audio_asset_id": audio_asset["asset_id"],
+            "status": "READY",
+        },
     )
     reference_path = tmp_path / "reference.mp4"
     reference_path.write_bytes(b"video")
@@ -230,15 +271,6 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
         media_preparer=fake_media_preparer,
     )
 
-    reviewed = coordinator.approve_audio(
-        "user-1", project_id, "token", item_ids=[item_id]
-    )
-    assert reviewed["reviewed_item_ids"] == [item_id]
-    assert (
-        reviewed["project"]["items"][0]["outputs"]["audio"]["asset_id"]
-        == audio_asset["asset_id"]
-    )
-
     prepared = coordinator.prepare(
         "user-1",
         project_id,
@@ -249,9 +281,32 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     )
     assert prepared["project"]["project_id"] == project_id
     assert prepared["project"]["items"][0]["status"] == "H3_COST_PENDING"
+    assert (
+        prepared["project"]["items"][0]["outputs"]["audio"]["asset_id"]
+        == audio_asset["asset_id"]
+    )
+    assert client.approvals == [
+        {
+            "audio_batch_id": "audio-batch",
+            "audio_item_id": "audio-item",
+            "audio_generation_version": 3,
+        }
+    ]
     assert client.prepared is not None
     assert client.prepared["rows"][0]["audio_generation_version"] == 3
     assert client.prepared["rows"][0]["script_text"] == "第一条台词。"
+    alignment = client.prepared["rows"][0]["audio_alignment"]
+    assert alignment["schema"] == "jyd.h3-safe-cut-alignment.v1"
+    assert alignment["source"] == "jyd_local_funasr"
+    assert alignment["audio_sha256"] == hashlib.sha256(b"audio").hexdigest()
+    assert alignment["audio_batch_id"] == "audio-batch"
+    assert alignment["audio_item_id"] == "audio-item"
+    assert alignment["audio_generation_version"] == 3
+    assert len(alignment["ranges"]) == 2
+    assert client.prepared["rows"][0]["reference_image_asset_ids"] == [
+        "cloud-image-1"
+    ]
+    assert client.prepared["reference_image_asset_ids"] == ["cloud-image-1"]
     assert client.prepared["defaults"]["continuity_mode"] == "loop_anchor"
     assert client.prepared["defaults"]["generation_tail_seconds"] == pytest.approx(0.1)
     assert client.prepared["rows"][0]["overrides"] == {
@@ -273,7 +328,6 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
             selected_account_ids=[7],
             item_ids=[item_id],
         )
-
     confirmed = coordinator.confirm("user-1", project_id, "token")
     assert confirmed["project"]["project_id"] == project_id
     assert confirmed["project"]["settings"]["h3"]["remote_batch_id"] == "h3-batch-1"
@@ -342,3 +396,19 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     assert client.prepared["rows"][0]["audio_batch_id"] == "audio-batch"
     assert client.prepared["rows"][0]["audio_item_id"] == "audio-item"
     assert client.prepared["rows"][0]["audio_generation_version"] == 3
+
+
+def test_h3_uses_the_script_snapshot_bound_to_minimax_audio() -> None:
+    cue_script = "第一句，第二句？"
+    item = {
+        "row_key": "1",
+        "script_text": "第一句。第二句？",
+        "subtitles": {"raw_cues": [{"text": cue_script}]},
+    }
+    audio = {
+        "metadata": {
+            "script_sha256": hashlib.sha256(cue_script.encode("utf-8")).hexdigest()
+        }
+    }
+
+    assert ProjectH3Coordinator._audio_bound_script(item, audio) == cue_script

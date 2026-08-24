@@ -137,6 +137,9 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                     sha256="a" * 64,
                     managed_path=str(identity_path),
                 )
+                store.apply_image_strategy(
+                    user["user_id"], project_id, strategy="loop", reuse_count=1
+                )
                 audio_path = root / "voice.mp3"
                 audio_path.write_bytes(b"audio")
                 store.add_asset(

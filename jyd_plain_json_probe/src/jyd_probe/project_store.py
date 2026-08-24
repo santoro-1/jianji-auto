@@ -3230,7 +3230,11 @@ class ProjectStore:
         self, owner_user_id: str, project_id: str, mode: str
     ) -> dict[str, Any]:
         clean_mode = str(mode or "").strip()
-        if clean_mode not in {"runninghub_digital_human", "minimax_h3_ref2va"}:
+        if clean_mode not in {
+            "runninghub_digital_human",
+            "minimax_h3_ref2va",
+            "ltx_lip_sync",
+        }:
             raise ValueError("画面生成方式无效")
         if clean_mode == "minimax_h3_ref2va":
             raise ValueError("切换 H3 时请同时保存 H3 参数")
@@ -3253,19 +3257,62 @@ class ProjectStore:
             )
             for item in rows:
                 subtitles = _object(item["subtitles_json"], _default_subtitles())
+                selected_audio_id = item["current_audio_asset_id"]
+                if clean_mode in {
+                    "runninghub_digital_human",
+                    "ltx_lip_sync",
+                }:
+                    minimax_audio = connection.execute(
+                        "SELECT * FROM project_assets WHERE item_id=? "
+                        "AND asset_type='audio' AND source_type='minimax' "
+                        "AND status='READY' ORDER BY version DESC LIMIT 1",
+                        (item["item_id"],),
+                    ).fetchone()
+                    selected_audio_id = (
+                        minimax_audio["asset_id"] if minimax_audio is not None else None
+                    )
+                    if subtitles.get("bound_audio_asset_id") != selected_audio_id:
+                        audio_metadata = (
+                            _object(minimax_audio["metadata_json"], {})
+                            if minimax_audio is not None
+                            else {}
+                        )
+                        saved_cues = audio_metadata.get("subtitle_cues")
+                        subtitles["source"] = (
+                            "minimax_timestamps" if isinstance(saved_cues, list) else None
+                        )
+                        subtitles["raw_cues"] = (
+                            [dict(value) for value in saved_cues if isinstance(value, dict)]
+                            if isinstance(saved_cues, list)
+                            else []
+                        )
+                        subtitles["bound_audio_asset_id"] = selected_audio_id
                 subtitles["render_cues"] = []
                 subtitles["bound_video_asset_id"] = None
                 subtitles["status"] = (
-                    "READY" if subtitles.get("raw_cues") else "NOT_AVAILABLE"
+                    "READY"
+                    if subtitles.get("raw_cues")
+                    else (
+                        "PENDING_TIMESTAMPS"
+                        if selected_audio_id
+                        else "NOT_AVAILABLE"
+                    )
                 )
                 next_status = (
-                    "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
+                    "AUDIO_READY" if selected_audio_id else "DRAFT"
                 )
                 connection.execute(
-                    "UPDATE project_items SET current_base_video_asset_id=NULL, "
+                    "UPDATE project_items SET current_audio_asset_id=?, "
+                    "current_base_video_asset_id=NULL, "
                     "current_video_asset_id=NULL, subtitles_json=?, status=?, updated_at=? "
                     "WHERE item_id=?",
-                    (_json(subtitles), next_status, now, item["item_id"]),
+                    (
+                        selected_audio_id,
+                        _json(subtitles),
+                        next_status,
+                        now,
+                        item["item_id"],
+                    ),
                 )
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)

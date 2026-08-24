@@ -314,6 +314,36 @@
         </div>
     </div>
 
+    <!-- User-owned Jianying template modal -->
+    <div id="jianying-template-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="jianying-template-title">
+        <div class="glass-panel-heavy w-full max-w-2xl max-h-[88vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-200">
+            <div class="flex items-start justify-between gap-4 mb-5">
+                <div>
+                    <h3 id="jianying-template-title" class="text-lg font-bold text-white"><i class="fa-solid fa-clapperboard text-brand-primary mr-2"></i>我的剪映模板</h3>
+                    <p class="text-[11px] text-gray-400 mt-1">保留模板花字、位置和固定视觉，只替换主视频、语音字幕、语音和当前 BGM。</p>
+                </div>
+                <button type="button" onclick="window.JYDTemplates.close()" aria-label="关闭剪映模板" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="rounded-xl border border-indigo-400/15 bg-indigo-500/5 px-4 py-3 text-[11px] leading-5 text-gray-400">
+                在弹出的目录选择器中选择具体草稿文件夹，通常位于<br>
+                <code class="text-indigo-200">%LOCALAPPDATA%\JianyingPro\User Data\Projects\com.lveditor.draft\草稿名</code>
+            </div>
+            <div class="mt-4 flex flex-col sm:flex-row gap-3">
+                <input id="jianying-template-name" maxlength="80" placeholder="模板名称，例如：上传1" class="flex-1 bg-slate-900/60 border border-slate-700/60 rounded-xl px-4 py-2.5 text-sm text-gray-200 border-glow">
+                <button id="jianying-template-upload" type="button" onclick="window.JYDTemplates.upload()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-brand-primary to-brand-secondary text-white shadow-lg whitespace-nowrap"><i class="fa-solid fa-folder-open mr-2"></i>上传草稿目录</button>
+            </div>
+            <p id="jianying-template-progress" class="mt-2 min-h-[18px] text-[10px] text-gray-500"></p>
+            <div id="jianying-template-list" class="mt-4 space-y-2"></div>
+            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-4">
+                <p class="text-[10px] text-gray-500">模板按当前账号保存，可在以后项目中复用。浏览器不会静默读取电脑文件，首次上传或修复时需要你选择目录。</p>
+                <div class="flex gap-3">
+                    <button type="button" onclick="window.JYDTemplates.close()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300">取消</button>
+                    <button id="jianying-template-apply" type="button" onclick="window.JYDTemplates.apply()" class="px-5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-brand-primary to-brand-secondary text-white shadow-lg">应用到当前项目</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Semantic foreground visual review modal -->
     <div id="semantic-visual-modal" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/75 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="semantic-visual-title">
         <div class="glass-panel-heavy w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-200">
@@ -592,8 +622,10 @@
                     <p class="text-[10px] text-brand-accent font-semibold tracking-widest uppercase">Video Synthesis Platform</p>
                 </div>
                 <div class="flex items-center gap-1 ml-5 p-1 rounded-xl border border-white/10 bg-black/20 whitespace-nowrap" aria-label="工作台切换">
-                    <span class="px-3 py-2 rounded-lg bg-gradient-to-r from-brand-primary to-brand-secondary text-[11px] font-bold text-white shadow-lg" aria-current="page">数字人工作台</span>
-                    <a id="ltx-workbench-link" href="#" target="_blank" rel="noopener noreferrer" class="px-3 py-2 rounded-lg text-[11px] font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all">对口型工作台 <i class="fa-solid fa-arrow-up-right-from-square ml-1 text-[9px]"></i></a>
+                    <span class="px-2 text-[9px] font-semibold text-gray-500">生成方式</span>
+                    <button id="engine-route-digital" type="button" onclick="activateStandardWorkbenchMode()" class="px-3 py-2 rounded-lg text-[11px] font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all">普通数字人</button>
+                    <button id="engine-route-h3" type="button" onclick="activateH3WorkbenchMode()" class="px-3 py-2 rounded-lg text-[11px] font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all">H3 多参考</button>
+                    <button id="ltx-workbench-link" type="button" onclick="activateLtxWorkbenchMode()" class="px-3 py-2 rounded-lg text-[11px] font-bold text-gray-300 hover:text-white hover:bg-white/5 transition-all">视频对口型</button>
                     <span id="workbench-environment" class="px-2 text-[9px] font-semibold text-brand-accent whitespace-nowrap">当前环境</span>
                 </div>
             </div>
@@ -769,7 +801,7 @@
                 </div>
 
                 <!-- Input 3: Images Upload & Distribution Strategy -->
-                <div class="generation-page-only glass-panel rounded-2xl p-5 shadow-lg">
+                <div id="image-input-panel" class="generation-page-only glass-panel rounded-2xl p-5 shadow-lg">
                     <h3 class="font-bold text-sm text-white flex items-center gap-2 mb-4">
                         <span class="w-6 h-6 rounded bg-brand-secondary/20 text-brand-secondary flex items-center justify-center text-xs"><i class="fa-solid fa-images"></i></span>
                         1. 导入图片集与分配策略
@@ -836,6 +868,7 @@
                     <select id="generation-mode" onchange="handleGenerationModeChange(this.value)" class="w-full rounded-xl border border-slate-700/80 bg-slate-950/80 px-3 py-2.5 text-xs font-semibold text-white focus:border-brand-accent focus:outline-none">
                         <option value="runninghub_digital_human">普通数字人</option>
                         <option value="minimax_h3_ref2va">MiniMax H3 多参考</option>
+                        <option value="ltx_lip_sync">视频对口型</option>
                     </select>
 
                     <div id="standard-generation-settings" class="mt-4">
@@ -849,11 +882,8 @@
 
                     <div id="h3-generation-settings" class="hidden mt-4 space-y-3">
                         <div class="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
-                            <div class="flex items-center justify-between gap-2">
-                                <span class="text-[11px] font-bold text-cyan-200">人物参考图 <span id="h3-identity-count">0 / 4</span></span>
-                                <button type="button" onclick="clearH3IdentityImages()" class="text-[9px] text-gray-400 hover:text-white">清空</button>
-                            </div>
-                            <p class="mt-1 text-[9px] leading-relaxed text-gray-500">默认首尾同图模式至少选择 1 张，第一张同时约束每段首帧和尾帧；2～4 张时其余图片补充人物身份。第 6 个接口留给尾帧串行模式。</p>
+                            <p class="text-[11px] font-bold text-cyan-200">人物图自动跟随图片分配</p>
+                            <p class="mt-1 text-[9px] leading-relaxed text-gray-500">无需二次勾选。每行直接使用上方已分配的图片：依次循环时一行一张并循环；连续复用时一张可对应多行。</p>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <label class="text-[10px] text-gray-400">衔接
@@ -892,8 +922,30 @@
                             <input id="h3-video-scope" type="text" placeholder="绑定范围：留空=全部；或 3,5,8-12" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white placeholder:text-slate-600">
                             <p id="h3-reference-summary" class="text-[9px] leading-relaxed text-gray-500">尚未绑定参考视频。每行可不同；也可在表格中单独替换。</p>
                         </div>
-                        <button id="btn-review-h3-audio" type="button" onclick="reviewH3TargetAudio()" class="w-full rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"><i class="fa-solid fa-headphones mr-1"></i>试听后，审核所选声音</button>
-                        <p id="h3-batch-summary" class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-[9px] leading-relaxed text-gray-400">先生成并审核声音，再绑定每行参考视频；点击下方“生成 H3 成片”会先计算分段与费用。</p>
+                        <p id="h3-batch-summary" class="rounded-lg border border-slate-800 bg-slate-950/50 px-3 py-2 text-[9px] leading-relaxed text-gray-400">先生成并试听声音，再绑定每行参考视频；点击“生成视频”后会自动锁定当前声音并计算分段与费用。</p>
+                    </div>
+
+                    <div id="ltx-generation-settings" class="hidden mt-4 space-y-3">
+                        <div class="rounded-xl border border-violet-400/25 bg-violet-400/5 p-3">
+                            <p class="text-[11px] font-bold text-violet-200">使用人物视频生成口型画面</p>
+                            <p class="mt-1 text-[9px] leading-relaxed text-gray-400">使用当前已生成的声音驱动人物视频。完成后可以继续添加字幕、背景音乐和画面素材。</p>
+                        </div>
+                        <div class="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[11px] font-bold text-white">批量选择人物视频</span>
+                                <button type="button" onclick="triggerFileInput('ltx-source-videos-input')" class="rounded-lg border border-violet-400/30 bg-violet-400/10 px-2 py-1 text-[9px] font-semibold text-violet-200 hover:text-white"><i class="fa-solid fa-video mr-1"></i>选择多个视频</button>
+                            </div>
+                            <input id="ltx-source-videos-input" type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,video/x-msvideo" multiple class="hidden" onchange="handleLtxSourceVideosUpload(event)">
+                            <div class="grid grid-cols-2 gap-2">
+                                <select id="ltx-video-mapping" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                                    <option value="loop">依次循环</option>
+                                    <option value="count">每个视频连续复用</option>
+                                </select>
+                                <input id="ltx-video-reuse-count" type="number" min="1" max="100" value="1" title="每个视频连续复用的脚本行数" class="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white">
+                            </div>
+                            <input id="ltx-video-scope" type="text" placeholder="绑定范围：留空=选中行或全部；或 3,5,8-12" class="w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-[10px] text-white placeholder:text-slate-600">
+                            <p id="ltx-source-summary" class="text-[9px] leading-relaxed text-gray-500">尚未选择视频。可以批量分配，也可以在表格“人物视频”列逐行上传或替换。</p>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -912,9 +964,9 @@
                             <div>
                                 <h2 id="workspace-table-title" class="font-extrabold text-sm text-white flex items-center gap-2">
                                     <i class="fa-solid fa-list-check text-brand-accent"></i>
-                                    脚本与声音审核表
+                                    脚本与声音表
                                 </h2>
-                                <p id="workspace-table-description" class="text-[10px] text-gray-400 mt-0.5">导入并校对脚本，选择声音，生成、试听和审核每行音频。</p>
+                                <p id="workspace-table-description" class="text-[10px] text-gray-400 mt-0.5">导入并校对脚本，选择声音，生成和试听每行音频。</p>
                             </div>
                         </div>
                         <div class="flex flex-wrap items-center justify-end gap-2">
@@ -969,7 +1021,7 @@
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-[280px] max-w-[280px]">脚本内容 (双击可修改)</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-32">声音原型</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-36">声音预览</th>
-                                    <th scope="col" class="table-header-input px-4 py-3.5 w-16 text-center">画面</th>
+                                    <th id="visual-input-column-title" scope="col" class="table-header-input px-4 py-3.5 w-44 text-center whitespace-nowrap">画面</th>
                                     <th scope="col" class="table-header-input h3-only-column hidden px-4 py-3.5 w-36 text-center whitespace-nowrap">H3 参考视频</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">姿态</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center">背景音乐</th>
@@ -1020,6 +1072,11 @@
                                 <span>生成声音预览和脚本分析</span>
                             </button>
                             
+                            <button id="btn-jianying-template" type="button" onclick="window.JYDTemplates.open()" title="选择账号保存的剪映模板" class="generation-page-only w-full md:w-auto px-4 py-3 rounded-xl bg-slate-900/70 border border-slate-700/60 text-gray-300 hover:text-white hover:border-brand-primary/50 text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap">
+                                <i class="fa-solid fa-clapperboard"></i>
+                                <span>剪映模板</span>
+                            </button>
+
                             <button id="btn-start-composition" disabled onclick="startGlobalFinalVideoGeneration()" class="generation-page-only w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
                                 生成完整成片
@@ -1085,9 +1142,11 @@
         let uploadedScripts = [];
         let uploadedImages = [];
         let currentMappingImageIds = [];
-        let h3IdentityImageIds = [];
         let h3StatusPollTimer = null;
         let isGeneratingH3 = false;
+        let ltxEngineState = { items: [], active: false };
+        let ltxStatusPollTimer = null;
+        let isGeneratingLtx = false;
         let scriptImportMode = 'create';
         const selectedProjectItemIds = new Set();
         let activeArticleTypeFilter = '';
@@ -1560,6 +1619,61 @@
             return (activeProject?.settings?.generation_mode || 'runninghub_digital_human') === 'minimax_h3_ref2va';
         }
 
+        function isLtxGenerationMode() {
+            return (activeProject?.settings?.generation_mode || 'runninghub_digital_human') === 'ltx_lip_sync';
+        }
+
+        function ltxStateForItem(itemId) {
+            return (ltxEngineState?.items || []).find(item => item.item_id === itemId) || null;
+        }
+
+        async function activateLtxWorkbenchMode() {
+            if (document.documentElement.dataset.workspacePage !== 'generate') {
+                window.location.assign(`/app/new/generate${activeProject?.project_id ? `?project=${encodeURIComponent(activeProject.project_id)}` : ''}`);
+                return;
+            }
+            document.getElementById('generation-mode').value = 'ltx_lip_sync';
+            await handleGenerationModeChange('ltx_lip_sync');
+        }
+
+        async function activateStandardWorkbenchMode() {
+            if (document.documentElement.dataset.workspacePage !== 'generate') {
+                window.location.assign(`/app/new/generate${activeProject?.project_id ? `?project=${encodeURIComponent(activeProject.project_id)}` : ''}`);
+                return;
+            }
+            document.getElementById('generation-mode').value = 'runninghub_digital_human';
+            await handleGenerationModeChange('runninghub_digital_human');
+        }
+
+        async function activateH3WorkbenchMode() {
+            if (document.documentElement.dataset.workspacePage !== 'generate') {
+                window.location.assign(`/app/new/generate${activeProject?.project_id ? `?project=${encodeURIComponent(activeProject.project_id)}` : ''}`);
+                return;
+            }
+            document.getElementById('generation-mode').value = 'minimax_h3_ref2va';
+            await handleGenerationModeChange('minimax_h3_ref2va');
+        }
+
+        function updateEngineRouteButtons(mode) {
+            const routes = {
+                'engine-route-digital': 'runninghub_digital_human',
+                'engine-route-h3': 'minimax_h3_ref2va',
+                'ltx-workbench-link': 'ltx_lip_sync'
+            };
+            Object.entries(routes).forEach(([id, routeMode]) => {
+                const button = document.getElementById(id);
+                if (!button) return;
+                const active = mode === routeMode;
+                button.classList.toggle('bg-gradient-to-r', active);
+                button.classList.toggle('from-brand-primary', active);
+                button.classList.toggle('to-brand-secondary', active);
+                button.classList.toggle('text-white', active);
+                button.classList.toggle('shadow-lg', active);
+                button.classList.toggle('text-gray-300', !active);
+                button.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+        }
+
         async function handleGenerationModeChange(mode) {
             if (!activeProject?.project_id) {
                 showToast('请先导入脚本', '创建批次后才能选择画面生成方式。', 'warning');
@@ -1572,10 +1686,16 @@
                     : await workspaceApi(`/api/new/projects/${activeProject.project_id}/generation-mode`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ mode: 'runninghub_digital_human' })
+                        body: JSON.stringify({ mode })
                     });
                 syncProjectInputs(project);
-                showToast('画面生成方式已切换', mode === 'minimax_h3_ref2va' ? '当前批次将使用 H3 多参考生成。' : '当前批次将使用普通数字人生成。', 'success');
+                if (mode === 'ltx_lip_sync') await refreshLtxStatus({ quiet: true });
+                const labels = {
+                    minimax_h3_ref2va: '当前批次将使用 H3 多参考生成。',
+                    ltx_lip_sync: '当前批次将使用已生成的声音制作视频对口型。',
+                    runninghub_digital_human: '当前批次将使用普通数字人生成。'
+                };
+                showToast('画面生成方式已切换', labels[mode] || labels.runninghub_digital_human, 'success');
             } catch (error) {
                 syncProjectInputs(activeProject);
                 showToast('切换失败', error.message, 'warning');
@@ -1597,37 +1717,12 @@
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    identity_image_ids: h3IdentityImageIds,
+                    identity_image_ids: [],
                     defaults: currentH3Defaults()
                 })
             });
-            if (showNotice) showToast('H3 参数已保存', '人物图和生成参数已绑定当前批次。', 'success');
+            if (showNotice) showToast('H3 参数已保存', '人物图将自动读取每行的图片分配结果。', 'success');
             return project;
-        }
-
-        async function toggleH3IdentityImage(imageId, event) {
-            event.stopPropagation();
-            if (!isH3GenerationMode()) return;
-            const exists = h3IdentityImageIds.includes(imageId);
-            if (!exists && h3IdentityImageIds.length >= 4) {
-                showToast('最多选择 4 张', '多图模式会自动占用第 1 个接口，第 6 个接口留给连续模式尾帧。', 'warning');
-                return;
-            }
-            h3IdentityImageIds = exists
-                ? h3IdentityImageIds.filter(value => value !== imageId)
-                : [...h3IdentityImageIds, imageId];
-            try {
-                syncProjectInputs(await saveH3Settings(false));
-            } catch (error) {
-                syncProjectInputs(activeProject);
-                showToast('人物图保存失败', error.message, 'warning');
-            }
-        }
-
-        async function clearH3IdentityImages() {
-            h3IdentityImageIds = [];
-            try { syncProjectInputs(await saveH3Settings(false)); }
-            catch (error) { showToast('清空失败', error.message, 'warning'); }
         }
 
         function h3ScopeItems(raw) {
@@ -1696,6 +1791,177 @@
             }
         }
 
+        function ltxTargetItems(raw = '') {
+            if (String(raw || '').trim()) return h3ScopeItems(raw);
+            if (selectedProjectItemIds.size) {
+                return uploadedScripts.filter(item => selectedProjectItemIds.has(item.id));
+            }
+            return [...uploadedScripts];
+        }
+
+        async function uploadLtxSourceVideo(item, file) {
+            return workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${item.id}/ltx/source-video?filename=${encodeURIComponent(file.name)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                body: file
+            });
+        }
+
+        async function handleLtxSourceVideosUpload(event) {
+            const files = Array.from(event.target.files || []);
+            if (!files.length || !activeProject?.project_id) return;
+            if (ltxEngineState?.active) {
+                showToast('视频任务正在运行', '完成后才能替换人物视频，避免已付费任务与当前输入脱节。', 'warning');
+                event.target.value = '';
+                return;
+            }
+            try {
+                const targets = ltxTargetItems(document.getElementById('ltx-video-scope').value);
+                const mapping = document.getElementById('ltx-video-mapping').value;
+                const reuse = Math.max(1, Number(document.getElementById('ltx-video-reuse-count').value || 1));
+                for (let index = 0; index < targets.length; index += 1) {
+                    const fileIndex = mapping === 'count'
+                        ? Math.floor(index / reuse) % files.length
+                        : index % files.length;
+                    const result = await uploadLtxSourceVideo(targets[index], files[fileIndex]);
+                    ltxEngineState = result.ltx || ltxEngineState;
+                    document.getElementById('ltx-source-summary').textContent = `正在绑定 ${index + 1} / ${targets.length} 条...`;
+                    updateTableLayout();
+                }
+                await refreshLtxStatus({ quiet: true });
+                document.getElementById('ltx-source-summary').textContent = `已把 ${files.length} 个视频分配到 ${targets.length} 条脚本。`;
+                showToast('人物视频已选择', '每行可以继续单独替换；上传规格保持原样，生成错误会直接显示。', 'success');
+            } catch (error) {
+                showToast('视频选择失败', error.message, 'warning');
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        async function uploadLtxSourceVideoForRow(input, rowId) {
+            const file = input.files?.[0];
+            const item = uploadedScripts.find(value => value.id === rowId);
+            if (!file || !item) return;
+            if (ltxEngineState?.active) {
+                showToast('视频任务正在运行', '完成后才能替换人物视频。', 'warning');
+                input.value = '';
+                return;
+            }
+            try {
+                const result = await uploadLtxSourceVideo(item, file);
+                ltxEngineState = result.ltx || ltxEngineState;
+                await refreshLtxStatus({ quiet: true });
+                showToast('人物视频已选择', `任务 ${item.rowKey} 已使用 ${file.name}。`, 'success');
+            } catch (error) {
+                showToast('视频上传失败', error.message, 'warning');
+            } finally {
+                input.value = '';
+            }
+        }
+
+        function ltxStatusLabel(item) {
+            const status = String(item?.status || '').toUpperCase();
+            const labels = {
+                DRAFT: '等待声音',
+                AUDIO_READY: '等待人物视频',
+                READY: '可以生成',
+                CREATING: '正在准备任务',
+                PREPARING_LTX: '正在准备视频',
+                ASR_PENDING: '正在准备声音',
+                QUEUED: '等待生成',
+                RUNNING: '口型生成中',
+                VIDEO_ENHANCING: '正在提升清晰度',
+                VIDEO_MERGING: '正在合并视频',
+                COMPLETED: item?.base_video_ready ? '视频已完成' : '正在保存结果',
+                FAILED: '生成失败',
+                CANCELLED: '已取消'
+            };
+            return labels[status] || (status || '等待输入');
+        }
+
+        function scheduleLtxStatusPoll(delay = 5000) {
+            clearTimeout(ltxStatusPollTimer);
+            if (!activeProject?.project_id || !isLtxGenerationMode() || !ltxEngineState?.active) return;
+            ltxStatusPollTimer = setTimeout(() => refreshLtxStatus({ quiet: true }), delay);
+        }
+
+        async function refreshLtxStatus({ quiet = false } = {}) {
+            if (!activeProject?.project_id || !isLtxGenerationMode()) return;
+            try {
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/ltx/${ltxEngineState?.active ? 'refresh' : 'state'}`, {
+                    method: ltxEngineState?.active ? 'POST' : 'GET'
+                });
+                ltxEngineState = result.ltx || { items: [], active: false };
+                syncProjectInputs(result.project);
+                if (ltxEngineState.active) {
+                    scheduleLtxStatusPoll();
+                    return;
+                }
+                isGeneratingLtx = false;
+                const failed = (ltxEngineState.items || []).filter(item => String(item.status).toUpperCase() === 'FAILED');
+                if (finalGenerationPhase === 'composition' && !failed.length) {
+                    const pendingBase = uploadedScripts.filter(item => !item.baseVideo);
+                    if (!pendingBase.length && activeProject?.allowed_actions?.start_postprocess) {
+                        await startGlobalPostprocess();
+                        return;
+                    }
+                }
+                if (failed.length && !quiet) showToast('部分视频任务失败', '错误原因已显示在对应人物视频卡片，可逐行重试。', 'warning');
+            } catch (error) {
+                isGeneratingLtx = false;
+                refreshAudioStageActions();
+                if (!quiet) showToast('视频状态刷新失败', error.message, 'warning');
+                else scheduleLtxStatusPoll(8000);
+            }
+        }
+
+        async function startGlobalLtxGeneration(explicitTargets = null) {
+            if (!activeProject?.project_id || isGeneratingLtx) return;
+            const targets = (Array.isArray(explicitTargets) ? explicitTargets : ltxTargetItems())
+                .filter(item => !item.baseVideo);
+            const missingAudio = targets.filter(item => !latestMinimaxAudio(item));
+            const missingSource = targets.filter(item => !ltxStateForItem(item.id)?.source_video);
+            if (!targets.length || missingAudio.length || missingSource.length) {
+                showToast('生成条件还不完整', `${!targets.length ? '没有需要生成的脚本；' : ''}${missingAudio.length ? `${missingAudio.length} 条没有完整声音；` : ''}${missingSource.length ? `${missingSource.length} 条没有人物视频。` : ''}`, 'warning');
+                return;
+            }
+            if (!window.confirm(`将为 ${targets.length} 条脚本生成视频对口型并提升清晰度。每个分段包含两项付费处理，确认开始？`)) return;
+            isGeneratingLtx = true;
+            setFinalGenerationPhase('composition');
+            refreshAudioStageActions();
+            try {
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/ltx/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        item_ids: targets.map(item => item.id),
+                        cost_confirmed: true
+                    })
+                });
+                ltxEngineState = result.ltx || { items: [], active: true };
+                syncProjectInputs(result.project);
+                showToast('视频任务已提交', '表格会持续显示生成进度；完成后自动继续字幕、背景音乐和画面素材处理。', 'success');
+                scheduleLtxStatusPoll(1000);
+            } catch (error) {
+                isGeneratingLtx = false;
+                setFinalGenerationPhase(null);
+                refreshAudioStageActions();
+                showToast('视频生成启动失败', error.message, 'warning');
+            }
+        }
+
+        async function retryLtxItem(itemId) {
+            if (!window.confirm('只重试该行失败的生成阶段；失败阶段可能再次产生费用，继续？')) return;
+            try {
+                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${itemId}/ltx/retry`, { method: 'POST', body: '{}' });
+                ltxEngineState = result.ltx || ltxEngineState;
+                updateTableLayout();
+                scheduleLtxStatusPoll(1000);
+            } catch (error) {
+                showToast('视频重试失败', error.message, 'warning');
+            }
+        }
+
         async function saveH3RowOverride(rowId, field, rawValue) {
             const item = uploadedScripts.find(value => value.id === rowId);
             if (!item || !activeProject?.project_id) return;
@@ -1757,7 +2023,7 @@
             }).join('');
             summary.innerHTML = h3.remote_batch_id
                 ? `H3 批次 ${escapeHtml(h3.remote_status || '等待')} · ${Number(fee.segment_count || 0)} 段 · 预计 ${Number(fee.estimated_paid_calls || 0)} 次付费调用${itemRows}`
-                : '先生成并审核声音，再绑定每行参考视频；点击下方“生成 H3 成片”会先计算分段与费用。';
+                : '先生成并试听声音，再绑定每行参考视频；点击“生成视频”后会自动锁定当前声音并计算分段与费用。';
         }
 
         function h3TargetItems() {
@@ -1769,46 +2035,6 @@
             const history = Array.isArray(item?.assetHistory?.audio) ? item.assetHistory.audio : [];
             const candidates = history.filter(asset => asset?.source_type === 'minimax' && asset?.status === 'READY');
             return candidates.length ? candidates[candidates.length - 1] : null;
-        }
-
-        function h3AudioIsReviewed(item) {
-            return latestMinimaxAudio(item)?.metadata?.provider_status === 'SUCCESS';
-        }
-
-        async function reviewH3TargetAudio() {
-            if (!activeProject?.project_id || !isH3GenerationMode()) return;
-            const targets = h3TargetItems();
-            if (!targets.length) {
-                showToast('没有可审核的脚本', '请先导入脚本，或调整当前筛选范围。', 'warning');
-                return;
-            }
-            const missing = targets.filter(item => !latestMinimaxAudio(item));
-            if (missing.length) {
-                showToast('声音还没生成完整', `${missing.length} 条还没有 MiniMax 完整音频，先生成声音并逐条试听。`, 'warning');
-                return;
-            }
-            const pending = targets.filter(item => !h3AudioIsReviewed(item));
-            if (!pending.length) {
-                showToast('声音已审核', `当前范围 ${targets.length} 条声音都已审核。`, 'success');
-                return;
-            }
-            if (!window.confirm(`请确认已经试听当前范围的声音。\n\n将审核 ${pending.length} 条声音；这一步不会创建 H3 付费任务。`)) return;
-            const button = document.getElementById('btn-review-h3-audio');
-            button.disabled = true;
-            try {
-                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/audio-review`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ item_ids: pending.map(item => item.id) })
-                });
-                syncProjectInputs(result.project);
-                showToast('声音审核完成', `${result.reviewed_item_ids?.length || pending.length} 条声音已冻结为本次 H3 输入。`, 'success');
-            } catch (error) {
-                showToast('声音审核失败', error.message, 'warning');
-            } finally {
-                button.disabled = false;
-                refreshAudioStageActions();
-            }
         }
 
         function selectH3Accounts(payload) {
@@ -1828,14 +2054,14 @@
             });
         }
 
-        async function startGlobalH3Generation() {
+        async function startGlobalH3Generation(explicitTargets = null) {
             if (!activeProject?.project_id || isGeneratingH3) return;
-            const targets = h3TargetItems();
+            const targets = Array.isArray(explicitTargets) ? explicitTargets : h3TargetItems();
             const missingAudio = targets.filter(item => !latestMinimaxAudio(item));
-            const unreviewedAudio = targets.filter(item => latestMinimaxAudio(item) && !h3AudioIsReviewed(item));
+            const missingImage = targets.filter(item => !item.image);
             const missingReference = targets.filter(item => !item.h3ReferenceVideo);
-            if (!targets.length || missingAudio.length || unreviewedAudio.length || missingReference.length) {
-                showToast('H3 输入还不完整', `${!targets.length ? '没有选中脚本；' : ''}${missingAudio.length ? `${missingAudio.length} 条没有 MiniMax 完整音频；` : ''}${unreviewedAudio.length ? `${unreviewedAudio.length} 条声音尚未审核；` : ''}${missingReference.length ? `${missingReference.length} 条没有参考视频。` : ''}`, 'warning');
+            if (!targets.length || missingAudio.length || missingImage.length || missingReference.length) {
+                showToast('H3 输入还不完整', `${!targets.length ? '没有选中脚本；' : ''}${missingAudio.length ? `${missingAudio.length} 条没有 MiniMax 完整音频；` : ''}${missingImage.length ? `${missingImage.length} 条没有分配人物图；` : ''}${missingReference.length ? `${missingReference.length} 条没有参考视频。` : ''}`, 'warning');
                 return;
             }
             isGeneratingH3 = true;
@@ -2159,9 +2385,11 @@
             clearTimeout(postprocessStatusPollTimer);
             clearTimeout(variantStatusPollTimer);
             clearTimeout(h3StatusPollTimer);
+            clearTimeout(ltxStatusPollTimer);
             activeProject = null;
             uploadedScripts = [];
             uploadedImages = [];
+            ltxEngineState = { items: [], active: false };
             currentMappingImageIds = [];
             selectedProjectItemIds.clear();
             activeArticleTypeFilter = '';
@@ -2251,6 +2479,7 @@
             if (projectChanged) {
                 activeArticleTypeFilter = '';
                 selectedProjectItemIds.clear();
+                ltxEngineState = { items: [], active: false };
             }
             renderProjectActivity();
             const savedFinalPhase = sessionStorage.getItem(`final-generation-phase:${project?.project_id || ''}`);
@@ -2261,11 +2490,13 @@
             const generationMode = project?.settings?.generation_mode || 'runninghub_digital_human';
             const h3 = project?.settings?.h3 || {};
             document.getElementById('generation-mode').value = generationMode;
-            document.getElementById('standard-generation-settings').classList.toggle('hidden', generationMode === 'minimax_h3_ref2va');
+            updateEngineRouteButtons(generationMode);
+            document.getElementById('standard-generation-settings').classList.toggle('hidden', generationMode !== 'runninghub_digital_human');
             document.getElementById('h3-generation-settings').classList.toggle('hidden', generationMode !== 'minimax_h3_ref2va');
+            document.getElementById('ltx-generation-settings').classList.toggle('hidden', generationMode !== 'ltx_lip_sync');
+            document.getElementById('image-input-panel').classList.toggle('hidden', generationMode === 'ltx_lip_sync');
+            document.getElementById('visual-input-column-title').textContent = generationMode === 'ltx_lip_sync' ? '人物视频' : '画面';
             document.querySelectorAll('.h3-only-column').forEach((element) => element.classList.toggle('hidden', generationMode !== 'minimax_h3_ref2va'));
-            h3IdentityImageIds = Array.isArray(h3.identity_image_ids) ? [...h3.identity_image_ids] : [];
-            document.getElementById('h3-identity-count').textContent = `${h3IdentityImageIds.length} / 4`;
             document.getElementById('h3-continuity').value = h3.defaults?.continuity_mode || 'loop_anchor';
             document.getElementById('h3-aspect').value = h3.defaults?.aspect_ratio || '9:16 (Portrait Widescreen)';
             document.getElementById('h3-megapixels').value = Number(h3.defaults?.megapixels ?? 1);
@@ -2420,6 +2651,11 @@
             schedulePostprocessStatusPoll();
             scheduleVariantStatusPoll();
             scheduleH3StatusPoll();
+            scheduleLtxStatusPoll();
+            if (generationMode === 'ltx_lip_sync' && uploadedScripts.length && !(ltxEngineState.items || []).length) {
+                void refreshLtxStatus({ quiet: true });
+            }
+            window.JYDTemplates?.refreshButton();
         }
 
         async function initializeProjectInputs() {
@@ -2789,16 +3025,13 @@
             container.innerHTML = '';
 
             const mappingImageIdSet = new Set(currentMappingImageIds);
-            const h3IdentitySet = new Set(h3IdentityImageIds);
             uploadedImages.forEach((image) => {
                 const isMappingImage = mappingImageIdSet.has(image.image_id);
-                const isH3Identity = h3IdentitySet.has(image.image_id);
                 const wrapper = document.createElement('div');
-                wrapper.className = `relative group aspect-square rounded-lg overflow-hidden border bg-slate-900 ${isH3Identity ? 'border-cyan-300 ring-1 ring-cyan-300/50' : (isMappingImage ? 'border-amber-400 ring-1 ring-amber-400/50' : 'border-slate-700')}`;
+                wrapper.className = `relative group aspect-square rounded-lg overflow-hidden border bg-slate-900 ${isMappingImage ? 'border-amber-400 ring-1 ring-amber-400/50' : 'border-slate-700'}`;
                 wrapper.innerHTML = `
                     <img src="${image.url}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" alt="${escapeHtml(image.filename)}">
                     ${isMappingImage ? '<span class="absolute z-10 top-1.5 left-1.5 rounded bg-amber-400/95 px-1.5 py-0.5 text-[8px] font-bold text-slate-950">本次映射</span>' : ''}
-                    ${isH3GenerationMode() ? `<button type="button" onclick="toggleH3IdentityImage('${image.image_id}', event)" class="absolute z-20 bottom-1 left-1 right-1 rounded bg-slate-950/90 px-1 py-1 text-[8px] font-bold ${isH3Identity ? 'text-cyan-200 ring-1 ring-cyan-300/50' : 'text-gray-300 hover:text-white'}">${isH3Identity ? '✓ H3 人物图' : '+ 设为 H3 人物图'}</button>` : ''}
                     <button type="button" title="删除图片" aria-label="删除图片 ${escapeHtml(image.filename)}" onclick="removeImage('${image.image_id}', event)" class="absolute z-20 top-1.5 right-1.5 w-8 h-8 rounded-full bg-red-600/95 hover:bg-red-500 text-white flex items-center justify-center text-sm shadow-lg ring-1 ring-white/30"><i class="fa-solid fa-trash-can"></i></button>
                 `;
                 container.appendChild(wrapper);
@@ -2869,6 +3102,7 @@
 
                 const image = uploadedScripts[i]?.image;
                 const imageMappingTarget = uploadedScripts[i]?.imageMappingTarget === true;
+                if (!imgEl || !indexBadge) return;
                 imgEl.src = image?.url || '';
                 imgEl.classList.toggle('opacity-0', !image?.url);
                 if (image) {
@@ -3271,6 +3505,37 @@
                 const variantsCanReuse = rowVariantsCanReuse(script);
                 const variantsWereGenerated = Boolean(script.variants?.length || script.variantGenerationOperation);
                 const singleActionClass = 'row-single-stage-action w-full px-2 py-1 rounded-lg border text-[9px] font-semibold transition-colors whitespace-nowrap';
+                const ltxItem = ltxStateForItem(script.id);
+                const ltxStatus = String(ltxItem?.status || '').toUpperCase();
+                const ltxActive = ['CREATING', 'PREPARING_LTX', 'ASR_PENDING', 'QUEUED', 'RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(ltxStatus);
+                const visualInputCellHtml = isLtxGenerationMode()
+                    ? `<td class="px-3 py-3 w-44 text-center">
+                        <div class="mx-auto w-full rounded-xl border ${ltxStatus === 'FAILED' ? 'border-rose-500/35 bg-rose-500/5' : (ltxItem?.source_video ? 'border-violet-400/30 bg-violet-400/5' : 'border-slate-800 bg-slate-950/50')} px-2.5 py-2 text-left">
+                            <div class="flex items-center gap-1.5 text-[9px] ${ltxActive ? 'text-violet-200' : (ltxStatus === 'FAILED' ? 'text-rose-300' : 'text-gray-500')}">
+                                <i class="fa-solid ${ltxActive ? 'fa-spinner fa-spin' : (ltxStatus === 'FAILED' ? 'fa-triangle-exclamation' : 'fa-video')}"></i>
+                                <span class="truncate">${escapeHtml(ltxStatusLabel(ltxItem))}</span>
+                            </div>
+                            <div class="mt-1 truncate text-[9px] ${ltxItem?.source_video ? 'text-white' : 'text-gray-600'}" title="${escapeHtml(ltxItem?.source_video?.filename || '')}">${escapeHtml(ltxItem?.source_video?.filename || '未上传视频')}</div>
+                            ${ltxItem?.error_message ? `<div class="mt-1 line-clamp-3 text-[8px] leading-relaxed text-rose-300" title="${escapeHtml(ltxItem.error_message)}">${escapeHtml(ltxItem.error_message)}</div>` : ''}
+                            <div class="mt-1.5 flex items-center justify-center gap-2">
+                                <label class="${ltxActive ? 'pointer-events-none cursor-not-allowed text-gray-600' : 'cursor-pointer text-violet-300 hover:text-white'} text-[9px]"><i class="fa-solid fa-upload mr-1"></i>${ltxActive ? '运行中锁定' : (ltxItem?.source_video ? '替换' : '上传')}<input type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,video/x-msvideo" class="hidden" ${ltxActive ? 'disabled' : ''} onchange="uploadLtxSourceVideoForRow(this, '${script.id}')"></label>
+                                ${ltxStatus === 'FAILED' ? `<button type="button" onclick="retryLtxItem('${script.id}')" class="text-[9px] text-rose-300 hover:text-white"><i class="fa-solid fa-rotate mr-1"></i>重试</button>` : ''}
+                            </div>
+                        </div>
+                    </td>`
+                    : `<td class="px-4 py-4 text-center">
+                        <div class="flex flex-col items-center gap-1.5">
+                            <button type="button" class="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-800 bg-slate-950 group/thumb cursor-zoom-in shadow-lg hover:border-brand-secondary transition-colors" onclick="previewImageZoom(this)" title="点击放大画面">
+                                <img class="row-thumbnail-img w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300 opacity-0" src="" alt="当前画面">
+                                <span class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity"><i class="fa-solid fa-expand text-[10px] text-white"></i></span>
+                                <span class="row-thumbnail-badge absolute bottom-0 right-0 bg-slate-950/80 backdrop-blur-xs text-[7px] text-brand-accent px-1 py-[0.5px] rounded-tl font-bold hidden">P-1</span>
+                            </button>
+                            <div class="flex items-center gap-2">
+                                <button type="button" ${canSetImageMappingTarget ? '' : 'disabled'} onclick="toggleRowImageMappingTarget(this, event)" class="text-[9px] ${imageMappingTarget ? 'text-amber-300 hover:text-amber-200' : (canSetImageMappingTarget ? 'text-gray-500 hover:text-amber-300' : 'text-gray-700 cursor-not-allowed')} transition-colors"><i class="fa-solid ${imageMappingTarget ? 'fa-minus' : 'fa-plus'} mr-1"></i>${imageMappingTarget ? '移出换图范围' : '加入换图范围'}</button>
+                                <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
+                            </div>
+                        </div>
+                    </td>`;
 
                 tr.innerHTML = `
                     <td class="px-3 py-4 text-center align-top">
@@ -3330,21 +3595,7 @@
                             </div>
                         </div>
                     </td>
-                    <td class="px-4 py-4 text-center">
-                        <div class="flex flex-col items-center gap-1.5">
-                            <button type="button" class="relative w-10 h-10 rounded-lg overflow-hidden border border-slate-800 bg-slate-950 group/thumb cursor-zoom-in shadow-lg hover:border-brand-secondary transition-colors" onclick="previewImageZoom(this)" title="点击放大画面">
-                                <img class="row-thumbnail-img w-full h-full object-cover group-hover/thumb:scale-110 transition-transform duration-300 opacity-0" src="" alt="当前画面">
-                                <span class="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity">
-                                    <i class="fa-solid fa-expand text-[10px] text-white"></i>
-                                </span>
-                                <span class="row-thumbnail-badge absolute bottom-0 right-0 bg-slate-950/80 backdrop-blur-xs text-[7px] text-brand-accent px-1 py-[0.5px] rounded-tl font-bold hidden">P-1</span>
-                            </button>
-                            <div class="flex items-center gap-2">
-                                <button type="button" ${canSetImageMappingTarget ? '' : 'disabled'} onclick="toggleRowImageMappingTarget(this, event)" class="text-[9px] ${imageMappingTarget ? 'text-amber-300 hover:text-amber-200' : (canSetImageMappingTarget ? 'text-gray-500 hover:text-amber-300' : 'text-gray-700 cursor-not-allowed')} transition-colors"><i class="fa-solid ${imageMappingTarget ? 'fa-minus' : 'fa-plus'} mr-1"></i>${imageMappingTarget ? '移出换图范围' : '加入换图范围'}</button>
-                                <button type="button" ${canReplaceImage ? '' : 'disabled'} onclick="triggerRowImageReplace(this, event)" class="text-[9px] ${canReplaceImage ? 'text-gray-400 hover:text-brand-accent' : 'text-gray-700 cursor-not-allowed'} transition-colors"><i class="fa-solid fa-arrow-right-arrow-left mr-1"></i>${canReplaceImage ? '替换' : '生成中'}</button>
-                            </div>
-                        </div>
-                    </td>
+                    ${visualInputCellHtml}
                     <td class="h3-only-column ${isH3GenerationMode() ? '' : 'hidden'} px-3 py-3 text-center">
                         <div class="mx-auto w-44 rounded-lg border ${script.h3ReferenceVideo ? 'border-cyan-400/30 bg-cyan-400/5' : 'border-slate-800 bg-slate-950/50'} px-2 py-2">
                             <div class="truncate text-[9px] ${script.h3ReferenceVideo ? 'text-cyan-200' : 'text-gray-600'}" title="${escapeHtml(script.h3ReferenceVideo?.filename || '')}">${escapeHtml(script.h3ReferenceVideo?.filename || '未绑定参考视频')}</div>
@@ -4118,6 +4369,10 @@
                 await startSinglePostprocess(rowId);
                 return;
             }
+            if (isH3GenerationMode()) {
+                await startGlobalH3Generation([script]);
+                return;
+            }
             if (!(script.allowedActions?.start_composition || script.allowedActions?.retry_composition)) {
                 showToast('暂时不能生成本条视频', '当前行正在处理，或缺少已经确认的声音/图片。', 'warning');
                 return;
@@ -4301,15 +4556,11 @@
             const h3RemoteStatus = activeProject?.settings?.h3?.remote_status || '';
             const h3Active = ['ACTIVE', 'RUNNING', 'QUEUED'].includes(h3RemoteStatus);
             const h3Targets = h3Mode ? h3TargetItems() : [];
-            const h3InputsReady = h3Targets.length > 0 && h3Targets.every(item => h3AudioIsReviewed(item) && item.h3ReferenceVideo);
-            const h3ReviewButton = document.getElementById('btn-review-h3-audio');
-            if (h3ReviewButton) {
-                const pendingReview = h3Targets.filter(item => latestMinimaxAudio(item) && !h3AudioIsReviewed(item)).length;
-                h3ReviewButton.disabled = !h3Mode || !h3Targets.length || h3Active || isGeneratingH3;
-                h3ReviewButton.innerHTML = pendingReview
-                    ? `<i class="fa-solid fa-headphones mr-1"></i>试听后，审核所选声音（${pendingReview} 条待审核）`
-                    : '<i class="fa-solid fa-circle-check mr-1"></i>当前范围声音已审核';
-            }
+            const h3InputsReady = h3Targets.length > 0 && h3Targets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo);
+            const ltxMode = isLtxGenerationMode();
+            const ltxTargets = ltxMode ? ltxTargetItems() : [];
+            const ltxActive = Boolean(ltxEngineState?.active);
+            const ltxInputsReady = ltxTargets.length > 0 && ltxTargets.every(item => latestMinimaxAudio(item) && ltxStateForItem(item.id)?.source_video);
             const canCompose4A = allReady
                 && Boolean(
                     activeProject?.allowed_actions?.start_composition
@@ -4323,23 +4574,34 @@
                 && fontPresets.length > 0
                 && !isGeneratingPostprocess;
             const canStartH3 = h3Mode && h3InputsReady && !h3Active && !isGeneratingH3 && h3Targets.some(item => !item.baseVideo);
-            const canCompose = h3Mode ? (canStartH3 || canCompose4B) : (canCompose4A || canCompose4B);
+            const canStartLtx = ltxMode && ltxInputsReady && !ltxActive && !isGeneratingLtx && ltxTargets.some(item => !item.baseVideo);
+            const canCompose = h3Mode
+                ? (canStartH3 || canCompose4B)
+                : (ltxMode ? (canStartLtx || canCompose4B) : (canCompose4A || canCompose4B));
             btnCompose.disabled = !canCompose;
-            btnCompose.innerHTML = h3Active
-                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>H3 成片生成中...</span>'
-                : (isGeneratingH3
-                    ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在计算 H3 费用...</span>'
-                    : (h3Mode && canStartH3
-                        ? '<i class="fa-solid fa-film"></i><span>生成 H3 成片</span>'
-                        : (isGeneratingComposition
-                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>'
-                : (isGeneratingPostprocess
-                    ? '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>'
-                    : (canCompose4B
-                        ? '<i class="fa-solid fa-closed-captioning"></i><span>重新生成完整成片</span>'
-                        : '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>')))));
-            stageHint.textContent = h3Mode
-                ? (h3Active ? 'H3 分段正在云端运行；完成后自动回填并进入字幕/BGM 后期' : 'H3 以每行参考视频为动态主体，项目人物图只用于补充身份外观')
+            if (ltxActive) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>视频对口型生成中...</span>';
+            } else if (isGeneratingLtx) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在提交视频任务...</span>';
+            } else if (ltxMode && canStartLtx) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-film"></i><span>生成视频对口型</span>';
+            } else if (h3Active) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>H3 成片生成中...</span>';
+            } else if (isGeneratingH3) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在计算 H3 费用...</span>';
+            } else if (h3Mode && canStartH3) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-film"></i><span>生成 H3 成片</span>';
+            } else if (isGeneratingComposition || isGeneratingPostprocess) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>完整成片生成中...</span>';
+            } else if (canCompose4B) {
+                btnCompose.innerHTML = '<i class="fa-solid fa-closed-captioning"></i><span>重新生成完整成片</span>';
+            } else {
+                btnCompose.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>';
+            }
+            stageHint.textContent = ltxMode
+                ? (ltxActive ? '视频正在生成并提升清晰度；完成后会自动继续字幕、背景音乐和画面素材处理' : '使用当前声音驱动人物视频；生成错误会在对应行直接显示')
+                : h3Mode
+                ? (h3Active ? 'H3 分段正在云端运行；完成后自动回填并进入字幕/BGM 后期' : 'H3 自动使用每行已分配图片作为人物图，无需额外勾选')
                 : '修改配置会保留历史版本，并从受影响的步骤重新生成';
             btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
@@ -5112,6 +5374,14 @@
                 && candidate.status === 'FAILED'
             );
             return String(operation?.error_message || '').trim();
+        }
+
+        function latestCompositionFailure(project, failedItemIds) {
+            return [...(project?.operations || [])].reverse().find((candidate) =>
+                candidate.operation_type === 'COMPOSITION_GENERATE'
+                && candidate.status === 'FAILED'
+                && (!failedItemIds?.size || failedItemIds.has(candidate.item_id))
+            ) || null;
         }
 
         async function waitForProjectItemPostprocess(projectId, itemId, rowKey, project) {
@@ -6943,6 +7213,10 @@
                 await startGlobalH3Generation();
                 return;
             }
+            if (isLtxGenerationMode() && ltxTargetItems().some(item => !item.baseVideo)) {
+                await startGlobalLtxGeneration();
+                return;
+            }
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allAudioReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
             const compositionTargets = uploadedScripts.filter((item) => (
@@ -7313,9 +7587,24 @@
                         ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus)
                     );
                     if (wasActive && !stillActive) {
-                        const failed = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED').length;
-                        if (failed) {
-                            showToast('部分完整成片生成失败', `${failed} 条失败；重新生成会从失败的内部阶段继续。`, 'warning');
+                        const failedItems = uploadedScripts.filter((item) => item.compositionStatus === 'COMPOSITION_FAILED');
+                        if (failedItems.length) {
+                            const failure = latestCompositionFailure(
+                                project,
+                                new Set(failedItems.map((item) => item.id))
+                            );
+                            const errorCode = String(failure?.error_code || '');
+                            const message = String(failure?.error_message || '').trim();
+                            const connectionFailure = [
+                                'DIGITAL_HUMAN_CONNECTION_FAILED',
+                                'DIGITAL_HUMAN_SERVER_UNAVAILABLE',
+                                'DIGITAL_HUMAN_RATE_LIMITED'
+                            ].includes(errorCode);
+                            showToast(
+                                connectionFailure ? '数字人服务器暂时不可用' : '数字人任务启动失败',
+                                message || `${failedItems.length} 条失败；重新生成会从失败的内部阶段继续。`,
+                                'warning'
+                            );
                         }
                     }
                 } catch (error) {
@@ -7383,13 +7672,6 @@
                 const session = response.ok ? await response.json() : { authenticated: false };
                 if (!session.authenticated) throw new Error('unauthenticated');
                 authenticatedSession = session;
-                const ltxLink = document.getElementById('ltx-workbench-link');
-                if (ltxLink) {
-                    const target = String(session.ltx_workbench_handoff_url || session.ltx_workbench_url || '').trim();
-                    ltxLink.href = target || '#';
-                    ltxLink.classList.toggle('pointer-events-none', !target);
-                    ltxLink.setAttribute('aria-disabled', target ? 'false' : 'true');
-                }
                 const environmentLabel = document.getElementById('workbench-environment');
                 if (environmentLabel) {
                     environmentLabel.textContent = session.workbench_environment_label || '当前环境';
@@ -7421,7 +7703,7 @@
             const description = document.getElementById('workspace-table-description');
             const stageHint = document.getElementById('composition-stage-hint');
             if (title?.lastChild) {
-                title.lastChild.textContent = generationPage ? ' 画面生成与结果检查表' : ' 脚本与声音审核表';
+                title.lastChild.textContent = generationPage ? ' 画面生成与结果检查表' : ' 脚本与声音表';
             }
             if (description) {
                 description.textContent = generationPage
@@ -7431,7 +7713,7 @@
             if (stageHint) {
                 stageHint.textContent = generationPage
                     ? '画面输入与生成结果集中在本页；脚本和声音请返回“脚本与声音”页处理。'
-                    : '声音审核完成后，前往“上传与生成”配置画面并检查视频结果。';
+                    : '声音试听满意后，前往“上传与生成”配置画面并检查视频结果。';
             }
         }
 
@@ -7449,6 +7731,13 @@
             await loadWorkspaceVoices();
             await initializeProjectInputs();
         });
+        window.JYD_TEMPLATE_CONTEXT = {
+            api: workspaceApi,
+            getProject: () => activeProject,
+            syncProject: syncProjectInputs,
+            toast: showToast
+        };
     </script>
+    <script src="/app-static/new/template-manager.js"></script>
 </body>
 </html>

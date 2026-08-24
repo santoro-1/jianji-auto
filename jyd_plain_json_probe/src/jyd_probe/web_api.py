@@ -62,6 +62,11 @@ from .project_composition import (
     ProjectCompositionStartDispatcher,
 )
 from .project_h3 import ProjectH3Coordinator
+from .project_ltx import (
+    LtxWorkbenchClient,
+    LtxWorkbenchError,
+    ProjectLtxCoordinator,
+)
 from .project_diagnostics import build_project_diagnostic_archive
 from .project_inputs import detect_project_image, parse_project_script_file
 from .project_export_naming import (
@@ -1729,9 +1734,21 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     )
     render_queue = RenderJobQueue(settings)
     project_store = ProjectStore(render_queue.store.path)
+    ltx_workbench_client = None
+    ltx_url = settings.ltx_workbench_url or _default_ltx_workbench_url(
+        settings.auth_server_url
+    )
+    if runtime_control.manager_token and ltx_url:
+        try:
+            ltx_workbench_client = LtxWorkbenchClient(
+                ltx_url, runtime_control.manager_token
+            )
+        except ValueError as exc:
+            print(f"[JYD] LTX 引擎配置无效: {exc}", flush=True)
     user_template_store = UserTemplateStore(
         settings.storage_root / "user_templates",
         libraries_root=LIBRARIES_ROOT,
+        max_template_bytes=settings.max_draft_import_bytes,
     )
     if project_store.startup_recovered_analysis_count:
         print(
@@ -1791,6 +1808,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.auth_handoffs = auth_handoffs
     app.state.agent_token = agent_token
     app.state.project_store = project_store
+    app.state.ltx_workbench_client = ltx_workbench_client
     app.state.user_template_store = user_template_store
     app.state.project_result_library = project_result_library
     app.state.composition_start_dispatcher = composition_start_dispatcher
@@ -2167,11 +2185,17 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     @app.delete("/api/new/jianying-templates/{template_id}")
     def delete_jianying_template(template_id: str, request: Request) -> dict[str, Any]:
         user = current_project_user(request)
-        projects = project_store.list_projects(user["user_id"], limit=10_000, offset=0)
-        for project in projects.get("projects", []):
-            binding = dict(project.get("settings") or {}).get("jianying_template")
-            if isinstance(binding, dict) and binding.get("template_id") == template_id:
-                raise HTTPException(status_code=409, detail="模板正在被项目使用，请先取消选择")
+        offset = 0
+        while True:
+            projects = project_store.list_projects(user["user_id"], limit=100, offset=offset)
+            page = projects.get("projects", [])
+            for project in page:
+                binding = dict(project.get("settings") or {}).get("jianying_template")
+                if isinstance(binding, dict) and binding.get("template_id") == template_id:
+                    raise HTTPException(status_code=409, detail="模板正在被项目使用，请先取消选择")
+            offset += len(page)
+            if not page or offset >= int(projects.get("total", 0)):
+                break
         try:
             user_template_store.delete(user["user_id"], template_id)
             return {"ok": True}
@@ -2731,6 +2755,28 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=401, detail="请先使用数字人账号登录")
         return auth_center, token
 
+    def project_ltx_coordinator() -> ProjectLtxCoordinator:
+        client = app.state.ltx_workbench_client
+        if not isinstance(client, LtxWorkbenchClient):
+            raise HTTPException(
+                status_code=503,
+                detail="视频生成服务未正确启动，请重新启动本地工作台后重试",
+            )
+        return ProjectLtxCoordinator(
+            project_store,
+            client,
+            storage_root=settings.storage_root,
+        )
+
+    def raise_ltx_error(exc: Exception) -> None:
+        if isinstance(exc, LtxWorkbenchError):
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        if isinstance(exc, KeyError):
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if isinstance(exc, ValueError):
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise exc
+
     def project_audio_coordinator(client: AuthCenterClient) -> ProjectAudioCoordinator:
         return ProjectAudioCoordinator(
             project_store,
@@ -3117,6 +3163,139 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/new/projects/{project_id}/ltx/state")
+    def get_new_project_ltx_state(
+        project_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        _, token = digital_human_access(request)
+        try:
+            return project_ltx_coordinator().state(
+                user["user_id"], project_id, token
+            )
+        except Exception as exc:
+            raise_ltx_error(exc)
+            raise
+
+    @app.put(
+        "/api/new/projects/{project_id}/items/{item_id}/ltx/source-video",
+        status_code=201,
+    )
+    async def upload_new_project_ltx_source_video(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        filename: str = "",
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        _, token = digital_human_access(request)
+        safe_name = _safe_filename(
+            filename or request.headers.get("x-filename") or "source.mp4"
+        )
+        if Path(safe_name).suffix.lower() not in {
+            ".mp4",
+            ".mov",
+            ".mkv",
+            ".webm",
+            ".avi",
+        }:
+            raise HTTPException(status_code=422, detail="视频格式不受支持")
+        declared_size = request.headers.get("content-length", "").strip()
+        if declared_size:
+            try:
+                if int(declared_size) > settings.max_video_upload_bytes:
+                    raise HTTPException(status_code=413, detail="视频超过大小限制")
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="Content-Length 不合法") from exc
+        temporary_dir = settings.storage_root / "temporary_uploads" / "ltx"
+        temporary_dir.mkdir(parents=True, exist_ok=True)
+        temporary = temporary_dir / f"{uuid.uuid4().hex}{Path(safe_name).suffix.lower()}"
+        size = 0
+        try:
+            with temporary.open("wb") as output:
+                async for chunk in request.stream():
+                    if not chunk:
+                        continue
+                    size += len(chunk)
+                    if size > settings.max_video_upload_bytes:
+                        raise HTTPException(status_code=413, detail="视频超过大小限制")
+                    output.write(chunk)
+            if size <= 0:
+                raise HTTPException(status_code=422, detail="视频不能为空")
+            return project_ltx_coordinator().upload_source_video(
+                user["user_id"],
+                project_id,
+                item_id,
+                token,
+                temporary,
+                filename=safe_name,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise_ltx_error(exc)
+            raise
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    @app.post("/api/new/projects/{project_id}/ltx/generate")
+    def start_new_project_ltx(
+        project_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(...),
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        _, token = digital_human_access(request)
+        item_ids = payload.get("item_ids")
+        if item_ids is not None and not isinstance(item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是数组")
+        try:
+            return project_ltx_coordinator().start(
+                user["user_id"],
+                project_id,
+                token,
+                item_ids=item_ids,
+                cost_confirmed=payload.get("cost_confirmed") is True,
+                force_new=payload.get("force_new") is True,
+            )
+        except Exception as exc:
+            raise_ltx_error(exc)
+            raise
+
+    @app.post("/api/new/projects/{project_id}/ltx/refresh")
+    def refresh_new_project_ltx(
+        project_id: str, request: Request
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        _, token = digital_human_access(request)
+        try:
+            return project_ltx_coordinator().refresh(
+                user["user_id"], project_id, token
+            )
+        except Exception as exc:
+            raise_ltx_error(exc)
+            raise
+
+    @app.post(
+        "/api/new/projects/{project_id}/items/{item_id}/ltx/retry"
+    )
+    def retry_new_project_ltx_item(
+        project_id: str,
+        item_id: str,
+        request: Request,
+        payload: dict[str, Any] = Body(default={}),
+    ) -> dict[str, Any]:
+        del payload
+        user = current_project_user(request)
+        _, token = digital_human_access(request)
+        try:
+            return project_ltx_coordinator().retry(
+                user["user_id"], project_id, item_id, token
+            )
+        except Exception as exc:
+            raise_ltx_error(exc)
+            raise
 
     @app.patch(
         "/api/new/projects/{project_id}/items/{item_id}/h3/overrides"

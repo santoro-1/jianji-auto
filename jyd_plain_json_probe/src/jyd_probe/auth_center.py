@@ -13,9 +13,44 @@ from urllib.request import Request, urlopen
 
 
 class AuthCenterError(RuntimeError):
-    def __init__(self, message: str, *, status_code: int = 503):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int = 503,
+        error_code: str | None = None,
+        retryable: bool | None = None,
+    ):
         super().__init__(message)
-        self.status_code = status_code
+        self.status_code = int(status_code)
+        self.error_code = error_code or self._default_error_code(self.status_code)
+        self.retryable = (
+            self.status_code >= 500
+            if retryable is None
+            else bool(retryable)
+        )
+
+    @staticmethod
+    def _default_error_code(status_code: int) -> str:
+        if status_code == 401:
+            return "DIGITAL_HUMAN_AUTH_EXPIRED"
+        if status_code == 403:
+            return "DIGITAL_HUMAN_FORBIDDEN"
+        if status_code == 429:
+            return "DIGITAL_HUMAN_RATE_LIMITED"
+        if status_code >= 500:
+            return "DIGITAL_HUMAN_SERVER_UNAVAILABLE"
+        return "DIGITAL_HUMAN_REQUEST_REJECTED"
+
+
+class AuthCenterConnectionError(AuthCenterError):
+    def __init__(self, message: str):
+        super().__init__(
+            message,
+            status_code=503,
+            error_code="DIGITAL_HUMAN_CONNECTION_FAILED",
+            retryable=True,
+        )
 
 
 def create_local_workbench_handoff(
@@ -693,7 +728,9 @@ class AuthCenterClient:
             ) from exc
         except (URLError, OSError, TimeoutError) as exc:
             target.unlink(missing_ok=True)
-            raise AuthCenterError(f"{failure_message}，请检查数字人网站是否在线") from exc
+            raise AuthCenterConnectionError(
+                f"{failure_message}，请检查数字人网站是否在线"
+            ) from exc
         except BaseException:
             target.unlink(missing_ok=True)
             raise
@@ -784,7 +821,7 @@ class AuthCenterClient:
             message = self._detail(raw) or f"数字人网站拒绝请求（HTTP {exc.code}）"
             raise AuthCenterError(message, status_code=int(exc.code)) from exc
         except (URLError, OSError, TimeoutError) as exc:
-            raise AuthCenterError(
+            raise AuthCenterConnectionError(
                 f"无法连接数字人网站 {self.base_url}，请确认数字人网站已经启动"
             ) from exc
         if status < 200 or status >= 300:
@@ -792,9 +829,19 @@ class AuthCenterClient:
         try:
             data = json.loads(raw.decode("utf-8")) if raw else {}
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise AuthCenterError("数字人网站返回了无法识别的数据") from exc
+            raise AuthCenterError(
+                "数字人网站返回了无法识别的数据",
+                status_code=502,
+                error_code="DIGITAL_HUMAN_INVALID_RESPONSE",
+                retryable=True,
+            ) from exc
         if not isinstance(data, dict):
-            raise AuthCenterError("数字人网站返回格式错误")
+            raise AuthCenterError(
+                "数字人网站返回格式错误",
+                status_code=502,
+                error_code="DIGITAL_HUMAN_INVALID_RESPONSE",
+                retryable=True,
+            )
         return data
 
     @staticmethod

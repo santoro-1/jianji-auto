@@ -16,6 +16,8 @@ from .content_replace import (
     NestedTextStylePresetReplacement,
     NestedVideoReplacement,
     StickerAddition,
+    SubtitleLine,
+    SubtitleRangeReplacement,
     TextAddition,
     TextFontReplacement,
     TextReplacement,
@@ -131,9 +133,15 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
     nested_video_replacements = _build_nested_video_replacements(config)
     source_data = load_plain_draft_json(template_dir)
     source_timeline_duration_us = _draft_duration_us(source_data)
+    requested_timeline_duration_us = int(
+        _value(config, "timeline_duration_us", default=0) or 0
+    )
+    effective_timeline_duration_us = (
+        requested_timeline_duration_us or source_timeline_duration_us
+    )
     text_replacements, text_additions, text_style_replacements, nested_text_style_replacements = _build_text_replacements(
         config,
-        timeline_duration_us=source_timeline_duration_us,
+        timeline_duration_us=effective_timeline_duration_us,
     )
     text_style_replacements.extend(
         _build_existing_text_style_replacements(config, source_data)
@@ -141,15 +149,15 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
     text_font_replacements = _build_existing_text_font_replacements(config, source_data)
     text_template_additions = _build_text_template_additions(
         config,
-        timeline_duration_us=source_timeline_duration_us,
+        timeline_duration_us=effective_timeline_duration_us,
     )
     named_audio_replacements, audio_segment_replacements, audio_additions = _build_audio_replacements(
         config,
-        timeline_duration_us=source_timeline_duration_us,
+        timeline_duration_us=effective_timeline_duration_us,
     )
     effect_additions = _build_effect_additions(
         config,
-        timeline_duration_us=source_timeline_duration_us,
+        timeline_duration_us=effective_timeline_duration_us,
     )
     sticker_additions = _build_sticker_additions(config)
     image_additions = _build_visual_overlay_additions(config)
@@ -164,6 +172,7 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
     video_overlay_additions = _build_visual_video_additions(config)
     visual_variant = _build_visual_variant(config)
     cover = _build_cover(config, source_data)
+    subtitle_range_replacements = _build_subtitle_range_replacements(config)
 
     content_job = ContentReplaceJob(
         template_draft_dir=template_dir,
@@ -178,6 +187,7 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         text_template_additions=text_template_additions,
         text_font_replacements=text_font_replacements,
         text_style_preset_replacements=text_style_replacements,
+        subtitle_range_replacements=subtitle_range_replacements,
         nested_text_style_preset_replacements=nested_text_style_replacements,
         named_audio_replacements=named_audio_replacements,
         audio_segment_replacements=audio_segment_replacements,
@@ -191,6 +201,7 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         original_video_volume=_optional_volume(config),
         remove_existing_audio=_as_bool(_value(config, "remove_existing_audio", default=False)),
         remove_existing_effects=_as_bool(_value(config, "remove_existing_effects", default=False)),
+        timeline_duration_us=requested_timeline_duration_us,
     )
 
     replace_result = run_content_replace_job(content_job)
@@ -622,6 +633,37 @@ def _build_video_replacements(config: Mapping[str, Any]) -> list[VideoSegmentRep
                 source_duration_us=int(_value(item, "source_duration_us", default=0)),
                 target_start_us=int(_value(item, "target_start_us", default=-1)),
                 target_duration_us=int(_value(item, "target_duration_us", default=0)),
+            )
+        )
+    return replacements
+
+
+def _build_subtitle_range_replacements(
+    config: Mapping[str, Any],
+) -> list[SubtitleRangeReplacement]:
+    replacements: list[SubtitleRangeReplacement] = []
+    for item in _list_config(
+        _value(config, "subtitle_range_replacements", default=None),
+        "subtitle_range_replacements",
+    ):
+        subtitles = []
+        for line in _list_config(
+            _value(item, "subtitles", "cues", default=None), "subtitles"
+        ):
+            subtitles.append(
+                SubtitleLine(
+                    start_us=int(_value(line, "start_us", default=0)),
+                    duration_us=int(_value(line, "duration_us", default=0)),
+                    text=str(_value(line, "text", default="")),
+                )
+            )
+        replacements.append(
+            SubtitleRangeReplacement(
+                start_us=int(_value(item, "start_us", default=0)),
+                end_us=int(_value(item, "end_us", default=0)),
+                subtitles=subtitles,
+                track_index=int(_value(item, "track_index", default=0)),
+                base_segment_index=int(_value(item, "base_segment_index", default=0)),
             )
         )
     return replacements

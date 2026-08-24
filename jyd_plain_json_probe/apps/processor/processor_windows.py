@@ -121,6 +121,14 @@ def _configure_environment() -> tuple[Path, Path]:
         else "production"
     )
     os.environ.setdefault(
+        "JYD_ADMIN_COOKIE_NAME",
+        f"jyd_admin_session_{workbench_environment}",
+    )
+    os.environ.setdefault(
+        "JYD_SITE_COOKIE_NAME",
+        f"jyd_site_session_{workbench_environment}",
+    )
+    os.environ.setdefault(
         "JYD_LTX_WORKBENCH_URL",
         config.get("ltx_workbench_url", "").strip()
         or (

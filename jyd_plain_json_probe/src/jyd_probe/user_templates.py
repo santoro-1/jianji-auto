@@ -82,6 +82,26 @@ def _text_materials(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
+def _segment_text_material(
+    data: dict[str, Any], texts: dict[str, dict[str, Any]], material_id: str
+) -> dict[str, Any] | None:
+    direct = texts.get(material_id)
+    if direct is not None:
+        return direct
+    materials = data.get("materials", {})
+    templates = materials.get("text_templates", []) if isinstance(materials, dict) else []
+    for template in templates if isinstance(templates, list) else []:
+        if not isinstance(template, dict) or str(template.get("id") or "") != material_id:
+            continue
+        for resource in template.get("text_info_resources", []):
+            if not isinstance(resource, dict):
+                continue
+            nested = texts.get(str(resource.get("text_material_id") or ""))
+            if nested is not None:
+                return nested
+    return None
+
+
 def _text_value(material: dict[str, Any]) -> str:
     content = material.get("content", "")
     if isinstance(content, dict):
@@ -116,7 +136,9 @@ def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
         for segment_index, segment in enumerate(track.get("segments", [])):
             if not isinstance(segment, dict):
                 continue
-            material = texts.get(str(segment.get("material_id") or ""))
+            material = _segment_text_material(
+                data, texts, str(segment.get("material_id") or "")
+            )
             if material is not None:
                 ordinary.append((segment_index, segment, material))
         if ordinary:
@@ -163,7 +185,7 @@ def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("模板中没有可用的普通文字字幕轨")
     candidates.sort(key=lambda item: (item["score"], item["segment_count"]), reverse=True)
     best = candidates[0]
-    if best["score"] < 45:
+    if best["score"] < 60:
         raise ValueError("无法自动确认字幕轨，请在剪映中保留一条连续字幕轨后重新上传")
     if len(candidates) > 1 and candidates[1]["score"] >= best["score"] - 8:
         raise ValueError("模板中存在多条相似字幕轨，请只保留一条语音字幕轨后重新上传")
@@ -224,9 +246,16 @@ def _rewrite_paths(value: Any, path_map: dict[str, str]) -> Any:
 
 
 class UserTemplateStore:
-    def __init__(self, root: str | Path, *, libraries_root: str | Path):
+    def __init__(
+        self,
+        root: str | Path,
+        *,
+        libraries_root: str | Path,
+        max_template_bytes: int = 5 * 1024 * 1024 * 1024,
+    ):
         self.root = Path(root).expanduser().resolve()
         self.libraries_root = Path(libraries_root).expanduser().resolve()
+        self.max_template_bytes = max(1, int(max_template_bytes))
         self.root.mkdir(parents=True, exist_ok=True)
 
     def create(self, owner_user_id: str, name: str) -> dict[str, Any]:
@@ -295,6 +324,7 @@ class UserTemplateStore:
         relative = _safe_relative_path(relative_path)
         target = (root / "upload" / relative).resolve()
         target.relative_to((root / "upload").resolve())
+        self._check_quota(root, target, len(content))
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         meta["status"] = "UPLOADING"
@@ -402,6 +432,7 @@ class UserTemplateStore:
         target_root = (root / "assets" / resource_key / "payload").resolve()
         target = (target_root / relative).resolve()
         target.relative_to(target_root)
+        self._check_quota(root, target, len(content))
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         return {"ok": True, "path": relative.as_posix(), "size_bytes": len(content)}
@@ -421,7 +452,13 @@ class UserTemplateStore:
                 continue
             original = str(item.get("original_path") or "")
             if original:
-                path_map[_path_key(original)] = str(payload)
+                replacement = self._uploaded_resource_target(
+                    payload,
+                    files,
+                    original,
+                    dict(item.get("identifiers") or {}),
+                )
+                path_map[_path_key(original)] = str(replacement)
         self._apply_path_map(root / "draft", path_map)
         meta["path_map"] = path_map
         meta["missing_resources"] = unresolved
@@ -499,9 +536,6 @@ class UserTemplateStore:
         }
 
     def _dependency_source(self, dependency: dict[str, Any]) -> Path | None:
-        path = Path(str(dependency.get("path") or "")).expanduser()
-        if path.exists():
-            return path.resolve()
         match = dependency.get("central_match")
         if not isinstance(match, dict):
             return None
@@ -545,6 +579,51 @@ class UserTemplateStore:
             if candidate.exists():
                 return candidate
         return None
+
+    def _check_quota(self, root: Path, target: Path, incoming_bytes: int) -> None:
+        existing_bytes = target.stat().st_size if target.is_file() else 0
+        stored_bytes = sum(
+            path.stat().st_size for path in root.rglob("*") if path.is_file()
+        )
+        if stored_bytes - existing_bytes + incoming_bytes > self.max_template_bytes:
+            raise ValueError("模板文件总大小超过服务器限制")
+
+    @staticmethod
+    def _uploaded_resource_target(
+        payload: Path,
+        files: list[Path],
+        original: str,
+        identifiers: dict[str, Any],
+    ) -> Path:
+        normalized = PurePosixPath(original.replace("\\", "/"))
+        parts = list(normalized.parts)
+        payload_root = payload.resolve()
+        for token in {str(value) for value in identifiers.values() if value}:
+            matching_indexes = [
+                index for index, part in enumerate(parts) if part.casefold() == token.casefold()
+            ]
+            if not matching_indexes:
+                continue
+            tail = parts[matching_indexes[-1] + 1 :]
+            if any(part in {"", ".", ".."} for part in tail):
+                continue
+            candidate = payload_root.joinpath(*tail).resolve()
+            try:
+                candidate.relative_to(payload_root)
+            except ValueError:
+                continue
+            if candidate.exists():
+                return candidate
+        original_name = normalized.name
+        if Path(original_name).suffix:
+            named = [path for path in files if path.name.casefold() == original_name.casefold()]
+            suffix = Path(original_name).suffix.casefold()
+            candidates = named or [path for path in files if path.suffix.casefold() == suffix]
+            if len(candidates) == 1:
+                candidate = candidates[0].resolve()
+                candidate.relative_to(payload_root)
+                return candidate
+        return payload_root
 
     @staticmethod
     def _copy_resource(root: Path, resource_key: str, source: Path) -> Path:

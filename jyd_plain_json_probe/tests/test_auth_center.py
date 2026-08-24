@@ -7,6 +7,7 @@ import shutil
 import sys
 import unittest
 import uuid
+from urllib.error import HTTPError, URLError
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -40,6 +41,35 @@ class _Response:
 
 
 class AuthCenterTest(unittest.TestCase):
+    def test_client_classifies_remote_business_rejection(self) -> None:
+        error = HTTPError(
+            "https://video.example/api/workbench/start",
+            409,
+            "Conflict",
+            {},
+            io.BytesIO(json.dumps({"detail": "当前任务不在语音审核阶段"}).encode()),
+        )
+        with patch("jyd_probe.auth_center.urlopen", side_effect=error):
+            with self.assertRaises(AuthCenterError) as caught:
+                AuthCenterClient("https://video.example").login("tester", "pass123")
+        self.assertEqual(caught.exception.status_code, 409)
+        self.assertEqual(
+            caught.exception.error_code, "DIGITAL_HUMAN_REQUEST_REJECTED"
+        )
+        self.assertFalse(caught.exception.retryable)
+        self.assertEqual(str(caught.exception), "当前任务不在语音审核阶段")
+
+    def test_client_classifies_connection_failure_as_retryable(self) -> None:
+        with patch(
+            "jyd_probe.auth_center.urlopen", side_effect=URLError("offline")
+        ):
+            with self.assertRaises(AuthCenterError) as caught:
+                AuthCenterClient("https://video.example").login("tester", "pass123")
+        self.assertEqual(
+            caught.exception.error_code, "DIGITAL_HUMAN_CONNECTION_FAILED"
+        )
+        self.assertTrue(caught.exception.retryable)
+
     def test_client_reads_center_token_and_user(self) -> None:
         payload = {
             "access_token": "center-token",

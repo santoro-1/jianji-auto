@@ -2304,6 +2304,53 @@ class ProjectPostprocessCoordinator:
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
         video_duration_us = item_video_duration_us(item)
+        template = settings.get("jianying_template")
+        if isinstance(template, dict) and template.get("template_id"):
+            if video_duration_us <= 0:
+                raise ValueError("当前视频时长不可用，无法套用剪映模板")
+            draft_dir = Path(str(template.get("draft_dir") or "")).expanduser()
+            if not (draft_dir / "draft_content.json").is_file():
+                raise ValueError("账号绑定的剪映模板草稿不存在，请重新上传")
+            profile_data = dict(template.get("profile") or {})
+            main_video = dict(profile_data.get("main_video") or {})
+            caption_track = dict(profile_data.get("caption_track") or {})
+            base_video = dict(item.get("outputs", {}).get("base_video") or {})
+            base_video_path = str(base_video.get("managed_path") or "").strip()
+            if not base_video_path or not Path(base_video_path).is_file():
+                raise ValueError("当前合并视频不存在，无法套用剪映模板")
+            job["source"] = {
+                "type": "template",
+                "template_draft_dir": str(draft_dir.resolve()),
+            }
+            job["remove_existing_audio"] = True
+            job["timeline_duration_us"] = video_duration_us
+            job["video_replacements"] = [
+                {
+                    "type": "video-segment",
+                    "track_index": int(main_video.get("typed_track_index", 0)),
+                    "segment_index": int(main_video.get("segment_index", 0)),
+                    "media_path": str(Path(base_video_path).resolve()),
+                    "source_start_us": 0,
+                    "source_duration_us": video_duration_us,
+                    "target_start_us": 0,
+                    "target_duration_us": video_duration_us,
+                }
+            ]
+            replace_end_us = max(
+                video_duration_us,
+                int(profile_data.get("draft_duration_us", 0) or 0),
+            )
+            job["subtitle_range_replacements"] = [
+                {
+                    "track_index": int(caption_track.get("typed_track_index", 0)),
+                    "base_segment_index": int(caption_track.get("base_segment_index", 0)),
+                    "start_us": 0,
+                    "end_us": replace_end_us,
+                    "subtitles": [dict(cue) for cue in subtitles["render_cues"]],
+                }
+            ]
+            job.pop("captions", None)
+            return job
         visual_analysis = dict(item.get("visual_analysis") or {})
         visual_overlays = bound_visual_overlays_to_video(
             apply_layout_to_visual_overlays(

@@ -387,6 +387,40 @@ RunningHub 手动取消后的“生成视频”按取消时所处阶段创建新
 已不同则拒绝重试旧远程任务。任何被 `COMPOSITION_GENERATE` 快照引用的项目图片都不能删除，
 避免旧任务恢复、下载或再次导出时出现视频与封面人物不一致。
 
+## 账号剪映模板
+
+新版“上传与生成”页底部用一个小按钮打开“我的剪映模板”弹窗。模板按数字人账号隔离，项目只
+保存 `template_id` 和显示名称；4B 提交时服务端会再次按当前账号解析成受信任的草稿路径，前端
+不能传服务器本地路径。
+
+纯网页上传使用 Chrome/Edge 的目录授权。用户应选择具体草稿目录，通常位于
+`%LOCALAPPDATA%\JianyingPro\User Data\Projects\com.lveditor.draft\草稿名`。网页只上传
+`draft_content.json`、`draft_meta_info.json` 等必要描述文件，不会上传整个草稿目录。服务端自动
+识别主视频和语音字幕轨；已知字幕轨名称优先，其次按连续性、覆盖率、短文本比例综合判断。
+多条字幕轨同分时拒绝导入，并提示用户只保留一条连续语音字幕轨，不让用户手选内部 ID。
+
+```text
+GET    /api/new/jianying-templates
+POST   /api/new/jianying-templates
+PUT    /api/new/jianying-templates/{template_id}/draft-files?path=...
+POST   /api/new/jianying-templates/{template_id}/analyze
+PUT    /api/new/jianying-templates/{template_id}/resource-files?resource_key=...&path=...
+POST   /api/new/jianying-templates/{template_id}/resources/complete
+PATCH  /api/new/jianying-templates/{template_id}
+DELETE /api/new/jianying-templates/{template_id}
+PUT    /api/new/projects/{project_id}/jianying-template
+```
+
+若花字/字体/贴纸资源未进入服务端中央素材库，分析返回 `NEEDS_RESOURCES`、资源标识和剪映
+`User Data\Cache` 下的候选相对目录。网页经用户再次授权后，只读取这些精确资源 ID 目录中的
+白名单素材文件；找不到时明确提示先在剪映中使用一次该资源。服务端不会根据草稿中的任意绝对
+路径读取服务器文件，也不会把上传者电脑的原路径返回给浏览器。
+
+模板进入 4B 后作为视觉母版：原音轨全部删除，主视频替换为当前 `base_video`，语音和当前 BGM
+作为独立轨道加入，自动字幕内容替换到已识别字幕轨并复制其花字、位置和动画。工作台默认的语义
+贴图、名牌、标题和字幕新增逻辑在模板分支不再叠加。最终草稿时长强制跟随当前视频时长；模板中
+抵达原片尾的固定视觉随片尾伸缩，新生成的字幕不会被误拉长。
+
 ## 新版字幕与 BGM 接口（模块 4B）
 
 4B 普通预览不访问 RunningHub，也不在浏览器预览阶段启动剪映：

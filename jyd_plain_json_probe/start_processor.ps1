@@ -31,10 +31,12 @@ $env:JYD_TEXT_STYLE_LIBRARY_ROOT = Join-Path $LibrariesRoot "text_style_library"
 $env:JYD_TEXT_TEMPLATE_LIBRARY_ROOT = Join-Path $LibrariesRoot "text_template_library"
 $env:JYD_PERSONAL_LIBRARY_ROOT = Join-Path $DataRoot "personal_libraries"
 $env:JYD_DECRYPT_WORK_ROOT = Join-Path $ProjectRoot "runtime\decrypted_work"
-$env:JYD_ADMIN_COOKIE_NAME = "jyd_admin_session"
-$env:JYD_SITE_COOKIE_NAME = "jyd_site_session"
 $env:JYD_ALLOW_LOCAL_FILE_ACCESS = "true"
 $env:JYD_AUTH_SERVER_URL = $DigitalHumanServerUrl.TrimEnd("/")
+$AuthHost = ([System.Uri]$env:JYD_AUTH_SERVER_URL).Host.ToLowerInvariant()
+$CookieEnvironment = if ($AuthHost -in @("127.0.0.1", "localhost", "::1")) { "local" } else { "production" }
+$env:JYD_ADMIN_COOKIE_NAME = "jyd_admin_session_$CookieEnvironment"
+$env:JYD_SITE_COOKIE_NAME = "jyd_site_session_$CookieEnvironment"
 $env:JYD_LTX_WORKBENCH_URL = $LtxWorkbenchUrl.TrimEnd("/")
 $env:JYD_AUTH_AUTHORITY = "false"
 if (-not $HostAddress) {

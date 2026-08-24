@@ -6,12 +6,13 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .auth_center import AuthCenterClient
-from .caption_alignment import CaptionAlignmentError
+from .caption_alignment import CaptionAlignmentError, alignment_matches
 from .project_h3_media import H3MediaAssets, prepare_h3_media
 from .project_store import ProjectStore
 
 
 H3_MODE = "minimax_h3_ref2va"
+H3_SAFE_CUT_ALIGNMENT_SCHEMA = "jyd.h3-safe-cut-alignment.v1"
 
 
 class ProjectH3Coordinator:
@@ -82,6 +83,140 @@ class ProjectH3Coordinator:
             and value.get("status") == "READY"
         ]
         return candidates[-1] if candidates else None
+
+    @staticmethod
+    def _audio_bound_script(
+        item: dict[str, Any], audio: dict[str, Any]
+    ) -> str:
+        """Return the immutable script actually bound to the selected audio."""
+
+        table_script = str(item.get("script_text") or "").strip()
+        subtitles = (
+            item.get("subtitles") if isinstance(item.get("subtitles"), dict) else {}
+        )
+        cues = subtitles.get("raw_cues")
+        cue_script = ""
+        if isinstance(cues, list):
+            cue_script = "".join(
+                str(cue.get("text") or "")
+                for cue in cues
+                if isinstance(cue, dict)
+            ).strip()
+        metadata = (
+            audio.get("metadata") if isinstance(audio.get("metadata"), dict) else {}
+        )
+        expected_sha = str(metadata.get("script_sha256") or "").strip().lower()
+        candidates = [value for value in (cue_script, table_script) if value]
+        if expected_sha:
+            for candidate in candidates:
+                if hashlib.sha256(candidate.encode("utf-8")).hexdigest() == expected_sha:
+                    return candidate
+            raise ValueError(
+                f"第 {item.get('row_key')} 行当前脚本与已生成声音不一致，请重新生成声音"
+            )
+        if candidates:
+            return candidates[0]
+        raise ValueError(f"第 {item.get('row_key')} 行声音缺少原稿")
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def _safe_cut_alignment(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item: dict[str, Any],
+        audio: dict[str, Any],
+        script_text: str,
+    ) -> dict[str, Any] | None:
+        """Build the small, audio-bound alignment contract consumed by H3."""
+
+        audio_path = Path(str(audio.get("managed_path") or ""))
+        if not audio_path.is_file():
+            raise ValueError(
+                f"第 {item.get('row_key')} 行缺少可供本地 ASR 对齐的声音文件"
+            )
+        subtitles = (
+            dict(item.get("subtitles"))
+            if isinstance(item.get("subtitles"), dict)
+            else {}
+        )
+        alignment = subtitles.get("asr_alignment")
+        alignment_is_current = alignment_matches(
+            alignment,
+            script=script_text,
+            audio_asset_id=str(audio.get("asset_id") or ""),
+            audio_version=audio.get("version"),
+        )
+        if not alignment_is_current:
+            if self.caption_aligner is None:
+                if self.require_precise_alignment:
+                    raise ValueError(
+                        f"第 {item.get('row_key')} 行无法建立 H3 安全切点："
+                        "本机 ASR 服务未配置"
+                    )
+                return None
+            try:
+                alignment = self.caption_aligner.align(
+                    audio_path,
+                    script=script_text,
+                    raw_cues=subtitles.get("raw_cues", []),
+                    audio_asset_id=str(audio.get("asset_id") or ""),
+                    audio_version=audio.get("version"),
+                )
+            except CaptionAlignmentError as exc:
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行无法建立 H3 安全切点：{exc}"
+                ) from exc
+            subtitles["asr_alignment"] = alignment
+            self.store.set_item_subtitles(
+                owner_user_id,
+                project_id,
+                str(item["item_id"]),
+                subtitles,
+            )
+        if not isinstance(alignment, dict):
+            raise ValueError(f"第 {item.get('row_key')} 行本地 ASR 对齐结果无效")
+        raw_ranges = alignment.get("ranges")
+        if not isinstance(raw_ranges, list) or not raw_ranges:
+            raise ValueError(f"第 {item.get('row_key')} 行本地 ASR 没有返回安全切点")
+        ranges: list[dict[str, int]] = []
+        for position, value in enumerate(raw_ranges, start=1):
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行本地 ASR 第 {position} 个切点无效"
+                )
+            try:
+                ranges.append(
+                    {
+                        "script_start": int(value["start"]),
+                        "script_end": int(value["end"]),
+                        "start_us": int(value["start_us"]),
+                        "end_us": int(value["end_us"]),
+                    }
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行本地 ASR 第 {position} 个切点无效"
+                ) from exc
+        audio_ref = audio.get("external_ref", {})
+        return {
+            "schema": H3_SAFE_CUT_ALIGNMENT_SCHEMA,
+            "source": "jyd_local_funasr",
+            "script_sha256": hashlib.sha256(script_text.encode("utf-8")).hexdigest(),
+            "audio_sha256": self._sha256_file(audio_path),
+            "audio_batch_id": str(audio_ref.get("batch_id") or ""),
+            "audio_item_id": str(audio_ref.get("remote_item_id") or ""),
+            "audio_generation_version": int(
+                audio_ref.get("generation_version") or 1
+            ),
+            "ranges": ranges,
+        }
 
     def approve_audio(
         self,
@@ -173,33 +308,28 @@ class ProjectH3Coordinator:
                 "当前 H3 批次尚未结束，不能用新的幂等键重复计算或提交"
             )
 
-        image_by_id = {
-            str(value.get("image_id")): value
-            for value in project.get("input_images", [])
-            if isinstance(value, dict)
-        }
-        cloud_images: list[str] = []
-        for image_id in h3.get("identity_image_ids") or []:
-            image = image_by_id.get(str(image_id))
-            if image is None:
-                raise ValueError("H3 人物参考图已经不存在，请重新选择")
-            path = Path(str(image.get("managed_path") or ""))
-            if not path.is_file():
-                raise ValueError(
-                    f"H3 人物参考图文件不存在: {image.get('filename') or image_id}"
-                )
-            uploaded = self.client.upload_workbench_batch_asset(
-                token,
-                path,
-                kind="image",
-                filename=str(image.get("filename") or path.name),
+        pending_audio_item_ids: list[str] = []
+        for item in target_items:
+            audio = self._latest_minimax_audio(item) or {}
+            metadata = (
+                audio.get("metadata")
+                if isinstance(audio.get("metadata"), dict)
+                else {}
             )
-            asset_id = str(uploaded.get("asset_id") or "").strip()
-            if not asset_id:
-                raise ValueError("数字人网站没有返回 H3 人物图素材编号")
-            cloud_images.append(asset_id)
+            if str(metadata.get("provider_status") or "").upper() != "SUCCESS":
+                pending_audio_item_ids.append(str(item["item_id"]))
+        if pending_audio_item_ids:
+            reviewed = self.approve_audio(
+                owner_user_id,
+                project_id,
+                token,
+                item_ids=pending_audio_item_ids,
+            )
+            project = reviewed["project"]
+            h3 = self._h3_settings(project)
+            target_items = self._target_items(project, item_ids)
 
-        rows: list[dict[str, Any]] = []
+        prepared_audio: dict[str, tuple[dict[str, Any], str, dict[str, Any] | None]] = {}
         for item in target_items:
             audio = self._latest_minimax_audio(item)
             audio_ref = (
@@ -211,9 +341,56 @@ class ProjectH3Coordinator:
                 )
             provider_status = str(audio.get("metadata", {}).get("provider_status") or "")
             if provider_status != "SUCCESS":
+                raise ValueError(f"第 {item.get('row_key')} 行 MiniMax 声音锁定失败")
+            script_text = self._audio_bound_script(item, audio)
+            prepared_audio[str(item["item_id"])] = (
+                audio,
+                script_text,
+                self._safe_cut_alignment(
+                    owner_user_id,
+                    project_id,
+                    item,
+                    audio,
+                    script_text,
+                ),
+            )
+
+        cloud_image_by_source: dict[str, str] = {}
+        cloud_images: list[str] = []
+        row_cloud_images: dict[str, str] = {}
+        for item in target_items:
+            image = item.get("inputs", {}).get("image")
+            if not isinstance(image, dict):
                 raise ValueError(
-                    f"第 {item.get('row_key')} 行 MiniMax 声音尚未审核，请先试听并审核所选声音"
+                    f"第 {item.get('row_key')} 行尚未分配人物图，请先应用上方图片分配规则"
                 )
+            path = Path(str(image.get("managed_path") or ""))
+            if not path.is_file():
+                raise ValueError(
+                    f"第 {item.get('row_key')} 行人物图文件不存在: {image.get('filename') or image.get('asset_id')}"
+                )
+            source_key = str(image.get("metadata", {}).get("sha256") or path.resolve())
+            asset_id = cloud_image_by_source.get(source_key)
+            if asset_id is None:
+                uploaded = self.client.upload_workbench_batch_asset(
+                    token,
+                    path,
+                    kind="image",
+                    filename=str(image.get("filename") or path.name),
+                )
+                asset_id = str(uploaded.get("asset_id") or "").strip()
+                if not asset_id:
+                    raise ValueError("数字人网站没有返回 H3 人物图素材编号")
+                cloud_image_by_source[source_key] = asset_id
+                cloud_images.append(asset_id)
+            row_cloud_images[str(item["item_id"])] = asset_id
+
+        rows: list[dict[str, Any]] = []
+        for item in target_items:
+            audio, script_text, safe_cut_alignment = prepared_audio[
+                str(item["item_id"])
+            ]
+            audio_ref = audio.get("external_ref", {})
             reference = item.get("inputs", {}).get("h3_reference_video")
             if not isinstance(reference, dict):
                 raise ValueError(
@@ -245,14 +422,19 @@ class ProjectH3Coordinator:
             )
             row: dict[str, Any] = {
                 "row_id": str(item.get("row_key") or item.get("item_id")),
-                "script_text": str(item.get("script_text") or ""),
+                "script_text": script_text,
                 "video_asset_id": video_asset_id,
+                "reference_image_asset_ids": [
+                    row_cloud_images[str(item["item_id"])]
+                ],
                 "audio_batch_id": str(audio_ref["batch_id"]),
                 "audio_item_id": str(audio_ref["remote_item_id"]),
                 "audio_generation_version": int(
                     audio_ref.get("generation_version") or 1
                 ),
             }
+            if safe_cut_alignment is not None:
+                row["audio_alignment"] = safe_cut_alignment
             overrides = (
                 item_h3.get("overrides")
                 if isinstance(item_h3.get("overrides"), dict)

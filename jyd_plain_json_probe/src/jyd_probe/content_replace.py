@@ -483,6 +483,7 @@ class ContentReplaceJob:
 
     replace_first_text: str = ""
     first_video_target_duration_us: int = 0
+    timeline_duration_us: int = 0
 
     named_video_replacements: list[NamedVideoReplacement] = field(default_factory=list)
     video_segment_replacements: list[VideoSegmentReplacement] = field(default_factory=list)
@@ -527,6 +528,7 @@ def _has_any_change(job: ContentReplaceJob) -> bool:
     return bool(
         job.replace_first_text
         or job.first_video_target_duration_us
+        or job.timeline_duration_us
         or job.named_video_replacements
         or job.video_segment_replacements
         or job.nested_video_replacements
@@ -1919,8 +1921,79 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
     if job.cover is not None:
         changed += apply_cover_timeline_offset(data, job.cover)
 
+    if job.timeline_duration_us:
+        changed += _fit_timeline_duration(
+            data,
+            job.timeline_duration_us,
+            protected_text_track_indexes={
+                item.track_index for item in job.subtitle_range_replacements
+            },
+        )
+
     if changed:
         log(f"JSON 级共执行 {changed} 项修改")
+    return changed
+
+
+def _fit_timeline_duration(
+    data: dict[str, Any],
+    target_duration_us: int,
+    *,
+    protected_text_track_indexes: set[int] | None = None,
+) -> int:
+    if target_duration_us <= 0:
+        raise ValueError("时间线时长必须大于 0")
+    original_duration_us = max(0, int(data.get("duration", 0) or 0))
+    protected = protected_text_track_indexes or set()
+    changed = int(original_duration_us != target_duration_us)
+    text_track_index = 0
+    tracks = data.get("tracks", [])
+    for track in tracks if isinstance(tracks, list) else []:
+        if not isinstance(track, dict):
+            continue
+        track_type = str(track.get("type") or "")
+        protect_extension = track_type == "text" and text_track_index in protected
+        if track_type == "text":
+            text_track_index += 1
+        segments = track.get("segments", [])
+        if not isinstance(segments, list):
+            continue
+        retained: list[Any] = []
+        for segment in segments:
+            if not isinstance(segment, dict):
+                retained.append(segment)
+                continue
+            timerange = segment.get("target_timerange")
+            if not isinstance(timerange, dict):
+                retained.append(segment)
+                continue
+            start_us = max(0, int(timerange.get("start", 0) or 0))
+            duration_us = max(0, int(timerange.get("duration", 0) or 0))
+            end_us = start_us + duration_us
+            if start_us >= target_duration_us:
+                changed += 1
+                continue
+            next_duration = duration_us
+            reaches_original_end = (
+                original_duration_us > 0
+                and abs(end_us - original_duration_us) <= 33_334
+            )
+            if end_us > target_duration_us:
+                next_duration = target_duration_us - start_us
+            elif reaches_original_end and not protect_extension:
+                next_duration = target_duration_us - start_us
+            if next_duration != duration_us:
+                timerange["duration"] = max(1, next_duration)
+                changed += 1
+            retained.append(segment)
+        if len(retained) != len(segments):
+            track["segments"] = retained
+    data["duration"] = target_duration_us
+    if changed:
+        log(
+            "已按当前视频调整模板时间线: "
+            f"original={original_duration_us}, target={target_duration_us}, changes={changed}"
+        )
     return changed
 
 

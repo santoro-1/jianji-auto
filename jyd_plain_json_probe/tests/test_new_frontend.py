@@ -39,6 +39,27 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("0.1 秒仅扩大生成窗口", page)
         self.assertNotIn("0.5 秒仅扩大生成窗口", page)
 
+    def test_h3_reuses_row_audio_preview_without_an_extra_review_action(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertNotIn('id="btn-review-h3-audio"', page)
+        self.assertNotIn("function reviewH3TargetAudio", page)
+        self.assertIn("await startGlobalH3Generation([script])", page)
+        self.assertIn(
+            "h3Targets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo)",
+            page,
+        )
+        self.assertIn("点击“生成视频”后会自动锁定当前声音", page)
+
+    def test_h3_automatically_uses_each_rows_mapped_image(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("人物图自动跟随图片分配", page)
+        self.assertIn("无需二次勾选", page)
+        self.assertIn("missingImage.length", page)
+        self.assertNotIn("设为 H3 人物图", page)
+        self.assertNotIn("toggleH3IdentityImage", page)
+
     def test_workspace_is_split_into_audio_and_generation_pages(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
@@ -48,18 +69,48 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn('audio-page-only', page)
         self.assertIn('generation-page-only', page)
 
-    def test_header_switch_opens_same_environment_ltx_in_new_tab(self) -> None:
+    def test_ltx_is_a_third_same_page_pipeline_with_shared_postprocess(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('<option value="runninghub_digital_human">', page)
+        self.assertIn('<option value="minimax_h3_ref2va">', page)
+        self.assertIn('<option value="ltx_lip_sync">', page)
+        self.assertIn("/ltx/source-video", page)
+        self.assertIn("/ltx/generate", page)
+        self.assertIn("ltxEngineState?.active ? 'refresh' : 'state'", page)
+        self.assertIn("startGlobalPostprocess()", page)
+        self.assertIn(">视频对口型</", page)
+        self.assertIn("使用人物视频生成口型画面", page)
+        self.assertIn("生成视频对口型", page)
+        self.assertIn("人物视频", page)
+        self.assertNotIn("LTX 对口型（源视频）", page)
+        self.assertNotIn("源视频 / LTX", page)
+        self.assertNotIn("LTX + SeedVR2 生成中", page)
+
+        paths = {route.path for route in create_app(self.settings).routes}
+        self.assertIn("/api/new/projects/{project_id}/ltx/state", paths)
+        self.assertIn(
+            "/api/new/projects/{project_id}/items/{item_id}/ltx/source-video",
+            paths,
+        )
+        self.assertIn("/api/new/projects/{project_id}/ltx/generate", paths)
+        self.assertIn("/api/new/projects/{project_id}/ltx/refresh", paths)
+
+    def test_header_switch_selects_ltx_inside_the_same_workbench_page(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
         self.assertIn('id="ltx-workbench-link"', page)
-        self.assertIn('target="_blank"', page)
-        self.assertIn('rel="noopener noreferrer"', page)
+        self.assertIn('onclick="activateLtxWorkbenchMode()"', page)
+        self.assertIn('onclick="activateH3WorkbenchMode()"', page)
+        self.assertIn('id="engine-route-digital"', page)
+        self.assertIn('id="engine-route-h3"', page)
+        self.assertIn('value="ltx_lip_sync"', page)
+        self.assertIn('>生成方式</span>', page)
+        self.assertNotIn('id="ltx-workbench-link" href=', page)
         self.assertNotIn(
             'class="hidden xl:flex items-center gap-1 ml-5',
             page,
         )
-        self.assertIn("session.ltx_workbench_url", page)
-        self.assertIn("session.ltx_workbench_handoff_url", page)
         self.assertIn("session.workbench_environment_label", page)
 
     def test_workbench_pages_report_runtime_leases(self) -> None:
@@ -638,6 +689,15 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/diagnostics", workspace)
         self.assertIn("error_code", workspace)
         self.assertNotIn("operation.error_message", workspace)
+
+    def test_composition_failure_toast_distinguishes_network_and_business_errors(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function latestCompositionFailure", workspace)
+        self.assertIn("DIGITAL_HUMAN_CONNECTION_FAILED", workspace)
+        self.assertIn("数字人服务器暂时不可用", workspace)
+        self.assertIn("数字人任务启动失败", workspace)
+        self.assertIn("failure?.error_message", workspace)
+        self.assertIn("new Set(failedItems.map((item) => item.id))", workspace)
 
     def test_failed_source_only_video_can_backfill_without_showing_stale_preview(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")

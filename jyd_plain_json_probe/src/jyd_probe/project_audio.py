@@ -461,6 +461,13 @@ class ProjectAudioCoordinator:
                     local_item = local_by_item[local_item_id]
                     speed = _audio_speed(project, local_item_id)
                     generation_version = int(remote_item.get("generation_version") or 1)
+                    captions = remote_item.get("captions")
+                    subtitle_cues = (
+                        captions.get("cues")
+                        if isinstance(captions, dict)
+                        and isinstance(captions.get("cues"), list)
+                        else []
+                    )
                     current = local_item.get("outputs", {}).get("audio")
                     current_ref = current.get("external_ref", {}) if isinstance(current, dict) else {}
                     already_downloaded = (
@@ -521,12 +528,12 @@ class ProjectAudioCoordinator:
                                     "script_length"
                                 ),
                                 "speed": speed,
+                                "subtitle_cues": subtitle_cues,
                             },
                             make_current=True,
                         )
-                    captions = remote_item.get("captions")
                     if isinstance(captions, dict) and isinstance(asset, dict):
-                        cues = captions.get("cues")
+                        cues = subtitle_cues
                         if isinstance(cues, list) and (
                             cues or local_item_id not in caption_recovery_item_ids
                         ):

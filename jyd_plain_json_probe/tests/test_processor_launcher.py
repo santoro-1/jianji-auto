@@ -66,6 +66,11 @@ class ProcessorLauncherTest(unittest.TestCase):
             '$env:JYD_LTX_WORKBENCH_URL = "http://127.0.0.1:8792"',
             production,
         )
+        self.assertIn('"jyd_site_session_$CookieEnvironment"', production)
+        self.assertIn('"jyd_admin_session_$CookieEnvironment"', production)
+        self.assertIn('f"jyd_site_session_{workbench_environment}"', (
+            PROJECT_ROOT / "apps" / "processor" / "processor_windows.py"
+        ).read_text(encoding="utf-8"))
         self.assertIn(
             '$env:JYD_AUTH_SERVER_URL = "http://127.0.0.1:8000"',
             test,
