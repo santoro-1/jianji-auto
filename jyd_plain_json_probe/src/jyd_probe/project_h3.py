@@ -746,6 +746,9 @@ class ProjectH3Coordinator:
         segments: list[dict[str, Any]],
     ) -> None:
         signature = self._segment_signature(segments)
+        script_text = str(item.get("script_text") or "")
+        script_sha256 = hashlib.sha256(script_text.encode("utf-8")).hexdigest()
+        script_length = len(script_text)
         outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
         current_audio = outputs.get("audio") if isinstance(outputs.get("audio"), dict) else {}
         current_base = (
@@ -757,6 +760,14 @@ class ProjectH3Coordinator:
             current_audio.get("metadata", {}).get("h3_segment_signature") == signature
             and current_base.get("metadata", {}).get("h3_segment_signature") == signature
         ):
+            segment_script = "".join(str(value.get("script_text") or "") for value in segments)
+            if "".join(segment_script.split()) == "".join(script_text.split()):
+                self.store.repair_legacy_h3_script_binding(
+                    owner_user_id,
+                    project_id,
+                    str(item["item_id"]),
+                    segment_signature=signature,
+                )
             return
         assert self.storage_root is not None
         item_id = str(item["item_id"])
@@ -793,7 +804,7 @@ class ProjectH3Coordinator:
         assets = self.media_preparer(
             segment_paths=segment_paths,
             segment_texts=[str(value["script_text"]) for value in segments],
-            script_text=str(item.get("script_text") or ""),
+            script_text=script_text,
             target_dir=target_dir,
         )
         common_metadata = {
@@ -802,6 +813,8 @@ class ProjectH3Coordinator:
             "remote_item_id": remote_item.get("item_id"),
             "source_segment_ids": [str(value["segment_id"]) for value in segments],
             "authoritative_av": "h3_generated",
+            "script_sha256": script_sha256,
+            "script_length": script_length,
         }
         self.store.add_asset(
             owner_user_id=owner_user_id,

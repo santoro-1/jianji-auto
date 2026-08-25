@@ -134,6 +134,19 @@ try {
                 }
             }
             New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
+            # The API loads the semantic catalog during startup even when the
+            # optional public asset library is delivered separately. Keep a
+            # valid empty catalog so a no-library first install can boot.
+            $SemanticLibraryDir = Join-Path $LibrariesDir "semantic_visual_library"
+            New-Item -ItemType Directory -Path $SemanticLibraryDir -Force | Out-Null
+            $EmptySemanticCatalog = [ordered]@{
+                schema = "jyd.semantic-visual-catalog.v3"
+                library_id = "jyd.semantic-visual-library.default"
+                concepts = @()
+                assets = @()
+            }
+            $EmptySemanticCatalog | ConvertTo-Json -Depth 4 | Set-Content `
+                -LiteralPath (Join-Path $SemanticLibraryDir "catalog.json") -Encoding UTF8
         } else {
             New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
             foreach ($Name in @(

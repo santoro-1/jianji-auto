@@ -3605,6 +3605,116 @@ class ProjectStore:
             self._refresh_project_status(connection, project_id, now=now)
         return self.get_project(owner_user_id, project_id)
 
+    def repair_legacy_h3_script_binding(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        segment_signature: str,
+    ) -> bool:
+        """Bind legacy current H3 assets to the immutable item script.
+
+        Early H3 handoff versions did not persist the script fingerprint on the
+        authoritative audio. Subtitle post-processing therefore had to discard
+        semantic script units and fall back to coarse H3 segment cues. This
+        metadata-only repair is intentionally limited to the current matching
+        H3 audio/base pair. Any derived preview is detached but kept in history.
+        """
+
+        clean_signature = str(segment_signature or "").strip()
+        if not clean_signature:
+            raise ValueError("H3 分段签名不能为空")
+        with self._transaction() as connection:
+            project = self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            if str(item["status"] or "") in ACTIVE_ITEM_STATUSES:
+                return False
+            current_ids = {
+                "audio": str(item["current_audio_asset_id"] or ""),
+                "base_video": str(item["current_base_video_asset_id"] or ""),
+            }
+            if not all(current_ids.values()):
+                return False
+            rows = connection.execute(
+                """
+                SELECT * FROM project_assets
+                WHERE project_id=? AND item_id=? AND asset_id IN (?, ?)
+                """,
+                (
+                    project_id,
+                    item_id,
+                    current_ids["audio"],
+                    current_ids["base_video"],
+                ),
+            ).fetchall()
+            assets = {str(row["asset_type"]): row for row in rows}
+            if set(assets) != {"audio", "base_video"}:
+                return False
+
+            script_text = str(item["script_text"] or "")
+            script_sha256 = hashlib.sha256(script_text.encode("utf-8")).hexdigest()
+            script_length = len(script_text)
+            metadata_by_type: dict[str, dict[str, Any]] = {}
+            repair_required = False
+            for asset_type, row in assets.items():
+                metadata = _object(row["metadata_json"], {})
+                if (
+                    str(row["source_type"] or "").lower() != "h3"
+                    or str(row["status"] or "").upper() != "READY"
+                    or metadata.get("h3_segment_signature") != clean_signature
+                ):
+                    return False
+                existing_sha256 = str(metadata.get("script_sha256") or "").strip()
+                existing_length = metadata.get("script_length")
+                if existing_sha256 and existing_sha256 != script_sha256:
+                    return False
+                if existing_length not in (None, "", script_length):
+                    return False
+                if existing_sha256 != script_sha256 or existing_length != script_length:
+                    repair_required = True
+                metadata_by_type[asset_type] = metadata
+            if not repair_required:
+                return False
+
+            now = _now()
+            for asset_type, row in assets.items():
+                metadata = metadata_by_type[asset_type]
+                metadata["script_sha256"] = script_sha256
+                metadata["script_length"] = script_length
+                metadata["script_binding_repaired_at"] = now
+                connection.execute(
+                    "UPDATE project_assets SET metadata_json=?, updated_at=? WHERE asset_id=?",
+                    (_json(metadata), now, row["asset_id"]),
+                )
+
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            subtitles["render_cues"] = []
+            subtitles["bound_video_asset_id"] = current_ids["base_video"]
+            subtitles["overflow_risk"] = False
+            subtitles["review_reason"] = None
+            subtitles.pop("semantic_mapping", None)
+            subtitles["status"] = (
+                "READY" if subtitles.get("raw_cues") else "PENDING_TIMESTAMPS"
+            )
+            settings = _object(item["settings_json"], {})
+            settings["composition_invalidated_reason"] = "H3_SCRIPT_BINDING_REPAIRED"
+            connection.execute(
+                """
+                UPDATE project_items
+                SET current_video_asset_id=NULL, subtitles_json=?, settings_json=?,
+                    status='BASE_VIDEO_READY', updated_at=?
+                WHERE item_id=?
+                """,
+                (_json(subtitles), _json(settings), now, item_id),
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project["project_id"]),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return True
+
     def set_h3_batch_snapshot(
         self,
         owner_user_id: str,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import sys
 
@@ -167,12 +168,13 @@ def fake_media_preparer(
 def test_h3_project_contract_reuses_existing_audio_and_original_project(
     tmp_path: Path,
 ) -> None:
+    script_text = "第一苹果，第二鸡蛋，第三牛奶。"
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
         owner_user_id="user-1",
         owner_username="tester",
         name="H3 正式项目",
-        items=[{"row_key": "1", "script_text": "第一条台词。"}],
+        items=[{"row_key": "1", "script_text": script_text}],
     )
     project_id = project["project_id"]
     item_id = project["items"][0]["item_id"]
@@ -218,7 +220,7 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
             "source": "minimax_timestamps",
             "raw_cues": [
                 {
-                    "text": "第一条台词。",
+                    "text": script_text,
                     "start_us": 0,
                     "duration_us": 2_000_000,
                     "end_us": 2_000_000,
@@ -294,7 +296,7 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     ]
     assert client.prepared is not None
     assert client.prepared["rows"][0]["audio_generation_version"] == 3
-    assert client.prepared["rows"][0]["script_text"] == "第一条台词。"
+    assert client.prepared["rows"][0]["script_text"] == script_text
     alignment = client.prepared["rows"][0]["audio_alignment"]
     assert alignment["schema"] == "jyd.h3-safe-cut-alignment.v1"
     assert alignment["source"] == "jyd_local_funasr"
@@ -351,14 +353,14 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
                     {
                         "segment_id": "h3-segment-1",
                         "index": 0,
-                        "script_text": "第一条",
+                        "script_text": "第一苹果，",
                         "status": "SUCCESS",
                         "normalized_video_download_url": "/segment-1/video",
                     },
                     {
                         "segment_id": "h3-segment-2",
                         "index": 1,
-                        "script_text": "台词。",
+                        "script_text": "第二鸡蛋，第三牛奶。",
                         "status": "SUCCESS",
                         "normalized_video_download_url": "/segment-2/video",
                     },
@@ -375,15 +377,92 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     assert final_item["outputs"]["base_video"]["source_type"] == "h3"
     assert final_item["subtitles"]["source"] == "h3_generated_audio"
     assert final_item["subtitles"]["asr_alignment"]["status"] == "SUCCESS"
+    assert final_item["outputs"]["audio"]["metadata"]["script_sha256"] == (
+        hashlib.sha256(script_text.encode("utf-8")).hexdigest()
+    )
+    assert final_item["outputs"]["audio"]["metadata"]["script_length"] == len(
+        script_text
+    )
     assert [
         asset["source_type"] for asset in final_item["asset_history"]["audio"]
     ] == ["minimax", "h3"]
 
-    # Re-sync is idempotent: it must not create duplicate current H3 assets.
+    # Reproduce the legacy handoff: the H3 assets have no script binding and a
+    # derived preview has already packed two numbered clauses into one cue.
+    preview_path = tmp_path / "legacy-preview.mp4"
+    preview_path.write_bytes(b"legacy-preview")
+    store.add_asset(
+        owner_user_id="user-1",
+        project_id=project_id,
+        item_id=item_id,
+        asset_type="composition_video",
+        source_type="postprocess",
+        status="READY",
+        filename="legacy-preview.mp4",
+        managed_path=str(preview_path),
+        make_current=True,
+    )
+    legacy = store.get_project("user-1", project_id)["items"][0]
+    legacy_subtitles = dict(legacy["subtitles"])
+    legacy_subtitles.update(
+        {
+            "status": "PREVIEW_READY",
+            "render_cues": [
+                {
+                    "text": "第一苹果第二鸡蛋",
+                    "start_us": 0,
+                    "end_us": 1_000_000,
+                    "duration_us": 1_000_000,
+                }
+            ],
+            "semantic_mapping": {
+                "status": "FALLBACK",
+                "reason_code": "AUDIO_SCRIPT_VERSION_MISMATCH",
+            },
+        }
+    )
+    store.set_item_subtitles(
+        "user-1", project_id, item_id, legacy_subtitles
+    )
+    with store._transaction() as connection:
+        for asset_id in (
+            legacy["outputs"]["audio"]["asset_id"],
+            legacy["outputs"]["base_video"]["asset_id"],
+        ):
+            row = connection.execute(
+                "SELECT metadata_json FROM project_assets WHERE asset_id=?",
+                (asset_id,),
+            ).fetchone()
+            metadata = json.loads(row["metadata_json"])
+            metadata.pop("script_sha256", None)
+            metadata.pop("script_length", None)
+            connection.execute(
+                "UPDATE project_assets SET metadata_json=? WHERE asset_id=?",
+                (json.dumps(metadata, ensure_ascii=False), asset_id),
+            )
+
+    # Re-sync repairs legacy metadata, invalidates only the derived preview and
+    # remains idempotent: it must not create duplicate current H3 assets.
     synced_again = coordinator.sync("user-1", project_id, "token")
-    history = synced_again["project"]["items"][0]["asset_history"]
+    repaired_item = synced_again["project"]["items"][0]
+    history = repaired_item["asset_history"]
     assert len(history["audio"]) == 2
     assert len(history["base_video"]) == 1
+    assert len(history["composition_video"]) == 1
+    assert repaired_item["outputs"]["composition_video"] is None
+    assert repaired_item["outputs"]["base_video"]["source_type"] == "h3"
+    assert repaired_item["subtitles"]["render_cues"] == []
+    assert "semantic_mapping" not in repaired_item["subtitles"]
+    assert repaired_item["settings"]["composition_invalidated_reason"] == (
+        "H3_SCRIPT_BINDING_REPAIRED"
+    )
+    assert repaired_item["allowed_actions"]["start_postprocess"] is True
+    assert repaired_item["outputs"]["audio"]["metadata"]["script_sha256"] == (
+        hashlib.sha256(script_text.encode("utf-8")).hexdigest()
+    )
+    assert repaired_item["outputs"]["audio"]["metadata"]["script_length"] == len(
+        script_text
+    )
 
     # A later H3 quote must still use the reviewed MiniMax input audio, not the
     # H3-generated authoritative output that is now current in JYD.

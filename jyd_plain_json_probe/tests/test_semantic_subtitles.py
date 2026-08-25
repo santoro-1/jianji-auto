@@ -486,6 +486,54 @@ def test_task_30_uses_complete_modifier_and_numbered_item_beats(
     assert [str(cue["text"]) for cue in render_cues] == expected
 
 
+def test_h3_bound_script_keeps_consecutive_numbered_foods_in_separate_cues() -> None:
+    script = (
+        "记住你每天一定要吃的食物，第一苹果，第二鸡蛋，第三牛奶，"
+        "第四西红柿，第五瘦猪肉，第六巴旦木，第七橄榄油。"
+    )
+    parts = [
+        ("记住你每天一定要吃的食物，", "phrase", "none", "prefer"),
+        ("第一苹果，", "phrase", "none", "prefer"),
+        ("第二鸡蛋，", "phrase", "none", "prefer"),
+        ("第三牛奶，", "phrase", "none", "prefer"),
+        ("第四西红柿，", "phrase", "none", "prefer"),
+        ("第五瘦猪肉，", "phrase", "none", "prefer"),
+        ("第六巴旦木，", "phrase", "none", "prefer"),
+        ("第七橄榄油。", "phrase", "none", "prefer"),
+    ]
+    raw_cues = [
+        {"start_us": 0, "end_us": 4_000_000, "text": script[: len(script) // 2]},
+        {"start_us": 4_000_000, "end_us": 8_000_000, "text": script[len(script) // 2 :]},
+    ]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(
+            script,
+            _units(parts),
+            raw_cues,
+            prompt_version="jyd.content-analysis.prompt.v23",
+        ),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert mapping["reason_code"] is None
+    for numbered_food in (
+        "第一苹果",
+        "第二鸡蛋",
+        "第三牛奶",
+        "第四西红柿",
+        "第五瘦猪肉",
+        "第六巴旦木",
+        "第七橄榄油",
+    ):
+        assert numbered_food in texts
+    assert not any("第一苹果" in text and "第二鸡蛋" in text for text in texts)
+
+
 def test_local_reflow_overrides_model_break_inside_locative_relative() -> None:
     script = "存款和好看才是你疲惫生活中的一副重要的解药，"
     units = _units(
