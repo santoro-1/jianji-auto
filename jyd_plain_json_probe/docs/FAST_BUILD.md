@@ -32,6 +32,25 @@ cd "D:\工作内容\轻盈健\公寓\jyd_plain_json_probe"
 `-UpdateOnly` 是纯程序更新包，不包含任何 `data` 内容，也不能和
 `-DigitalHumanServerUrl` 同时使用。
 
+新电脑首次安装、但公共素材库另行交付时，使用首次安装无素材模式：
+
+```powershell
+.\build_deployment.ps1 `
+  -WithoutLibraries `
+  -DigitalHumanServerUrl "https://video.lanyingjk01.com" `
+  -CompressionLevel Optimal
+```
+
+它仍包含首次启动需要的程序、启动说明、ASR 运行时、空数据目录和
+`processor_config.json`，只排除 `data\libraries` 以及它的短路径映射 `data\l`。
+输出的 Processor 包为：
+
+```text
+release\JianyingRenderServer-no-libraries-windows-x64.zip
+```
+
+该模式与 `-UpdateOnly` 不同：前者可用于新电脑首次安装，后者只能覆盖已有安装。
+
 脚本默认保留 PyInstaller 分析缓存，并使用 `Fastest` ZIP 压缩。输出为：
 
 ```text

@@ -828,7 +828,10 @@ class ProjectH3Coordinator:
                 "remote_item_id": remote_item.get("item_id"),
                 "generation_version": 1,
             },
-            metadata=common_metadata,
+            metadata={
+                **common_metadata,
+                "subtitle_cues": [dict(value) for value in assets.raw_cues],
+            },
             make_current=True,
         )
         subtitles: dict[str, Any] = {

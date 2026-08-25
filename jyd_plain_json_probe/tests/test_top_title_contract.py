@@ -316,6 +316,43 @@ def test_project_cover_uses_input_image_and_fixed_visual_recipe(tmp_path) -> Non
     assert cover["line_2_shadow_smoothing"] == pytest.approx(0.45000001788139343)
 
 
+def test_ltx_project_cover_uses_base_video_first_frame_without_input_image(tmp_path) -> None:
+    video = tmp_path / "lip-sync.mp4"
+    video.write_bytes(b"video")
+    font = tmp_path / "SourceHanSerifCN-Heavy.otf"
+    font.write_bytes(b"font")
+
+    cover = build_project_cover(
+        {
+            "row_key": "1",
+            "inputs": {"image": None},
+            "outputs": {
+                "base_video": {
+                    "source_type": "ltx",
+                    "managed_path": str(video),
+                }
+            },
+            "settings": {
+                "postprocess": {
+                    "cover_title": {"line_1": "健康真相", "line_2": "别再踩坑"}
+                }
+            },
+        },
+        fonts={
+            "resource_id:6807742980271641102": {
+                "resource_id": "6807742980271641102",
+                "name": "SourceHanSerifCN-Heavy",
+                "path": str(font),
+            }
+        },
+    )
+
+    assert cover is not None
+    assert cover["frame_source"] == "timeline"
+    assert cover["frame_time_seconds"] == 0
+    assert cover["image_path"] == ""
+
+
 def test_project_cover_sanitizes_historical_saved_risk_title(tmp_path) -> None:
     image = tmp_path / "person.png"
     image.write_bytes(b"image")

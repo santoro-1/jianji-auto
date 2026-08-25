@@ -370,6 +370,8 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     final_item = synced["project"]["items"][0]
     assert final_item["status"] == "BASE_VIDEO_READY"
     assert final_item["outputs"]["audio"]["source_type"] == "h3"
+    assert final_item["outputs"]["minimax_audio"]["asset_id"] == audio_asset["asset_id"]
+    assert final_item["outputs"]["minimax_audio"]["source_type"] == "minimax"
     assert final_item["outputs"]["base_video"]["source_type"] == "h3"
     assert final_item["subtitles"]["source"] == "h3_generated_audio"
     assert final_item["subtitles"]["asr_alignment"]["status"] == "SUCCESS"

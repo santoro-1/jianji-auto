@@ -4096,7 +4096,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="项目不存在") from exc
         item = next((value for value in project["items"] if value["item_id"] == item_id), None)
-        audio = item.get("outputs", {}).get("audio") if item else None
+        audio = item.get("outputs", {}).get("minimax_audio") if item else None
         if not isinstance(audio, dict) or not audio.get("managed_path"):
             raise HTTPException(status_code=404, detail="生成音频尚未准备完成")
         path = Path(str(audio["managed_path"])).resolve()
@@ -4116,7 +4116,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def download_new_project_current_audios(
         project_id: str, request: Request
     ) -> FileResponse:
-        """Download every current generated audio in one temporary ZIP."""
+        """Download every shared MiniMax source audio in one temporary ZIP."""
 
         user = current_project_user(request)
         try:
@@ -4128,7 +4128,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail="当前项目没有可下载的声音")
         selected: list[tuple[Path, str]] = []
         for item in items:
-            audio = (item.get("outputs") or {}).get("audio")
+            audio = (item.get("outputs") or {}).get("minimax_audio")
             if not isinstance(audio, dict) or not audio.get("managed_path"):
                 continue
             path = Path(str(audio["managed_path"])).resolve()

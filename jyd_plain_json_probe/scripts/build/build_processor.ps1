@@ -2,6 +2,7 @@ param(
     [string]$Python = "",
     [switch]$Clean,
     [switch]$UpdateOnly,
+    [switch]$WithoutLibraries,
     [switch]$SkipArchive,
     [string]$DigitalHumanServerUrl = "",
     [string]$AsrBundleRoot = "",
@@ -23,6 +24,8 @@ $LibrariesDir = Join-Path $DataDir "libraries"
 $ReleaseDir = Join-Path $ProjectRoot "release"
 $ZipName = if ($UpdateOnly) {
     "JianyingRenderServer-update-windows-x64.zip"
+} elseif ($WithoutLibraries) {
+    "JianyingRenderServer-no-libraries-windows-x64.zip"
 } elseif ($DeploymentMode -eq "shared") {
     "JianyingRenderServer-shared-windows-x64.zip"
 } else {
@@ -48,6 +51,9 @@ if ($DigitalHumanServerUrl) {
 }
 if ($UpdateOnly -and $DigitalHumanServerUrl) {
     throw "UpdateOnly excludes data/processor_config.json; use a full build to set DigitalHumanServerUrl."
+}
+if ($UpdateOnly -and $WithoutLibraries) {
+    throw "UpdateOnly and WithoutLibraries are different delivery modes; choose one."
 }
 if ($UpdateOnly -and $AsrBundleRoot) {
     throw "UpdateOnly excludes the ASR runtime; install it with a full build."
@@ -119,29 +125,39 @@ try {
                 "The package can reuse 127.0.0.1:18084, but cannot start ASR itself."
             )
         }
-        New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
         $LibrarySourceRoot = Join-Path $ProjectRoot "data\libraries"
-        foreach ($Name in @(
-            "audio_library",
-            "effect_library",
-            "font_library",
-            "sticker_library",
-            "corner_sticker_library",
-            "semantic_visual_library",
-            "text_effect_library",
-            "text_style_library"
-        )) {
-            $Source = Join-Path $LibrarySourceRoot $Name
-            if (Test-Path -LiteralPath $Source -PathType Container) {
-                Copy-Item -LiteralPath $Source -Destination $LibrariesDir -Recurse -Force
+        if ($WithoutLibraries) {
+            Write-Host "Skipping public libraries for first-install code package..." -ForegroundColor Cyan
+            foreach ($MaterialPath in @($LibrariesDir, (Join-Path $DataDir "l"))) {
+                if (Test-Path -LiteralPath $MaterialPath) {
+                    Remove-Item -LiteralPath $MaterialPath -Recurse -Force
+                }
             }
-        }
+            New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
+        } else {
+            New-Item -ItemType Directory -Path $LibrariesDir -Force | Out-Null
+            foreach ($Name in @(
+                "audio_library",
+                "effect_library",
+                "font_library",
+                "sticker_library",
+                "corner_sticker_library",
+                "semantic_visual_library",
+                "text_effect_library",
+                "text_style_library"
+            )) {
+                $Source = Join-Path $LibrarySourceRoot $Name
+                if (Test-Path -LiteralPath $Source -PathType Container) {
+                    Copy-Item -LiteralPath $Source -Destination $LibrariesDir -Recurse -Force
+                }
+            }
 
-        $TextTemplateSource = Join-Path $LibrarySourceRoot "text_template_library"
-        if (Test-Path -LiteralPath $TextTemplateSource -PathType Container) {
-            $CompactLibraryParent = Join-Path $DataDir "l"
-            New-Item -ItemType Directory -Path $CompactLibraryParent -Force | Out-Null
-            Copy-Item -LiteralPath $TextTemplateSource -Destination (Join-Path $CompactLibraryParent "t") -Recurse -Force
+            $TextTemplateSource = Join-Path $LibrarySourceRoot "text_template_library"
+            if (Test-Path -LiteralPath $TextTemplateSource -PathType Container) {
+                $CompactLibraryParent = Join-Path $DataDir "l"
+                New-Item -ItemType Directory -Path $CompactLibraryParent -Force | Out-Null
+                Copy-Item -LiteralPath $TextTemplateSource -Destination (Join-Path $CompactLibraryParent "t") -Recurse -Force
+            }
         }
 
         $TemplateSource = Join-Path $ProjectRoot "data\template_library"

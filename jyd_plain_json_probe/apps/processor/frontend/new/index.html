@@ -1172,7 +1172,7 @@
         let audioStatusPollTimer = null;
         let compositionStatusPollTimer = null;
         let compositionSnapshotPollTimer = null;
-        let compositionStatusRequestInFlight = false;
+        let compositionStatusRequestProjectId = null;
         let compositionStatusPollFailureCount = 0;
         const COMPOSITION_STATUS_WARNING_THRESHOLD = 3;
         let inactiveCompositionSyncTimer = null;
@@ -1658,6 +1658,9 @@
                     });
                 syncProjectInputs(project);
                 if (mode === 'ltx_lip_sync') await refreshLtxStatus({ quiet: true });
+                if (mode === 'minimax_h3_ref2va') {
+                    scheduleH3StatusPoll(100);
+                }
                 const labels = {
                     minimax_h3_ref2va: '当前批次将使用 H3 多参考生成。',
                     ltx_lip_sync: '当前批次将使用已生成的声音制作视频对口型。',
@@ -1847,35 +1850,57 @@
             return labels[status] || (status || '等待输入');
         }
 
+        function ltxStateNeedsRefresh() {
+            const terminal = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+            return (ltxEngineState?.items || []).some(item =>
+                item?.remote_batch_id
+                && !item?.base_video_ready
+                && !terminal.has(String(item?.status || '').toUpperCase())
+            );
+        }
+
+        function ltxStateIsActive() {
+            return Boolean(ltxEngineState?.active || ltxStateNeedsRefresh());
+        }
+
         function scheduleLtxStatusPoll(delay = 5000) {
             clearTimeout(ltxStatusPollTimer);
-            if (!activeProject?.project_id || !isLtxGenerationMode() || !ltxEngineState?.active) return;
+            if (!activeProject?.project_id || !isLtxGenerationMode() || !ltxStateIsActive()) return;
             ltxStatusPollTimer = setTimeout(() => refreshLtxStatus({ quiet: true }), delay);
         }
 
         async function refreshLtxStatus({ quiet = false } = {}) {
             if (!activeProject?.project_id || !isLtxGenerationMode()) return;
+            const projectId = activeProject.project_id;
             try {
-                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/ltx/${ltxEngineState?.active ? 'refresh' : 'state'}`, {
-                    method: ltxEngineState?.active ? 'POST' : 'GET'
+                const shouldRefresh = ltxStateIsActive();
+                const result = await workspaceApi(`/api/new/projects/${projectId}/ltx/${shouldRefresh ? 'refresh' : 'state'}`, {
+                    method: shouldRefresh ? 'POST' : 'GET'
                 });
+                if (activeProject?.project_id !== projectId) return;
                 ltxEngineState = result.ltx || { items: [], active: false };
                 syncProjectInputs(result.project);
-                if (ltxEngineState.active) {
+                if (ltxStateIsActive()) {
                     scheduleLtxStatusPoll();
                     return;
                 }
                 isGeneratingLtx = false;
                 const failed = (ltxEngineState.items || []).filter(item => String(item.status).toUpperCase() === 'FAILED');
-                if (finalGenerationPhase === 'composition' && !failed.length) {
-                    const pendingBase = uploadedScripts.filter(item => !item.baseVideo);
-                    if (!pendingBase.length && activeProject?.allowed_actions?.start_postprocess) {
-                        await startGlobalPostprocess();
-                        return;
-                    }
+                const completedTargets = uploadedScripts.filter(item => {
+                    const engineItem = ltxStateForItem(item.id);
+                    return Boolean(
+                        engineItem?.remote_batch_id
+                        && item.baseVideo
+                        && item.allowedActions?.start_postprocess
+                    );
+                });
+                if (completedTargets.length) {
+                    showToast('对口型画面已回填', '正在自动生成字幕、BGM 和可编辑剪映预览。', 'success');
+                    await startGlobalPostprocess(completedTargets.map(item => item.id));
                 }
                 if (failed.length && !quiet) showToast('部分视频任务失败', '错误原因已显示在对应人物视频卡片，可逐行重试。', 'warning');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 isGeneratingLtx = false;
                 refreshAudioStageActions();
                 if (!quiet) showToast('视频状态刷新失败', error.message, 'warning');
@@ -1885,6 +1910,7 @@
 
         async function startGlobalLtxGeneration(explicitTargets = null) {
             if (!activeProject?.project_id || isGeneratingLtx) return;
+            const projectId = activeProject.project_id;
             const targets = (Array.isArray(explicitTargets) ? explicitTargets : ltxTargetItems())
                 .filter(item => !item.baseVideo);
             const missingAudio = targets.filter(item => !latestMinimaxAudio(item));
@@ -1898,7 +1924,7 @@
             setFinalGenerationPhase('composition');
             refreshAudioStageActions();
             try {
-                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/ltx/generate`, {
+                const result = await workspaceApi(`/api/new/projects/${projectId}/ltx/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1906,11 +1932,13 @@
                         cost_confirmed: true
                     })
                 });
+                if (activeProject?.project_id !== projectId) return;
                 ltxEngineState = result.ltx || { items: [], active: true };
                 syncProjectInputs(result.project);
                 showToast('视频任务已提交', '表格会持续显示生成进度；完成后自动继续字幕、背景音乐和画面素材处理。', 'success');
                 scheduleLtxStatusPoll(1000);
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 isGeneratingLtx = false;
                 setFinalGenerationPhase(null);
                 refreshAudioStageActions();
@@ -1985,7 +2013,8 @@
                         segment.can_regenerate ? `<button onclick="h3RegenerateSegment('${id}')" class="text-cyan-300 hover:text-white">重生成</button>` : '',
                         segment.can_cancel ? `<button onclick="h3CancelSegment('${id}')" class="text-rose-300 hover:text-white">取消</button>` : ''
                     ].filter(Boolean).join(' · ');
-                    return `<span class="mr-2">${Number(segment.index || 0) + 1}:${escapeHtml(segment.status || '等待')}${actions ? `（${actions}）` : ''}</span>`;
+                    const error = String(segment.error_message || segment.error_code || '').trim();
+                    return `<span class="mr-2" ${error ? `title="${escapeHtml(error)}"` : ''}>${Number(segment.index || 0) + 1}:${escapeHtml(segment.status || '等待')}${error ? `（${escapeHtml(error)}）` : ''}${actions ? `（${actions}）` : ''}</span>`;
                 }).join('');
                 return segments.length ? `<div class="mt-1"><b>${escapeHtml(item.row_key)}</b> ${segments.length} 段：${controls}</div>` : '';
             }).join('');
@@ -2024,9 +2053,50 @@
 
         const H3_OPEN_REMOTE_STATUSES = new Set(['AWAITING_COST_CONFIRMATION', 'ACTIVE', 'RUNNING', 'QUEUED']);
         const H3_RUNNING_REMOTE_STATUSES = new Set(['ACTIVE', 'RUNNING', 'QUEUED']);
+        const H3_ACTIVE_ITEM_STATUSES = new Set([
+            'ACTIVE', 'RUNNING', 'QUEUED', 'PENDING', 'UPLOADING', 'SUBMITTED',
+            'WAITING_DEPENDENCY', 'WAITING_REGENERATION_DEPENDENCY'
+        ]);
+        const H3_TERMINAL_REMOTE_STATUSES = new Set(['SUCCESS', 'FAILED', 'PARTIAL_FAILED', 'CANCELLED']);
 
         function h3RemoteStatus(project = activeProject) {
             return String(project?.settings?.h3?.remote_status || '').trim().toUpperCase();
+        }
+
+        function h3StateIsActive(project = activeProject) {
+            const projectStatus = h3RemoteStatus(project);
+            if (H3_RUNNING_REMOTE_STATUSES.has(projectStatus)) return true;
+            const batchId = String(project?.settings?.h3?.remote_batch_id || '');
+            return (project?.items || []).some((item) => {
+                const h3 = item?.settings?.h3 || {};
+                if (batchId && String(h3.remote_batch_id || '') !== batchId) return false;
+                const itemStatus = String(h3.remote_status || '').toUpperCase();
+                if (H3_ACTIVE_ITEM_STATUSES.has(itemStatus)) return true;
+                if (H3_TERMINAL_REMOTE_STATUSES.has(projectStatus) || H3_TERMINAL_REMOTE_STATUSES.has(itemStatus)) return false;
+                return (h3.segments || []).some((segment) =>
+                    H3_ACTIVE_ITEM_STATUSES.has(String(segment?.status || '').toUpperCase())
+                );
+            });
+        }
+
+        function h3FailedSegments(project = activeProject) {
+            return (project?.items || []).flatMap((item) =>
+                (item?.settings?.h3?.segments || [])
+                    .filter((segment) => ['FAILED', 'DOWNLOAD_FAILED', 'CANCELLED'].includes(String(segment?.status || '').toUpperCase()))
+                    .map((segment) => ({ rowKey: item.row_key, ...segment }))
+            );
+        }
+
+        function h3HasPendingPostprocess(project = activeProject) {
+            const batchId = String(project?.settings?.h3?.remote_batch_id || '');
+            if (!batchId) return false;
+            return (project?.items || []).some((item) => {
+                const sameBatch = String(item?.settings?.h3?.remote_batch_id || '') === batchId;
+                const actions = item?.allowed_actions || {};
+                return sameBatch
+                    && Boolean(item?.outputs?.base_video)
+                    && Boolean(actions.start_postprocess || actions.retry_postprocess);
+            });
         }
 
         async function confirmPreparedH3Batch(prepared, { resumed = false } = {}) {
@@ -2048,7 +2118,7 @@
                 try {
                     const recovered = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/status`);
                     syncProjectInputs(recovered.project);
-                    if (H3_RUNNING_REMOTE_STATUSES.has(h3RemoteStatus(recovered.project))) {
+                    if (h3StateIsActive(recovered.project)) {
                         confirmed = recovered;
                     }
                 } catch (_) {
@@ -2063,7 +2133,7 @@
         }
 
         async function resumeExistingH3Batch() {
-            if (!H3_OPEN_REMOTE_STATUSES.has(h3RemoteStatus())) return false;
+            if (!H3_OPEN_REMOTE_STATUSES.has(h3RemoteStatus()) && !h3StateIsActive()) return false;
             const existing = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/status`);
             syncProjectInputs(existing.project);
             const status = h3RemoteStatus(existing.project);
@@ -2071,7 +2141,7 @@
                 await confirmPreparedH3Batch(existing, { resumed: true });
                 return true;
             }
-            if (H3_RUNNING_REMOTE_STATUSES.has(status)) {
+            if (h3StateIsActive(existing.project)) {
                 showToast('H3 批次正在生成', '已恢复现有批次的状态刷新，不会重复提交或重复付费。', 'info');
                 scheduleH3StatusPoll(1000);
                 return true;
@@ -2081,6 +2151,7 @@
 
         async function startGlobalH3Generation(explicitTargets = null) {
             if (!activeProject?.project_id || isGeneratingH3) return;
+            const projectId = activeProject.project_id;
             isGeneratingH3 = true;
             refreshAudioStageActions();
             try {
@@ -2105,38 +2176,56 @@
                 syncProjectInputs(prepared.project);
                 await confirmPreparedH3Batch(prepared);
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 showToast('H3 启动失败', error.message, 'warning');
             } finally {
-                isGeneratingH3 = false;
-                refreshAudioStageActions();
+                if (activeProject?.project_id === projectId) {
+                    isGeneratingH3 = false;
+                    refreshAudioStageActions();
+                }
             }
         }
 
         function scheduleH3StatusPoll(delay = 5000) {
             clearTimeout(h3StatusPollTimer);
-            const remote = activeProject?.settings?.h3?.remote_status;
-            if (!['ACTIVE', 'RUNNING', 'QUEUED'].includes(remote)) return;
+            if (!h3StateIsActive() && !h3HasPendingPostprocess()) return;
             h3StatusPollTimer = setTimeout(refreshH3Status, delay);
         }
 
         async function refreshH3Status() {
             if (!activeProject?.project_id || !isH3GenerationMode()) return;
+            const projectId = activeProject.project_id;
             try {
-                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/status`);
+                const result = await workspaceApi(`/api/new/projects/${projectId}/h3/status`);
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(result.project);
-                const remote = result.project?.settings?.h3?.remote_status;
                 const remoteBatchId = result.project?.settings?.h3?.remote_batch_id;
                 const completedTargets = uploadedScripts.filter(item => (
                     remoteBatchId
                     && item.h3Settings?.remote_batch_id === remoteBatchId
                     && item.baseVideo
+                    && (item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
                 ));
-                if (['ACTIVE', 'RUNNING', 'QUEUED'].includes(remote)) scheduleH3StatusPoll();
-                else if (completedTargets.length && (activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess)) {
+                if (h3StateIsActive(result.project)) {
+                    scheduleH3StatusPoll();
+                    return;
+                }
+                if (completedTargets.length) {
                     showToast('H3 画面已回填', '正在继续生成字幕、BGM 和可编辑剪映预览。', 'success');
                     await startGlobalPostprocess(completedTargets.map(item => item.id));
                 }
+                const failedSegments = h3FailedSegments(result.project);
+                if (failedSegments.length) {
+                    const first = failedSegments[0];
+                    const reason = String(first.error_message || first.error_code || 'H3 分段生成失败').trim();
+                    showToast(
+                        completedTargets.length ? 'H3 部分分段失败' : 'H3 分段生成失败',
+                        `任务 ${first.rowKey || '-'}：${reason}${failedSegments.length > 1 ? `；另有 ${failedSegments.length - 1} 个失败分段` : ''}。${completedTargets.length ? '成功行已保留并继续生成预览。' : '可在 H3 批次详情中逐段重试。'}`,
+                        'warning'
+                    );
+                }
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 showToast('H3 状态刷新失败', error.message, 'warning');
                 scheduleH3StatusPoll(10000);
             }
@@ -2413,6 +2502,7 @@
             globalVariantConfig = null;
             variantDirtyItemIds.clear();
             pendingSingleCompositionItemIds.clear();
+            resetProjectScopedGenerationState();
             document.getElementById('excel-dropzone').classList.remove('hidden');
             document.getElementById('parsed-indicator').classList.add('hidden');
             document.getElementById('digital-human-resolution').disabled = false;
@@ -2441,7 +2531,7 @@
                 const project = await workspaceApi(`/api/new/projects/${cleanId}`);
                 selectedProjectItemIds.clear();
                 pendingSingleCompositionItemIds.clear();
-                syncProjectInputs(project);
+                syncProjectInputs(project, { allowProjectSwitch: true });
                 updateProjectQuery(cleanId);
                 showToast('已切换批次', `${project.project_no} · ${project.name}`, 'success');
             } catch (error) {
@@ -2490,8 +2580,34 @@
             triggerFileInput('excel-file-input');
         }
 
-        function syncProjectInputs(project, { renderTable = true } = {}) {
+        function resetProjectScopedGenerationState() {
+            clearTimeout(audioStatusPollTimer);
+            clearTimeout(compositionStatusPollTimer);
+            clearTimeout(compositionSnapshotPollTimer);
+            clearTimeout(postprocessStatusPollTimer);
+            clearTimeout(variantStatusPollTimer);
+            clearTimeout(h3StatusPollTimer);
+            clearTimeout(ltxStatusPollTimer);
+            isGeneratingAllVoicePreviews = false;
+            isGeneratingVariants = false;
+            isGeneratingComposition = false;
+            isGeneratingPostprocess = false;
+            isGeneratingH3 = false;
+            isGeneratingLtx = false;
+            isStartingPostprocess = false;
+            isStartingSinglePostprocess = false;
+            compositionStatusPollFailureCount = 0;
+            finalGenerationPhase = null;
+        }
+
+        function syncProjectInputs(project, { renderTable = true, allowProjectSwitch = false } = {}) {
+            const incomingProjectId = String(project?.project_id || '');
+            const currentProjectId = String(activeProject?.project_id || '');
+            if (!allowProjectSwitch && currentProjectId && incomingProjectId && incomingProjectId !== currentProjectId) {
+                return false;
+            }
             const projectChanged = activeProject?.project_id !== project?.project_id;
+            if (projectChanged) resetProjectScopedGenerationState();
             activeProject = project;
             if (projectChanged) {
                 activeArticleTypeFilter = '';
@@ -2500,9 +2616,9 @@
             }
             renderProjectActivity();
             const savedFinalPhase = sessionStorage.getItem(`final-generation-phase:${project?.project_id || ''}`);
-            if (savedFinalPhase === 'composition' || savedFinalPhase === 'postprocess') {
-                finalGenerationPhase = savedFinalPhase;
-            }
+            finalGenerationPhase = savedFinalPhase === 'composition' || savedFinalPhase === 'postprocess'
+                ? savedFinalPhase
+                : null;
             const mapping = project?.settings?.image_mapping || {};
             const generationMode = project?.settings?.generation_mode || 'runninghub_digital_human';
             const h3 = project?.settings?.h3 || {};
@@ -2558,6 +2674,10 @@
                 const variantOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
                 const variantGenerationOperation = [...variantOperations].reverse().find(operation => operation.item_id === item.item_id && operation.operation_type === 'VARIANT_GENERATE') || null;
                 const compositionOperation = [...compositionOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
+                const audioHistory = Array.isArray(item.asset_history?.audio) ? item.asset_history.audio : [];
+                const sharedMinimaxAudio = item.outputs?.minimax_audio
+                    || [...audioHistory].reverse().find(asset => asset?.source_type === 'minimax' && asset?.status === 'READY')
+                    || null;
                 return ({
                 id: item.item_id,
                 rowKey: item.row_key,
@@ -2571,9 +2691,10 @@
                 voiceAssetId: item.settings?.voice_asset_id || null,
                 postprocessSettings: item.settings?.postprocess || {},
                 variantSettings: item.settings?.variants || {},
-                voiceStatus: item.outputs?.audio ? 'AUDIO_READY' : item.status,
+                voiceStatus: sharedMinimaxAudio ? 'AUDIO_READY' : item.status,
                 compositionStatus: item.status,
-                audio: item.outputs?.audio || null,
+                audio: sharedMinimaxAudio,
+                authoritativeAudio: item.outputs?.audio || null,
                 baseVideo: item.outputs?.base_video || null,
                 compositionVideo: item.outputs?.composition_video || null,
                 originalVideoSegments: item.outputs?.original_video_segments || [],
@@ -4574,8 +4695,7 @@
                 && voicePresets.length > 0;
             setVoicePreviewButtonState(canGenerate, isGeneratingAllVoicePreviews);
             const h3Mode = isH3GenerationMode();
-            const h3RemoteStatus = activeProject?.settings?.h3?.remote_status || '';
-            const h3Active = ['ACTIVE', 'RUNNING', 'QUEUED'].includes(h3RemoteStatus);
+            const h3Active = h3StateIsActive();
             const h3Targets = h3Mode ? h3TargetItems() : [];
             const h3InputsReady = h3Targets.length > 0 && h3Targets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo);
             const ltxMode = isLtxGenerationMode();
@@ -4600,15 +4720,15 @@
                 ? (canStartH3 || canCompose4B)
                 : (ltxMode ? (canStartLtx || canCompose4B) : (canCompose4A || canCompose4B));
             btnCompose.disabled = !canCompose;
-            if (ltxActive) {
+            if (ltxMode && ltxActive) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>视频对口型生成中...</span>';
-            } else if (isGeneratingLtx) {
+            } else if (ltxMode && isGeneratingLtx) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在提交视频任务...</span>';
             } else if (ltxMode && canStartLtx) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-film"></i><span>生成视频对口型</span>';
-            } else if (h3Active) {
+            } else if (h3Mode && h3Active) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>H3 成片生成中...</span>';
-            } else if (isGeneratingH3) {
+            } else if (h3Mode && isGeneratingH3) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在计算 H3 费用...</span>';
             } else if (h3Mode && canStartH3) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-film"></i><span>生成 H3 成片</span>';
@@ -4726,7 +4846,9 @@
         async function generateSelectedAudio() {
             let items = selectedRowsOrWarn();
             if (!items || !activeProject) return;
+            const projectId = activeProject.project_id;
             items = await waitForSelectedScriptSaves(items);
+            if (activeProject?.project_id !== projectId) return;
             const activeStatuses = new Set(['AUDIO_QUEUED', 'AUDIO_RUNNING', 'COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING', 'POSTPROCESS_RUNNING', 'VARIANT_QUEUED', 'VARIANT_RUNNING']);
             const blocked = items.filter((item) => activeStatuses.has(item.compositionStatus));
             if (blocked.length) {
@@ -4749,11 +4871,11 @@
                 toggleRowAudioStatusUI(row, 'loading');
             });
             const itemIds = items.map((item) => item.id);
-            startContentAnalysisForChangedScripts(activeProject.project_id, rows);
+            startContentAnalysisForChangedScripts(projectId, rows);
             isGeneratingAllVoicePreviews = true;
             refreshAudioStageActions();
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
+                const project = await workspaceApi(`/api/new/projects/${projectId}/audio/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -4762,27 +4884,33 @@
                         voice_settings: voicePreferences.voice_settings || {},
                         resolution: selectedDigitalHumanResolution(),
                         item_ids: itemIds,
-                        idempotency_key: `audio-selected-${activeProject.project_id}-${Date.now()}`,
+                        idempotency_key: `audio-selected-${projectId}-${Date.now()}`,
                         cost_confirmed: true
                     })
                 });
+                if (activeProject?.project_id !== projectId) return;
                 itemIds.forEach((itemId) => variantDirtyItemIds.delete(itemId));
                 syncProjectInputs(project);
                 scheduleAudioStatusPoll();
                 showToast('选中声音任务已提交', `只处理已选择的 ${items.length} 条；其他脚本行保持不变。`, 'success');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 showToast('选中声音生成失败', error.message, 'warning');
                 syncProjectInputs(activeProject);
             } finally {
-                isGeneratingAllVoicePreviews = false;
-                refreshAudioStageActions();
+                if (activeProject?.project_id === projectId) {
+                    isGeneratingAllVoicePreviews = false;
+                    refreshAudioStageActions();
+                }
             }
         }
 
         async function generateSelectedVideos() {
             let items = selectedRowsOrWarn();
             if (!items || !activeProject) return;
+            const projectId = activeProject.project_id;
             items = await waitForSelectedScriptSaves(items);
+            if (activeProject?.project_id !== projectId) return;
             const rowsById = new Map(
                 Array.from(document.querySelectorAll('.table-data-row')).map((row) => [row.getAttribute('data-id'), row])
             );
@@ -4834,20 +4962,20 @@
             try {
                 let project = activeProject;
                 if (fresh.length) {
-                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/generate`, {
+                    project = await workspaceApi(`/api/new/projects/${projectId}/composition/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             cost_confirmed: true,
                              resolution: selectedDigitalHumanResolution(),
                              item_ids: fresh.map((item) => item.id),
-                             idempotency_key: `composition-selected-${activeProject.project_id}-${Date.now()}`,
+                             idempotency_key: `composition-selected-${projectId}-${Date.now()}`,
                              ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
                         })
                     });
                 }
                 for (const item of retries) {
-                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${item.id}/composition/retry`, {
+                    project = await workspaceApi(`/api/new/projects/${projectId}/items/${item.id}/composition/retry`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -4856,10 +4984,12 @@
                         })
                     });
                 }
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 scheduleCompositionStatusPoll();
                 showToast('选中视频任务已启动', `只处理已选择的 ${unfinished.length} 条，画面完成后会自动继续字幕和 BGM。`, 'success');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 unfinished.forEach((item) => pendingSingleCompositionItemIds.delete(item.id));
                 isGeneratingComposition = false;
                 showToast('选中视频生成失败', error.message, 'warning');
@@ -4870,6 +5000,7 @@
         async function generateAllVoicePreviews() {
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             if (rows.length === 0 || !activeProject) return;
+            const projectId = activeProject.project_id;
             const pendingRows = rows.filter(row => ['wait', 'failed'].includes(row.getAttribute('data-voice-status')));
             const targetRows = pendingRows.length ? pendingRows : rows.filter(
                 row => row.getAttribute('data-voice-status') === 'ready'
@@ -4887,10 +5018,12 @@
                 isGeneratingAllVoicePreviews = true;
                 setVoicePreviewButtonState(false, true);
                 try {
-                    await startContentAnalysisForChangedScripts(activeProject.project_id, rows);
+                    await startContentAnalysisForChangedScripts(projectId, rows);
                 } finally {
-                    isGeneratingAllVoicePreviews = false;
-                    refreshAudioStageActions();
+                    if (activeProject?.project_id === projectId) {
+                        isGeneratingAllVoicePreviews = false;
+                        refreshAudioStageActions();
+                    }
                 }
                 return;
             }
@@ -4913,29 +5046,33 @@
                 const select = row.querySelector('.row-voice-selector');
                 if (select?.value) assignments[row.getAttribute('data-id')] = select.value;
             });
-            startContentAnalysisForChangedScripts(activeProject.project_id, rows);
+            startContentAnalysisForChangedScripts(projectId, rows);
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
+                const project = await workspaceApi(`/api/new/projects/${projectId}/audio/generate`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         default_voice_asset_id: defaultVoice.id,
                         voice_assignments: assignments,
                         voice_settings: voicePreferences.voice_settings || {},
                         resolution: selectedDigitalHumanResolution(),
-                        idempotency_key: `audio-${activeProject.project_id}-${Date.now()}`,
+                        idempotency_key: `audio-${projectId}-${Date.now()}`,
                         cost_confirmed: true
                     })
                 });
+                if (activeProject?.project_id !== projectId) return;
                 rows.forEach(row => variantDirtyItemIds.delete(row.getAttribute('data-id')));
                 syncProjectInputs(project);
                 scheduleAudioStatusPoll();
                 showToast('声音任务已进入队列', '脚本分析与声音生成会分别保存；完成后页面会自动显示音频、背景音乐和下载按钮。', 'success');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 showToast('声音生成提交失败', error.message, 'warning');
                 syncProjectInputs(activeProject);
             } finally {
-                isGeneratingAllVoicePreviews = false;
-                refreshAudioStageActions();
+                if (activeProject?.project_id === projectId) {
+                    isGeneratingAllVoicePreviews = false;
+                    refreshAudioStageActions();
+                }
             }
         }
 
@@ -4943,9 +5080,11 @@
             clearTimeout(audioStatusPollTimer);
             const active = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
             if (!active || !activeProject) return;
+            const projectId = activeProject.project_id;
             audioStatusPollTimer = setTimeout(async () => {
                 try {
-                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/status`);
+                    const project = await workspaceApi(`/api/new/projects/${projectId}/audio/status`);
+                    if (activeProject?.project_id !== projectId) return;
                     const wasActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
                     syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const isActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
@@ -4955,6 +5094,7 @@
                     }
                     scheduleAudioStatusPoll();
                 } catch (error) {
+                    if (activeProject?.project_id !== projectId) return;
                     showToast('声音状态更新失败', error.message, 'warning');
                     audioStatusPollTimer = setTimeout(scheduleAudioStatusPoll, 5000);
                 }
@@ -7278,6 +7418,8 @@
         }
 
         async function retryFailedCompositionItems() {
+            const projectId = activeProject?.project_id;
+            if (!projectId) return;
             const targets = uploadedScripts.filter((item) => (
                 !item.baseVideo
                 && (item.allowedActions?.start_composition || item.allowedActions?.retry_composition)
@@ -7313,20 +7455,20 @@
             try {
                 let project = activeProject;
                 if (restartable.length) {
-                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/generate`, {
+                    project = await workspaceApi(`/api/new/projects/${projectId}/composition/generate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             cost_confirmed: true,
                             resolution: selectedDigitalHumanResolution(),
                             item_ids: restartable.map((item) => item.id),
-                            idempotency_key: `composition-restart-${activeProject.project_id}-${Date.now()}`,
+                            idempotency_key: `composition-restart-${projectId}-${Date.now()}`,
                             ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
                         })
                     });
                 }
                 for (const item of remoteRetries) {
-                    project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${item.id}/composition/retry`, {
+                    project = await workspaceApi(`/api/new/projects/${projectId}/items/${item.id}/composition/retry`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -7335,10 +7477,12 @@
                         })
                     });
                 }
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 scheduleCompositionStatusPoll();
                 showToast('完整成片已继续处理', '系统会从失败的内部阶段继续，完成画面后自动添加字幕和背景音乐。', 'success');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 isGeneratingComposition = false;
                 setFinalGenerationPhase(null);
                 refreshAudioStageActions();
@@ -7348,6 +7492,8 @@
 
         // Internal stage: RunningHub generation followed by normalized base-video merge.
         async function startGlobalComposition(skipConfirmation = false) {
+            const projectId = activeProject?.project_id;
+            if (!projectId) return;
             const rows = Array.from(document.querySelectorAll('.table-data-row'));
             const allAudioReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
             if (!allAudioReady || !activeProject?.allowed_actions?.start_composition) {
@@ -7373,20 +7519,22 @@
             refreshAudioStageActions();
             refreshVariantActionAvailability();
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/composition/generate`, {
+                const project = await workspaceApi(`/api/new/projects/${projectId}/composition/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                          cost_confirmed: true,
                          resolution: selectedDigitalHumanResolution(),
-                         idempotency_key: `composition-${activeProject.project_id}-${Date.now()}`,
+                         idempotency_key: `composition-${projectId}-${Date.now()}`,
                          ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
                     })
                 });
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 scheduleCompositionStatusPoll();
                 showToast('完整成片任务已启动', '正在生成数字人画面，完成后会自动继续添加字幕和背景音乐。', 'success');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 isGeneratingComposition = false;
                 setFinalGenerationPhase(null);
                 showToast('完整成片任务提交失败', error.message, 'warning');
@@ -7396,12 +7544,14 @@
 
         async function startGlobalPostprocess(itemIds = null) {
             if (isStartingPostprocess) return;
+            const projectId = activeProject?.project_id;
+            if (!projectId) return;
             const requestedIds = Array.isArray(itemIds) ? new Set(itemIds) : null;
             const targetItems = uploadedScripts.filter((item) =>
                 (!requestedIds || requestedIds.has(item.id))
                 && Boolean(item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
             );
-            if (!(activeProject?.allowed_actions?.start_postprocess || activeProject?.allowed_actions?.retry_postprocess) || !fontPresets.length || !targetItems.length) {
+            if (!fontPresets.length || !targetItems.length) {
                 setFinalGenerationPhase(null);
                 showToast('暂时不能生成成片', '请先确保每一行画面素材和字幕时间轴均已准备完成。', 'warning');
                 return;
@@ -7422,14 +7572,15 @@
             isGeneratingPostprocess = true;
             refreshAudioStageActions();
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/generate`, {
+                const project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        idempotency_key: `postprocess-${activeProject.project_id}-${Date.now()}`,
+                        idempotency_key: `postprocess-${projectId}-${Date.now()}`,
                         items: rows
                     })
                 });
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 const targetIds = new Set(targetItems.map((item) => item.id));
                 const previewAndDraftReady = (project.items || [])
@@ -7443,12 +7594,15 @@
                     showToast('剪映草稿任务已提交', '正在把字幕、背景音乐、封面和语义视觉写入可编辑草稿。', 'success');
                 }
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 isGeneratingPostprocess = false;
                 setFinalGenerationPhase(null);
                 refreshAudioStageActions();
                 showToast('成片任务提交失败', error.message, 'warning');
             } finally {
-                isStartingPostprocess = false;
+                if (activeProject?.project_id === projectId) {
+                    isStartingPostprocess = false;
+                }
             }
         }
 
@@ -7458,9 +7612,11 @@
             isGeneratingVariants = active;
             refreshVariantActionAvailability();
             if (!active || !activeProject) return;
+            const projectId = activeProject.project_id;
             variantStatusPollTimer = setTimeout(async () => {
                 try {
-                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/variants/status`);
+                    const project = await workspaceApi(`/api/new/projects/${projectId}/variants/status`);
+                    if (activeProject?.project_id !== projectId) return;
                     const wasActive = isGeneratingVariants;
                     syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const stillActive = uploadedScripts.some(item => ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(item.compositionStatus));
@@ -7470,6 +7626,7 @@
                         showToast(failed ? '部分变体生成失败' : '变体生成完成', failed ? `${failed} 行存在失败项，可逐行只重试失败项；已成功的 ${total} 个变体均已保留。` : `共生成 ${total} 个差异化变体。`, failed ? 'warning' : 'success');
                     }
                 } catch (error) {
+                    if (activeProject?.project_id !== projectId) return;
                     showToast('变体状态更新失败', error.message, 'warning');
                     variantStatusPollTimer = setTimeout(scheduleVariantStatusPoll, 5000);
                 }
@@ -7485,9 +7642,11 @@
                 if (!active && finalGenerationPhase === 'postprocess') setFinalGenerationPhase(null);
                 return;
             }
+            const projectId = activeProject.project_id;
             postprocessStatusPollTimer = setTimeout(async () => {
                 try {
-                    const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/postprocess/status`);
+                    const project = await workspaceApi(`/api/new/projects/${projectId}/postprocess/status`);
+                    if (activeProject?.project_id !== projectId) return;
                     const stillActiveInResponse = (project.items || []).some((item) => item.status === 'POSTPROCESS_RUNNING');
                     if (!stillActiveInResponse) setFinalGenerationPhase(null);
                     syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
@@ -7501,6 +7660,7 @@
                         );
                     }
                 } catch (error) {
+                    if (activeProject?.project_id !== projectId) return;
                     showToast('成片状态更新失败', error.message, 'warning');
                 }
             }, 3000);
@@ -7556,7 +7716,7 @@
 
         function scheduleCompositionSnapshotPoll(projectId) {
             clearTimeout(compositionSnapshotPollTimer);
-            if (!compositionStatusRequestInFlight || activeProject?.project_id !== projectId) return;
+            if (compositionStatusRequestProjectId !== projectId || activeProject?.project_id !== projectId) return;
             compositionSnapshotPollTimer = setTimeout(async () => {
                 try {
                     const project = await workspaceApi(`/api/new/projects/${projectId}`);
@@ -7566,7 +7726,7 @@
                     // The authoritative composition request keeps running; a
                     // transient lightweight snapshot failure needs no toast.
                 } finally {
-                    if (compositionStatusRequestInFlight && activeProject?.project_id === projectId) {
+                    if (compositionStatusRequestProjectId === projectId && activeProject?.project_id === projectId) {
                         scheduleCompositionSnapshotPoll(projectId);
                     }
                 }
@@ -7581,7 +7741,7 @@
             );
             isGeneratingComposition = active;
             refreshAudioStageActions();
-            if (compositionStatusRequestInFlight) {
+            if (compositionStatusRequestProjectId === activeProject?.project_id) {
                 if (activeProject?.project_id) scheduleCompositionSnapshotPoll(activeProject.project_id);
                 return;
             }
@@ -7598,7 +7758,7 @@
             compositionStatusPollTimer = setTimeout(async () => {
                 compositionStatusPollTimer = null;
                 const projectId = activeProject.project_id;
-                compositionStatusRequestInFlight = true;
+                compositionStatusRequestProjectId = projectId;
                 scheduleCompositionSnapshotPoll(projectId);
                 try {
                     const wasActive = active;
@@ -7609,8 +7769,6 @@
                     const stillActiveInResponse = responseItems.some((item) =>
                         ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.status)
                     );
-                    const failedInResponse = responseItems.filter((item) => item.status === 'COMPOSITION_FAILED').length;
-                    if (!stillActiveInResponse && failedInResponse) setFinalGenerationPhase(null);
                     syncProjectInputs(project, { renderTable: !projectHasActiveItems(project) });
                     const stillActive = uploadedScripts.some((item) =>
                         ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus)
@@ -7651,7 +7809,9 @@
                     );
                     compositionStatusPollTimer = setTimeout(scheduleCompositionStatusPoll, retryDelay);
                 } finally {
-                    compositionStatusRequestInFlight = false;
+                    if (compositionStatusRequestProjectId === projectId) {
+                        compositionStatusRequestProjectId = null;
+                    }
                     clearTimeout(compositionSnapshotPollTimer);
                     if (!compositionStatusPollTimer && activeProject?.project_id === projectId) {
                         scheduleCompositionStatusPoll();
@@ -7666,18 +7826,15 @@
                 ['COMPOSITION_QUEUED', 'DIGITAL_HUMAN_RUNNING', 'VIDEO_ENHANCING', 'VIDEO_MERGING'].includes(item.compositionStatus)
             );
             if (stillActive) return;
-            const failed = uploadedScripts.some((item) => item.compositionStatus === 'COMPOSITION_FAILED');
-            if (failed) {
+            const completedTargets = uploadedScripts.filter((item) =>
+                item.baseVideo
+                && (item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
+            );
+            if (!completedTargets.length) {
                 setFinalGenerationPhase(null);
                 return;
             }
-            const allBaseVideosReady = uploadedScripts.length > 0 && uploadedScripts.every((item) => Boolean(item.baseVideo));
-            const canPostprocess = Boolean(
-                activeProject.allowed_actions?.start_postprocess
-                || activeProject.allowed_actions?.retry_postprocess
-            );
-            if (!allBaseVideosReady || !canPostprocess) return;
-            await startGlobalPostprocess();
+            await startGlobalPostprocess(completedTargets.map((item) => item.id));
         }
 
         // Toggle User profile dropdown

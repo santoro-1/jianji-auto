@@ -82,8 +82,11 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn('<option value="ltx_lip_sync">', page)
         self.assertIn("/ltx/source-video", page)
         self.assertIn("/ltx/generate", page)
-        self.assertIn("ltxEngineState?.active ? 'refresh' : 'state'", page)
-        self.assertIn("startGlobalPostprocess()", page)
+        self.assertIn("const shouldRefresh = ltxStateIsActive();", page)
+        self.assertIn("shouldRefresh ? 'refresh' : 'state'", page)
+        self.assertIn("engineItem?.remote_batch_id", page)
+        self.assertIn("completedTargets.map(item => item.id)", page)
+        self.assertIn("正在自动生成字幕、BGM 和可编辑剪映预览", page)
         self.assertIn(">视频对口型</", page)
         self.assertIn("使用人物视频生成口型画面", page)
         self.assertIn("生成视频对口型", page)
@@ -147,11 +150,51 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("H3 费用预览已保留", page)
         self.assertIn("正在恢复上一次已冻结的费用预览", page)
         self.assertIn("if (await resumeExistingH3Batch()) return;", page)
-        self.assertIn("H3_RUNNING_REMOTE_STATUSES.has(h3RemoteStatus(recovered.project))", page)
+        self.assertIn("h3StateIsActive(recovered.project)", page)
+        self.assertIn("const sharedMinimaxAudio = item.outputs?.minimax_audio", page)
+        self.assertIn("audio: sharedMinimaxAudio", page)
+        self.assertIn("authoritativeAudio: item.outputs?.audio || null", page)
+        self.assertIn("if (mode === 'minimax_h3_ref2va')", page)
+        self.assertIn("scheduleH3StatusPoll(100);", page)
         self.assertLess(
             page.index("if (await resumeExistingH3Batch()) return;"),
             page.index("syncProjectInputs(await saveH3Settings(false));"),
         )
+
+    def test_partial_video_failures_keep_successful_rows_and_auto_preview(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn("function h3StateIsActive(project = activeProject)", page)
+        self.assertIn("H3_ACTIVE_ITEM_STATUSES", page)
+        self.assertIn("H3_TERMINAL_REMOTE_STATUSES", page)
+        self.assertIn(
+            "if (!h3StateIsActive() && !h3HasPendingPostprocess()) return;", page
+        )
+        self.assertIn("if (h3StateIsActive(result.project))", page)
+        self.assertIn("function h3FailedSegments(project = activeProject)", page)
+        self.assertIn("function h3HasPendingPostprocess(project = activeProject)", page)
+        self.assertIn("!h3StateIsActive() && !h3HasPendingPostprocess()", page)
+        self.assertIn("成功行已保留并继续生成预览", page)
+        self.assertIn("segment.error_message || segment.error_code", page)
+        self.assertIn(
+            "await startGlobalPostprocess(completedTargets.map((item) => item.id));",
+            page,
+        )
+        postprocess_start = page[
+            page.index("async function startGlobalPostprocess") :
+            page.index("function scheduleVariantStatusPoll")
+        ]
+        self.assertNotIn("activeProject?.allowed_actions?.start_postprocess", postprocess_start)
+        composition_continuation = page[
+            page.index("async function continueFinalGenerationAfterComposition") :
+            page.index("// Toggle User profile dropdown")
+        ]
+        self.assertIn("const completedTargets = uploadedScripts.filter", composition_continuation)
+        self.assertIn(
+            "startGlobalPostprocess(completedTargets.map((item) => item.id))",
+            composition_continuation,
+        )
+        self.assertNotIn("if (failed)", composition_continuation)
 
     def test_workbench_pages_report_runtime_leases(self) -> None:
         runtime_script = (
@@ -276,7 +319,7 @@ class NewFrontendTest(unittest.TestCase):
             html,
         )
         self.assertIn(
-            "startContentAnalysisForChangedScripts(activeProject.project_id, rows)",
+            "startContentAnalysisForChangedScripts(projectId, rows)",
             html,
         )
         self.assertIn("displayIndex: itemIndex + 1", html)
@@ -436,9 +479,13 @@ class NewFrontendTest(unittest.TestCase):
 
     def test_status_polling_preserves_other_row_controls_and_image_target(self) -> None:
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function ltxStateNeedsRefresh()", html)
+        self.assertIn("function ltxStateIsActive()", html)
+        self.assertIn("const shouldRefresh = ltxStateIsActive();", html)
+        self.assertIn("item?.remote_batch_id", html)
         self.assertIn("function projectHasActiveItems(project)", html)
         self.assertIn(
-            "function syncProjectInputs(project, { renderTable = true } = {})",
+            "function syncProjectInputs(project, { renderTable = true, allowProjectSwitch = false } = {})",
             html,
         )
         self.assertIn(
@@ -798,11 +845,24 @@ class NewFrontendTest(unittest.TestCase):
 
     def test_composition_poll_refreshes_lightweight_snapshots_while_cloud_sync_is_slow(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertIn("let compositionStatusRequestInFlight = false", workspace)
+        self.assertIn("let compositionStatusRequestProjectId = null", workspace)
         self.assertIn("function scheduleCompositionSnapshotPoll(projectId)", workspace)
         self.assertIn("workspaceApi(`/api/new/projects/${projectId}`)", workspace)
-        self.assertIn("compositionStatusRequestInFlight = true", workspace)
+        self.assertIn("compositionStatusRequestProjectId = projectId", workspace)
         self.assertIn("scheduleCompositionSnapshotPoll(projectId)", workspace)
+
+    def test_generation_ui_and_late_poll_responses_are_scoped_to_current_project(self) -> None:
+        workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function resetProjectScopedGenerationState()", workspace)
+        self.assertIn("if (projectChanged) resetProjectScopedGenerationState();", workspace)
+        self.assertIn("syncProjectInputs(project, { allowProjectSwitch: true });", workspace)
+        self.assertIn("incomingProjectId !== currentProjectId", workspace)
+        self.assertIn("if (activeProject?.project_id !== projectId) return;", workspace)
+        self.assertIn("compositionStatusRequestProjectId === activeProject?.project_id", workspace)
+        self.assertIn("if (ltxMode && ltxActive)", workspace)
+        self.assertIn("else if (ltxMode && isGeneratingLtx)", workspace)
+        self.assertIn("else if (h3Mode && h3Active)", workspace)
+        self.assertIn("else if (h3Mode && isGeneratingH3)", workspace)
 
     def test_module_6_uses_real_variant_api_and_inherited_ai_cover(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")

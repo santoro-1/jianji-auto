@@ -140,7 +140,7 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 store.apply_image_strategy(
                     user["user_id"], project_id, strategy="loop", reuse_count=1
                 )
-                audio_path = root / "voice.mp3"
+                audio_path = settings.storage_root / "voice.mp3"
                 audio_path.write_bytes(b"audio")
                 store.add_asset(
                     owner_user_id=user["user_id"],
@@ -240,6 +240,29 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 )
                 assert confirmed.status_code == 200, confirmed.text
                 assert confirmed.json()["project"]["items"][0]["status"] == "H3_RUNNING"
+                h3_audio_path = root / "h3-authoritative.wav"
+                h3_audio_path.write_bytes(b"h3-authoritative-audio")
+                store.add_asset(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=item_id,
+                    asset_type="audio",
+                    source_type="h3",
+                    status="READY",
+                    filename="h3-authoritative.wav",
+                    managed_path=str(h3_audio_path),
+                    make_current=True,
+                )
+                detail = client.get(f"/api/new/projects/{project_id}")
+                assert detail.status_code == 200, detail.text
+                detail_item = detail.json()["items"][0]
+                assert detail_item["outputs"]["audio"]["source_type"] == "h3"
+                assert detail_item["outputs"]["minimax_audio"]["source_type"] == "minimax"
+                shared_preview = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/audio"
+                )
+                assert shared_preview.status_code == 200, shared_preview.text
+                assert shared_preview.content == b"audio"
                 locked = client.patch(
                     f"/api/new/projects/{project_id}/items/{item_id}/h3/overrides",
                     json={"megapixels": 1.2},

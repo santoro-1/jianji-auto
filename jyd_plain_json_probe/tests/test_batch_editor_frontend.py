@@ -130,6 +130,20 @@ class BatchEditorFrontendTest(unittest.TestCase):
         self.assertIn("$ProcessorArguments.DigitalHumanServerUrl = $DigitalHumanServerUrl", wrapper)
         self.assertIn('-DigitalHumanServerUrl "https://video.lanyingjk01.com"', guide)
 
+    def test_first_install_build_can_exclude_public_libraries(self) -> None:
+        build_script = (PROJECT_ROOT / "scripts" / "build" / "build_processor.ps1").read_text(
+            encoding="utf-8"
+        )
+        wrapper = (PROJECT_ROOT / "build_deployment.ps1").read_text(encoding="utf-8")
+        guide = (PROJECT_ROOT / "docs" / "FAST_BUILD.md").read_text(encoding="utf-8")
+
+        self.assertIn("[switch]$WithoutLibraries", build_script)
+        self.assertIn("JianyingRenderServer-no-libraries-windows-x64.zip", build_script)
+        self.assertIn("Skipping public libraries for first-install code package", build_script)
+        self.assertIn("$ProcessorArguments.WithoutLibraries = $true", wrapper)
+        self.assertIn("-WithoutLibraries", guide)
+        self.assertIn("首次安装", guide)
+
     def test_release_packages_include_plain_language_guides(self) -> None:
         processor_build = (PROJECT_ROOT / "scripts" / "build" / "build_processor.ps1").read_text(
             encoding="utf-8"

@@ -3079,6 +3079,126 @@ class ProjectStore:
             ).fetchall()
             if any(str(row["status"]) in ACTIVE_ITEM_STATUSES for row in rows):
                 raise ValueError("H3 批次正在生成，完成后才能修改人物图或批次参数")
+            if current_contract == next_contract:
+                previous_mode = str(settings.get("generation_mode") or "")
+                settings["generation_mode"] = "minimax_h3_ref2va"
+                now = _now()
+                connection.execute(
+                    "UPDATE projects SET settings_json=?, revision=revision+1, "
+                    "updated_at=? WHERE project_id=?",
+                    (_json(settings), now, project_id),
+                )
+                for item in rows:
+                    item_settings = _object(item["settings_json"], {})
+                    mode_views = item_settings.get("generation_mode_views")
+                    if not isinstance(mode_views, dict):
+                        mode_views = {}
+                    if previous_mode and (
+                        item["current_audio_asset_id"]
+                        or item["current_base_video_asset_id"]
+                    ):
+                        mode_views[previous_mode] = {
+                            "audio_asset_id": item["current_audio_asset_id"],
+                            "base_video_asset_id": item["current_base_video_asset_id"],
+                            "subtitles": _object(
+                                item["subtitles_json"], _default_subtitles()
+                            ),
+                        }
+                    saved_h3 = mode_views.get("minimax_h3_ref2va")
+                    if not isinstance(saved_h3, dict):
+                        saved_h3 = {}
+
+                    def h3_asset(asset_id: Any, asset_type: str):
+                        clean_asset_id = str(asset_id or "").strip()
+                        if not clean_asset_id:
+                            return None
+                        return connection.execute(
+                            "SELECT * FROM project_assets WHERE asset_id=? "
+                            "AND item_id=? AND asset_type=? AND status='READY' "
+                            "AND source_type IN ('h3', 'h3_handoff')",
+                            (clean_asset_id, item["item_id"], asset_type),
+                        ).fetchone()
+
+                    h3_audio = h3_asset(saved_h3.get("audio_asset_id"), "audio")
+                    if h3_audio is None:
+                        h3_audio = connection.execute(
+                            "SELECT * FROM project_assets WHERE item_id=? "
+                            "AND asset_type='audio' AND status='READY' "
+                            "AND source_type IN ('h3', 'h3_handoff') "
+                            "ORDER BY version DESC LIMIT 1",
+                            (item["item_id"],),
+                        ).fetchone()
+                    h3_base = h3_asset(
+                        saved_h3.get("base_video_asset_id"), "base_video"
+                    )
+                    if h3_base is None:
+                        h3_base = connection.execute(
+                            "SELECT * FROM project_assets WHERE item_id=? "
+                            "AND asset_type='base_video' AND status='READY' "
+                            "AND source_type IN ('h3', 'h3_handoff') "
+                            "ORDER BY version DESC LIMIT 1",
+                            (item["item_id"],),
+                        ).fetchone()
+                    selected_audio_id = h3_audio["asset_id"] if h3_audio else None
+                    selected_base_id = h3_base["asset_id"] if h3_base else None
+                    saved_subtitles = saved_h3.get("subtitles")
+                    if isinstance(saved_subtitles, dict):
+                        subtitles = dict(saved_subtitles)
+                    else:
+                        audio_metadata = (
+                            _object(h3_audio["metadata_json"], {}) if h3_audio else {}
+                        )
+                        saved_cues = audio_metadata.get("subtitle_cues")
+                        subtitles = _default_subtitles()
+                        subtitles.update(
+                            {
+                                "source": "h3_generated_audio",
+                                "raw_cues": (
+                                    [
+                                        dict(value)
+                                        for value in saved_cues
+                                        if isinstance(value, dict)
+                                    ]
+                                    if isinstance(saved_cues, list)
+                                    else []
+                                ),
+                                "bound_audio_asset_id": selected_audio_id,
+                                "status": (
+                                    "READY"
+                                    if isinstance(saved_cues, list)
+                                    else (
+                                        "PENDING_TIMESTAMPS"
+                                        if selected_audio_id
+                                        else "NOT_AVAILABLE"
+                                    )
+                                ),
+                            }
+                        )
+                    subtitles["bound_audio_asset_id"] = selected_audio_id
+                    subtitles["bound_video_asset_id"] = selected_base_id
+                    item_settings["generation_mode_views"] = mode_views
+                    next_status = (
+                        "BASE_VIDEO_READY"
+                        if selected_base_id
+                        else ("AUDIO_READY" if selected_audio_id else "DRAFT")
+                    )
+                    connection.execute(
+                        "UPDATE project_items SET current_audio_asset_id=?, "
+                        "current_base_video_asset_id=?, current_video_asset_id=NULL, "
+                        "subtitles_json=?, settings_json=?, status=?, updated_at=? "
+                        "WHERE item_id=?",
+                        (
+                            selected_audio_id,
+                            selected_base_id,
+                            _json(subtitles),
+                            _json(item_settings),
+                            next_status,
+                            now,
+                            item["item_id"],
+                        ),
+                    )
+                self._refresh_project_status(connection, project_id, now=now)
+                return self._project_payload(connection, project_id)
             settings["generation_mode"] = "minimax_h3_ref2va"
             settings["h3"] = {
                 "schema": "jyd.project-h3.v1",
@@ -3243,9 +3363,20 @@ class ProjectStore:
             rows = connection.execute(
                 "SELECT * FROM project_items WHERE project_id=?", (project_id,)
             ).fetchall()
-            if any(str(row["status"]) in ACTIVE_ITEM_STATUSES for row in rows):
-                raise ValueError("当前有任务正在生成，完成后才能切换画面生成方式")
             settings = _object(project["settings_json"], {})
+            previous_mode = str(settings.get("generation_mode") or "")
+            active_statuses = {
+                str(row["status"])
+                for row in rows
+                if str(row["status"]) in ACTIVE_ITEM_STATUSES
+            }
+            h3_can_continue_in_background = (
+                previous_mode == "minimax_h3_ref2va"
+                and active_statuses
+                and active_statuses <= {"H3_QUEUED", "H3_RUNNING"}
+            )
+            if active_statuses and not h3_can_continue_in_background:
+                raise ValueError("当前有任务正在生成，完成后才能切换画面生成方式")
             if settings.get("generation_mode") == clean_mode:
                 return self._project_payload(connection, project_id)
             settings["generation_mode"] = clean_mode
@@ -3257,6 +3388,20 @@ class ProjectStore:
             )
             for item in rows:
                 subtitles = _object(item["subtitles_json"], _default_subtitles())
+                item_settings = _object(item["settings_json"], {})
+                mode_views = item_settings.get("generation_mode_views")
+                if not isinstance(mode_views, dict):
+                    mode_views = {}
+                if previous_mode and (
+                    item["current_audio_asset_id"]
+                    or item["current_base_video_asset_id"]
+                ):
+                    mode_views[previous_mode] = {
+                        "audio_asset_id": item["current_audio_asset_id"],
+                        "base_video_asset_id": item["current_base_video_asset_id"],
+                        "subtitles": dict(subtitles),
+                    }
+                item_settings["generation_mode_views"] = mode_views
                 selected_audio_id = item["current_audio_asset_id"]
                 if clean_mode in {
                     "runninghub_digital_human",
@@ -3304,11 +3449,13 @@ class ProjectStore:
                 connection.execute(
                     "UPDATE project_items SET current_audio_asset_id=?, "
                     "current_base_video_asset_id=NULL, "
-                    "current_video_asset_id=NULL, subtitles_json=?, status=?, updated_at=? "
+                    "current_video_asset_id=NULL, subtitles_json=?, settings_json=?, "
+                    "status=?, updated_at=? "
                     "WHERE item_id=?",
                     (
                         selected_audio_id,
                         _json(subtitles),
+                        _json(item_settings),
                         next_status,
                         now,
                         item["item_id"],
@@ -5462,6 +5609,15 @@ class ProjectStore:
             for asset in assets:
                 history.setdefault(asset["asset_type"], []).append(asset)
             current_audio = by_id.get(str(row["current_audio_asset_id"] or ""))
+            minimax_audio = next(
+                (
+                    asset
+                    for asset in reversed(history.get("audio", []))
+                    if asset.get("source_type") == "minimax"
+                    and asset.get("status") == "READY"
+                ),
+                None,
+            )
             current_base_video = by_id.get(
                 str(row["current_base_video_asset_id"] or "")
             )
@@ -5506,6 +5662,10 @@ class ProjectStore:
                 },
                 "outputs": {
                     "audio": current_audio,
+                    # The three generation modes share this immutable MiniMax
+                    # input. H3 may have a different current authoritative
+                    # output audio for its own video/subtitle post-processing.
+                    "minimax_audio": minimax_audio,
                     "base_video": current_base_video,
                     "composition_video": current_video,
                     "original_video_segments": original_segments,

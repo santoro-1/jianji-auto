@@ -415,7 +415,7 @@ def build_project_cover(
     *,
     fonts: dict[str, dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Build the fixed project cover recipe from saved titles and the input image."""
+    """Build the fixed project cover recipe from saved titles and route media."""
 
     postprocess = dict(item.get("settings", {}).get("postprocess") or {})
     title = normalize_cover_title(
@@ -423,12 +423,19 @@ def build_project_cover(
     )
     if not title["line_1"]:
         return None
-    image = resolve_project_cover_image(item)
-    if not isinstance(image, dict) or not image.get("managed_path"):
-        raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 缺少封面原图")
-    image_path = Path(str(image["managed_path"])).expanduser().resolve()
-    if not image_path.is_file():
-        raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 的封面原图不存在")
+    base_video = item.get("outputs", {}).get("base_video")
+    use_video_first_frame = (
+        isinstance(base_video, dict)
+        and str(base_video.get("source_type") or "").strip().lower() == "ltx"
+    )
+    image_path: Path | None = None
+    if not use_video_first_frame:
+        image = resolve_project_cover_image(item)
+        if not isinstance(image, dict) or not image.get("managed_path"):
+            raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 缺少封面原图")
+        image_path = Path(str(image["managed_path"])).expanduser().resolve()
+        if not image_path.is_file():
+            raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 的封面原图不存在")
     font = fonts.get(COVER_FONT_IDENTITY)
     if not isinstance(font, dict) or not font.get("path"):
         raise ValueError("固定封面字体“思源粗宋”不可用")
@@ -441,8 +448,8 @@ def build_project_cover(
     overlay_bottom = overlay_y_ratio + overlay_height_ratio / 2
     return {
         "enabled": True,
-        "frame_source": "input_image",
-        "image_path": str(image_path),
+        "frame_source": "timeline" if use_video_first_frame else "input_image",
+        "image_path": str(image_path) if image_path is not None else "",
         "frame_time_seconds": 0,
         "frame_count": 3,
         "text_line_1": title["line_1"],
