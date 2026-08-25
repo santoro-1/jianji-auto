@@ -532,10 +532,14 @@ H3 权威音频和静音基础视频的 metadata 必须同时保存冻结原稿�
 这两个字段；修复只解除旧的派生成片引用并清空旧 `render_cues`，保留 H3 音视频、旧成片文件
 和素材历史，随后重新生成本地 4B 预览，不得重新发起付费 H3 任务。
 
-视频对口型是同一 `/app/new/generate` 中的第三种画面生成方式，不是第二套页面或账号。前端只展示
-“视频对口型”“人物视频”等业务文案，不暴露内部引擎名、分段实现或清晰化节点名。项目
-`settings.generation_mode` 的三个正式值为 `runninghub_digital_human`、`minimax_h3_ref2va` 和
-`ltx_lip_sync`。`project_ltx.py` 只把当前原稿、最新 READY MiniMax 历史音频引用和每行源视频交给
+自 2026-08-25 起，`main` 的 `/app/new` 只展示“多参考”入口，新项目固定写入
+`settings.generation_mode=minimax_h3_ref2va`；前端不再提供普通数字人和视频对口型切换控件，
+面向用户的文案也不显示内部模型简称。三路前端完整快照保存在
+`archive/three-generation-modes-20260825`。后端仍兼容读取历史项目中的
+`runninghub_digital_human`、`minimax_h3_ref2va` 和 `ltx_lip_sync`，但只有多参考是 `main`
+的正式入口。
+
+历史视频对口型链仍由 `project_ltx.py` 读取当前原稿、最新 READY MiniMax 历史音频引用和每行源视频，并交给
 本机回环 LTX 引擎；该引擎按 20 秒以内分段执行 LTX，再固定逐段执行 SeedVR2 48G。完成的基础
 视频回填为 `source_type=ltx`，之后继续走与另外两条路线完全相同的字幕、BGM、语义视觉、剪映
 模板、完整预览、变体和成果链。普通数字人的服务商临时 2 秒静音不能进入 LTX：LTX 始终使用

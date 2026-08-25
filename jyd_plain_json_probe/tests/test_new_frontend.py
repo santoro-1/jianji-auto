@@ -74,27 +74,37 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("window.location.assign(`/app/new/generate", page)
         self.assertIn('声音、人物素材和模板可以并行准备', page)
 
-    def test_ltx_is_a_third_same_page_pipeline_with_shared_postprocess(self) -> None:
+    def test_main_workspace_exposes_only_the_multi_reference_entry(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn('<option value="runninghub_digital_human">', page)
-        self.assertIn('<option value="minimax_h3_ref2va">', page)
-        self.assertIn('<option value="ltx_lip_sync">', page)
-        self.assertIn("/ltx/source-video", page)
-        self.assertIn("/ltx/generate", page)
-        self.assertIn("const shouldRefresh = ltxStateIsActive();", page)
-        self.assertIn("shouldRefresh ? 'refresh' : 'state'", page)
-        self.assertIn("engineItem?.remote_batch_id", page)
-        self.assertIn("completedTargets.map(item => item.id)", page)
-        self.assertIn("正在自动生成字幕、BGM 和可编辑剪映预览", page)
-        self.assertIn(">视频对口型</", page)
-        self.assertIn("使用人物视频生成口型画面", page)
-        self.assertIn("生成视频对口型", page)
-        self.assertIn("人物视频", page)
-        self.assertNotIn("LTX 对口型（源视频）", page)
-        self.assertNotIn("源视频 / LTX", page)
-        self.assertNotIn("LTX + SeedVR2 生成中", page)
+        self.assertIn('aria-label="当前生成方式"', page)
+        self.assertIn('<span class="text-[11px] font-bold text-white">多参考</span>', page)
+        self.assertIn(
+            '<input id="generation-mode" type="hidden" value="minimax_h3_ref2va">',
+            page,
+        )
+        self.assertIn("generation_mode: 'minimax_h3_ref2va'", page)
+        self.assertIn("function isH3GenerationMode() {\n            return true;", page)
+        self.assertIn("function isLtxGenerationMode() {\n            return false;", page)
+        self.assertNotIn('<option value="runninghub_digital_human">', page)
+        self.assertNotIn('<option value="ltx_lip_sync">', page)
+        self.assertNotIn('id="engine-route-digital"', page)
+        self.assertNotIn('id="engine-route-h3"', page)
+        self.assertNotIn('id="ltx-workbench-link"', page)
+        self.assertNotIn("activateStandardWorkbenchMode", page)
+        self.assertNotIn("activateLtxWorkbenchMode", page)
+        self.assertNotIn("activateH3WorkbenchMode", page)
+        for user_facing_label in (
+            "H3 多参考",
+            "H3 成片",
+            "H3 费用",
+            "H3 分段",
+            "选择 H3",
+            "H3 参数",
+        ):
+            self.assertNotIn(user_facing_label, page)
 
+        # Archived projects can still be read by the legacy backend, but main has no route to it.
         paths = {route.path for route in create_app(self.settings).routes}
         self.assertIn("/api/new/projects/{project_id}/ltx/state", paths)
         self.assertIn(
@@ -125,21 +135,14 @@ class NewFrontendTest(unittest.TestCase):
             selected.index("item.allowedActions?.start_composition"),
         )
 
-    def test_header_switch_selects_ltx_inside_the_same_workbench_page(self) -> None:
+    def test_header_has_no_three_route_switcher(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn('id="ltx-workbench-link"', page)
-        self.assertIn('onclick="activateLtxWorkbenchMode()"', page)
-        self.assertIn('onclick="activateH3WorkbenchMode()"', page)
-        self.assertIn('id="engine-route-digital"', page)
-        self.assertIn('id="engine-route-h3"', page)
-        self.assertIn('value="ltx_lip_sync"', page)
-        self.assertIn('>生成方式</span>', page)
-        self.assertNotIn('id="ltx-workbench-link" href=', page)
-        self.assertNotIn(
-            'class="hidden xl:flex items-center gap-1 ml-5',
-            page,
-        )
+        self.assertIn('aria-label="当前生成方式"', page)
+        self.assertNotIn('aria-label="工作台切换"', page)
+        self.assertNotIn('>生成方式</span>', page)
+        self.assertNotIn('普通数字人</button>', page)
+        self.assertNotIn('视频对口型</button>', page)
         self.assertNotIn('id="workbench-environment"', page)
         self.assertNotIn("session.workbench_environment_label", page)
 
@@ -147,15 +150,14 @@ class NewFrontendTest(unittest.TestCase):
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
         self.assertIn("async function resumeExistingH3Batch()", page)
-        self.assertIn("H3 费用预览已保留", page)
+        self.assertIn("费用预览已保留", page)
         self.assertIn("正在恢复上一次已冻结的费用预览", page)
         self.assertIn("if (await resumeExistingH3Batch()) return;", page)
         self.assertIn("h3StateIsActive(recovered.project)", page)
         self.assertIn("const sharedMinimaxAudio = item.outputs?.minimax_audio", page)
         self.assertIn("audio: sharedMinimaxAudio", page)
         self.assertIn("authoritativeAudio: item.outputs?.audio || null", page)
-        self.assertIn("if (mode === 'minimax_h3_ref2va')", page)
-        self.assertIn("scheduleH3StatusPoll(100);", page)
+        self.assertIn("scheduleH3StatusPoll();", page)
         self.assertLess(
             page.index("if (await resumeExistingH3Batch()) return;"),
             page.index("syncProjectInputs(await saveH3Settings(false));"),
@@ -562,7 +564,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn('id="h3-tail-seconds" type="number" min="0" max="1" step="0.1" value="0.1"', workspace)
         self.assertIn("continuity_mode: document.getElementById('h3-continuity').value || 'loop_anchor'", workspace)
         self.assertIn("generation_tail_seconds: Number(document.getElementById('h3-tail-seconds').value || 0.1)", workspace)
-        self.assertIn('type="number" min="1" step="1" value="1024"', workspace)
+        self.assertIn('id="digital-human-resolution" type="hidden" value="1024"', workspace)
         self.assertNotIn('<option value="2048">', workspace)
         self.assertIn("/digital-human-settings", workspace)
         self.assertIn("resolution: selectedDigitalHumanResolution()", workspace)
