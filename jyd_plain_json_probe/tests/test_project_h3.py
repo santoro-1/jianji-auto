@@ -97,6 +97,51 @@ class FakeH3Client:
         return target.stat().st_size
 
 
+class MultiBatchFakeH3Client(FakeH3Client):
+    def __init__(self) -> None:
+        super().__init__()
+        self.snapshots: dict[str, dict] = {}
+        self.fetched_batch_ids: list[str] = []
+
+    def prepare_h3_batch(self, token: str, payload: dict) -> dict:
+        row_id = str(payload["rows"][0]["row_id"])
+        batch_id = f"h3-batch-row-{row_id}"
+        snapshot = {
+            "batch_id": batch_id,
+            "status": "AWAITING_COST_CONFIRMATION",
+            "fee_snapshot": {"segment_count": 1, "estimated_paid_calls": 1},
+            "items": [
+                {
+                    "item_id": f"remote-row-{row_id}",
+                    "row_id": row_id,
+                    "status": "AWAITING_COST_CONFIRMATION",
+                    "segments": [],
+                }
+            ],
+        }
+        self.snapshots[batch_id] = snapshot
+        return dict(snapshot)
+
+    def confirm_h3_batch(self, token: str, batch_id: str) -> dict:
+        snapshot = self.snapshots[batch_id]
+        active = {
+            **snapshot,
+            "status": "ACTIVE",
+            "items": [
+                {
+                    **snapshot["items"][0],
+                    "status": "PENDING",
+                }
+            ],
+        }
+        self.snapshots[batch_id] = active
+        return dict(active)
+
+    def get_h3_batch(self, token: str, batch_id: str) -> dict:
+        self.fetched_batch_ids.append(batch_id)
+        return dict(self.snapshots[batch_id])
+
+
 class FakeCaptionAligner:
     def align(self, audio_path: Path, **kwargs: object) -> dict:
         assert audio_path.is_file()
@@ -132,7 +177,7 @@ def fake_media_preparer(
     script_text: str,
     target_dir: Path,
 ) -> H3MediaAssets:
-    assert len(segment_paths) == len(segment_texts) == 2
+    assert segment_paths and len(segment_paths) == len(segment_texts)
     assert "".join(segment_texts) == script_text
     target_dir.mkdir(parents=True, exist_ok=True)
     master = target_dir / "h3-master-av.mp4"
@@ -145,24 +190,420 @@ def fake_media_preparer(
         master_av_path=master,
         silent_base_video_path=base,
         authoritative_audio_path=audio,
-        raw_cues=(
+        raw_cues=tuple(
             {
-                "text": segment_texts[0],
-                "start_us": 0,
+                "text": text,
+                "start_us": index * 1_000_000,
                 "duration_us": 1_000_000,
-                "end_us": 1_000_000,
-                "segment_index": 0,
-            },
-            {
-                "text": segment_texts[1],
-                "start_us": 1_000_000,
-                "duration_us": 1_000_000,
-                "end_us": 2_000_000,
-                "segment_index": 1,
-            },
+                "end_us": (index + 1) * 1_000_000,
+                "segment_index": index,
+            }
+            for index, text in enumerate(segment_texts)
         ),
-        segment_durations_seconds=(1.0, 1.0),
+        segment_durations_seconds=tuple(1.0 for _ in segment_texts),
     )
+
+
+def test_h3_batch_registry_keeps_multiple_rows_independent(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 多批次项目",
+        items=[
+            {"row_key": "1", "script_text": "第一条"},
+            {"row_key": "2", "script_text": "第二条"},
+        ],
+    )
+    project_id = project["project_id"]
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+
+    first = store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="quote-row-1",
+        snapshot={
+            "batch_id": "h3-batch-row-1",
+            "status": "ACTIVE",
+            "fee_snapshot": {"segment_count": 1},
+            "items": [
+                {
+                    "item_id": "remote-row-1",
+                    "row_id": "1",
+                    "status": "RUNNING",
+                    "segments": [],
+                }
+            ],
+        },
+    )
+    assert first["items"][0]["status"] == "H3_RUNNING"
+    assert first["items"][1]["status"] == "DRAFT"
+
+    second = store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="quote-row-2",
+        snapshot={
+            "batch_id": "h3-batch-row-2",
+            "status": "AWAITING_COST_CONFIRMATION",
+            "fee_snapshot": {"segment_count": 1},
+            "items": [
+                {
+                    "item_id": "remote-row-2",
+                    "row_id": "2",
+                    "status": "AWAITING_COST_CONFIRMATION",
+                    "segments": [],
+                }
+            ],
+        },
+    )
+
+    batches = second["settings"]["h3"]["batches"]
+    assert [value["batch_id"] for value in batches] == [
+        "h3-batch-row-1",
+        "h3-batch-row-2",
+    ]
+    assert batches[0]["status"] == "ACTIVE"
+    assert batches[0]["row_ids"] == ["1"]
+    assert batches[1]["status"] == "AWAITING_COST_CONFIRMATION"
+    assert batches[1]["row_ids"] == ["2"]
+    assert second["items"][0]["status"] == "H3_RUNNING"
+    assert second["items"][0]["settings"]["h3"]["remote_batch_id"] == "h3-batch-row-1"
+    assert second["items"][1]["status"] == "H3_COST_PENDING"
+    assert second["items"][1]["settings"]["h3"]["remote_batch_id"] == "h3-batch-row-2"
+
+
+def test_h3_coordinator_can_prepare_an_idle_row_while_another_row_runs(
+    tmp_path: Path,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 连续挂任务",
+        items=[
+            {"row_key": "1", "script_text": "第一条。"},
+            {"row_key": "2", "script_text": "第二条。"},
+        ],
+    )
+    project_id = project["project_id"]
+    image_path = tmp_path / "identity.png"
+    image_path.write_bytes(b"identity")
+    image = store.register_input_image(
+        owner_user_id="user-1",
+        project_id=project_id,
+        filename="identity.png",
+        content_type="image/png",
+        size_bytes=image_path.stat().st_size,
+        sha256="a" * 64,
+        managed_path=str(image_path),
+    )
+    store.apply_image_strategy("user-1", project_id, strategy="loop", reuse_count=1)
+    for item in project["items"]:
+        row_key = str(item["row_key"])
+        audio_path = tmp_path / f"voice-{row_key}.mp3"
+        audio_path.write_bytes(f"audio-{row_key}".encode())
+        store.add_asset(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item["item_id"],
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename=audio_path.name,
+            managed_path=str(audio_path),
+            external_ref={
+                "batch_id": f"audio-batch-{row_key}",
+                "remote_item_id": f"audio-item-{row_key}",
+                "generation_version": 1,
+            },
+            metadata={"provider_status": "SUCCESS"},
+            make_current=True,
+        )
+        reference_path = tmp_path / f"reference-{row_key}.mp4"
+        reference_path.write_bytes(f"video-{row_key}".encode())
+        store.add_h3_reference_video(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item["item_id"],
+            filename=reference_path.name,
+            managed_path=str(reference_path),
+            metadata={"sha256": row_key * 64},
+        )
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[image["image_id"]],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    client = MultiBatchFakeH3Client()
+    coordinator = ProjectH3Coordinator(store, client)  # type: ignore[arg-type]
+    item_ids = [str(value["item_id"]) for value in project["items"]]
+
+    first = coordinator.prepare(
+        "user-1",
+        project_id,
+        "token",
+        idempotency_key="quote-row-1",
+        selected_account_ids=[7],
+        item_ids=[item_ids[0]],
+    )
+    coordinator.confirm(
+        "user-1",
+        project_id,
+        "token",
+        batch_id=first["h3_batch"]["batch_id"],
+    )
+    second = coordinator.prepare(
+        "user-1",
+        project_id,
+        "token",
+        idempotency_key="quote-row-2",
+        selected_account_ids=[7],
+        item_ids=[item_ids[1]],
+    )
+
+    assert second["h3_batch"]["batch_id"] == "h3-batch-row-2"
+    assert [
+        value["batch_id"] for value in second["project"]["settings"]["h3"]["batches"]
+    ] == ["h3-batch-row-1", "h3-batch-row-2"]
+    assert second["project"]["items"][0]["status"] == "H3_RUNNING"
+    assert second["project"]["items"][1]["status"] == "H3_COST_PENDING"
+
+
+def test_h3_sync_recovers_missing_files_from_a_non_latest_successful_batch(
+    tmp_path: Path,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 旧批次本地恢复",
+        items=[
+            {"row_key": "1", "script_text": "第一条。"},
+            {"row_key": "2", "script_text": "第二条。"},
+        ],
+    )
+    project_id = project["project_id"]
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    client = MultiBatchFakeH3Client()
+    item_by_row = {str(item["row_key"]): item for item in project["items"]}
+    for row_key in ("1", "2"):
+        batch_id = f"h3-success-{row_key}"
+        snapshot = {
+            "batch_id": batch_id,
+            "status": "SUCCESS",
+            "items": [
+                {
+                    "item_id": f"remote-{row_key}",
+                    "row_id": row_key,
+                    "status": "SUCCESS",
+                    "segments": [
+                        {
+                            "segment_id": f"segment-{row_key}",
+                            "index": 0,
+                            "script_text": f"第{'一' if row_key == '1' else '二'}条。",
+                            "status": "SUCCESS",
+                            "normalized_video_download_url": f"/{row_key}.mp4",
+                        }
+                    ],
+                }
+            ],
+        }
+        client.snapshots[batch_id] = snapshot
+        store.set_h3_batch_snapshot(
+            "user-1",
+            project_id,
+            prepare_key=f"quote-{row_key}",
+            snapshot=snapshot,
+        )
+        item_id = str(item_by_row[row_key]["item_id"])
+        for asset_type, suffix in (("audio", ".wav"), ("base_video", ".mp4")):
+            path = tmp_path / f"recorded-{row_key}-{asset_type}{suffix}"
+            if row_key == "2":
+                path.write_bytes(f"existing-{asset_type}".encode())
+            store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type=asset_type,
+                source_type="h3",
+                status="READY",
+                filename=path.name,
+                managed_path=str(path),
+                make_current=True,
+            )
+
+    coordinator = ProjectH3Coordinator(
+        store,
+        client,  # type: ignore[arg-type]
+        storage_root=tmp_path / "storage",
+        media_preparer=fake_media_preparer,
+    )
+    synced = coordinator.sync("user-1", project_id, "token")["project"]
+    first = next(item for item in synced["items"] if item["row_key"] == "1")
+
+    assert client.fetched_batch_ids == ["h3-success-1", "h3-success-2"]
+    assert Path(first["outputs"]["audio"]["managed_path"]).is_file()
+    assert Path(first["outputs"]["base_video"]["managed_path"]).is_file()
+    assert first["outputs"]["audio"]["metadata"]["h3_segment_signature"]
+    assert first["outputs"]["base_video"]["metadata"]["h3_segment_signature"]
+
+
+def test_h3_sync_recovers_item_owned_legacy_batch_after_install_path_move(
+    tmp_path: Path,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 旧安装目录迁移",
+        items=[
+            {"row_key": "1", "script_text": "最新批次。"},
+            {"row_key": "2", "script_text": "旧批次。"},
+        ],
+    )
+    project_id = project["project_id"]
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    client = MultiBatchFakeH3Client()
+    snapshots = {
+        "2": {
+            "batch_id": "legacy-item-only-batch",
+            "status": "SUCCESS",
+            "items": [
+                {
+                    "item_id": "remote-2",
+                    "row_id": "2",
+                    "status": "SUCCESS",
+                    "segments": [
+                        {
+                            "segment_id": "segment-2",
+                            "index": 0,
+                            "script_text": "旧批次。",
+                            "status": "SUCCESS",
+                            "normalized_video_download_url": "/2.mp4",
+                        }
+                    ],
+                }
+            ],
+        },
+        "1": {
+            "batch_id": "latest-project-batch",
+            "status": "SUCCESS",
+            "items": [
+                {
+                    "item_id": "remote-1",
+                    "row_id": "1",
+                    "status": "SUCCESS",
+                    "segments": [
+                        {
+                            "segment_id": "segment-1",
+                            "index": 0,
+                            "script_text": "最新批次。",
+                            "status": "SUCCESS",
+                            "normalized_video_download_url": "/1.mp4",
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+    for row_key in ("2", "1"):
+        snapshot = snapshots[row_key]
+        client.snapshots[str(snapshot["batch_id"])] = snapshot
+        store.set_h3_batch_snapshot(
+            "user-1",
+            project_id,
+            prepare_key=f"quote-{row_key}",
+            snapshot=snapshot,
+        )
+
+    current = store.get_project("user-1", project_id)
+    item_by_row = {str(item["row_key"]): item for item in current["items"]}
+    for row_key, item in item_by_row.items():
+        for asset_type, suffix in (("audio", ".wav"), ("base_video", ".mp4")):
+            path = tmp_path / "old-install" / f"{row_key}-{asset_type}{suffix}"
+            if row_key == "1":
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(f"existing-{asset_type}".encode())
+            store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=str(item["item_id"]),
+                asset_type=asset_type,
+                source_type="h3",
+                status="READY",
+                filename=path.name,
+                managed_path=str(path),
+                make_current=True,
+            )
+
+    # Reproduce the pre-multi-batch schema: the project only remembers the
+    # latest batch, while row 2 still owns its older successful batch.
+    with store._transaction() as connection:
+        row = connection.execute(
+            "SELECT settings_json FROM projects WHERE project_id=?",
+            (project_id,),
+        ).fetchone()
+        settings = json.loads(str(row["settings_json"]))
+        settings["h3"].pop("batches", None)
+        connection.execute(
+            "UPDATE projects SET settings_json=? WHERE project_id=?",
+            (json.dumps(settings, ensure_ascii=False), project_id),
+        )
+
+    coordinator = ProjectH3Coordinator(
+        store,
+        client,  # type: ignore[arg-type]
+        storage_root=tmp_path / "new-install" / "storage",
+        media_preparer=fake_media_preparer,
+    )
+    synced = coordinator.sync("user-1", project_id, "token")["project"]
+    recovered = next(item for item in synced["items"] if item["row_key"] == "2")
+
+    assert client.fetched_batch_ids == [
+        "latest-project-batch",
+        "legacy-item-only-batch",
+    ]
+    assert recovered["status"] == "BASE_VIDEO_READY"
+    assert Path(recovered["outputs"]["audio"]["managed_path"]).is_file()
+    assert Path(recovered["outputs"]["base_video"]["managed_path"]).is_file()
+    assert "new-install" in recovered["outputs"]["audio"]["managed_path"]
 
 
 def test_h3_project_contract_reuses_existing_audio_and_original_project(
@@ -321,7 +762,7 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
         ("image", "identity.png"),
         ("video", "reference.mp4"),
     ]
-    with pytest.raises(ValueError, match="尚未结束"):
+    with pytest.raises(ValueError, match="未结束"):
         coordinator.prepare(
             "user-1",
             project_id,

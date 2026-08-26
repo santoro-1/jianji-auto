@@ -225,6 +225,18 @@ class ProjectApiTest(unittest.TestCase):
                         "items": [{"row_key": "001", "script_text": "不可导出的脚本文本"}],
                     },
                 ).json()
+                image_path = self.settings.storage_root / "diagnostic-image.png"
+                image_path.parent.mkdir(parents=True, exist_ok=True)
+                image_path.write_bytes(b"diagnostic-image")
+                app.state.project_store.register_input_image(
+                    owner_user_id=first_user["user_id"],
+                    project_id=project["project_id"],
+                    filename="diagnostic-image.png",
+                    content_type="image/png",
+                    size_bytes=image_path.stat().st_size,
+                    sha256="d" * 64,
+                    managed_path=str(image_path),
+                )
                 operation = app.state.project_store.create_operation(
                     owner_user_id=first_user["user_id"],
                     project_id=project["project_id"],
@@ -264,6 +276,19 @@ class ProjectApiTest(unittest.TestCase):
                 self.assertEqual(
                     summary["operations"][0]["correlation_id"],
                     operation["correlation_id"],
+                )
+                self.assertEqual(
+                    summary["items"][0]["output_files"]["base_video"],
+                    {"recorded": False, "file_exists": False, "size_bytes": 0},
+                )
+                self.assertEqual(summary["items"][0]["h3"]["segments"], [])
+                self.assertEqual(
+                    summary["input_images"][0]["file"],
+                    {
+                        "recorded": True,
+                        "file_exists": True,
+                        "size_bytes": len(b"diagnostic-image"),
+                    },
                 )
                 self.assertNotIn("script_text", summary_text)
                 self.assertNotIn("不可导出的脚本文本", summary_text)
@@ -443,6 +468,184 @@ class ProjectApiTest(unittest.TestCase):
         history = detail["items"][0]["asset_history"]["composition_video"]
         self.assertEqual([asset["version"] for asset in history], [1, 2])
         self.assertTrue(detail["allowed_actions"]["generate_variants"])
+
+    def test_v12_stores_managed_media_as_portable_storage_references(self) -> None:
+        current_storage = self.root / "current-install" / "data" / "web_storage"
+        current_storage.mkdir(parents=True)
+        database_path = current_storage / "control.db"
+        store = ProjectStore(database_path)
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="安装目录迁移测试",
+            items=[{"row_key": "001", "script_text": "测试口播。"}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+
+        image_relative = Path("new_projects") / project_id / "input_images" / "face.png"
+        image_path = current_storage / image_relative
+        image_path.parent.mkdir(parents=True)
+        image_path.write_bytes(b"image")
+        old_storage = self.root / "old-install" / "data" / "web_storage"
+        image = store.register_input_image(
+            owner_user_id="user-1",
+            project_id=project_id,
+            filename="face.png",
+            content_type="image/png",
+            size_bytes=5,
+            sha256="a" * 64,
+            managed_path=str(old_storage / image_relative),
+        )
+
+        reference_relative = (
+            Path("new_projects") / project_id / item_id / "h3_reference" / "ref.mp4"
+        )
+        reference_path = current_storage / reference_relative
+        reference_path.parent.mkdir(parents=True)
+        reference_path.write_bytes(b"reference")
+        store.add_h3_reference_video(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item_id,
+            filename="ref.mp4",
+            managed_path=str(old_storage / reference_relative),
+            metadata={"sha256": "b" * 64},
+        )
+
+        with sqlite3.connect(database_path) as connection:
+            stored_image_path = connection.execute(
+                "SELECT managed_path FROM project_input_images WHERE image_id=?",
+                (image["image_id"],),
+            ).fetchone()[0]
+            stored_reference_path = connection.execute(
+                "SELECT managed_path FROM project_assets "
+                "WHERE item_id=? AND asset_type='h3_reference_video'",
+                (item_id,),
+            ).fetchone()[0]
+        self.assertEqual(
+            stored_image_path,
+            "storage://" + image_relative.as_posix(),
+        )
+        self.assertEqual(
+            stored_reference_path,
+            "storage://" + reference_relative.as_posix(),
+        )
+
+        moved_storage = self.root / "moved-install" / "data" / "web_storage"
+        shutil.copytree(current_storage, moved_storage)
+        reopened = ProjectStore(moved_storage / "control.db")
+        rebound_image = reopened.get_input_image("user-1", project_id, image["image_id"])
+        self.assertEqual(
+            Path(rebound_image["managed_path"]),
+            (moved_storage / image_relative).resolve(),
+        )
+        self.assertTrue(rebound_image["file_exists"])
+        rebound_project = reopened.get_project("user-1", project_id)
+        reference = rebound_project["items"][0]["inputs"]["h3_reference_video"]
+        self.assertEqual(
+            Path(reference["managed_path"]),
+            (moved_storage / reference_relative).resolve(),
+        )
+        self.assertTrue(reference["file_exists"])
+
+    def test_v12_backs_up_and_migrates_legacy_absolute_paths(self) -> None:
+        current_storage = self.root / "current-install" / "data" / "web_storage"
+        current_storage.mkdir(parents=True)
+        database_path = current_storage / "control.db"
+        store = ProjectStore(database_path)
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="旧路径迁移测试",
+            items=[{"row_key": "001", "script_text": "测试口播。"}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+        image_relative = Path("new_projects") / project_id / "input_images" / "face.png"
+        image_path = current_storage / image_relative
+        image_path.parent.mkdir(parents=True)
+        image_path.write_bytes(b"image")
+        image = store.register_input_image(
+            owner_user_id="user-1",
+            project_id=project_id,
+            filename="face.png",
+            content_type="image/png",
+            size_bytes=5,
+            sha256="a" * 64,
+            managed_path=str(image_path),
+        )
+
+        old_storage = self.root / "old-install" / "data" / "web_storage"
+        legacy_absolute = str(old_storage / image_relative)
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "UPDATE project_input_images SET managed_path=? WHERE image_id=?",
+                (legacy_absolute, image["image_id"]),
+            )
+            connection.execute(
+                "UPDATE project_schema_meta SET value='11' WHERE key='version'"
+            )
+            connection.commit()
+
+        reopened = ProjectStore(database_path)
+        backup_path = Path(str(reopened.startup_database_backup_path))
+        self.assertTrue(backup_path.is_file())
+        self.assertEqual(reopened.startup_storage_path_migration_count, 1)
+        rebound = reopened.get_input_image("user-1", project_id, image["image_id"])
+        self.assertEqual(Path(rebound["managed_path"]), image_path.resolve())
+        self.assertTrue(rebound["file_exists"])
+        with sqlite3.connect(database_path) as connection:
+            stored_path = connection.execute(
+                "SELECT managed_path FROM project_input_images WHERE image_id=?",
+                (image["image_id"],),
+            ).fetchone()[0]
+            schema_version = connection.execute(
+                "SELECT value FROM project_schema_meta WHERE key='version'"
+            ).fetchone()[0]
+        self.assertEqual(stored_path, "storage://" + image_relative.as_posix())
+        self.assertEqual(schema_version, "12")
+
+        reopened_again = ProjectStore(database_path)
+        self.assertIsNone(reopened_again.startup_database_backup_path)
+        self.assertEqual(reopened_again.startup_storage_path_migration_count, 0)
+        self.assertEqual(reopened_again.startup_relocated_managed_path_count, 0)
+
+    def test_storage_references_reject_traversal_and_preserve_external_files(self) -> None:
+        storage_root = self.root / "data" / "web_storage"
+        store = ProjectStore(storage_root / "control.db")
+        with self.assertRaisesRegex(ValueError, "素材相对路径无效"):
+            store.resolve_managed_path("storage://../outside.mp4")
+        with self.assertRaisesRegex(ValueError, "素材相对路径无效"):
+            store.encode_managed_path("storage://folder/../../outside.mp4")
+
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="外部交接素材测试",
+            items=[{"row_key": "001", "script_text": "测试口播。"}],
+        )
+        external = self.root / "handoff" / "external.mp4"
+        external.parent.mkdir(parents=True)
+        external.write_bytes(b"external")
+        asset = store.add_asset(
+            owner_user_id="user-1",
+            project_id=project["project_id"],
+            item_id=project["items"][0]["item_id"],
+            asset_type="base_video",
+            source_type="h3_handoff",
+            status="READY",
+            filename=external.name,
+            managed_path=str(external),
+            make_current=True,
+        )
+        self.assertEqual(Path(asset["managed_path"]), external.resolve())
+        with sqlite3.connect(storage_root / "control.db") as connection:
+            stored_path = connection.execute(
+                "SELECT managed_path FROM project_assets WHERE asset_id=?",
+                (asset["asset_id"],),
+            ).fetchone()[0]
+        self.assertEqual(stored_path, str(external.resolve()))
 
     def test_project_voice_applies_atomically_and_preserves_old_audio_history(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")

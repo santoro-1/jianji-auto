@@ -13,6 +13,22 @@ from .project_store import ProjectStore
 
 H3_MODE = "minimax_h3_ref2va"
 H3_SAFE_CUT_ALIGNMENT_SCHEMA = "jyd.h3-safe-cut-alignment.v1"
+H3_OPEN_BATCH_STATUSES = {
+    "AWAITING_COST_CONFIRMATION",
+    "ACTIVE",
+    "QUEUED",
+    "RUNNING",
+}
+H3_ACTIVE_ITEM_STATUSES = {
+    "ACTIVE",
+    "QUEUED",
+    "RUNNING",
+    "PENDING",
+    "UPLOADING",
+    "SUBMITTED",
+    "WAITING_DEPENDENCY",
+    "WAITING_REGENERATION_DEPENDENCY",
+}
 
 
 class ProjectH3Coordinator:
@@ -53,6 +69,86 @@ class ProjectH3Coordinator:
         if settings.get("generation_mode") != H3_MODE:
             raise ValueError("请先把项目生成方式切换为 MiniMax H3")
         return h3
+
+    @staticmethod
+    def _batch_records(h3: dict[str, Any]) -> list[dict[str, Any]]:
+        """Return stored batches plus the legacy latest-batch fields."""
+
+        records = [
+            dict(value)
+            for value in h3.get("batches", [])
+            if isinstance(value, dict) and str(value.get("batch_id") or "").strip()
+        ]
+        legacy_batch_id = str(h3.get("remote_batch_id") or "").strip()
+        if legacy_batch_id and not any(
+            str(value.get("batch_id") or "") == legacy_batch_id for value in records
+        ):
+            records.append(
+                {
+                    "batch_id": legacy_batch_id,
+                    "prepare_key": str(h3.get("prepare_key") or ""),
+                    "status": str(h3.get("remote_status") or "").upper(),
+                    "fee_snapshot": h3.get("fee_snapshot"),
+                    "last_synced_at": h3.get("last_synced_at"),
+                }
+            )
+        return records
+
+    @classmethod
+    def _batch_record(
+        cls,
+        h3: dict[str, Any],
+        *,
+        batch_id: str = "",
+        prepare_key: str = "",
+    ) -> dict[str, Any] | None:
+        clean_batch_id = str(batch_id or "").strip()
+        clean_prepare_key = str(prepare_key or "").strip()
+        for record in reversed(cls._batch_records(h3)):
+            if clean_batch_id and str(record.get("batch_id") or "") == clean_batch_id:
+                return record
+            if clean_prepare_key and str(record.get("prepare_key") or "") == clean_prepare_key:
+                return record
+        return None
+
+    @classmethod
+    def _prepare_key_for_snapshot(
+        cls, h3: dict[str, Any], snapshot: dict[str, Any]
+    ) -> str:
+        record = cls._batch_record(
+            h3, batch_id=str(snapshot.get("batch_id") or "")
+        )
+        return str(
+            (record or {}).get("prepare_key") or h3.get("prepare_key") or ""
+        )
+
+    @staticmethod
+    def _local_h3_files_ready(item: dict[str, Any]) -> bool:
+        outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
+        for asset_type in ("audio", "base_video"):
+            asset = outputs.get(asset_type)
+            if not isinstance(asset, dict):
+                return False
+            path = Path(str(asset.get("managed_path") or ""))
+            try:
+                if not path.is_file() or path.stat().st_size <= 0:
+                    return False
+            except OSError:
+                return False
+        return True
+
+    @classmethod
+    def _h3_item_needs_materialization(cls, item: dict[str, Any]) -> bool:
+        h3 = (
+            item.get("settings", {}).get("h3", {})
+            if isinstance(item.get("settings"), dict)
+            else {}
+        )
+        return (
+            bool(str(h3.get("remote_batch_id") or "").strip())
+            and str(h3.get("remote_status") or "").upper() == "SUCCESS"
+            and not cls._local_h3_files_ready(item)
+        )
 
     @staticmethod
     def _target_items(
@@ -287,9 +383,10 @@ class ProjectH3Coordinator:
         project = self.store.get_project(owner_user_id, project_id)
         h3 = self._h3_settings(project)
         target_items = self._target_items(project, item_ids)
-        if h3.get("prepare_key") == clean_key and h3.get("remote_batch_id"):
+        existing_batch = self._batch_record(h3, prepare_key=clean_key)
+        if existing_batch is not None:
             snapshot = self.client.get_h3_batch(
-                token, str(h3["remote_batch_id"])
+                token, str(existing_batch["batch_id"])
             )
             project = self.store.set_h3_batch_snapshot(
                 owner_user_id,
@@ -298,14 +395,32 @@ class ProjectH3Coordinator:
                 snapshot=snapshot,
             )
             return {"project": project, "h3_batch": snapshot}
-        if str(h3.get("remote_status") or "").upper() in {
-            "AWAITING_COST_CONFIRMATION",
-            "ACTIVE",
-            "QUEUED",
-            "RUNNING",
-        }:
+
+        blocked_rows: list[str] = []
+        for item in target_items:
+            item_h3 = (
+                item.get("settings", {}).get("h3", {})
+                if isinstance(item.get("settings"), dict)
+                else {}
+            )
+            item_remote_status = str(item_h3.get("remote_status") or "").upper()
+            item_status = str(item.get("status") or "").upper()
+            segments = item_h3.get("segments")
+            segment_active = isinstance(segments, list) and any(
+                isinstance(segment, dict)
+                and str(segment.get("status") or "").upper()
+                in H3_ACTIVE_ITEM_STATUSES
+                for segment in segments
+            )
+            if (
+                item_remote_status in H3_OPEN_BATCH_STATUSES
+                or item_status in {"H3_COST_PENDING", "H3_QUEUED", "H3_RUNNING"}
+                or segment_active
+            ):
+                blocked_rows.append(str(item.get("row_key") or item.get("item_id")))
+        if blocked_rows:
             raise ValueError(
-                "当前 H3 批次尚未结束，不能用新的幂等键重复计算或提交"
+                f"第 {', '.join(blocked_rows)} 行已有未结束的 H3 任务或费用预览"
             )
 
         pending_audio_item_ids: list[str] = []
@@ -492,18 +607,26 @@ class ProjectH3Coordinator:
         return {"project": project, "h3_batch": snapshot}
 
     def confirm(
-        self, owner_user_id: str, project_id: str, token: str
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        batch_id: str = "",
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
         h3 = self._h3_settings(project)
-        batch_id = str(h3.get("remote_batch_id") or "")
-        if not batch_id:
+        clean_batch_id = str(batch_id or h3.get("remote_batch_id") or "").strip()
+        if not clean_batch_id:
             raise ValueError("请先计算 H3 分段与费用")
-        snapshot = self.client.confirm_h3_batch(token, batch_id)
+        record = self._batch_record(h3, batch_id=clean_batch_id)
+        if record is None:
+            raise ValueError("H3 费用预览不属于当前项目或已失效")
+        snapshot = self.client.confirm_h3_batch(token, clean_batch_id)
         project = self.store.set_h3_batch_snapshot(
             owner_user_id,
             project_id,
-            prepare_key=str(h3.get("prepare_key") or ""),
+            prepare_key=str(record.get("prepare_key") or ""),
             snapshot=snapshot,
         )
         return {"project": project, "h3_batch": snapshot}
@@ -559,7 +682,7 @@ class ProjectH3Coordinator:
         project = self.store.set_h3_batch_snapshot(
             owner_user_id,
             project_id,
-            prepare_key=str(h3.get("prepare_key") or ""),
+            prepare_key=self._prepare_key_for_snapshot(h3, snapshot),
             snapshot=snapshot,
         )
         return {"project": project, "h3_batch": snapshot}
@@ -600,7 +723,7 @@ class ProjectH3Coordinator:
         project = self.store.set_h3_batch_snapshot(
             owner_user_id,
             project_id,
-            prepare_key=str(h3.get("prepare_key") or ""),
+            prepare_key=self._prepare_key_for_snapshot(h3, snapshot),
             snapshot=snapshot,
         )
         return {"project": project, "h3_batch": snapshot}
@@ -623,7 +746,7 @@ class ProjectH3Coordinator:
         project = self.store.set_h3_batch_snapshot(
             owner_user_id,
             project_id,
-            prepare_key=str(h3.get("prepare_key") or ""),
+            prepare_key=self._prepare_key_for_snapshot(h3, snapshot),
             snapshot=snapshot,
         )
         return {"project": project, "h3_batch": snapshot}
@@ -633,25 +756,84 @@ class ProjectH3Coordinator:
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
         h3 = self._h3_settings(project)
-        batch_id = str(h3.get("remote_batch_id") or "")
-        if not batch_id:
-            return {"project": project, "h3_batch": None}
-        snapshot = self.client.get_h3_batch(token, batch_id)
-        project = self.store.set_h3_batch_snapshot(
-            owner_user_id,
-            project_id,
-            prepare_key=str(h3.get("prepare_key") or ""),
-            snapshot=snapshot,
-        )
-        if self.storage_root is not None:
-            project = self._materialize_ready_items(
+        records = self._batch_records(h3)
+        recorded_batch_ids = {
+            str(record.get("batch_id") or "").strip() for record in records
+        }
+        for item in project.get("items", []):
+            if not isinstance(item, dict) or not self._h3_item_needs_materialization(item):
+                continue
+            item_h3 = (
+                item.get("settings", {}).get("h3", {})
+                if isinstance(item.get("settings"), dict)
+                else {}
+            )
+            item_batch_id = str(item_h3.get("remote_batch_id") or "").strip()
+            if not item_batch_id or item_batch_id in recorded_batch_ids:
+                continue
+            # Older single-batch workbench versions only kept the latest batch
+            # at project level.  A completed non-latest batch can therefore
+            # survive solely on its item after the installation directory has
+            # moved.  Include that item-owned batch so its cloud result can be
+            # downloaded again without submitting or charging for a new job.
+            records.append(
+                {
+                    "batch_id": item_batch_id,
+                    "prepare_key": "",
+                    "status": str(item_h3.get("remote_status") or "").upper(),
+                    "last_synced_at": item_h3.get("last_synced_at"),
+                }
+            )
+            recorded_batch_ids.add(item_batch_id)
+        if not records:
+            return {"project": project, "h3_batch": None, "h3_batches": []}
+
+        latest_batch_id = str(h3.get("remote_batch_id") or "")
+        materialization_batch_ids = {
+            str(item.get("settings", {}).get("h3", {}).get("remote_batch_id") or "")
+            for item in project.get("items", [])
+            if isinstance(item, dict)
+            and self._h3_item_needs_materialization(item)
+        }
+        records_to_sync = [
+            record
+            for record in records
+            if str(record.get("status") or "").upper() in H3_OPEN_BATCH_STATUSES
+            or str(record.get("batch_id") or "") == latest_batch_id
+            or str(record.get("batch_id") or "") in materialization_batch_ids
+        ]
+        snapshots: list[dict[str, Any]] = []
+        for record in records_to_sync:
+            remote_batch_id = str(record.get("batch_id") or "")
+            snapshot = self.client.get_h3_batch(token, remote_batch_id)
+            snapshots.append(snapshot)
+            project = self.store.set_h3_batch_snapshot(
                 owner_user_id,
                 project_id,
-                token,
-                project=project,
+                prepare_key=str(record.get("prepare_key") or ""),
                 snapshot=snapshot,
             )
-        return {"project": project, "h3_batch": snapshot}
+            if self.storage_root is not None:
+                project = self._materialize_ready_items(
+                    owner_user_id,
+                    project_id,
+                    token,
+                    project=project,
+                    snapshot=snapshot,
+                )
+        latest_snapshot = next(
+            (
+                value
+                for value in reversed(snapshots)
+                if str(value.get("batch_id") or "") == latest_batch_id
+            ),
+            snapshots[-1] if snapshots else None,
+        )
+        return {
+            "project": project,
+            "h3_batch": latest_snapshot,
+            "h3_batches": snapshots,
+        }
 
     @staticmethod
     def _segment_signature(segments: list[dict[str, Any]]) -> str:

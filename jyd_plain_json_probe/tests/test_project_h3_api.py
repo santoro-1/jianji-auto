@@ -236,7 +236,7 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 assert rejected.status_code == 409
                 confirmed = client.post(
                     f"/api/new/projects/{project_id}/h3/confirm",
-                    json={"cost_confirmed": True},
+                    json={"cost_confirmed": True, "batch_id": "remote-h3-batch"},
                 )
                 assert confirmed.status_code == 200, confirmed.text
                 assert confirmed.json()["project"]["items"][0]["status"] == "H3_RUNNING"
@@ -258,6 +258,44 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 detail_item = detail.json()["items"][0]
                 assert detail_item["outputs"]["audio"]["source_type"] == "h3"
                 assert detail_item["outputs"]["minimax_audio"]["source_type"] == "minimax"
+                signature = "f" * 64
+                h3_master_path = settings.storage_root / "h3-master-av.mp4"
+                h3_master_path.write_bytes(b"h3-master-with-audio")
+                store.add_asset(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=item_id,
+                    asset_type="h3_master_av",
+                    source_type="h3",
+                    status="READY",
+                    filename="h3-master-av.mp4",
+                    managed_path=str(h3_master_path),
+                    metadata={"h3_segment_signature": signature},
+                )
+                silent_base_path = settings.storage_root / "h3-base-video-silent.mp4"
+                silent_base_path.write_bytes(b"silent-base-video")
+                store.add_asset(
+                    owner_user_id=user["user_id"],
+                    project_id=project_id,
+                    item_id=item_id,
+                    asset_type="base_video",
+                    source_type="h3",
+                    status="READY",
+                    filename="h3-base-video-silent.mp4",
+                    managed_path=str(silent_base_path),
+                    metadata={"h3_segment_signature": signature},
+                    make_current=True,
+                )
+                audible_preview = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/preview-video"
+                )
+                assert audible_preview.status_code == 200, audible_preview.text
+                assert audible_preview.content == b"h3-master-with-audio"
+                editable_base = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/base-video"
+                )
+                assert editable_base.status_code == 200, editable_base.text
+                assert editable_base.content == b"silent-base-video"
                 shared_preview = client.get(
                     f"/api/new/projects/{project_id}/items/{item_id}/audio"
                 )

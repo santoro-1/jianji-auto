@@ -100,6 +100,8 @@ H3 成功后会回填发起任务的原 `ProjectItem`，而不是新建孤立项
 把同一母版拆成从 0 秒开始的静音 `base_video` 和一条 H3 权威音频，再让当前 H3 批次所选行
 进入已有 FunASR 字幕、4B/BGM、变体和成果库。段级重试、主动重生成、取消、结果下载、账号池
 和状态轮询均沿用云端 H3 执行合同；一个待确认或运行中的批次不能通过更换幂等键重复提交。
+浏览器动态预览读取与当前静音底片同一分段签名的 H3 有声母版；剪映草稿和导出仍使用静音
+`base_video` 加独立权威音频，避免预览修复改变后期轨道合同或把人声重复铺设两次。
 
 MiniMax H3 独立工作台通过 `h3.jyd_handoff.v2` 把同一 H3 母版拆出的静音 `base_video`、一条从
 0 秒开始的 H3 权威音频和 H3 实际分段字幕窗口导入统一项目。最终播放音频必须来自 H3 成片；
@@ -357,6 +359,11 @@ tests/                 自动测试
 tools/                 素材提取、草稿诊断和旧任务工具
 vendor/jy-draftc/      高版本剪映草稿解密程序
 ```
+
+项目数据库 v12 起，受管素材在 SQLite 中保存为相对 `storage://...` 引用，运行时再以
+当前 `data/web_storage` 为根目录解析。只要迁移时完整保留 `data/web_storage`，改变安装目录
+或盘符不会使图片、参考视频、音频和生成结果继续绑定旧绝对路径。旧库首次升级前会自动创建
+`control.db.pre-project-v12.bak`。
 
 更详细的文件导航见 [START_HERE.md](START_HERE.md) 和 [docs/PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md)。
 

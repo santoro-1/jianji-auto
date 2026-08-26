@@ -293,8 +293,14 @@ POST /api/new/projects/{project_id}/composition/generate
 GET  /api/new/projects/{project_id}/composition/status
 POST /api/new/projects/{project_id}/items/{item_id}/composition/retry
 GET  /api/new/projects/{project_id}/items/{item_id}/base-video
+GET  /api/new/projects/{project_id}/items/{item_id}/preview-video
 GET  /api/new/runninghub-execution-accounts
 ```
+
+`base-video` 保持返回后期时间线使用的当前基础画面；H3 项目中的该文件按合同不含声音。
+`preview-video` 专供浏览器动态预览：当前基础画面来自 H3 时，返回与其
+`h3_segment_signature` 一致的有声 H3 母版；其他画面模式回退到当前基础画面。这样浏览器可以
+直接试听 H3 原声，同时不改变剪映草稿和导出的“静音底片 + 独立权威音频”轨道结构。
 
 `digital-human-settings` 当前保存项目级 `resolution`，含义为数字人画面的最长边像素。
 新版页面允许直接输入任意正整数，默认值为 `1024`。修改时会保留历史视频文件，但解除旧分辨率
@@ -793,6 +799,11 @@ $env:JYD_MAX_AUDIO_UPLOAD_BYTES="209715200"
 $env:JYD_MAX_DRAFT_IMPORT_BYTES="5368709120"
 $env:JYD_MAX_ACTIVE_JOBS="500"
 ```
+
+`JYD_DATABASE_PATH` 默认位于 `JYD_WEB_STORAGE_ROOT` 下。项目数据库 v12 内部使用
+`storage://...` 保存受管素材的相对位置，但 API 响应中的 `managed_path` 继续返回解析后的
+本机绝对路径，现有 H3、剪映后期和下载调用无需调整。不要把数据库单独复制到没有对应
+`web_storage` 文件树的目录。
 
 公网 HTTPS 部署时将 `JYD_ADMIN_COOKIE_SECURE` 设为 `true`。生产环境应显式配置管理员密码和会话密钥，不依赖自动生成文件。
 

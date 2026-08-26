@@ -3634,7 +3634,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         client, token = digital_human_access(request)
         try:
             return project_h3_coordinator(client).confirm(
-                user["user_id"], project_id, token
+                user["user_id"],
+                project_id,
+                token,
+                batch_id=str(payload.get("batch_id") or ""),
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -4580,6 +4583,78 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="基础视频文件不存在") from exc
         if not path.is_file():
             raise HTTPException(status_code=404, detail="基础视频文件不存在")
+        try:
+            preview_path = browser_preview_path(
+                path,
+                settings.storage_root
+                / "browser_previews"
+                / str(project_id)
+                / str(item_id),
+            )
+        except BrowserPreviewError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return FileResponse(
+            preview_path,
+            media_type="video/mp4",
+            headers={
+                "Cache-Control": "private, max-age=86400",
+                "Content-Disposition": "inline",
+            },
+        )
+
+    @app.get("/api/new/projects/{project_id}/items/{item_id}/preview-video")
+    def preview_new_project_video(
+        project_id: str, item_id: str, request: Request
+    ) -> FileResponse:
+        """Serve the audible H3 master while keeping the editable base silent."""
+
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next(
+            (value for value in project["items"] if value["item_id"] == item_id),
+            None,
+        )
+        base_video = item.get("outputs", {}).get("base_video") if item else None
+        if not isinstance(base_video, dict):
+            raise HTTPException(status_code=404, detail="预览视频尚未准备完成")
+
+        preview_asset = base_video
+        base_metadata = (
+            base_video.get("metadata")
+            if isinstance(base_video.get("metadata"), dict)
+            else {}
+        )
+        segment_signature = str(
+            base_metadata.get("h3_segment_signature") or ""
+        ).strip()
+        if base_video.get("source_type") == "h3" and segment_signature:
+            masters = (item or {}).get("asset_history", {}).get("h3_master_av", [])
+            preview_asset = next(
+                (
+                    value
+                    for value in reversed(masters)
+                    if isinstance(value, dict)
+                    and value.get("source_type") == "h3"
+                    and value.get("status") == "READY"
+                    and str(
+                        (value.get("metadata") or {}).get("h3_segment_signature")
+                        or ""
+                    ).strip()
+                    == segment_signature
+                ),
+                base_video,
+            )
+
+        path = Path(str(preview_asset.get("managed_path") or "")).resolve()
+        try:
+            path.relative_to(settings.storage_root.resolve())
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail="预览视频文件不存在") from exc
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="预览视频文件不存在")
         try:
             preview_path = browser_preview_path(
                 path,

@@ -4,8 +4,11 @@ from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 from typing import Iterable
+
+from .bgm_loudness import _ffmpeg_path
 
 
 class H3MediaError(RuntimeError):
@@ -22,9 +25,15 @@ class H3MediaAssets:
 
 
 def _run(command: list[str], message: str) -> None:
+    resolved_command = list(command)
+    if resolved_command and resolved_command[0].lower() == "ffmpeg":
+        ffmpeg = _ffmpeg_path()
+        if not ffmpeg:
+            raise H3MediaError("本机未安装 FFmpeg")
+        resolved_command[0] = ffmpeg
     try:
         completed = subprocess.run(
-            command,
+            resolved_command,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -40,6 +49,22 @@ def _run(command: list[str], message: str) -> None:
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout or "").strip()[-500:]
         raise H3MediaError(f"{message}：{detail or '未知错误'}")
+
+
+def _ffprobe_path() -> str | None:
+    configured = str(os.environ.get("JYD_FFPROBE") or "").strip()
+    if configured and Path(configured).expanduser().is_file():
+        return str(Path(configured).expanduser().resolve())
+    discovered = shutil.which("ffprobe")
+    if discovered:
+        return str(Path(discovered).resolve())
+    ffmpeg = _ffmpeg_path()
+    if not ffmpeg:
+        return None
+    candidate = Path(ffmpeg).with_name(
+        "ffprobe.exe" if Path(ffmpeg).suffix.lower() == ".exe" else "ffprobe"
+    )
+    return str(candidate.resolve()) if candidate.is_file() else None
 
 
 def _atomic_media(command: list[str], target: Path, message: str) -> Path:
@@ -67,8 +92,11 @@ def _concat_manifest(segment_paths: Iterable[Path], target: Path) -> Path:
 
 
 def _probe_av_starts(path: Path) -> tuple[float, float]:
+    ffprobe = _ffprobe_path()
+    if not ffprobe:
+        raise H3MediaError("本机未安装 FFprobe")
     command = [
-        "ffprobe", "-v", "error", "-show_entries", "stream=codec_type,start_time",
+        ffprobe, "-v", "error", "-show_entries", "stream=codec_type,start_time",
         "-of", "json", str(path),
     ]
     try:
@@ -129,8 +157,11 @@ def _merge_segments(segment_paths: list[Path], target: Path) -> Path:
 
 
 def _probe_duration(path: Path) -> float:
+    ffprobe = _ffprobe_path()
+    if not ffprobe:
+        raise H3MediaError("本机未安装 FFprobe")
     command = [
-        "ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+        ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries",
         "stream=duration", "-of", "json", str(path),
     ]
     try:

@@ -76,7 +76,17 @@ def _safe_project_summary(project: dict[str, Any]) -> dict[str, Any]:
             "revision": project.get("revision"),
             "created_at": project.get("created_at"),
             "updated_at": project.get("updated_at"),
+            "h3": _safe_h3_state((project.get("settings") or {}).get("h3")),
         },
+        "input_images": [
+            {
+                "image_id": image.get("image_id"),
+                "position": image.get("position"),
+                "file": _safe_asset_file_state(image),
+            }
+            for image in project.get("input_images", [])
+            if isinstance(image, dict)
+        ],
         "items": [
             {
                 "item_id": item.get("item_id"),
@@ -92,6 +102,11 @@ def _safe_project_summary(project: dict[str, Any]) -> dict[str, Any]:
                         "variants",
                     )
                 },
+                "output_files": {
+                    key: _safe_asset_file_state((item.get("outputs") or {}).get(key))
+                    for key in ("audio", "base_video", "composition_video")
+                },
+                "h3": _safe_h3_state((item.get("settings") or {}).get("h3")),
                 "created_at": item.get("created_at"),
                 "updated_at": item.get("updated_at"),
             }
@@ -132,6 +147,55 @@ def _safe_project_summary(project: dict[str, Any]) -> dict[str, Any]:
             }
             for link in links
             if isinstance(link, dict)
+        ],
+    }
+
+
+def _safe_asset_file_state(asset: object) -> dict[str, Any]:
+    value = asset if isinstance(asset, dict) else {}
+    managed_path = str(value.get("managed_path") or "").strip()
+    path = Path(managed_path) if managed_path else None
+    exists = False
+    size_bytes = 0
+    if path is not None:
+        try:
+            exists = path.is_file()
+            size_bytes = path.stat().st_size if exists else 0
+        except OSError:
+            exists = False
+            size_bytes = 0
+    return {
+        "recorded": bool(value),
+        "file_exists": exists,
+        "size_bytes": size_bytes,
+    }
+
+
+def _safe_h3_state(value: object) -> dict[str, Any]:
+    h3 = value if isinstance(value, dict) else {}
+    segments = h3.get("segments") if isinstance(h3.get("segments"), list) else []
+    return {
+        "remote_batch_id": h3.get("remote_batch_id"),
+        "remote_item_id": h3.get("remote_item_id"),
+        "remote_status": h3.get("remote_status"),
+        "last_synced_at": h3.get("last_synced_at"),
+        "invalidated_reason": h3.get("invalidated_reason"),
+        "segments": [
+            {
+                "segment_id": segment.get("segment_id"),
+                "index": segment.get("index"),
+                "status": segment.get("status"),
+                "can_retry": segment.get("can_retry") is True,
+                "has_normalized_video_download": bool(
+                    str(segment.get("normalized_video_download_url") or "").strip()
+                ),
+                "error_code": segment.get("error_code"),
+                "error_message": redact_text(
+                    str(segment.get("error_message") or "")[:500]
+                ) or None,
+            }
+            for segment in segments
+            if isinstance(segment, dict)
         ],
     }
 

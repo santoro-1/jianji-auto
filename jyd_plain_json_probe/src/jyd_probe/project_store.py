@@ -22,7 +22,8 @@ from .semantic_visuals import (
 )
 
 
-PROJECT_SCHEMA_VERSION = 11
+PROJECT_SCHEMA_VERSION = 12
+STORAGE_PATH_PREFIX = "storage://"
 logger = logging.getLogger("jyd_probe.workbench")
 MAX_PROJECT_ITEMS = 500
 ANALYSIS_PENDING_TIMEOUT_SECONDS = 15 * 60
@@ -468,10 +469,16 @@ class ProjectStore:
     def __init__(self, path: str | Path):
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._storage_root = self.path.parent
         self._schema_lock = threading.Lock()
         self._pending_recovery_lock = threading.Lock()
         self._last_pending_recovery_monotonic = 0.0
+        self.startup_database_backup_path = self._backup_before_v12_path_migration()
+        self.startup_storage_path_migration_count = 0
         self._initialize()
+        self.startup_relocated_managed_path_count = (
+            self.recover_relocated_managed_paths()
+        )
         self.startup_recovered_analysis_count = self.recover_stale_analysis_pending()
 
     def _connect(self) -> sqlite3.Connection:
@@ -480,6 +487,197 @@ class ProjectStore:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 30000")
         return connection
+
+    def _backup_before_v12_path_migration(self) -> str | None:
+        """Create one consistent SQLite backup before rewriting stored paths."""
+
+        if not self.path.is_file():
+            return None
+        source = sqlite3.connect(self.path, timeout=30)
+        source.row_factory = sqlite3.Row
+        try:
+            schema_exists = source.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE type='table' AND name='project_schema_meta'"
+            ).fetchone()
+            if schema_exists is None:
+                return None
+            version_row = source.execute(
+                "SELECT value FROM project_schema_meta WHERE key='version'"
+            ).fetchone()
+            previous_version = (
+                int(version_row["value"])
+                if version_row is not None and str(version_row["value"]).isdigit()
+                else 0
+            )
+            if previous_version >= 12:
+                return None
+            backup_path = self.path.with_name(f"{self.path.name}.pre-project-v12.bak")
+            if not backup_path.exists():
+                destination = sqlite3.connect(backup_path)
+                try:
+                    source.backup(destination)
+                finally:
+                    destination.close()
+                logger.warning(
+                    "Created project database backup before v12 path migration: %s",
+                    backup_path,
+                )
+            return str(backup_path)
+        finally:
+            source.close()
+
+    @property
+    def storage_root(self) -> Path:
+        return self._storage_root
+
+    def encode_managed_path(self, managed_path: str | Path) -> str:
+        """Encode a local managed file without coupling it to the install path."""
+
+        raw = str(managed_path or "").strip()
+        if not raw:
+            return ""
+        if raw.startswith(STORAGE_PATH_PREFIX):
+            resolved = self.resolve_managed_path(raw)
+            return self._storage_reference(resolved)
+
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            return self._storage_reference(self._safe_storage_candidate(raw))
+
+        resolved = path.resolve()
+        try:
+            return self._storage_reference(resolved)
+        except ValueError:
+            relocated = self._relocated_managed_path(
+                raw, current_root=self.storage_root
+            )
+            if relocated is not None and relocated.is_file():
+                return self._storage_reference(relocated)
+            # Deliberately preserve valid external paths. Some integrations can
+            # hand off files outside web_storage and must remain compatible.
+            return str(resolved)
+
+    def resolve_managed_path(self, stored_path: str | Path) -> Path:
+        """Resolve storage references while rejecting traversal outside the root."""
+
+        raw = str(stored_path or "").strip()
+        if not raw:
+            raise ValueError("素材路径不能为空")
+        if raw.startswith(STORAGE_PATH_PREFIX):
+            return self._safe_storage_candidate(raw[len(STORAGE_PATH_PREFIX) :])
+        path = Path(raw).expanduser()
+        if path.is_absolute():
+            return path.resolve()
+        # Accept pre-v12 relative rows defensively and normalize them on the
+        # next startup migration pass.
+        return self._safe_storage_candidate(raw)
+
+    def _safe_storage_candidate(self, relative_value: str) -> Path:
+        normalized = str(relative_value or "").strip().replace("\\", "/")
+        parts = normalized.split("/")
+        if (
+            not parts
+            or any(part in {"", ".", ".."} for part in parts)
+            or Path(normalized).is_absolute()
+        ):
+            raise ValueError("素材相对路径无效")
+        # Every part has already been constrained to a plain child component,
+        # so lexical joining is sufficient and avoids a filesystem resolve for
+        # every asset on high-frequency project status reads.
+        return self.storage_root.joinpath(*parts)
+
+    def _storage_reference(self, path: Path) -> str:
+        resolved = Path(path).expanduser().resolve()
+        try:
+            relative = resolved.relative_to(self.storage_root)
+        except ValueError as exc:
+            raise ValueError("素材路径不属于本地数据目录") from exc
+        if not relative.parts or any(part in {"", ".", ".."} for part in relative.parts):
+            raise ValueError("素材相对路径无效")
+        return STORAGE_PATH_PREFIX + "/".join(relative.parts)
+
+    def _payload_managed_path(self, stored_path: object) -> tuple[str, str, str | None]:
+        reference = str(stored_path or "").strip()
+        if not reference:
+            return "", "", None
+        try:
+            resolved = str(self.resolve_managed_path(reference))
+        except (OSError, ValueError) as exc:
+            return "", reference, str(exc)
+        return resolved, reference, None
+
+    def recover_relocated_managed_paths(self) -> int:
+        """Normalize legacy path rows and rebind copied project files.
+
+        Older releases stored absolute paths in the project database.  When an
+        installation was copied to a new directory, the database and files
+        moved together but those absolute paths still pointed at the previous
+        ``data/web_storage`` directory.  Only rebind a row when the same
+        relative file already exists below the current storage root; this
+        never copies, downloads, overwrites, or recreates user media.
+        """
+
+        with self._transaction() as connection:
+            relocated = self._migrate_managed_path_rows(connection)
+        if relocated:
+            logger.warning(
+                "Normalized %s project media paths for current storage root: %s",
+                relocated,
+                self.storage_root,
+            )
+        return relocated
+
+    def _migrate_managed_path_rows(self, connection: sqlite3.Connection) -> int:
+        targets = (
+            ("project_assets", "asset_id"),
+            ("project_input_images", "image_id"),
+            ("project_script_sources", "source_id"),
+        )
+        migrated = 0
+        for table_name, identity_column in targets:
+            rows = connection.execute(
+                f"SELECT {identity_column}, managed_path FROM {table_name} "
+                "WHERE managed_path IS NOT NULL AND TRIM(managed_path)<>''"
+            ).fetchall()
+            for row in rows:
+                old_value = str(row["managed_path"] or "").strip()
+                try:
+                    encoded = self.encode_managed_path(old_value)
+                except (OSError, ValueError):
+                    continue
+                if not encoded or encoded == old_value:
+                    continue
+                connection.execute(
+                    f"UPDATE {table_name} SET managed_path=? "
+                    f"WHERE {identity_column}=?",
+                    (encoded, row[identity_column]),
+                )
+                migrated += 1
+        return migrated
+
+    @staticmethod
+    def _relocated_managed_path(
+        managed_path: str, *, current_root: Path
+    ) -> Path | None:
+        normalized = str(managed_path or "").strip().replace("\\", "/")
+        parts = normalized.split("/")
+        storage_indexes = [
+            index
+            for index, part in enumerate(parts)
+            if part.casefold() == "web_storage"
+        ]
+        if not storage_indexes:
+            return None
+        relative_parts = parts[storage_indexes[-1] + 1 :]
+        if not relative_parts or any(part in {"", ".", ".."} for part in relative_parts):
+            return None
+        candidate = current_root.joinpath(*relative_parts).resolve()
+        try:
+            candidate.relative_to(current_root)
+        except ValueError:
+            return None
+        return candidate
 
     @contextmanager
     def _transaction(self) -> Iterator[sqlite3.Connection]:
@@ -737,20 +935,31 @@ class ProjectStore:
                 "CREATE INDEX IF NOT EXISTS idx_project_operations_correlation "
                 "ON project_operations(correlation_id, created_at)"
             )
-            version_row = connection.execute(
-                "SELECT value FROM project_schema_meta WHERE key='version'"
-            ).fetchone()
-            previous_schema_version = (
-                int(version_row["value"])
-                if version_row is not None and str(version_row["value"]).isdigit()
-                else 0
-            )
-            if previous_schema_version < 11:
-                self._invalidate_legacy_subtitle_bindings(connection)
-            connection.execute(
-                "INSERT OR REPLACE INTO project_schema_meta(key, value) VALUES('version', ?)",
-                (str(PROJECT_SCHEMA_VERSION),),
-            )
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                version_row = connection.execute(
+                    "SELECT value FROM project_schema_meta WHERE key='version'"
+                ).fetchone()
+                previous_schema_version = (
+                    int(version_row["value"])
+                    if version_row is not None and str(version_row["value"]).isdigit()
+                    else 0
+                )
+                if previous_schema_version < 11:
+                    self._invalidate_legacy_subtitle_bindings(connection)
+                if previous_schema_version < 12:
+                    self.startup_storage_path_migration_count = (
+                        self._migrate_managed_path_rows(connection)
+                    )
+                connection.execute(
+                    "INSERT OR REPLACE INTO project_schema_meta(key, value) "
+                    "VALUES('version', ?)",
+                    (str(PROJECT_SCHEMA_VERSION),),
+                )
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
 
     def _invalidate_legacy_subtitle_bindings(
         self, connection: sqlite3.Connection
@@ -1071,9 +1280,9 @@ class ProjectStore:
         clean_script = _clean_script(script_text)
         clean_name = _clean_name(project_name)
         clean_audio_filename = Path(str(audio_filename or "")).name.strip()
-        clean_audio_path = str(audio_managed_path or "").strip()
+        clean_audio_path = self.encode_managed_path(audio_managed_path)
         clean_video_filename = Path(str(base_video_filename or "")).name.strip()
-        clean_video_path = str(base_video_managed_path or "").strip()
+        clean_video_path = self.encode_managed_path(base_video_managed_path)
         if not all(
             (
                 clean_audio_filename,
@@ -1605,7 +1814,12 @@ class ProjectStore:
                 (now, project["project_id"]),
             )
             self._refresh_project_status(connection, project_id, now=now)
-        return self.get_project(owner_user_id, project_id), cleanup_paths
+        resolved_cleanup_paths = [
+            resolved
+            for path in cleanup_paths
+            if (resolved := self._payload_managed_path(path)[0])
+        ]
+        return self.get_project(owner_user_id, project_id), resolved_cleanup_paths
 
     def get_voice_preferences(self, owner_user_id: str) -> dict[str, Any]:
         owner_id = str(owner_user_id or "").strip()
@@ -2251,7 +2465,7 @@ class ProjectStore:
                     clean_status,
                     clean_source,
                     str(filename or "").strip()[:255],
-                    str(managed_path).strip() if managed_path else None,
+                    self.encode_managed_path(managed_path) if managed_path else None,
                     _json(external_ref or {}),
                     _json(metadata or {}),
                     now,
@@ -2565,7 +2779,7 @@ class ProjectStore:
                     str(content_type or "").strip(),
                     max(0, int(size_bytes)),
                     str(sha256 or "").strip(),
-                    str(managed_path or "").strip(),
+                    self.encode_managed_path(managed_path),
                     now,
                 ),
             )
@@ -3302,11 +3516,12 @@ class ProjectStore:
                 return self._project_payload(connection, project_id)
             project_settings = _object(project["settings_json"], {})
             project_h3 = project_settings.get("h3") if isinstance(project_settings.get("h3"), dict) else {}
-            if str(project_h3.get("remote_status") or "").upper() in {
-                "ACTIVE", "QUEUED", "RUNNING"
-            }:
-                raise ValueError("H3 批次正在生成，完成后才能修改行级参数")
             if str(item["status"]) in ACTIVE_ITEM_STATUSES:
+                raise ValueError("当前脚本行正在生成，不能修改 H3 行级参数")
+            if str(h3.get("remote_status") or "").upper() in {
+                "ACTIVE", "QUEUED", "RUNNING", "PENDING", "UPLOADING", "SUBMITTED",
+                "WAITING_DEPENDENCY", "WAITING_REGENERATION_DEPENDENCY",
+            }:
                 raise ValueError("当前脚本行正在生成，不能修改 H3 行级参数")
             item_settings["h3"] = {
                 **h3,
@@ -3331,13 +3546,11 @@ class ProjectStore:
                 (_json(subtitles), _json(item_settings), next_status, now, item_id),
             )
             project_settings["generation_mode"] = "minimax_h3_ref2va"
+            # Other rows may belong to active H3 batches. Row-level edits must
+            # not erase their project-level batch registry or polling state.
             project_settings["h3"] = {
                 "schema": "jyd.project-h3.v1",
                 **project_h3,
-                "remote_batch_id": None,
-                "remote_status": None,
-                "fee_snapshot": None,
-                "prepare_key": None,
             }
             connection.execute(
                 "UPDATE projects SET settings_json=?, revision=revision+1, updated_at=? WHERE project_id=?",
@@ -3477,7 +3690,7 @@ class ProjectStore:
         """Version one row reference video and invalidate H3/downstream only."""
 
         clean_name = Path(str(filename or "")).name.strip()
-        clean_path = str(managed_path or "").strip()
+        clean_path = self.encode_managed_path(managed_path)
         if not clean_name or not clean_path:
             raise ValueError("H3 参考视频信息不完整")
         with self._transaction() as connection:
@@ -3485,10 +3698,6 @@ class ProjectStore:
             item = self._owned_item(connection, project_id, item_id)
             project_settings = _object(project["settings_json"], {})
             project_h3 = project_settings.get("h3") if isinstance(project_settings.get("h3"), dict) else {}
-            if str(project_h3.get("remote_status") or "").upper() in {
-                "ACTIVE", "QUEUED", "RUNNING"
-            }:
-                raise ValueError("H3 批次正在生成，完成后才能替换参考视频")
             if str(item["status"]) in ACTIVE_ITEM_STATUSES:
                 raise ValueError("当前脚本行正在生成，不能替换 H3 参考视频")
             version = int(
@@ -3527,6 +3736,11 @@ class ProjectStore:
                 if isinstance(item_settings.get("h3"), dict)
                 else {}
             )
+            if str(h3.get("remote_status") or "").upper() in {
+                "ACTIVE", "QUEUED", "RUNNING", "PENDING", "UPLOADING", "SUBMITTED",
+                "WAITING_DEPENDENCY", "WAITING_REGENERATION_DEPENDENCY",
+            }:
+                raise ValueError("当前脚本行正在生成，不能替换 H3 参考视频")
             item_settings["h3"] = {
                 **h3,
                 "reference_video_asset_id": asset_id,
@@ -3554,13 +3768,11 @@ class ProjectStore:
             settings = project_settings
             h3_project = project_h3
             settings["generation_mode"] = "minimax_h3_ref2va"
+            # Preserve batches owned by other rows while invalidating only the
+            # edited row's H3 input/output binding.
             settings["h3"] = {
                 "schema": "jyd.project-h3.v1",
                 **h3_project,
-                "remote_batch_id": None,
-                "remote_status": None,
-                "fee_snapshot": None,
-                "prepare_key": None,
             }
             connection.execute(
                 "UPDATE projects SET settings_json=?, revision=revision+1, "
@@ -3738,6 +3950,84 @@ class ProjectStore:
             project = self._owned_project(connection, owner_user_id, project_id)
             settings = _object(project["settings_json"], {})
             h3 = settings.get("h3") if isinstance(settings.get("h3"), dict) else {}
+            batches = [
+                dict(value)
+                for value in h3.get("batches", [])
+                if isinstance(value, dict)
+                and str(value.get("batch_id") or "").strip()
+            ]
+            legacy_batch_id = str(h3.get("remote_batch_id") or "").strip()
+            if legacy_batch_id and not any(
+                str(value.get("batch_id") or "") == legacy_batch_id
+                for value in batches
+            ):
+                batches.append(
+                    {
+                        "batch_id": legacy_batch_id,
+                        "prepare_key": str(h3.get("prepare_key") or ""),
+                        "status": str(h3.get("remote_status") or "").upper(),
+                        "fee_snapshot": h3.get("fee_snapshot"),
+                        "last_synced_at": h3.get("last_synced_at"),
+                    }
+                )
+            existing = next(
+                (
+                    value
+                    for value in batches
+                    if str(value.get("batch_id") or "") == remote_batch_id
+                ),
+                {},
+            )
+            resolved_prepare_key = str(
+                prepare_key
+                or existing.get("prepare_key")
+                or (
+                    h3.get("prepare_key")
+                    if legacy_batch_id == remote_batch_id
+                    else ""
+                )
+                or ""
+            )
+            now = _now()
+            batch_record = {
+                **existing,
+                "batch_id": remote_batch_id,
+                "prepare_key": resolved_prepare_key,
+                "status": remote_status,
+                "fee_snapshot": snapshot.get("fee_snapshot"),
+                "row_ids": list(remote_items),
+                "last_synced_at": now,
+            }
+            batches = [
+                value
+                for value in batches
+                if str(value.get("batch_id") or "") != remote_batch_id
+            ]
+            batches.append(batch_record)
+            # Keep enough terminal history for diagnosis while preventing an
+            # unbounded settings payload. Open batches are never discarded.
+            if len(batches) > 100:
+                open_batches = [
+                    value
+                    for value in batches
+                    if str(value.get("status") or "").upper()
+                    in {"AWAITING_COST_CONFIRMATION", "ACTIVE", "QUEUED", "RUNNING"}
+                ]
+                open_ids = {
+                    str(value.get("batch_id") or "") for value in open_batches
+                }
+                terminal_candidates = [
+                    value
+                    for value in batches
+                    if str(value.get("batch_id") or "") not in open_ids
+                ]
+                terminal_limit = max(0, 100 - len(open_batches))
+                terminal_batches = (
+                    terminal_candidates[-terminal_limit:]
+                    if terminal_limit
+                    else []
+                )
+                batches = terminal_batches + open_batches
             settings["generation_mode"] = "minimax_h3_ref2va"
             settings["h3"] = {
                 "schema": "jyd.project-h3.v1",
@@ -3745,10 +4035,10 @@ class ProjectStore:
                 "remote_batch_id": remote_batch_id,
                 "remote_status": remote_status,
                 "fee_snapshot": snapshot.get("fee_snapshot"),
-                "prepare_key": str(prepare_key or h3.get("prepare_key") or ""),
-                "last_synced_at": _now(),
+                "prepare_key": resolved_prepare_key,
+                "last_synced_at": now,
+                "batches": batches,
             }
-            now = _now()
             connection.execute(
                 "UPDATE projects SET settings_json=?, updated_at=? WHERE project_id=?",
                 (_json(settings), now, project_id),
@@ -3910,8 +4200,13 @@ class ProjectStore:
                 ).fetchone()
                 is None
             }
+        resolved_cleanup_files = {
+            resolved
+            for path in cleanup_files
+            if (resolved := self._payload_managed_path(path)[0])
+        }
         return {
-            "files": sorted(cleanup_files),
+            "files": sorted(resolved_cleanup_files),
             "directories": sorted(cleanup_directories),
         }
 
@@ -3928,7 +4223,7 @@ class ProjectStore:
         allow_active: bool = False,
     ) -> dict[str, Any]:
         clean_filename = Path(str(filename or "")).name.strip()
-        clean_path = str(managed_path or "").strip()
+        clean_path = self.encode_managed_path(managed_path)
         if not clean_filename or not clean_path:
             raise ValueError("脚本源文件名称和保存路径不能为空")
         with self._transaction() as connection:
@@ -4525,7 +4820,7 @@ class ProjectStore:
                 (item_status, now, item_id),
             )
             self._refresh_project_status(connection, project_id, now=now)
-        return managed_path
+        return self._payload_managed_path(managed_path)[0] or None
 
     def delete_variant_assets(
         self,
@@ -4603,7 +4898,8 @@ class ProjectStore:
             {
                 "asset_id": asset_id,
                 "managed_path": (
-                    str(by_id[asset_id]["managed_path"] or "").strip() or None
+                    self._payload_managed_path(by_id[asset_id]["managed_path"])[0]
+                    or None
                 ),
             }
             for asset_id in clean_ids
@@ -6098,8 +6394,17 @@ class ProjectStore:
             ),
         }
 
-    @staticmethod
-    def _asset_payload(row: sqlite3.Row) -> dict[str, Any]:
+    def _asset_payload(self, row: sqlite3.Row) -> dict[str, Any]:
+        managed_path, _managed_path_ref, _path_error = self._payload_managed_path(
+            row["managed_path"]
+        )
+        path = Path(managed_path) if managed_path else None
+        try:
+            file_exists = bool(path and path.is_file())
+            actual_size_bytes = path.stat().st_size if file_exists and path else 0
+        except OSError:
+            file_exists = False
+            actual_size_bytes = 0
         return {
             "asset_id": row["asset_id"],
             "asset_type": row["asset_type"],
@@ -6107,15 +6412,26 @@ class ProjectStore:
             "status": row["status"],
             "source_type": row["source_type"],
             "filename": row["filename"],
-            "managed_path": row["managed_path"],
+            "managed_path": managed_path,
+            "file_exists": file_exists,
+            "actual_size_bytes": actual_size_bytes,
             "external_ref": _object(row["external_ref_json"], {}),
             "metadata": _object(row["metadata_json"], {}),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
 
-    @staticmethod
-    def _input_image_payload(row: sqlite3.Row) -> dict[str, Any]:
+    def _input_image_payload(self, row: sqlite3.Row) -> dict[str, Any]:
+        managed_path, _managed_path_ref, _path_error = self._payload_managed_path(
+            row["managed_path"]
+        )
+        path = Path(managed_path) if managed_path else None
+        try:
+            file_exists = bool(path and path.is_file())
+            actual_size_bytes = path.stat().st_size if file_exists and path else 0
+        except OSError:
+            file_exists = False
+            actual_size_bytes = 0
         return {
             "image_id": row["image_id"],
             "position": int(row["position"]),
@@ -6123,13 +6439,17 @@ class ProjectStore:
             "content_type": row["content_type"],
             "size_bytes": int(row["size_bytes"]),
             "sha256": row["sha256"],
-            "managed_path": row["managed_path"],
+            "managed_path": managed_path,
+            "file_exists": file_exists,
+            "actual_size_bytes": actual_size_bytes,
             "url": f"/api/new/projects/{row['project_id']}/images/{row['image_id']}",
             "created_at": row["created_at"],
         }
 
-    @staticmethod
-    def _script_source_payload(row: sqlite3.Row) -> dict[str, Any]:
+    def _script_source_payload(self, row: sqlite3.Row) -> dict[str, Any]:
+        managed_path, _managed_path_ref, _path_error = self._payload_managed_path(
+            row["managed_path"]
+        )
         return {
             "source_id": row["source_id"],
             "version": int(row["version"]),
@@ -6137,7 +6457,7 @@ class ProjectStore:
             "content_type": row["content_type"],
             "size_bytes": int(row["size_bytes"]),
             "sha256": row["sha256"],
-            "managed_path": row["managed_path"],
+            "managed_path": managed_path,
             "created_at": row["created_at"],
         }
 

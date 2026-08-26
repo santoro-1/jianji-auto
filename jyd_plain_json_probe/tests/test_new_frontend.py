@@ -46,7 +46,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("function reviewH3TargetAudio", page)
         self.assertIn("await startGlobalH3Generation([script])", page)
         self.assertIn(
-            "h3Targets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo)",
+            "h3EligibleTargets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo)",
             page,
         )
         self.assertIn("点击“生成视频”后会自动锁定当前声音", page)
@@ -152,20 +152,27 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn('id="workbench-environment"', page)
         self.assertNotIn("session.workbench_environment_label", page)
 
-    def test_h3_generation_resumes_an_existing_quote_before_preparing_again(self) -> None:
+    def test_h3_generation_resumes_matching_quote_without_blocking_other_rows(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("async function resumeExistingH3Batch()", page)
+        self.assertIn("async function resumeExistingH3Batch(targets)", page)
         self.assertIn("费用预览已保留", page)
         self.assertIn("正在恢复上一次已冻结的费用预览", page)
-        self.assertIn("if (await resumeExistingH3Batch()) return;", page)
-        self.assertIn("h3StateIsActive(recovered.project)", page)
-        self.assertIn("const sharedMinimaxAudio = item.outputs?.minimax_audio", page)
+        self.assertIn("if (await resumeExistingH3Batch(targets)) return;", page)
+        self.assertIn("const recoveredBatch = (recovered.h3_batches || []).find", page)
+        self.assertIn("body: JSON.stringify({ cost_confirmed: true, batch_id: batchId })", page)
+        self.assertIn("const targets = requestedTargets.filter((item) => !item.baseVideo && !h3ItemIsActive(item));", page)
+        self.assertNotIn("if (await resumeExistingH3Batch()) return;", page)
+        self.assertIn("const recordedMinimaxAudio = item.outputs?.minimax_audio", page)
+        self.assertIn("recordedMinimaxAudio?.file_exists !== false", page)
         self.assertIn("audio: sharedMinimaxAudio", page)
-        self.assertIn("authoritativeAudio: item.outputs?.audio || null", page)
+        self.assertIn(
+            "authoritativeAudio: h3OutputFileAvailable(item.outputs?.audio) ? item.outputs.audio : null",
+            page,
+        )
         self.assertIn("scheduleH3StatusPoll();", page)
         self.assertLess(
-            page.index("if (await resumeExistingH3Batch()) return;"),
+            page.index("if (await resumeExistingH3Batch(targets)) return;"),
             page.index("syncProjectInputs(await saveH3Settings(false));"),
         )
 
@@ -175,18 +182,42 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("function h3StateIsActive(project = activeProject)", page)
         self.assertIn("H3_ACTIVE_ITEM_STATUSES", page)
         self.assertIn("H3_TERMINAL_REMOTE_STATUSES", page)
-        self.assertIn(
-            "if (!h3StateIsActive() && !h3HasPendingPostprocess()) return;", page
-        )
         self.assertIn("if (h3StateIsActive(result.project))", page)
         self.assertIn("function h3FailedSegments(project = activeProject)", page)
         self.assertIn("function h3HasPendingPostprocess(project = activeProject)", page)
-        self.assertIn("!h3StateIsActive() && !h3HasPendingPostprocess()", page)
+        self.assertIn("function h3NeedsLocalMaterialization(project = activeProject)", page)
+        self.assertIn("remoteStatus === 'SUCCESS'", page)
+        self.assertIn("function h3OutputFileAvailable(asset)", page)
+        self.assertIn("asset.file_exists !== false", page)
+        self.assertIn("!h3OutputFileAvailable(item?.outputs?.audio)", page)
+        self.assertIn("!h3OutputFileAvailable(item?.outputs?.base_video)", page)
+        self.assertIn(
+            "!h3StateIsActive() && !h3HasPendingPostprocess() && !h3NeedsLocalMaterialization()",
+            page,
+        )
+        self.assertIn("h3NeedsLocalMaterialization(existing.project)", page)
+        self.assertIn("云端 H3 已完成，正在重新下载并合并已有结果，不会重复提交或付费", page)
         self.assertIn("成功行已保留并继续生成预览", page)
+        self.assertIn("const h3FailureToastSignatures = new Map()", page)
+        self.assertIn("function h3FailureToastSignature(failedSegments)", page)
+        self.assertIn("h3FailureToastSignatures.get(projectId) !== signature", page)
+        self.assertIn("h3FailureToastSignatures.delete(activeProject.project_id)", page)
         self.assertIn("segment.error_message || segment.error_code", page)
         self.assertIn(
             "await startGlobalPostprocess(completedTargets.map((item) => item.id));",
             page,
+        )
+        self.assertIn(
+            "baseVideo: h3OutputFileAvailable(item.outputs?.base_video) ? item.outputs.base_video : null",
+            page,
+        )
+        refresh = page[
+            page.index("async function refreshH3Status()") :
+            page.index("async function h3RetrySegment")
+        ]
+        self.assertLess(
+            refresh.index("await startGlobalPostprocess(completedTargets.map((item) => item.id));"),
+            refresh.index("if (h3StateIsActive(result.project))"),
         )
         self.assertIn("function h3RetryableSegmentsForScript(script)", page)
         self.assertIn("retryH3FailedSegmentsForRow(script)", page)
@@ -651,7 +682,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/composition/status", workspace)
         self.assertIn("const canBackfillSeedvr2 = false", workspace)
         self.assertIn("data-preview-video-url", workspace)
-        self.assertIn("/base-video", workspace)
+        self.assertIn("/preview-video", workspace)
         self.assertIn("以剪映草稿为准", workspace)
         self.assertIn("生成完整成片", workspace)
         self.assertIn("/postprocess/generate", workspace)
@@ -659,7 +690,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("startGlobalPostprocess()", workspace)
         self.assertIn("/h3/overrides", workspace)
         self.assertIn("高级覆盖（可选）", workspace)
-        self.assertIn("completedTargets.map(item => item.id)", workspace)
+        self.assertIn("completedTargets.map((item) => item.id)", workspace)
         final_flow = workspace[
             workspace.index("async function startGlobalFinalVideoGeneration()") :
             workspace.index("async function retryFailedCompositionItems()")
@@ -860,8 +891,8 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("compositionStatusRequestProjectId === activeProject?.project_id", workspace)
         self.assertNotIn("if (ltxMode && ltxActive)", workspace)
         self.assertNotIn("else if (ltxMode && isGeneratingLtx)", workspace)
-        self.assertIn("if (h3Mode && h3Active)", workspace)
-        self.assertIn("else if (h3Mode && isGeneratingH3)", workspace)
+        self.assertIn("if (h3Mode && isGeneratingH3)", workspace)
+        self.assertIn("else if (h3Mode && h3Active)", workspace)
 
     def test_module_6_uses_real_variant_api_and_inherited_ai_cover(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
