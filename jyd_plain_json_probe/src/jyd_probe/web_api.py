@@ -112,6 +112,7 @@ from .user_auth import UserAuth
 
 
 PROJECT_ROOT = project_root()
+workbench_logger = logging.getLogger(__name__)
 render_logger = logging.getLogger("jyd_probe.render")
 LIBRARIES_ROOT = libraries_root()
 FRONTEND_ROOT = resource_path("apps", "processor", "frontend")
@@ -155,6 +156,9 @@ SEMANTIC_VISUAL_LIBRARY_ROOT = Path(
         LIBRARIES_ROOT / "semantic_visual_library",
     )
 ).expanduser().resolve()
+NEW_WORKBENCH_H3_ONLY_DETAIL = (
+    "新版工作台只支持多参考生成，普通数字人和视频对口型入口已停用"
+)
 
 
 @dataclass(frozen=True)
@@ -202,6 +206,7 @@ class WebApiSettings:
     asr_timeout_seconds: int = 1800
     asr_shared_token: str = ""
     asr_required: bool = False
+    enable_legacy_new_workbench_video_engines: bool = False
 
 
 class RenderJobQueue:
@@ -1718,6 +1723,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         settings.auth_server_url, timeout_seconds=settings.auth_timeout_seconds
     )
     auth_handoffs = AuthHandoffStore(lifetime_seconds=60)
+    template_import_tickets = AuthHandoffStore(lifetime_seconds=600)
     if admin_auth.generated_password:
         print(
             f"[JYD ADMIN] 初始管理员账号: {admin_auth.username}，"
@@ -1767,14 +1773,24 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             f"本地刷新异常 {visual_refresh['failed']} 条",
             flush=True,
         )
-    recovered_composition_starts = (
-        project_store.recover_interrupted_composition_starts()
-    )
-    if recovered_composition_starts:
-        print(
-            f"[JYD] 已恢复 {recovered_composition_starts} 条中断的 4A 启动操作",
-            flush=True,
+    if settings.enable_legacy_new_workbench_video_engines:
+        recovered_composition_starts = (
+            project_store.recover_interrupted_composition_starts()
         )
+        if recovered_composition_starts:
+            print(
+                f"[JYD] 已恢复 {recovered_composition_starts} 条中断的旧 4A 启动操作",
+                flush=True,
+            )
+    else:
+        retired_composition_starts = (
+            project_store.retire_unstarted_legacy_composition_operations()
+        )
+        if retired_composition_starts:
+            print(
+                f"[JYD] 已停止 {retired_composition_starts} 条未进入云端的旧 4A 启动操作",
+                flush=True,
+            )
     composition_coordinator = (
         ProjectCompositionCoordinator(
             project_store,
@@ -1806,6 +1822,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.site_auth = site_auth
     app.state.auth_center = auth_center
     app.state.auth_handoffs = auth_handoffs
+    app.state.template_import_tickets = template_import_tickets
     app.state.agent_token = agent_token
     app.state.project_store = project_store
     app.state.ltx_workbench_client = ltx_workbench_client
@@ -1898,6 +1915,19 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 if verify_site_token(site_token) is not None:
                     return await call_next(request)
             except AuthCenterError as exc:
+                log_event(
+                    workbench_logger,
+                    "auth_center.middleware_verify_failed",
+                    "请求在进入工作台接口前无法完成数字人网站登录校验",
+                    level=logging.ERROR,
+                    component="workbench",
+                    request_method=request.method,
+                    request_path=path,
+                    error_code=exc.error_code,
+                    http_status=exc.status_code,
+                    retryable=exc.retryable,
+                    error_summary=str(exc).strip()[:500],
+                )
                 if path.startswith("/api/"):
                     return JSONResponse({"detail": str(exc)}, status_code=503)
                 login_path = "/app/new/login" if path.startswith("/app/new") else "/login"
@@ -1905,6 +1935,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     f"{login_path}?next={quote(path, safe='/')}&center=offline", status_code=303
                 )
         collector_token = request.headers.get("x-jyd-access-token", "")
+        if path.startswith("/api/new/jianying-template-imports/"):
+            return await call_next(request)
         if (
             path in {"/api/draft-imports", "/api/personal-assets/import"}
             and collector_token
@@ -1985,6 +2017,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     @app.get("/app/new/voices")
     def new_voice_frontend() -> FileResponse:
         return new_frontend_file("voice-library.html")
+
+    @app.get("/app/new/templates")
+    def new_template_frontend() -> FileResponse:
+        return new_frontend_file("templates.html")
 
     @app.get("/app/new/login")
     def new_login_frontend(request: Request):
@@ -2082,6 +2118,19 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         try:
             user = verify_site_token(token)
         except AuthCenterError as exc:
+            log_event(
+                workbench_logger,
+                "auth_center.project_user_verify_failed",
+                "项目接口内部无法完成数字人网站登录校验",
+                level=logging.ERROR,
+                component="workbench",
+                request_method=request.method,
+                request_path=request.url.path,
+                error_code=exc.error_code,
+                http_status=exc.status_code,
+                retryable=exc.retryable,
+                error_summary=str(exc).strip()[:500],
+            )
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         if not isinstance(user, dict):
             raise HTTPException(status_code=401, detail="请先使用数字人账号登录")
@@ -2094,10 +2143,132 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "is_admin": user.get("is_admin") is True,
         }
 
+    @app.post("/api/new/jianying-template-import-tickets", status_code=201)
+    def issue_jianying_template_import_ticket(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            name = user_template_store.validate_new_name(
+                user["user_id"], str(payload.get("name") or "")
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        ticket = template_import_tickets.issue(
+            json.dumps(
+                {
+                    "schema": "jyd.template-import-ticket.v1",
+                    "user_id": user["user_id"],
+                    "name": name,
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+        )
+        return {
+            "ticket": ticket,
+            "expires_in_seconds": template_import_tickets.lifetime_seconds,
+            "upload_path": f"/api/new/jianying-template-imports/{ticket}",
+        }
+
+    @app.post("/api/new/jianying-template-imports/{ticket}", status_code=201)
+    async def import_account_jianying_template(
+        ticket: str, request: Request
+    ) -> dict[str, Any]:
+        ticket_payload = template_import_tickets.consume(ticket)
+        if ticket_payload is None:
+            raise HTTPException(status_code=401, detail="模板上传凭证无效、已使用或已过期")
+        try:
+            import_claim = json.loads(ticket_payload)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=401, detail="模板上传凭证格式错误") from exc
+        if (
+            not isinstance(import_claim, dict)
+            or import_claim.get("schema") != "jyd.template-import-ticket.v1"
+            or not str(import_claim.get("user_id") or "").strip()
+        ):
+            raise HTTPException(status_code=401, detail="模板上传凭证格式错误")
+
+        incoming_root = settings.storage_root / "template_imports" / "incoming"
+        incoming_root.mkdir(parents=True, exist_ok=True)
+        package_path = incoming_root / f"{uuid.uuid4().hex}.zip"
+        digest = hashlib.sha256()
+        size = 0
+        declared_size = request.headers.get("content-length", "").strip()
+        if declared_size:
+            try:
+                if int(declared_size) > settings.max_draft_import_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            "模板迁移包超过限制 "
+                            f"{_format_bytes(settings.max_draft_import_bytes)}"
+                        ),
+                    )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail="Content-Length 不合法") from exc
+        try:
+            with package_path.open("wb") as stream:
+                async for chunk in request.stream():
+                    if not chunk:
+                        continue
+                    size += len(chunk)
+                    if size > settings.max_draft_import_bytes:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=(
+                                "模板迁移包超过限制 "
+                                f"{_format_bytes(settings.max_draft_import_bytes)}"
+                            ),
+                        )
+                    digest.update(chunk)
+                    stream.write(chunk)
+            if size <= 0:
+                raise ValueError("上传的模板迁移包为空")
+            expected_checksum = request.headers.get("x-package-sha256", "").strip().lower()
+            actual_checksum = digest.hexdigest()
+            if expected_checksum and expected_checksum != actual_checksum:
+                raise ValueError("模板迁移包校验失败，请重新上传")
+            template = user_template_store.import_transfer_package(
+                str(import_claim["user_id"]),
+                str(import_claim.get("name") or ""),
+                package_path,
+            )
+            return {
+                "status": "completed",
+                "template": template,
+                "upload_size_bytes": size,
+                "package_checksum_sha256": actual_checksum,
+                "website_url": "/app/new/templates",
+            }
+        except HTTPException:
+            raise
+        except (
+            FileNotFoundError,
+            OSError,
+            RuntimeError,
+            ValueError,
+            zipfile.BadZipFile,
+        ) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        finally:
+            _unlink_if_exists(package_path)
+
     @app.get("/api/new/jianying-templates")
     def list_jianying_templates(request: Request) -> dict[str, Any]:
         user = current_project_user(request)
         return {"templates": user_template_store.list(user["user_id"])}
+
+    @app.get("/api/new/jianying-templates/{template_id}/cover")
+    def get_jianying_template_cover(template_id: str, request: Request) -> FileResponse:
+        user = current_project_user(request)
+        try:
+            cover = user_template_store.cover_path(user["user_id"], template_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if cover is None:
+            raise HTTPException(status_code=404, detail="剪映模板没有封面")
+        return FileResponse(cover)
 
     @app.post("/api/new/jianying-templates", status_code=201)
     def create_jianying_template(
@@ -2749,6 +2920,17 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     def digital_human_access(request: Request) -> tuple[AuthCenterClient, str]:
         if settings.auth_authority or auth_center is None:
+            log_event(
+                workbench_logger,
+                "auth_center.not_configured",
+                "工作台内容分析入口没有可用的数字人网站客户端",
+                level=logging.ERROR,
+                component="workbench",
+                request_method=request.method,
+                request_path=request.url.path,
+                auth_authority=bool(settings.auth_authority),
+                auth_center_configured=auth_center is not None,
+            )
             raise HTTPException(status_code=503, detail="工作台尚未连接数字人网站")
         token = request.cookies.get(settings.site_cookie_name, "").strip()
         if not token:
@@ -3158,9 +3340,15 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        mode = str(payload.get("mode") or "").strip()
+        if (
+            mode != "minimax_h3_ref2va"
+            and not settings.enable_legacy_new_workbench_video_engines
+        ):
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         try:
             return project_store.set_generation_mode(
-                user["user_id"], project_id, str(payload.get("mode") or "")
+                user["user_id"], project_id, mode
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -3192,6 +3380,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         filename: str = "",
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         _, token = digital_human_access(request)
         safe_name = _safe_filename(
             filename or request.headers.get("x-filename") or "source.mp4"
@@ -3249,6 +3439,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         _, token = digital_human_access(request)
         item_ids = payload.get("item_ids")
         if item_ids is not None and not isinstance(item_ids, list):
@@ -3271,6 +3463,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         project_id: str, request: Request
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         _, token = digital_human_access(request)
         try:
             return project_ltx_coordinator().refresh(
@@ -3291,6 +3485,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         del payload
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         _, token = digital_human_access(request)
         try:
             return project_ltx_coordinator().retry(
@@ -4188,6 +4384,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         client, token = digital_human_access(request)
         if payload.get("cost_confirmed") is not True:
             raise HTTPException(
@@ -4279,10 +4477,6 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         client, token = digital_human_access(request)
         try:
             coordinator = project_composition_coordinator(client)
-            if composition_start_dispatcher is not None:
-                composition_start_dispatcher.submit(
-                    user["user_id"], project_id, token
-                )
             return coordinator.sync(
                 user["user_id"], project_id, token
             )
@@ -4303,6 +4497,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         client, token = digital_human_access(request)
         if payload.get("cost_confirmed") is not True:
             raise HTTPException(
@@ -4336,6 +4532,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         payload: dict[str, Any] = Body(...),
     ) -> dict[str, Any]:
         user = current_project_user(request)
+        if not settings.enable_legacy_new_workbench_video_engines:
+            raise HTTPException(status_code=409, detail=NEW_WORKBENCH_H3_ONLY_DETAIL)
         client, token = digital_human_access(request)
         if payload.get("cost_confirmed") is not True:
             raise HTTPException(

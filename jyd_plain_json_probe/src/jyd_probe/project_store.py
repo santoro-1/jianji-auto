@@ -4271,8 +4271,69 @@ class ProjectStore:
         )
         return operation
 
+    def retire_unstarted_legacy_composition_operations(self) -> int:
+        """Fail local 4A starts that never reached a running cloud handoff.
+
+        The current workbench is H3-only.  PENDING/STARTING operations have not
+        entered a paid remote stage yet, so they are safe to retire at startup.
+        RUNNING operations are deliberately left untouched so historical paid
+        jobs can still be reconciled through the read-only status endpoint.
+        """
+
+        now = _now()
+        error_code = "NEW_WORKBENCH_H3_ONLY"
+        error_message = "新版工作台只支持多参考生成；普通数字人启动操作已停止"
+        with self._transaction() as connection:
+            rows = connection.execute(
+                """
+                SELECT operation_id, project_id, item_id
+                FROM project_operations
+                WHERE operation_type='COMPOSITION_GENERATE'
+                  AND status IN ('PENDING', 'STARTING')
+                """
+            ).fetchall()
+            if not rows:
+                return 0
+            operation_ids = [str(row["operation_id"]) for row in rows]
+            connection.executemany(
+                """
+                UPDATE project_operations
+                SET status='FAILED', error_code=?, error_message=?,
+                    updated_at=?, finished_at=?
+                WHERE operation_id=?
+                """,
+                [
+                    (error_code, error_message, now, now, operation_id)
+                    for operation_id in operation_ids
+                ],
+            )
+            item_ids = {
+                str(row["item_id"])
+                for row in rows
+                if row["item_id"] is not None
+            }
+            for item_id in item_ids:
+                connection.execute(
+                    """
+                    UPDATE project_items
+                    SET status=CASE
+                            WHEN current_base_video_asset_id IS NOT NULL
+                                THEN 'BASE_VIDEO_READY'
+                            WHEN current_audio_asset_id IS NOT NULL
+                                THEN 'AUDIO_READY'
+                            ELSE 'DRAFT'
+                        END,
+                        updated_at=?
+                    WHERE item_id=? AND status='COMPOSITION_QUEUED'
+                    """,
+                    (now, item_id),
+                )
+            for project_id in {str(row["project_id"]) for row in rows}:
+                self._refresh_project_status(connection, project_id, now=now)
+            return len(operation_ids)
+
     def recover_interrupted_composition_starts(self) -> int:
-        """Return process-local 4A handoffs to the durable pending queue."""
+        """Restore STARTING 4A operations for explicitly enabled legacy mode."""
 
         now = _now()
         with self._transaction() as connection:

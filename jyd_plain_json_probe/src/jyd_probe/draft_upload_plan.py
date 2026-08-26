@@ -20,10 +20,22 @@ DEPENDENCY_POLICY_GROUPS = {
 def build_draft_upload_plan(
     report: dict[str, Any],
     policies: dict[str, str] | None = None,
+    *,
+    mode: str = "default",
 ) -> dict[str, Any]:
     """Decide which external dependencies remain necessary after replacements."""
 
+    normalized_mode = str(mode or "default").strip().lower()
+    if normalized_mode not in {"default", "template_center"}:
+        raise ValueError(f"不支持的上传清单模式: {mode}")
     normalized_policies = _normalize_policies(policies or {})
+    draft = report.get("draft", {})
+    primary_video = draft.get("main_video", {}) if isinstance(draft, dict) else {}
+    primary_video_material_id = (
+        str(primary_video.get("material_id") or "")
+        if isinstance(primary_video, dict)
+        else ""
+    )
     decisions: list[dict[str, Any]] = []
     for dependency in report.get("dependencies", []):
         if not isinstance(dependency, dict):
@@ -31,9 +43,40 @@ def build_draft_upload_plan(
         item = dict(dependency)
         kind = str(item.get("kind", "resource"))
         group = DEPENDENCY_POLICY_GROUPS.get(kind, "fixed_content")
-        can_skip = bool(item.get("can_skip_if_replaced")) and group != "fixed_content"
-        policy = normalized_policies.get(group, "keep") if can_skip else "keep"
-        decision, reason = _dependency_decision(str(item.get("status", "external")), policy)
+        referenced_material_ids = {
+            str(reference.get("material_id") or "")
+            for reference in item.get("references", [])
+            if isinstance(reference, dict)
+        }
+        is_primary_video = bool(
+            kind == "video"
+            and primary_video_material_id
+            and primary_video_material_id in referenced_material_ids
+        )
+        if normalized_mode == "template_center" and kind in {"audio", "sound_effect"}:
+            policy = "replace"
+            decision, reason = (
+                "skip_replaced",
+                "模板中心会按项目重新生成语音和 BGM，旧音频不上传",
+            )
+        elif normalized_mode == "template_center" and is_primary_video:
+            policy = "replace"
+            decision, reason = (
+                "skip_replaced",
+                "模板中心只保留主视频占位结构，原主视频文件不上传",
+            )
+        elif normalized_mode == "template_center" and item.get("status") == "central_library":
+            policy = "keep"
+            decision, reason = (
+                "upload",
+                "账号模板保存独立资源副本，避免依赖另一台机器的素材库路径",
+            )
+        else:
+            can_skip = bool(item.get("can_skip_if_replaced")) and group != "fixed_content"
+            policy = normalized_policies.get(group, "keep") if can_skip else "keep"
+            decision, reason = _dependency_decision(
+                str(item.get("status", "external")), policy
+            )
         item.update(
             {
                 "policy_group": group,
@@ -58,6 +101,7 @@ def build_draft_upload_plan(
     ]
     return {
         "schema": DRAFT_UPLOAD_PLAN_SCHEMA,
+        "mode": normalized_mode,
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "report_id": str(report.get("report_id", "")),
         "draft": report.get("draft", {}),

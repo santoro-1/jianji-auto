@@ -99,6 +99,7 @@ def analyze_draft_import(
             "source_draft_dir": str(source_dir),
             "analyzed_draft_dir": str(analyzed_dir),
             "was_decrypted": bool(was_decrypted),
+            "main_video": _detect_primary_video(data),
             "duration_us": int(data.get("duration", 0) or 0),
             "track_count": len(tracks),
             "nested_draft_count": max(0, len(contexts) - 1),
@@ -125,6 +126,45 @@ def analyze_draft_import(
         },
         "warnings": warnings,
     }
+
+
+def _detect_primary_video(data: dict[str, Any]) -> dict[str, Any] | None:
+    """Identify the top-level video slot that normal template renders replace."""
+
+    candidates: list[dict[str, Any]] = []
+    typed_track_index = 0
+    tracks = data.get("tracks", [])
+    if not isinstance(tracks, list):
+        return None
+    for raw_track_index, track in enumerate(tracks):
+        if not isinstance(track, dict) or track.get("type") != "video":
+            continue
+        segments = track.get("segments", [])
+        if not isinstance(segments, list):
+            segments = []
+        for segment_index, segment in enumerate(segments):
+            if not isinstance(segment, dict):
+                continue
+            timerange = _timerange(segment.get("target_timerange"))
+            candidates.append(
+                {
+                    "track_id": str(track.get("id") or ""),
+                    "raw_track_index": raw_track_index,
+                    "typed_track_index": typed_track_index,
+                    "segment_index": segment_index,
+                    "segment_id": str(segment.get("id") or ""),
+                    "material_id": str(segment.get("material_id") or ""),
+                    "start_us": timerange["start"],
+                    "duration_us": timerange["duration"],
+                }
+            )
+        typed_track_index += 1
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda item: (item["start_us"] == 0, item["duration_us"]),
+    )
 
 
 def _draft_contexts(
@@ -597,6 +637,7 @@ def _match_central_library(
             "kind": kind,
             "identity": "",
             "name": resolved.name,
+            "library_root": str(root.resolve()),
         }
 
     preferred_kinds = _central_kinds_for_dependency(kind)
@@ -620,6 +661,7 @@ def _central_match_payload(record: dict[str, Any], match_type: str) -> dict[str,
         "name": record.get("name", ""),
         "metadata_file": record.get("metadata_file", ""),
         "library_file": record.get("library_file", ""),
+        "library_root": record.get("library_root", ""),
         "checksum_sha256": record.get("checksum_sha256", ""),
     }
 

@@ -143,8 +143,42 @@ class AuthCenterTest(unittest.TestCase):
         submitted = json.loads(request.data.decode("utf-8"))
         self.assertEqual(submitted["original_script"], "  原文\n不能 trim  ")
         self.assertTrue(submitted["force_refresh"])
-        self.assertEqual(request_mock.call_args.kwargs["timeout"], 360.0)
+        self.assertEqual(request_mock.call_args.kwargs["timeout"], 900.0)
         self.assertEqual(result, payload)
+
+    def test_content_analysis_diagnostics_classify_transport_without_secrets(self) -> None:
+        script = "不得写入日志的完整脚本"
+        token = "center-token-must-not-appear"
+        with self.assertLogs("jyd_probe.auth_center", level="INFO") as captured:
+            with patch(
+                "jyd_probe.auth_center.urlopen", side_effect=URLError("dns offline")
+            ):
+                with self.assertRaises(AuthCenterError):
+                    AuthCenterClient(
+                        "https://video.example"
+                    ).analyze_workbench_content(token, script)
+
+        logs = "\n".join(captured.output)
+        self.assertIn("content_analysis.remote_request_started", logs)
+        self.assertIn("content_analysis.remote_request_failed", logs)
+        self.assertIn('"target_host":"video.example"', logs)
+        self.assertIn('"transport_exception":"URLError"', logs)
+        self.assertIn('"transport_summary":"dns offline"', logs)
+        self.assertNotIn(script, logs)
+        self.assertNotIn(token, logs)
+
+    def test_session_verify_failure_is_logged_as_a_separate_stage(self) -> None:
+        with self.assertLogs("jyd_probe.auth_center", level="ERROR") as captured:
+            with patch(
+                "jyd_probe.auth_center.urlopen", side_effect=URLError("tls failed")
+            ):
+                with self.assertRaises(AuthCenterError):
+                    AuthCenterClient("https://video.example").verify("center-token")
+
+        logs = "\n".join(captured.output)
+        self.assertIn("auth_center.session_verify_failed", logs)
+        self.assertIn('"endpoint":"/api/auth/center/verify"', logs)
+        self.assertNotIn("center-token", logs)
 
     def test_content_analysis_forwards_compact_visual_context_in_same_request(self) -> None:
         visual_context = {

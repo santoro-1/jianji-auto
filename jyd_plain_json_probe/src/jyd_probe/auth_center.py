@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import logging
 import mimetypes
 import secrets
 import threading
@@ -10,6 +12,25 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
+
+from .logging_config import log_event
+
+
+WORKBENCH_ANALYSIS_TIMEOUT_SECONDS = 900.0
+analysis_logger = logging.getLogger(__name__)
+
+
+def _safe_connection_cause(error: BaseException) -> dict[str, object]:
+    cause = error.__cause__
+    if cause is None:
+        return {}
+    nested = cause.reason if isinstance(cause, URLError) else cause
+    return {
+        "transport_exception": type(cause).__name__,
+        "transport_cause": type(nested).__name__,
+        "transport_errno": getattr(nested, "errno", None),
+        "transport_summary": str(nested).strip()[:300] or None,
+    }
 
 
 class AuthCenterError(RuntimeError):
@@ -169,9 +190,32 @@ class AuthCenterClient:
     def verify(self, token: str) -> dict[str, Any] | None:
         if not token:
             return None
+        started_at = time.monotonic()
         try:
             data = self._post("/api/auth/center/verify", {"access_token": token})
         except AuthCenterError as exc:
+            parsed = urlsplit(self.base_url)
+            try:
+                target_port = parsed.port
+            except ValueError:
+                target_port = None
+            log_event(
+                analysis_logger,
+                "auth_center.session_verify_failed",
+                "数字人网站登录状态校验失败",
+                level=logging.WARNING if exc.status_code == 401 else logging.ERROR,
+                component="workbench",
+                endpoint="/api/auth/center/verify",
+                target_scheme=parsed.scheme,
+                target_host=parsed.hostname,
+                target_port=target_port,
+                elapsed_ms=round((time.monotonic() - started_at) * 1000),
+                error_code=exc.error_code,
+                http_status=exc.status_code,
+                retryable=exc.retryable,
+                error_summary=str(exc).strip()[:500],
+                **_safe_connection_cause(exc),
+            )
             if exc.status_code == 401:
                 return None
             raise
@@ -227,6 +271,33 @@ class AuthCenterClient:
         force_refresh: bool = False,
         visual_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        trace_id = secrets.token_hex(8)
+        script_sha256 = hashlib.sha256(original_script.encode("utf-8")).hexdigest()
+        parsed = urlsplit(self.base_url)
+        try:
+            target_port = parsed.port
+        except ValueError:
+            target_port = None
+        started_at = time.monotonic()
+        diagnostic_context = {
+            "trace_id": trace_id,
+            "target_scheme": parsed.scheme,
+            "target_host": parsed.hostname,
+            "target_port": target_port,
+            "endpoint": "/api/workbench/content-analysis",
+            "timeout_seconds": WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            "script_sha256": script_sha256,
+            "script_length": len(original_script),
+            "force_refresh": bool(force_refresh),
+            "has_visual_context": visual_context is not None,
+        }
+        log_event(
+            analysis_logger,
+            "content_analysis.remote_request_started",
+            "开始请求数字人网站统一内容分析",
+            component="workbench",
+            **diagnostic_context,
+        )
         payload: dict[str, Any] = {
             "access_token": token,
             "original_script": original_script,
@@ -234,11 +305,41 @@ class AuthCenterClient:
         }
         if visual_context is not None:
             payload["visual_context"] = visual_context
-        return self._post(
-            "/api/workbench/content-analysis",
-            payload,
-            timeout_seconds=360.0,
+        try:
+            result = self._post(
+                "/api/workbench/content-analysis",
+                payload,
+                timeout_seconds=WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            )
+        except AuthCenterError as exc:
+            log_event(
+                analysis_logger,
+                "content_analysis.remote_request_failed",
+                "数字人网站统一内容分析请求失败",
+                level=logging.ERROR,
+                component="workbench",
+                elapsed_ms=round((time.monotonic() - started_at) * 1000),
+                error_code=exc.error_code,
+                http_status=exc.status_code,
+                retryable=exc.retryable,
+                error_summary=str(exc).strip()[:500],
+                **diagnostic_context,
+                **_safe_connection_cause(exc),
+            )
+            raise
+        log_event(
+            analysis_logger,
+            "content_analysis.remote_response_received",
+            "已收到数字人网站统一内容分析响应",
+            component="workbench",
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+            response_status=result.get("overall_status"),
+            provider_request_id=result.get("provider_request_id"),
+            provider_attempts=result.get("provider_attempts"),
+            cache_hit=result.get("cache_hit") is True,
+            **diagnostic_context,
         )
+        return result
 
     def analyze_workbench_visuals(
         self,
@@ -254,7 +355,7 @@ class AuthCenterClient:
                 **payload,
                 "force_refresh": force_refresh,
             },
-            timeout_seconds=360.0,
+            timeout_seconds=WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
         )
 
     def start_workbench_composition(

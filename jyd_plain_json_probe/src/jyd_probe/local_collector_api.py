@@ -197,6 +197,7 @@ def create_local_collector_app(
             return service.create_upload_plan(
                 str(payload.get("report_id", "")),
                 {str(key): str(value) for key, value in policies.items()},
+                mode=str(payload.get("mode", "default")),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -220,6 +221,7 @@ def create_local_collector_app(
                 template_name=str(payload.get("template_name", "")),
                 template_lifecycle=str(payload.get("template_lifecycle", "")),
                 server_url=str(payload.get("server_url", "")),
+                template_import_ticket=str(payload.get("template_import_ticket", "")),
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

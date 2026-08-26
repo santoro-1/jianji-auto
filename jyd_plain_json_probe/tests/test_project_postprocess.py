@@ -726,6 +726,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
             items=[
                 {"row_key": "1", "script_text": "甲"},
                 {"row_key": "2", "script_text": "乙"},
+                {"row_key": "3", "script_text": "丙"},
             ],
         )
         for item in project["items"]:
@@ -786,6 +787,11 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                     raise CaptionAlignmentError(
                         "ASR_TIMESTAMPS_MISSING", "FunASR 没有返回字词时间戳"
                     )
+                if self.calls == 2:
+                    raise CaptionAlignmentError(
+                        "ASR_SCRIPT_MATCH_TOO_LOW",
+                        "FunASR 与原脚本精确命中率仅 82.0%，拒绝生成精确字幕",
+                    )
                 return build_alignment(
                     script,
                     raw_cues,
@@ -808,7 +814,10 @@ class ProjectPostprocessApiTest(unittest.TestCase):
 
             def submit_batch(self, jobs, _variants):
                 self.jobs.extend(jobs)
-                return {"batch_id": "batch-1", "job_ids": ["job-1"]}
+                return {
+                    "batch_id": "batch-1",
+                    "job_ids": [f"job-{index}" for index, _job in enumerate(jobs, 1)],
+                }
 
             def get_status(self, _job_id):
                 return {"job_id": "job-1", "status": "running"}
@@ -846,7 +855,7 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 [{"text": "乙", "start_us": 100_000, "duration_us": 800_000}],
                 {"status": "SUCCESS", "timing_source": "funasr_word_timestamps"},
             ),
-        ), patch.object(
+        ) as derive_cues, patch.object(
             coordinator,
             "_build_draft_job",
             return_value={"output": {"skip_export": True}},
@@ -866,12 +875,26 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 ],
             )
 
-        self.assertEqual(aligner.calls, 2)
-        self.assertEqual(len(queue.jobs), 1)
+        self.assertEqual(aligner.calls, 3)
+        self.assertEqual(len(queue.jobs), 2)
         rows = {item["row_key"]: item for item in result["items"]}
         self.assertEqual(rows["1"]["subtitles"]["status"], "REVIEW_REQUIRED")
         self.assertEqual(rows["2"]["subtitles"]["status"], "PREVIEW_READY")
         self.assertEqual(rows["2"]["status"], "POSTPROCESS_RUNNING")
+        self.assertIn(
+            "已改用 MiniMax 原始时间轴",
+            rows["2"]["subtitles"]["review_reason"],
+        )
+        self.assertEqual(
+            rows["2"]["subtitles"]["asr_alignment"]["reason_code"],
+            "ASR_SCRIPT_MATCH_TOO_LOW",
+        )
+        self.assertEqual(rows["3"]["subtitles"]["status"], "PREVIEW_READY")
+        fallback_call, precise_call = derive_cues.call_args_list
+        self.assertIsNone(fallback_call.kwargs["asr_alignment"])
+        self.assertFalse(fallback_call.kwargs["require_precise_alignment"])
+        self.assertIsNotNone(precise_call.kwargs["asr_alignment"])
+        self.assertTrue(precise_call.kwargs["require_precise_alignment"])
 
     def test_4b_uses_real_font_width_one_line_position_and_bgm(self) -> None:
         user = {"user_id": "postprocess-user", "username": "tester", "enabled": True}

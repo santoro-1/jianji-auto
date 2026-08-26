@@ -50,9 +50,50 @@
         return files;
     }
 
+    function relativeBrowserPath(file) {
+        const raw = String(file.webkitRelativePath || file.name || '').replaceAll('\\', '/');
+        const parts = raw.split('/').filter(Boolean);
+        return parts.length > 1 ? parts.slice(1).join('/') : (parts[0] || file.name || 'file');
+    }
+
+    function selectLegacyDirectory() {
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.setAttribute('webkitdirectory', '');
+            input.style.display = 'none';
+            const finish = () => {
+                const files = Array.from(input.files || []).map((file) => ({
+                    path: relativeBrowserPath(file), file
+                }));
+                input.remove();
+                resolve(files);
+            };
+            input.addEventListener('change', finish, { once: true });
+            input.addEventListener('cancel', finish, { once: true });
+            document.body.appendChild(input);
+            input.click();
+        });
+    }
+
+    async function browserDraftFiles() {
+        if (window.isSecureContext && typeof window.showDirectoryPicker === 'function') {
+            return selectedDraftFiles(await window.showDirectoryPicker({ mode: 'read' }));
+        }
+        const selected = await selectLegacyDirectory();
+        const files = selected.filter((entry) => (
+            !entry.path.includes('/') && DRAFT_FILES.has(entry.path.toLowerCase())
+        ));
+        if (!files.some((entry) => entry.path.toLowerCase() === 'draft_content.json')) {
+            throw new Error('所选目录没有 draft_content.json，请选择具体的剪映草稿文件夹。');
+        }
+        return files;
+    }
+
     async function resourceFiles(handle, prefix = '', output = []) {
         for await (const [name, child] of handle.entries()) {
-            if (output.length >= 500) throw new Error('单个花字资源超过 500 个文件，已停止读取。');
+            if (output.length >= 500) throw new Error('单个模板资源超过 500 个文件，已停止读取。');
             const path = prefix ? `${prefix}/${name}` : name;
             if (child.kind === 'directory') await resourceFiles(child, path, output);
             else {
@@ -74,10 +115,22 @@
         }
     }
 
+    const RESOURCE_KIND_LABELS = {
+        font: '字体资源', text_effect: '花字资源', text_template_resource: '文字模板资源',
+        sticker: '贴纸资源', video_effect: '特效资源', image: '图片资源'
+    };
+    function missingResourceLabel(template) {
+        const missing = template.missing_resources || [];
+        const labels = new Set(missing.map((item) => RESOURCE_KIND_LABELS[item.kind] || '关联资源'));
+        return labels.size === 1
+            ? `缺少 ${missing.length} 个${Array.from(labels)[0]}`
+            : `缺少 ${missing.length} 个模板资源`;
+    }
+
     function status(template) {
         if (template.status === 'READY') return '<span class="text-emerald-300">可使用</span>';
         if (template.status === 'NEEDS_RESOURCES') {
-            return `<span class="text-amber-300">缺少 ${template.missing_resources?.length || 0} 个花字资源</span>`;
+            return `<span class="text-amber-300">${html(missingResourceLabel(template))}</span>`;
         }
         return '<span class="text-gray-400">尚未完成</span>';
     }
@@ -115,6 +168,12 @@
     async function load() {
         state.templates = (await api('/api/new/jianying-templates')).templates || [];
         state.selectedId = String(context().getProject()?.settings?.jianying_template?.template_id || '');
+        const pendingId = String(localStorage.getItem('jyd-pending-template-id') || '');
+        if (pendingId && state.templates.some((item) => item.template_id === pendingId && item.status === 'READY')) {
+            state.selectedId = pendingId;
+            progress('已从模板中心带入选择，点击“应用到当前项目”完成保存。');
+        }
+        if (pendingId) localStorage.removeItem('jyd-pending-template-id');
         render();
     }
 
@@ -130,13 +189,10 @@
         if (state.busy) return;
         const name = node('jianying-template-name').value.trim();
         if (!name) { progress('请先填写模板名称。', true); return; }
-        if (!window.showDirectoryPicker) {
-            progress('请通过 HTTPS 使用最新版 Chrome 或 Edge，以便选择草稿目录。', true); return;
-        }
         let created = null;
         try {
-            const handle = await window.showDirectoryPicker({ mode: 'read' });
-            const files = await selectedDraftFiles(handle);
+            const files = await browserDraftFiles();
+            if (!files.length) return;
             setBusy(true);
             created = await api('/api/new/jianying-templates', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name })
@@ -164,24 +220,35 @@
     }
 
     async function repair(templateId) {
-        if (!window.showDirectoryPicker) throw new Error('资源修复需要通过 HTTPS 使用最新版 Chrome 或 Edge。');
         const template = state.templates.find((item) => item.template_id === templateId);
-        const cacheRoot = await window.showDirectoryPicker({ mode: 'read' });
+        const cacheRoot = window.isSecureContext && typeof window.showDirectoryPicker === 'function'
+            ? await window.showDirectoryPicker({ mode: 'read' })
+            : null;
         setBusy(true);
         try {
             for (const missing of template?.missing_resources || []) {
-                let resource = null;
-                for (const candidate of missing.candidate_cache_paths || []) {
-                    try { resource = await directoryAt(cacheRoot, candidate); break; } catch (_) {}
+                let files = [];
+                if (cacheRoot) {
+                    let resource = null;
+                    for (const candidate of missing.candidate_cache_paths || []) {
+                        try { resource = await directoryAt(cacheRoot, candidate); break; } catch (_) {}
+                    }
+                    if (!resource) throw new Error('在所选目录中没有找到指定资源。请选择剪映 User Data\\Cache 目录，或先在剪映中使用一次该资源。');
+                    files = await resourceFiles(resource);
+                } else {
+                    const expected = missing.candidate_cache_paths?.[0] || '提示的模板资源目录';
+                    progress(`局域网模式：请选择 ${expected}`);
+                    files = (await selectLegacyDirectory()).filter((entry) => {
+                        const extension = entry.path.includes('.') ? entry.path.split('.').pop().toLowerCase() : 'dat';
+                        return RESOURCE_EXTENSIONS.has(extension);
+                    }).slice(0, 500);
                 }
-                if (!resource) throw new Error('在所选目录中没有找到指定资源。请选择剪映 User Data\\Cache 目录，或先在剪映中使用一次该花字。');
-                const files = await resourceFiles(resource);
-                if (!files.length) throw new Error('指定花字资源目录中没有可上传的素材文件。');
+                if (!files.length) throw new Error('指定模板资源目录中没有可上传的素材文件。');
                 await uploadFiles(templateId, 'resource-files', files, { resource_key: missing.resource_key });
             }
             const result = await api(`/api/new/jianying-templates/${templateId}/resources/complete`, { method: 'POST' });
             await load();
-            progress(result.status === 'READY' ? '花字资源已补齐，模板可以使用。' : '仍有资源未找到，请检查缓存目录。', result.status !== 'READY');
+            progress(result.status === 'READY' ? '模板资源已补齐，模板可以使用。' : '仍有资源未找到，请检查缓存目录。', result.status !== 'READY');
         } finally { setBusy(false); }
     }
 

@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import quote, urlencode, urlsplit
 import uuid
 import zipfile
 
@@ -507,7 +507,7 @@ class LocalCollectorService:
             connection.putheader("Content-Type", "application/zip")
             connection.putheader("Content-Length", str(package_path.stat().st_size))
             connection.putheader("X-Package-SHA256", checksum)
-            if access_token.strip():
+            if access_token.strip() and not import_ticket:
                 connection.putheader("X-JYD-Access-Token", access_token.strip())
             connection.endheaders()
             with package_path.open("rb") as stream:
@@ -534,9 +534,11 @@ class LocalCollectorService:
         self,
         report_id: str,
         policies: dict[str, str],
+        *,
+        mode: str = "default",
     ) -> dict[str, Any]:
         report = self.get_report(report_id)
-        plan = build_draft_upload_plan(report, policies)
+        plan = build_draft_upload_plan(report, policies, mode=mode)
         plan_id = uuid.uuid4().hex
         plan["plan_id"] = plan_id
         self._write_json(self._plans_root / f"{plan_id}.json", plan)
@@ -570,8 +572,11 @@ class LocalCollectorService:
         template_name: str = "",
         template_lifecycle: str = "",
         server_url: str = "",
+        template_import_ticket: str = "",
     ) -> dict[str, Any]:
         plan = self.get_upload_plan(plan_id)
+        if plan.get("mode") == "template_center" and not template_import_ticket.strip():
+            raise ValueError("模板中心上传缺少当前账号的一次性上传凭证")
         destination = self._packages_root / f"{plan_id}.zip"
         package = build_transfer_package(plan, destination)
         base_url = self._normalize_server_url(server_url or self.settings.render_server_url)
@@ -582,6 +587,7 @@ class LocalCollectorService:
             template_name=template_name,
             template_lifecycle=template_lifecycle,
             access_token=self.settings.access_token,
+            template_import_ticket=template_import_ticket,
         )
         result = {
             "plan_id": plan_id,
@@ -687,16 +693,22 @@ class LocalCollectorService:
         template_name: str,
         template_lifecycle: str = "",
         access_token: str = "",
+        template_import_ticket: str = "",
     ) -> dict[str, Any]:
         parsed = urlsplit(server_url)
         connection_class = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
         connection = connection_class(parsed.hostname, parsed.port, timeout=300)
         base_path = parsed.path.rstrip("/")
-        target = f"{base_path}/api/draft-imports"
+        import_ticket = template_import_ticket.strip()
+        target = (
+            f"{base_path}/api/new/jianying-template-imports/{quote(import_ticket, safe='')}"
+            if import_ticket
+            else f"{base_path}/api/draft-imports"
+        )
         query = {}
-        if template_name.strip():
+        if not import_ticket and template_name.strip():
             query["template_name"] = template_name.strip()
-        if template_lifecycle.strip():
+        if not import_ticket and template_lifecycle.strip():
             query["lifecycle"] = template_lifecycle.strip()
         if query:
             target += f"?{urlencode(query)}"

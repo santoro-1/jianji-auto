@@ -3,9 +3,12 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import hashlib
+import logging
+import time
 from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
+from .logging_config import log_event
 from .project_music import ProjectMusicSelector, automatic_music_identity_counts
 from .project_postprocess import (
     GENERATED_TITLE_MAX_LINE_2_CHARS,
@@ -26,6 +29,7 @@ from .unified_visual_plan import (
 
 
 CONTENT_ANALYSIS_BATCH_CONCURRENCY = 10
+analysis_logger = logging.getLogger(__name__)
 _UNCHANGED_SCRIPT_STATUSES = {"PENDING", "SUCCESS", "PARTIAL", "FAILED"}
 _BRANCH_STATUSES = {"SUCCESS", "FAILED"}
 
@@ -255,6 +259,7 @@ class ProjectContentAnalysisCoordinator:
         item_ids: list[str] | None = None,
         force_refresh: bool = False,
     ) -> dict[str, Any]:
+        batch_started_at = time.monotonic()
         project = self.store.get_project(owner_user_id, project_id)
         requested = {
             str(item_id).strip()
@@ -331,21 +336,46 @@ class ProjectContentAnalysisCoordinator:
                 continue
             targets.append(_Target(item_id, script, script_hash, previous, visual))
 
+        log_event(
+            analysis_logger,
+            "content_analysis.batch_planned",
+            "工作台统一内容分析已规划",
+            component="workbench",
+            project_id=project_id,
+            requested_item_count=len(requested) if requested else len(project["items"]),
+            target_item_count=len(targets),
+            force_refresh=bool(force_refresh),
+            max_concurrency=self.max_concurrency,
+        )
+
         for target in targets:
-            self.store.mark_item_content_analysis_pending(
+            content_pending_saved = self.store.mark_item_content_analysis_pending(
                 owner_user_id,
                 project_id,
                 target.item_id,
                 expected_script_sha256=target.script_sha256,
             )
+            visual_pending_saved = False
             if target.visual is not None:
-                self.store.mark_item_visual_analysis_pending(
+                visual_pending_saved = self.store.mark_item_visual_analysis_pending(
                     owner_user_id,
                     project_id,
                     target.item_id,
                     expected_script_sha256=target.script_sha256,
                     candidate_request=target.visual.candidate_request,
                 )
+            log_event(
+                analysis_logger,
+                "content_analysis.pending_saved",
+                "本地分析状态已写入等待中",
+                component="workbench",
+                project_id=project_id,
+                item_id=target.item_id,
+                script_sha256=target.script_sha256,
+                content_pending_saved=content_pending_saved,
+                visual_pending_saved=visual_pending_saved,
+                force_refresh=bool(force_refresh),
+            )
 
         if not targets:
             return self.store.get_project(owner_user_id, project_id)
@@ -353,7 +383,18 @@ class ProjectContentAnalysisCoordinator:
         workers = min(self.max_concurrency, len(targets))
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {}
+            future_started_at = {}
             for target in targets:
+                log_event(
+                    analysis_logger,
+                    "content_analysis.item_dispatched",
+                    "脚本行已交给数字人网站请求线程",
+                    component="workbench",
+                    project_id=project_id,
+                    item_id=target.item_id,
+                    script_sha256=target.script_sha256,
+                    force_refresh=bool(force_refresh),
+                )
                 future = pool.submit(
                     _analyze_with_visual_context_compat,
                     self.client,
@@ -368,11 +409,28 @@ class ProjectContentAnalysisCoordinator:
                     ),
                 )
                 futures[future] = target
+                future_started_at[future] = time.monotonic()
             for future in as_completed(futures):
                 target = futures[future]
+                item_elapsed_ms = round(
+                    (time.monotonic() - future_started_at[future]) * 1000
+                )
                 content_completed = False
                 try:
                     remote = future.result()
+                    log_event(
+                        analysis_logger,
+                        "content_analysis.item_response_received",
+                        "脚本行已收到数字人网站响应，开始本地校验",
+                        component="workbench",
+                        project_id=project_id,
+                        item_id=target.item_id,
+                        script_sha256=target.script_sha256,
+                        elapsed_ms=item_elapsed_ms,
+                        trace_id=remote.get("_workbench_client_trace_id"),
+                        provider_request_id=remote.get("provider_request_id"),
+                        provider_attempts=remote.get("provider_attempts"),
+                    )
                     validated = _validated_remote_result(
                         remote, original_script=target.original_script
                     )
@@ -383,6 +441,21 @@ class ProjectContentAnalysisCoordinator:
                         expected_script_sha256=target.script_sha256,
                         result=validated,
                         previous=target.previous,
+                    )
+                    log_event(
+                        analysis_logger,
+                        "content_analysis.item_content_saved",
+                        "脚本行内容分析结果已完成本地校验并写入数据库",
+                        component="workbench",
+                        project_id=project_id,
+                        item_id=target.item_id,
+                        script_sha256=target.script_sha256,
+                        database_write_applied=content_completed,
+                        music_status=validated.get("music_analysis_status"),
+                        subtitle_status=validated.get("subtitle_analysis_status"),
+                        title_status=validated.get("title_analysis_status"),
+                        provider_request_id=validated.get("provider_request_id"),
+                        provider_attempts=validated.get("provider_attempts"),
                     )
                     if target.visual is not None and self.visual_catalog is not None:
                         visual = (
@@ -506,6 +579,26 @@ class ProjectContentAnalysisCoordinator:
                                         catalog=self.visual_catalog,
                                     )
                 except Exception as exc:
+                    safe_error = _safe_error(exc)
+                    log_event(
+                        analysis_logger,
+                        "content_analysis.item_failed",
+                        "脚本行统一内容分析失败",
+                        level=logging.ERROR,
+                        component="workbench",
+                        project_id=project_id,
+                        item_id=target.item_id,
+                        script_sha256=target.script_sha256,
+                        elapsed_ms=item_elapsed_ms,
+                        error_code=safe_error.get("code"),
+                        error_summary=safe_error.get("summary"),
+                        remote_error_code=(
+                            exc.error_code if isinstance(exc, AuthCenterError) else None
+                        ),
+                        http_status=(
+                            exc.status_code if isinstance(exc, AuthCenterError) else None
+                        ),
+                    )
                     if not content_completed:
                         self.store.fail_item_content_analysis(
                             owner_user_id,
@@ -582,4 +675,23 @@ class ProjectContentAnalysisCoordinator:
                         recent_identity_counts.get(identity, 0) + 1
                     )
             project = self.store.get_project(owner_user_id, project_id)
+        target_ids = {target.item_id for target in targets}
+        status_counts: dict[str, int] = {}
+        for item in project.get("items", []):
+            if str(item.get("item_id")) not in target_ids:
+                continue
+            status = str(
+                (item.get("content_analysis") or {}).get("overall_status") or "UNKNOWN"
+            )
+            status_counts[status] = status_counts.get(status, 0) + 1
+        log_event(
+            analysis_logger,
+            "content_analysis.batch_completed",
+            "工作台统一内容分析批次已结束",
+            component="workbench",
+            project_id=project_id,
+            target_item_count=len(targets),
+            elapsed_ms=round((time.monotonic() - batch_started_at) * 1000),
+            status_counts=status_counts,
+        )
         return project

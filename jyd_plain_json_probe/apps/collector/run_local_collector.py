@@ -54,9 +54,9 @@ def main(argv: list[str] | None = None) -> int:
             override_service.set_access_token(args.access_token)
         settings = override_service.settings
     collector_app = create_local_collector_app(settings)
-    website_url = f"{settings.render_server_url.rstrip('/')}/app"
-    if not args.no_browser:
-        threading.Timer(1.0, lambda: webbrowser.open(website_url)).start()
+    if args.open_browser and not args.no_browser:
+        collector_url = f"http://{args.host}:{args.port}/"
+        threading.Timer(1.0, lambda: webbrowser.open(collector_url)).start()
 
     import uvicorn
 

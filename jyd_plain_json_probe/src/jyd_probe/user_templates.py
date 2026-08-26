@@ -10,6 +10,7 @@ import uuid
 
 from .draft_crypto import prepare_plain_draft_dir
 from .draft_import_analyzer import analyze_draft_import
+from .draft_transfer import materialize_transfer_package
 from .template_library import load_plain_draft_json
 
 
@@ -21,6 +22,20 @@ KNOWN_CAPTION_TRACK_NAMES = {
     "自动字幕",
 }
 IGNORED_REPLACED_DEPENDENCY_KINDS = {"audio"}
+
+
+def _is_builtin_font_dependency(dependency: dict[str, Any]) -> bool:
+    """Return whether a font path is an installation/OS fallback, not a template asset."""
+    if str(dependency.get("kind") or "") != "font":
+        return False
+    if any(str(value or "").strip() for value in dict(dependency.get("identifiers") or {}).values()):
+        return False
+    path = str(dependency.get("original_path") or dependency.get("path") or "")
+    normalized = path.replace("\\", "/").casefold()
+    return (
+        "/resources/font/systemfont/" in normalized
+        or "/windows/fonts/" in normalized
+    )
 
 
 def _now() -> str:
@@ -192,7 +207,7 @@ def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in best.items() if key != "score"}
 
 
-def detect_main_video(data: dict[str, Any]) -> dict[str, Any]:
+def detect_main_video(data: dict[str, Any]) -> dict[str, Any] | None:
     candidates: list[dict[str, Any]] = []
     typed_index = 0
     for raw_index, track in enumerate(data.get("tracks", [])):
@@ -216,7 +231,7 @@ def detect_main_video(data: dict[str, Any]) -> dict[str, Any]:
             )
         typed_index += 1
     if not candidates:
-        raise ValueError("模板中没有可替换的主视频轨")
+        return None
     return max(
         candidates,
         key=lambda item: (item["start_us"] == 0, item["duration_us"]),
@@ -259,9 +274,7 @@ class UserTemplateStore:
         self.root.mkdir(parents=True, exist_ok=True)
 
     def create(self, owner_user_id: str, name: str) -> dict[str, Any]:
-        clean_name = _clean_name(name)
-        if any(item["name"].casefold() == clean_name.casefold() for item in self.list(owner_user_id)):
-            raise ValueError("当前账号已经有同名模板")
+        clean_name = self.validate_new_name(owner_user_id, name)
         template_id = uuid.uuid4().hex
         root = self._root(owner_user_id, template_id)
         root.mkdir(parents=True, exist_ok=False)
@@ -281,6 +294,87 @@ class UserTemplateStore:
         self._save(root, meta)
         return self._public(meta)
 
+    def validate_new_name(self, owner_user_id: str, name: str) -> str:
+        clean_name = _clean_name(name)
+        if any(
+            item["name"].casefold() == clean_name.casefold()
+            for item in self.list(owner_user_id)
+        ):
+            raise ValueError("当前账号已经有同名模板")
+        return clean_name
+
+    def import_transfer_package(
+        self,
+        owner_user_id: str,
+        name: str,
+        package_path: str | Path,
+    ) -> dict[str, Any]:
+        """Import a collector-built package as a permanent account template."""
+
+        clean_name = self.validate_new_name(owner_user_id, name)
+        template_id = uuid.uuid4().hex
+        root = self._root(owner_user_id, template_id)
+        try:
+            transfer = materialize_transfer_package(
+                package_path,
+                root,
+                font_library_root=self.libraries_root / "font_library",
+                required_mode="template_center",
+                max_extracted_bytes=self.max_template_bytes,
+                staging_root=self.root.parent / "template_import_staging",
+            )
+            draft_dir = root / "draft"
+            data = load_plain_draft_json(draft_dir)
+            profile = {
+                "draft_duration_us": int(data.get("duration", 0) or 0),
+                "caption_track": detect_caption_track(data),
+                "main_video": detect_main_video(data),
+            }
+            now = _now()
+            cover_path = self._find_cover(root, {})
+            manifest = transfer.get("manifest", {})
+            meta = {
+                "schema": USER_TEMPLATE_SCHEMA,
+                "template_id": template_id,
+                "owner_user_id": str(owner_user_id),
+                "name": clean_name,
+                "status": "READY",
+                "created_at": now,
+                "updated_at": now,
+                "profile": profile,
+                "missing_resources": [],
+                "path_map": dict(transfer.get("path_map") or {}),
+                "content_hash": hashlib.sha256(
+                    (draft_dir / "draft_content.json").read_bytes()
+                ).hexdigest(),
+                "cover_filename": (
+                    cover_path.relative_to(draft_dir).as_posix()
+                    if cover_path is not None
+                    else ""
+                ),
+                "source": "local_collector",
+                "collector_import": {
+                    "plan_id": str(manifest.get("plan_id") or "")
+                    if isinstance(manifest, dict)
+                    else "",
+                    "report_id": str(manifest.get("report_id") or "")
+                    if isinstance(manifest, dict)
+                    else "",
+                    "asset_count": int(transfer.get("asset_count") or 0),
+                    "library_reference_count": int(
+                        transfer.get("library_reference_count") or 0
+                    ),
+                    "rewritten_path_count": int(
+                        transfer.get("rewritten_path_count") or 0
+                    ),
+                },
+            }
+            self._save(root, meta)
+            return self._public(meta, root=root)
+        except Exception:
+            shutil.rmtree(root, ignore_errors=True)
+            raise
+
     def list(self, owner_user_id: str) -> list[dict[str, Any]]:
         owner_root = self.root / _owner_key(owner_user_id)
         if not owner_root.is_dir():
@@ -290,13 +384,19 @@ class UserTemplateStore:
             if not path.is_dir():
                 continue
             try:
-                result.append(self._public(self._load(path, owner_user_id)))
+                result.append(self._public(self._load(path, owner_user_id), root=path))
             except Exception:
                 continue
         return sorted(result, key=lambda item: item.get("updated_at", ""), reverse=True)
 
     def get(self, owner_user_id: str, template_id: str) -> dict[str, Any]:
-        return self._public(self._load(self._root(owner_user_id, template_id), owner_user_id))
+        root = self._root(owner_user_id, template_id)
+        return self._public(self._load(root, owner_user_id), root=root)
+
+    def cover_path(self, owner_user_id: str, template_id: str) -> Path | None:
+        root = self._root(owner_user_id, template_id)
+        meta = self._load(root, owner_user_id)
+        return self._find_cover(root, meta)
 
     def render_binding(self, owner_user_id: str, template_id: str) -> dict[str, Any]:
         root = self._root(owner_user_id, template_id)
@@ -346,10 +446,11 @@ class UserTemplateStore:
             shutil.rmtree(draft_dir)
         shutil.copytree(prepared.draft_dir, draft_dir)
         data = load_plain_draft_json(draft_dir)
+        main_video = detect_main_video(data)
         profile = {
             "draft_duration_us": int(data.get("duration", 0) or 0),
             "caption_track": detect_caption_track(data),
-            "main_video": detect_main_video(data),
+            "main_video": main_video,
         }
         report = analyze_draft_import(
             data,
@@ -360,7 +461,7 @@ class UserTemplateStore:
         )
         path_map: dict[str, str] = {}
         missing: list[dict[str, Any]] = []
-        main_video_material_id = str(profile["main_video"].get("material_id") or "")
+        main_video_material_id = str((main_video or {}).get("material_id") or "")
         for dependency in report.get("dependencies", []):
             if not isinstance(dependency, dict):
                 continue
@@ -372,7 +473,16 @@ class UserTemplateStore:
             }
             if kind in IGNORED_REPLACED_DEPENDENCY_KINDS:
                 continue
-            if kind == "video" and main_video_material_id in referenced_material_ids:
+            # Jianying writes its installation fallback (for example zh-hans.ttf)
+            # into every ordinary text material. It is not a downloadable template
+            # dependency and the absolute installation path naturally differs by PC.
+            if _is_builtin_font_dependency(dependency):
+                continue
+            if (
+                kind == "video"
+                and main_video_material_id
+                and main_video_material_id in referenced_material_ids
+            ):
                 continue
             original = str(dependency.get("original_path") or dependency.get("path") or "")
             if not original:
@@ -401,6 +511,7 @@ class UserTemplateStore:
         content_hash = hashlib.sha256(
             (draft_dir / "draft_content.json").read_bytes()
         ).hexdigest()
+        cover_path = self._find_cover(root, meta)
         meta.update(
             {
                 "status": "NEEDS_RESOURCES" if missing else "READY",
@@ -410,10 +521,15 @@ class UserTemplateStore:
                 "missing_resources": missing,
                 "path_map": path_map,
                 "content_hash": content_hash,
+                "cover_filename": (
+                    cover_path.relative_to(root / "draft").as_posix()
+                    if cover_path is not None
+                    else ""
+                ),
             }
         )
         self._save(root, meta)
-        return self._public(meta)
+        return self._public(meta, root=root)
 
     def upload_resource_file(
         self,
@@ -465,7 +581,7 @@ class UserTemplateStore:
         meta["status"] = "READY" if not unresolved else "NEEDS_RESOURCES"
         meta["updated_at"] = _now()
         self._save(root, meta)
-        return self._public(meta)
+        return self._public(meta, root=root)
 
     def rename(self, owner_user_id: str, template_id: str, name: str) -> dict[str, Any]:
         root = self._root(owner_user_id, template_id)
@@ -479,7 +595,7 @@ class UserTemplateStore:
         meta["name"] = clean_name
         meta["updated_at"] = _now()
         self._save(root, meta)
-        return self._public(meta)
+        return self._public(meta, root=root)
 
     def delete(self, owner_user_id: str, template_id: str) -> None:
         root = self._root(owner_user_id, template_id)
@@ -504,14 +620,26 @@ class UserTemplateStore:
             raise RuntimeError("剪映模板记录格式不支持")
         if str(meta.get("owner_user_id") or "") != str(owner_user_id):
             raise FileNotFoundError("剪映模板不存在")
+        # Repair records analyzed by the first template-center build, which treated
+        # Jianying's own SystemFont path as a missing custom font.
+        missing = [
+            item
+            for item in meta.get("missing_resources", [])
+            if isinstance(item, dict) and not _is_builtin_font_dependency(item)
+        ]
+        if len(missing) != len(meta.get("missing_resources", [])):
+            meta["missing_resources"] = missing
+            if not missing and meta.get("status") == "NEEDS_RESOURCES":
+                meta["status"] = "READY"
+            self._save(root, meta)
         return meta
 
     @staticmethod
     def _save(root: Path, meta: dict[str, Any]) -> None:
         _write_json(root / "template.json", meta)
 
-    @staticmethod
-    def _public(meta: dict[str, Any]) -> dict[str, Any]:
+    @classmethod
+    def _public(cls, meta: dict[str, Any], *, root: Path | None = None) -> dict[str, Any]:
         missing_resources = []
         for item in meta.get("missing_resources", []):
             if not isinstance(item, dict):
@@ -533,7 +661,25 @@ class UserTemplateStore:
             "updated_at": meta.get("updated_at"),
             "profile": dict(meta.get("profile") or {}),
             "missing_resources": missing_resources,
+            "has_cover": root is not None and cls._find_cover(root, meta) is not None,
         }
+
+    @staticmethod
+    def _find_cover(root: Path, meta: dict[str, Any]) -> Path | None:
+        draft_root = (root / "draft").resolve()
+        candidates = [str(meta.get("cover_filename") or "")]
+        candidates.extend(("draft_cover.jpg", "draft_cover.png"))
+        for name in candidates:
+            if not name:
+                continue
+            try:
+                path = (draft_root / _safe_relative_path(name)).resolve()
+                path.relative_to(draft_root)
+            except (ValueError, OSError):
+                continue
+            if path.is_file():
+                return path
+        return None
 
     def _dependency_source(self, dependency: dict[str, Any]) -> Path | None:
         match = dependency.get("central_match")

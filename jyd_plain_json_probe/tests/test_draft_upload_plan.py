@@ -65,6 +65,51 @@ class DraftUploadPlanTest(unittest.TestCase):
         self.assertEqual(plan["dependencies"][0]["decision"], "upload")
         self.assertTrue(plan["summary"]["ready_for_upload"])
 
+    def test_template_center_skips_primary_video_and_audio_but_keeps_visuals(self) -> None:
+        report = {
+            "report_id": "template-center-report",
+            "draft": {"main_video": {"material_id": "main-video"}},
+            "dependencies": [
+                {
+                    **self._dependency("video", "upload_required", False, 1_000),
+                    "references": [{"material_id": "main-video"}],
+                },
+                {
+                    **self._dependency("video", "upload_required", False, 200),
+                    "references": [{"material_id": "overlay-video"}],
+                },
+                self._dependency("audio", "missing", False, 0),
+                self._dependency("sound_effect", "missing", False, 0),
+                self._dependency("text_effect", "central_library", True, 30),
+                self._dependency("sticker", "upload_required", False, 40),
+            ],
+        }
+        plan = build_draft_upload_plan(
+            report,
+            {
+                "audio": "keep",
+                "video_effects": "keep",
+                "text_style": "keep",
+                "text_effects": "keep",
+                "text_templates": "keep",
+            },
+            mode="template_center",
+        )
+        videos = [item for item in plan["dependencies"] if item["kind"] == "video"]
+        self.assertEqual(plan["mode"], "template_center")
+        self.assertEqual(videos[0]["decision"], "skip_replaced")
+        self.assertEqual(videos[1]["decision"], "upload")
+        self.assertEqual(
+            {item["kind"]: item["decision"] for item in plan["dependencies"]}["audio"],
+            "skip_replaced",
+        )
+        self.assertEqual(plan["summary"]["upload_size_bytes"], 270)
+        self.assertTrue(plan["summary"]["ready_for_upload"])
+
+    def test_rejects_unknown_mode(self) -> None:
+        with self.assertRaisesRegex(ValueError, "上传清单模式"):
+            build_draft_upload_plan({"dependencies": []}, mode="archive")
+
     @staticmethod
     def _dependency(kind: str, status: str, can_skip: bool, size: int) -> dict[str, object]:
         return {

@@ -84,6 +84,9 @@ BGM_FADE_IN_US = 5_000_000
 VIDEO_FADE_OUT_US = 0
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
 FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
+ASR_RAW_CUE_PREVIEW_FALLBACK_CODES = frozenset(
+    {"ASR_SCRIPT_MATCH_TOO_LOW", "ASR_RAW_CUE_MATCH_TOO_LOW"}
+)
 
 
 def draft_recipe_sha256(
@@ -2331,18 +2334,44 @@ class ProjectPostprocessCoordinator:
             }
             job["remove_existing_audio"] = True
             job["timeline_duration_us"] = video_duration_us
-            job["video_replacements"] = [
-                {
-                    "type": "video-segment",
-                    "track_index": int(main_video.get("typed_track_index", 0)),
-                    "segment_index": int(main_video.get("segment_index", 0)),
-                    "media_path": str(Path(base_video_path).resolve()),
-                    "source_start_us": 0,
-                    "source_duration_us": video_duration_us,
-                    "target_start_us": 0,
-                    "target_duration_us": video_duration_us,
-                }
-            ]
+            if main_video:
+                job["video_replacements"] = [
+                    {
+                        "type": "video-segment",
+                        "track_index": int(main_video.get("typed_track_index", 0)),
+                        "segment_index": int(main_video.get("segment_index", 0)),
+                        "media_path": str(Path(base_video_path).resolve()),
+                        "source_start_us": 0,
+                        "source_duration_us": video_duration_us,
+                        "target_start_us": 0,
+                        "target_duration_us": video_duration_us,
+                    }
+                ]
+            else:
+                # A user template is also valid when it only contains captions,
+                # flower text, stickers or effects.  Add the current project
+                # video as a required native video track instead of forcing the
+                # uploaded draft to carry a disposable placeholder clip.
+                job["visual_overlays"] = [
+                    {
+                        "enabled": True,
+                        "media_type": "video",
+                        "video_path": str(Path(base_video_path).resolve()),
+                        "start_us": 0,
+                        "duration_us": video_duration_us,
+                        "source_start_us": 0,
+                        "source_duration_us": video_duration_us,
+                        "mute": True,
+                        "fit": "cover",
+                        "corner": "center",
+                        "scale": 1.0,
+                        "opacity": 1.0,
+                        "track_name": "项目主视频",
+                        "optional": False,
+                        "render_below_text": True,
+                        "layer_order": -100,
+                    }
+                ]
             replace_end_us = max(
                 video_duration_us,
                 int(profile_data.get("draft_duration_us", 0) or 0),
@@ -2532,6 +2561,7 @@ class ProjectPostprocessCoordinator:
             subtitles = dict(item.get("subtitles") or {})
             audio = item.get("outputs", {}).get("audio")
             asr_alignment = subtitles.get("asr_alignment")
+            asr_preview_warning: str | None = None
             alignment_is_current = bool(
                 isinstance(audio, dict)
                 and alignment_matches(
@@ -2555,24 +2585,36 @@ class ProjectPostprocessCoordinator:
                     subtitles["asr_alignment"] = asr_alignment
                     alignment_is_current = True
                 except CaptionAlignmentError as exc:
-                    subtitles.update(
-                        {
-                            "render_cues": [],
-                            "status": "REVIEW_REQUIRED",
-                            "overflow_risk": False,
-                            "review_reason": str(exc),
-                            "asr_alignment": {
-                                "status": "FAILED",
-                                "reason_code": exc.code,
-                                "reason_summary": str(exc)[:500],
-                            },
-                        }
-                    )
-                    self.store.set_item_subtitles(
-                        owner_user_id, project_id, item["item_id"], subtitles
-                    )
-                    continue
-            if self.require_precise_alignment and not alignment_is_current:
+                    failed_alignment = {
+                        "status": "FAILED",
+                        "reason_code": exc.code,
+                        "reason_summary": str(exc)[:500],
+                    }
+                    if exc.code in ASR_RAW_CUE_PREVIEW_FALLBACK_CODES:
+                        asr_alignment = failed_alignment
+                        subtitles["asr_alignment"] = failed_alignment
+                        asr_preview_warning = (
+                            f"{exc}；已改用 MiniMax 原始时间轴生成预览字幕"
+                        )
+                    else:
+                        subtitles.update(
+                            {
+                                "render_cues": [],
+                                "status": "REVIEW_REQUIRED",
+                                "overflow_risk": False,
+                                "review_reason": str(exc),
+                                "asr_alignment": failed_alignment,
+                            }
+                        )
+                        self.store.set_item_subtitles(
+                            owner_user_id, project_id, item["item_id"], subtitles
+                        )
+                        continue
+            if (
+                self.require_precise_alignment
+                and not alignment_is_current
+                and asr_preview_warning is None
+            ):
                 reason = "当前音频尚未配置或启动本地 ASR 精确字幕服务"
                 subtitles.update(
                     {
@@ -2599,7 +2641,9 @@ class ProjectPostprocessCoordinator:
                     font_size=float(caption_style["font_size"]) * float(caption_style["clip_scale"]),
                     max_width_ratio=float(caption_style["max_width_ratio"]),
                     asr_alignment=(asr_alignment if alignment_is_current else None),
-                    require_precise_alignment=self.require_precise_alignment,
+                    require_precise_alignment=(
+                        self.require_precise_alignment and asr_preview_warning is None
+                    ),
                 )
             except (CaptionLayoutReviewRequired, CaptionAlignmentError) as exc:
                 subtitles.update(
@@ -2629,7 +2673,7 @@ class ProjectPostprocessCoordinator:
                     "render_cues": render_cues,
                     "status": "PREVIEW_READY",
                     "overflow_risk": False,
-                    "review_reason": None,
+                    "review_reason": asr_preview_warning,
                     "semantic_mapping": semantic_mapping,
                     "bound_video_asset_id": base_video.get("asset_id"),
                     "style": {

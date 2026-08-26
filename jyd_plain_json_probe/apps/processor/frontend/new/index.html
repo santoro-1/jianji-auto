@@ -612,6 +612,7 @@
             <!-- Header Menu -->
             <nav class="hidden md:flex items-center gap-1">
                 <a href="/app/new" data-workspace-nav="workspace" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-sliders mr-1.5 text-brand-accent"></i>核心工作台</a>
+                <a href="/app/new/templates" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clapperboard mr-1.5"></i>剪映模板中心</a>
                 <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
                 <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-microphone-lines mr-1.5"></i>声音克隆中心</a>
                 <button id="activity-button" type="button" onclick="openActivityModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i>运行记录<span id="activity-count" class="hidden ml-1.5 min-w-5 px-1.5 py-0.5 rounded-full bg-brand-primary/20 text-[9px] text-brand-accent"></span></button>
@@ -1139,6 +1140,9 @@
         let isGeneratingAllVoicePreviews = false;
         let isGeneratingVariants = false;
         let audioStatusPollTimer = null;
+        const contentAnalysisStatusPolls = new Map();
+        const CONTENT_ANALYSIS_STATUS_POLL_INTERVAL_MS = 5000;
+        const CONTENT_ANALYSIS_STATUS_POLL_TIMEOUT_MS = 20 * 60 * 1000;
         let compositionStatusPollTimer = null;
         let compositionSnapshotPollTimer = null;
         let compositionStatusRequestProjectId = null;
@@ -2697,10 +2701,7 @@
             schedulePostprocessStatusPoll();
             scheduleVariantStatusPoll();
             scheduleH3StatusPoll();
-            scheduleLtxStatusPoll();
-            if (generationMode === 'ltx_lip_sync' && uploadedScripts.length && !(ltxEngineState.items || []).length) {
-                void refreshLtxStatus({ quiet: true });
-            }
+            reconcileContentAnalysisStatusPoll(project);
             window.JYDTemplates?.refreshButton();
         }
 
@@ -3509,13 +3510,18 @@
                 const partialAnalysisLabel = musicAnalysisStatus === 'SUCCESS' && subtitleAnalysisStatus === 'FAILED'
                     ? '字幕断句已回退'
                     : (musicAnalysisStatus === 'FAILED' && subtitleAnalysisStatus === 'SUCCESS' ? 'BGM 分析未完成' : '部分分析已回退');
-                const analysisErrorSummary = script.contentAnalysis?.errors?.subtitle?.summary
+                const analysisErrorSummary = analysisStatus === 'PENDING' ? '' : (
+                    script.contentAnalysis?.errors?.subtitle?.summary
                     || script.contentAnalysis?.errors?.music?.summary
                     || script.contentAnalysis?.errors?.request?.summary
-                    || '';
+                    || ''
+                );
+                const analysisStatusHint = analysisStatus === 'PENDING'
+                    ? '本地已提交，正在等待数字人网站返回；详细阶段记录在 data/logs/workbench.log'
+                    : (analysisErrorSummary || '一次分析当前行的音乐意图、字幕语义和视觉计划');
                 const analysisLabels = {
                     NOT_REQUESTED: ['尚未分析', 'text-gray-500', 'fa-wand-magic-sparkles'],
-                    PENDING: ['AI 分析中', 'text-brand-primary', 'fa-spinner fa-spin'],
+                    PENDING: ['AI 分析中 · 等待网站返回', 'text-brand-primary', 'fa-spinner fa-spin'],
                     SUCCESS: ['AI 分析完成', 'text-emerald-400', 'fa-circle-check'],
                     PARTIAL: [partialAnalysisLabel, 'text-amber-400', 'fa-triangle-exclamation'],
                     FAILED: ['AI 分析失败', 'text-rose-400', 'fa-circle-exclamation']
@@ -3539,7 +3545,7 @@
                 const audioWasGenerated = Boolean(script.assetHistory?.audio?.length);
                 const videoCanReuse = Boolean(script.compositionVideo || browserPreviewReady);
                 const videoWasGenerated = Boolean(script.assetHistory?.base_video?.length || script.assetHistory?.composition_video?.length);
-                const canBackfillSeedvr2 = Boolean(script.allowedActions?.backfill_seedvr2);
+                const canBackfillSeedvr2 = false;
                 const backfillSeedvr2ButtonHtml = canBackfillSeedvr2
                     ? '<button type="button" onclick="backfillRowSeedvr2(this)" class="text-[9px] text-cyan-300 hover:text-white transition-colors" title="复用已有数字人分段，仅补跑 SeedVR2 48G"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>补跑 SeedVR2 高清</button>'
                     : '';
@@ -3600,7 +3606,7 @@
                         <div class="min-w-0 max-w-full overflow-hidden focus-within:bg-slate-950/80 focus-within:ring-1 focus-within:ring-brand-primary/40 rounded-lg p-1.5 -m-1.5 transition-all">
                             ${(script.sourceMetadata?.article_type || script.sourceMetadata?.assigned_account) ? `<div class="mb-1.5 flex flex-wrap gap-1 text-[9px]"><span class="rounded bg-indigo-500/10 px-1.5 py-0.5 text-indigo-300">${escapeHtml(script.sourceMetadata?.article_type || '未分类')}</span><span class="rounded bg-cyan-500/10 px-1.5 py-0.5 text-cyan-300">账号 ${escapeHtml(script.sourceMetadata?.assigned_account || '未分配')}</span></div>` : ''}
                             <div class="row-script-editor outline-none block min-h-[2.5rem] max-h-20 w-full max-w-full overflow-y-auto overflow-x-hidden pr-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed select-text narrow-scrollbar" contenteditable="true" onblur="handleScriptBlur(this)">${escapeHtml(script.text)}</div>
-                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="${escapeHtml(analysisErrorSummary || '一次分析当前行的音乐意图、字幕语义和视觉计划')}">
+                            <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="${escapeHtml(analysisStatusHint)}">
                                 <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${analysisStatus === 'SUCCESS' ? ' · 点击重新分析' : (['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击分析' : '')}
                             </button>
                         </div>
@@ -3920,7 +3926,8 @@
                 if (!targets.has(script.id)) return;
                 script.contentAnalysis = {
                     ...(script.contentAnalysis || {}),
-                    overall_status: 'PENDING'
+                    overall_status: 'PENDING',
+                    errors: {}
                 };
                 script.visualAnalysis = {
                     ...(script.visualAnalysis || {}),
@@ -3933,7 +3940,8 @@
                 if (contentButton) {
                     contentButton.disabled = true;
                     contentButton.className = 'row-content-analysis-action mt-1.5 text-[9px] text-brand-primary cursor-wait transition-colors';
-                    contentButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中...';
+                    contentButton.title = '本地已提交，正在等待数字人网站返回；详细阶段记录在 data/logs/workbench.log';
+                    contentButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 分析中 · 等待网站返回';
                 }
                 const visualButton = row.querySelector('.row-visual-analysis-action');
                 if (visualButton) {
@@ -3943,12 +3951,95 @@
             });
         }
 
+        function stopContentAnalysisStatusPoll(projectId) {
+            const state = contentAnalysisStatusPolls.get(projectId);
+            if (!state) return;
+            clearTimeout(state.timer);
+            contentAnalysisStatusPolls.delete(projectId);
+        }
+
+        function itemHasPendingContentAnalysis(item) {
+            return item?.content_analysis?.overall_status === 'PENDING'
+                || item?.visual_analysis?.analysis_status === 'PENDING';
+        }
+
+        function pendingContentAnalysisItemIds(project) {
+            return (project?.items || [])
+                .filter(itemHasPendingContentAnalysis)
+                .map((item) => item.item_id)
+                .filter(Boolean);
+        }
+
+        function projectHasPendingContentAnalysis(project, itemIds = []) {
+            const targets = new Set(itemIds);
+            return (project?.items || []).some((item) => (
+                (!targets.size || targets.has(item.item_id))
+                && itemHasPendingContentAnalysis(item)
+            ));
+        }
+
+        function reconcileContentAnalysisStatusPoll(project) {
+            const projectId = project?.project_id || '';
+            if (!projectId) return;
+            const pendingIds = pendingContentAnalysisItemIds(project);
+            if (!pendingIds.length) {
+                stopContentAnalysisStatusPoll(projectId);
+                return;
+            }
+            const state = contentAnalysisStatusPolls.get(projectId);
+            if (state) {
+                state.itemIds = [...new Set([...state.itemIds, ...pendingIds])];
+                return;
+            }
+            scheduleContentAnalysisStatusPoll(projectId, pendingIds);
+        }
+
+        function scheduleContentAnalysisStatusPoll(projectId, itemIds) {
+            const existing = contentAnalysisStatusPolls.get(projectId);
+            const trackedItemIds = [...new Set([
+                ...(existing?.itemIds || []),
+                ...(itemIds || [])
+            ].filter(Boolean))];
+            if (!projectId || !trackedItemIds.length) return;
+            stopContentAnalysisStatusPoll(projectId);
+            const state = {
+                itemIds: trackedItemIds,
+                startedAt: Date.now(),
+                timer: null
+            };
+            contentAnalysisStatusPolls.set(projectId, state);
+            const poll = async () => {
+                if (contentAnalysisStatusPolls.get(projectId) !== state) return;
+                try {
+                    const project = await workspaceApi(`/api/new/projects/${projectId}`);
+                    if (activeProject?.project_id === projectId) syncProjectInputs(project);
+                    if (!projectHasPendingContentAnalysis(project, state.itemIds)) {
+                        stopContentAnalysisStatusPoll(projectId);
+                        return;
+                    }
+                } catch (_error) {
+                    // The original analysis request remains authoritative. A later
+                    // poll will reconcile the local optimistic PENDING state.
+                }
+                if (Date.now() - state.startedAt >= CONTENT_ANALYSIS_STATUS_POLL_TIMEOUT_MS) {
+                    stopContentAnalysisStatusPoll(projectId);
+                    return;
+                }
+                state.timer = setTimeout(poll, CONTENT_ANALYSIS_STATUS_POLL_INTERVAL_MS);
+            };
+            state.timer = setTimeout(poll, CONTENT_ANALYSIS_STATUS_POLL_INTERVAL_MS);
+        }
+
         function startContentAnalysisForChangedScripts(projectId, rows) {
             const itemIds = contentAnalysisTargetsForRows(rows);
             if (itemIds.length === 0) return Promise.resolve(null);
             markContentAnalysisPending(itemIds);
+            scheduleContentAnalysisStatusPoll(projectId, itemIds);
             showToast('正在补齐脚本分析', `将分析 ${itemIds.length} 条首次导入、内容有变化或缺少 AI 标题的脚本；已有完整结果不会重复分析。`, 'info');
             return analyzeProjectContent(projectId, itemIds).then((project) => {
+                if (!projectHasPendingContentAnalysis(project, itemIds)) {
+                    stopContentAnalysisStatusPoll(projectId);
+                }
                 if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 const targetItems = (project.items || []).filter(item => itemIds.includes(item.item_id));
@@ -3974,14 +4065,16 @@
         async function retryRowContentAnalysis(button) {
             const rowId = button.closest('tr')?.getAttribute('data-id') || '';
             if (!activeProject || !rowId || button.disabled) return;
+            const projectId = activeProject.project_id;
             markContentAnalysisPending([rowId]);
+            scheduleContentAnalysisStatusPoll(projectId, [rowId]);
             try {
                 showToast('正在统一分析当前行', '一次处理音乐意图、字幕语义和视觉计划；本地随后独立完成选材和时间绑定。', 'info');
                 const project = await workspaceApi(
-                    `/api/new/projects/${activeProject.project_id}/items/${rowId}/content-analysis/retry`,
+                    `/api/new/projects/${projectId}/items/${rowId}/content-analysis/retry`,
                     { method: 'POST' }
                 );
-                syncProjectInputs(project);
+                if (activeProject?.project_id === projectId) syncProjectInputs(project);
                 const item = project.items?.find(candidate => candidate.item_id === rowId);
                 const status = item?.content_analysis?.overall_status || 'FAILED';
                 const bgmIdentity = item?.settings?.postprocess?.bgm_identity || '';
@@ -3994,7 +4087,8 @@
             } catch (error) {
                 showToast('内容分析重试失败', `${error.message}；不会重新调用 MiniMax、RunningHub 或剪映。`, 'warning');
                 try {
-                    syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`));
+                    const project = await workspaceApi(`/api/new/projects/${projectId}`);
+                    if (activeProject?.project_id === projectId) syncProjectInputs(project);
                 } catch (_) {}
             }
         }
@@ -4416,59 +4510,7 @@
                 await startSinglePostprocess(rowId);
                 return;
             }
-            if (isH3GenerationMode()) {
-                await startGlobalH3Generation([script]);
-                return;
-            }
-            if (isLtxGenerationMode()) {
-                await startGlobalLtxGeneration([script]);
-                return;
-            }
-            if (!(script.allowedActions?.start_composition || script.allowedActions?.retry_composition)) {
-                showToast('暂时不能生成本条视频', '当前行正在处理，或缺少已经确认的声音/图片。', 'warning');
-                return;
-            }
-            const retry = Boolean(script.allowedActions?.retry_composition);
-            const restartPrecloud = retry && isPrecloudCompositionFailure(script);
-            const useRetryEndpoint = retry && !restartPrecloud;
-            let selectedRunningHubAccountIds;
-            if (useRetryEndpoint) {
-                if (!window.confirm(`只为任务 ${script.rowKey} 从失败的原流水线继续处理，可能再次产生 RunningHub 费用。是否继续？`)) return;
-            } else {
-                selectedRunningHubAccountIds = await confirmRunningHubCost(
-                    `只为任务 ${script.rowKey} 调用 RunningHub 生成数字人画面并产生费用，完成后自动添加字幕和 BGM。`,
-                    { items: [script] }
-                );
-                if (selectedRunningHubAccountIds === null) return;
-            }
-            buttonEl.disabled = true;
-            row.setAttribute('data-video-status', 'loading');
-            toggleRowVideoStatusUI(row, 'loading');
-            pendingSingleCompositionItemIds.add(rowId);
-            try {
-                const path = useRetryEndpoint
-                    ? `/api/new/projects/${activeProject.project_id}/items/${rowId}/composition/retry`
-                    : `/api/new/projects/${activeProject.project_id}/composition/generate`;
-                const body = useRetryEndpoint
-                    ? { cost_confirmed: true, idempotency_key: `composition-single-retry-${rowId}-${Date.now()}` }
-                    : {
-                        cost_confirmed: true,
-                         resolution: selectedDigitalHumanResolution(),
-                         item_ids: [rowId],
-                         idempotency_key: `composition-single-${rowId}-${Date.now()}`,
-                         ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
-                    };
-                const project = await workspaceApi(path, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
-                });
-                syncProjectInputs(project);
-                scheduleCompositionStatusPoll();
-                showToast('本条视频任务已启动', `只处理任务 ${script.rowKey}；完成画面后会自动继续完整预览。`, 'success');
-            } catch (error) {
-                pendingSingleCompositionItemIds.delete(rowId);
-                showToast('本条视频生成失败', error.message, 'warning');
-                syncProjectInputs(activeProject);
-            }
+            await startGlobalH3Generation([script]);
         }
 
         async function backfillRowSeedvr2(buttonEl) {
@@ -4607,16 +4649,6 @@
             const h3Active = h3StateIsActive();
             const h3Targets = h3Mode ? h3TargetItems() : [];
             const h3InputsReady = h3Targets.length > 0 && h3Targets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo);
-            const ltxMode = isLtxGenerationMode();
-            const ltxTargets = ltxMode ? ltxTargetItems() : [];
-            const ltxActive = Boolean(ltxEngineState?.active);
-            const ltxInputsReady = ltxTargets.length > 0 && ltxTargets.every(item => latestMinimaxAudio(item) && ltxStateForItem(item.id)?.source_video);
-            const canCompose4A = allReady
-                && Boolean(
-                    activeProject?.allowed_actions?.start_composition
-                    || activeProject?.allowed_actions?.retry_composition
-                )
-                && !isGeneratingComposition;
             const canCompose4B = Boolean(
                 activeProject?.allowed_actions?.start_postprocess
                 || activeProject?.allowed_actions?.retry_postprocess
@@ -4624,18 +4656,9 @@
                 && fontPresets.length > 0
                 && !isGeneratingPostprocess;
             const canStartH3 = h3Mode && h3InputsReady && !h3Active && !isGeneratingH3 && h3Targets.some(item => !item.baseVideo);
-            const canStartLtx = ltxMode && ltxInputsReady && !ltxActive && !isGeneratingLtx && ltxTargets.some(item => !item.baseVideo);
-            const canCompose = h3Mode
-                ? (canStartH3 || canCompose4B)
-                : (ltxMode ? (canStartLtx || canCompose4B) : (canCompose4A || canCompose4B));
+            const canCompose = canStartH3 || canCompose4B;
             btnCompose.disabled = !canCompose;
-            if (ltxMode && ltxActive) {
-                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>视频生成中...</span>';
-            } else if (ltxMode && isGeneratingLtx) {
-                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在提交视频任务...</span>';
-            } else if (ltxMode && canStartLtx) {
-                btnCompose.innerHTML = '<i class="fa-solid fa-film"></i><span>生成视频</span>';
-            } else if (h3Mode && h3Active) {
+            if (h3Mode && h3Active) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>视频生成中...</span>';
             } else if (h3Mode && isGeneratingH3) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在计算生成费用...</span>';
@@ -4648,11 +4671,9 @@
             } else {
                 btnCompose.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>';
             }
-            stageHint.textContent = ltxMode
-                ? (ltxActive ? '视频正在生成并提升清晰度；完成后会自动继续字幕、背景音乐和画面素材处理' : '使用当前声音驱动人物视频；生成错误会在对应行直接显示')
-                : h3Mode
-                ? (h3Active ? '分段正在云端运行；完成后自动回填并进入字幕/BGM 后期' : '多参考会自动使用每行已分配图片作为人物图，无需额外勾选')
-                : '修改配置会保留历史版本，并从受影响的步骤重新生成';
+            stageHint.textContent = h3Active
+                ? '分段正在云端运行；完成后自动回填并进入字幕/BGM 后期'
+                : '多参考会自动使用每行已分配图片作为人物图，无需额外勾选';
             btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
@@ -4702,7 +4723,9 @@
         async function analyzeSelectedRows() {
             let items = selectedRowsOrWarn();
             if (!items || !activeProject) return;
+            const projectId = activeProject.project_id;
             items = await waitForSelectedScriptSaves(items);
+            if (activeProject?.project_id !== projectId) return;
             const targets = items.filter((item) =>
                 (item.allowedActions?.analyze_content || item.allowedActions?.analyze_visuals)
                 && item.contentAnalysis?.overall_status !== 'PENDING'
@@ -4721,23 +4744,26 @@
                 ? `将本地重映射 ${remapTargets.length} 条，并调用大模型重新分析 ${refreshTargets.length} 条；不会重新生成声音或视频。是否继续？`
                 : `将使用现有 AI 结果为 ${remapTargets.length} 条任务重新绑定声音时间戳，不调用大模型。是否继续？`;
             if (!window.confirm(confirmation)) return;
-            markContentAnalysisPending(refreshTargets.map((item) => item.id));
+            const refreshItemIds = refreshTargets.map((item) => item.id);
+            markContentAnalysisPending(refreshItemIds);
+            if (refreshItemIds.length) scheduleContentAnalysisStatusPoll(projectId, refreshItemIds);
             try {
                 let project = activeProject;
                 if (remapTargets.length) {
                     project = await analyzeProjectContent(
-                        activeProject.project_id,
+                        projectId,
                         remapTargets.map((item) => item.id),
                         false
                     );
                 }
                 if (refreshTargets.length) {
                     project = await analyzeProjectContent(
-                        activeProject.project_id,
+                        projectId,
                         refreshTargets.map((item) => item.id),
                         true
                     );
                 }
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(project);
                 showToast(
                     '选中任务处理完成',
@@ -4748,7 +4774,10 @@
                 );
             } catch (error) {
                 showToast('选中任务分析失败', error.message, 'warning');
-                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
+                try {
+                    const project = await workspaceApi(`/api/new/projects/${projectId}`);
+                    if (activeProject?.project_id === projectId) syncProjectInputs(project);
+                } catch (_) {}
             }
         }
 
@@ -4834,76 +4863,11 @@
                 return;
             }
             const missingBase = unfinished.filter((item) => !item.baseVideo);
-            if (isLtxGenerationMode()) {
-                if (missingBase.length) {
-                    await startGlobalLtxGeneration(missingBase);
-                } else {
-                    await startGlobalPostprocess(unfinished.map((item) => item.id));
-                }
-                return;
-            }
-            const blocked = missingBase.filter((item) => !(item.allowedActions?.start_composition || item.allowedActions?.retry_composition));
-            if (blocked.length) {
-                showToast('部分选中任务暂不可生成', `有 ${blocked.length} 条正在运行或缺少图片，请调整选择后再试。`, 'warning');
-                return;
-            }
             if (!missingBase.length) {
                 await startGlobalPostprocess(unfinished.map((item) => item.id));
                 return;
             }
-            const fresh = missingBase.filter((item) => item.allowedActions?.start_composition || isPrecloudCompositionFailure(item));
-            const retries = missingBase.filter((item) => item.allowedActions?.retry_composition && !isPrecloudCompositionFailure(item));
-            const confirmationMessage = `将为选中的 ${missingBase.length} 条任务调用 RunningHub 生成画面并产生费用；另外 ${unfinished.length - missingBase.length} 条已有画面只继续字幕/BGM。`;
-            const selectedRunningHubAccountIds = fresh.length
-                ? await confirmRunningHubCost(confirmationMessage, { items: fresh })
-                : (window.confirm(`${confirmationMessage}是否继续？`) ? undefined : null);
-            if (selectedRunningHubAccountIds === null) return;
-            unfinished.forEach((item) => pendingSingleCompositionItemIds.add(item.id));
-            missingBase.forEach((item) => {
-                const row = rowsById.get(item.id);
-                if (row) {
-                    row.setAttribute('data-video-status', 'loading');
-                    toggleRowVideoStatusUI(row, 'loading');
-                }
-            });
-            isGeneratingComposition = true;
-            refreshAudioStageActions();
-            try {
-                let project = activeProject;
-                if (fresh.length) {
-                    project = await workspaceApi(`/api/new/projects/${projectId}/composition/generate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            cost_confirmed: true,
-                             resolution: selectedDigitalHumanResolution(),
-                             item_ids: fresh.map((item) => item.id),
-                             idempotency_key: `composition-selected-${projectId}-${Date.now()}`,
-                             ...runningHubSelectionRequestFields(selectedRunningHubAccountIds)
-                        })
-                    });
-                }
-                for (const item of retries) {
-                    project = await workspaceApi(`/api/new/projects/${projectId}/items/${item.id}/composition/retry`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            cost_confirmed: true,
-                            idempotency_key: `composition-selected-retry-${item.id}-${Date.now()}`
-                        })
-                    });
-                }
-                if (activeProject?.project_id !== projectId) return;
-                syncProjectInputs(project);
-                scheduleCompositionStatusPoll();
-                showToast('选中视频任务已启动', `只处理已选择的 ${unfinished.length} 条，画面完成后会自动继续字幕和 BGM。`, 'success');
-            } catch (error) {
-                if (activeProject?.project_id !== projectId) return;
-                unfinished.forEach((item) => pendingSingleCompositionItemIds.delete(item.id));
-                isGeneratingComposition = false;
-                showToast('选中视频生成失败', error.message, 'warning');
-                try { syncProjectInputs(await workspaceApi(`/api/new/projects/${activeProject.project_id}`)); } catch (_) {}
-            }
+            await startGlobalH3Generation(missingBase);
         }
 
         async function generateAllVoicePreviews() {
@@ -7287,31 +7251,8 @@
         }
 
         async function startGlobalFinalVideoGeneration() {
-            if (isH3GenerationMode() && h3TargetItems().some(item => !item.baseVideo)) {
+            if (h3TargetItems().some(item => !item.baseVideo)) {
                 await startGlobalH3Generation();
-                return;
-            }
-            if (isLtxGenerationMode() && ltxTargetItems().some(item => !item.baseVideo)) {
-                await startGlobalLtxGeneration();
-                return;
-            }
-            const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            const allAudioReady = rows.length > 0 && rows.every(row => row.getAttribute('data-voice-status') === 'ready');
-            const compositionTargets = uploadedScripts.filter((item) => (
-                !item.baseVideo
-                && (item.allowedActions?.start_composition || item.allowedActions?.retry_composition)
-            ));
-            if (compositionTargets.length) {
-                if (!allAudioReady) {
-                    showToast('暂时不能生成完整成片', '请先确保每一行真实音频均已生成并确认。', 'warning');
-                    return;
-                }
-                setFinalGenerationPhase('composition');
-                if (compositionTargets.some((item) => item.allowedActions?.retry_composition)) {
-                    await retryFailedCompositionItems();
-                } else {
-                    await startGlobalComposition(false);
-                }
                 return;
             }
             const canPostprocess = Boolean(

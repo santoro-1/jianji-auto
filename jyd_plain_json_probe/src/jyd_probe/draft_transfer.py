@@ -15,6 +15,7 @@ from .template_library import TemplateLibrary, normalize_template_id
 TRANSFER_SCHEMA = "jyd_probe.draft_transfer.v1"
 MAX_ARCHIVE_FILES = 20_000
 MAX_EXTRACTED_BYTES = 50 * 1024**3
+DRAFT_IGNORED_DIRECTORY_NAMES = {".backup"}
 
 
 def build_transfer_package(plan: dict[str, Any], output_path: str | Path) -> dict[str, Any]:
@@ -38,11 +39,20 @@ def build_transfer_package(plan: dict[str, Any], output_path: str | Path) -> dic
     library_references: list[dict[str, Any]] = []
 
     with zipfile.ZipFile(temporary, "w", allowZip64=True) as archive:
-        _write_directory(archive, draft_dir, "draft")
+        _write_directory(
+            archive,
+            draft_dir,
+            "draft",
+            ignored_directory_names=DRAFT_IGNORED_DIRECTORY_NAMES,
+        )
         for index, dependency in enumerate(plan.get("dependencies", [])):
             if not isinstance(dependency, dict) or dependency.get("decision") != "upload":
                 continue
             source = Path(str(dependency.get("path", ""))).expanduser().resolve()
+            if not source.exists():
+                central_source = _central_dependency_source(dependency)
+                if central_source is not None:
+                    source = central_source
             if not source.exists():
                 raise FileNotFoundError(f"待上传素材已不存在: {source}")
             archive_path = f"assets/{index:04d}_{_safe_archive_name(source.name)}"
@@ -87,6 +97,7 @@ def build_transfer_package(plan: dict[str, Any], output_path: str | Path) -> dic
 
         manifest = {
             "schema": TRANSFER_SCHEMA,
+            "mode": str(plan.get("mode", "default")),
             "created_at": datetime.now().isoformat(timespec="seconds"),
             "plan_id": str(plan.get("plan_id", "")),
             "report_id": str(plan.get("report_id", "")),
@@ -111,6 +122,138 @@ def build_transfer_package(plan: dict[str, Any], output_path: str | Path) -> dic
         "asset_count": len(assets),
         "manifest": manifest,
     }
+
+
+def materialize_transfer_package(
+    package_path: str | Path,
+    destination_root: str | Path,
+    *,
+    font_library_root: str | Path | None = None,
+    required_mode: str = "",
+    max_extracted_bytes: int = MAX_EXTRACTED_BYTES,
+    staging_root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Validate a transfer ZIP and materialize its portable draft and assets."""
+
+    package = Path(package_path).expanduser().resolve()
+    if not package.is_file():
+        raise FileNotFoundError(f"迁移包不存在: {package}")
+    destination = Path(destination_root).expanduser().resolve()
+    if destination.exists():
+        raise FileExistsError(f"迁移包目标目录已存在: {destination}")
+    staging_parent = (
+        Path(staging_root).expanduser().resolve()
+        if staging_root is not None
+        else destination.parent
+    )
+    staging_parent.mkdir(parents=True, exist_ok=True)
+    staging = staging_parent / f"transfer-{uuid.uuid4().hex}"
+    try:
+        _safe_extract(
+            package,
+            staging,
+            max_extracted_bytes=max(1, int(max_extracted_bytes)),
+        )
+        manifest_path = staging / "manifest.json"
+        if not manifest_path.is_file():
+            raise ValueError("迁移包缺少 manifest.json")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or manifest.get("schema") != TRANSFER_SCHEMA:
+            raise ValueError("迁移包格式不受支持")
+        expected_mode = str(required_mode or "").strip()
+        actual_mode = str(manifest.get("mode") or "default").strip()
+        if expected_mode and actual_mode != expected_mode:
+            raise ValueError(f"迁移包不是 {expected_mode} 模式")
+
+        source_draft = staging / "draft"
+        content_path = source_draft / "draft_content.json"
+        if not content_path.is_file():
+            raise ValueError("迁移包缺少 draft/draft_content.json")
+        draft_data = json.loads(content_path.read_text(encoding="utf-8"))
+        if not isinstance(draft_data, dict):
+            raise ValueError("draft_content.json 顶层必须是 JSON 对象")
+
+        destination.mkdir(parents=True, exist_ok=False)
+        shutil.copytree(source_draft, destination / "draft")
+        asset_root = destination / "assets"
+        path_map: dict[str, str] = {}
+        assets = manifest.get("assets", [])
+        if not isinstance(assets, list):
+            raise ValueError("迁移包 assets 字段格式错误")
+        for item in assets:
+            if not isinstance(item, dict):
+                continue
+            archive_path = _validated_member_name(str(item.get("archive_path", "")))
+            if not archive_path.parts or archive_path.parts[0] != "assets":
+                raise ValueError(f"迁移包素材路径不合法: {archive_path.as_posix()}")
+            extracted_asset = staging.joinpath(*archive_path.parts)
+            if not extracted_asset.exists():
+                raise FileNotFoundError(f"迁移包素材缺失: {archive_path.as_posix()}")
+            target = asset_root.joinpath(*archive_path.parts[1:])
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if extracted_asset.is_dir():
+                shutil.copytree(extracted_asset, target)
+            else:
+                shutil.copy2(extracted_asset, target)
+            for source_key in (item.get("source_path"), item.get("original_path")):
+                normalized = _normalize_local_path(str(source_key or ""))
+                if normalized:
+                    path_map[normalized] = str(target.resolve())
+
+        library_references = manifest.get("library_references", [])
+        if not isinstance(library_references, list):
+            raise ValueError("迁移包 library_references 字段格式错误")
+        for item in library_references:
+            if not isinstance(item, dict) or str(item.get("kind", "")) != "font":
+                continue
+            if font_library_root is None:
+                raise ValueError("模板需要复用字体库文件，但服务器未配置字体库目录")
+            root = Path(font_library_root).expanduser().resolve()
+            relative = _validated_member_name(str(item.get("library_file", "")))
+            target = root.joinpath(*relative.parts).resolve()
+            try:
+                target.relative_to(root)
+            except ValueError as exc:
+                raise ValueError(f"字体库引用越界: {relative.as_posix()}") from exc
+            if not target.is_file():
+                identity = str(item.get("identity", "")) or relative.as_posix()
+                raise FileNotFoundError(f"服务器字体库缺少保留原样所需字体: {identity}")
+            expected_checksum = str(item.get("checksum_sha256", "")).strip().lower()
+            if expected_checksum and _file_sha256(target) != expected_checksum:
+                identity = str(item.get("identity", "")) or relative.as_posix()
+                raise ValueError(f"服务器字体库中的字体文件校验不一致: {identity}")
+            normalized = _normalize_local_path(str(item.get("original_path", "")))
+            if normalized:
+                path_map[normalized] = str(target)
+
+        rewrite_count = 0
+        for filename in ("draft_content.json", "draft_meta_info.json"):
+            imported_json_path = destination / "draft" / filename
+            if not imported_json_path.is_file():
+                continue
+            imported_data = json.loads(imported_json_path.read_text(encoding="utf-8"))
+            rewritten_data, file_rewrite_count = _rewrite_paths(imported_data, path_map)
+            imported_json_path.write_text(
+                json.dumps(rewritten_data, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            rewrite_count += file_rewrite_count
+        (destination / "transfer_manifest.json").write_text(
+            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return {
+            "manifest": manifest,
+            "asset_count": len(assets),
+            "library_reference_count": len(library_references),
+            "rewritten_path_count": rewrite_count,
+            "path_map": path_map,
+        }
+    except Exception:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
 
 
 def import_transfer_package(
@@ -260,13 +403,94 @@ def import_transfer_package(
         raise
 
 
-def _write_directory(archive: zipfile.ZipFile, source: Path, archive_root: str) -> None:
+def _central_dependency_source(dependency: dict[str, Any]) -> Path | None:
+    """Resolve a collector-library match to the actual local payload."""
+
+    match = dependency.get("central_match")
+    if not isinstance(match, dict):
+        return None
+    root_value = str(match.get("library_root") or "").strip()
+    if not root_value:
+        return None
+    root = Path(root_value).expanduser().resolve()
+    library_file = str(match.get("library_file") or "").strip()
+    if library_file:
+        relative = _validated_member_name(library_file)
+        candidate = root.joinpath(*relative.parts).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            return None
+        if candidate.exists():
+            return candidate
+
+    metadata_value = str(match.get("metadata_file") or "").strip()
+    if not metadata_value:
+        return None
+    metadata = Path(metadata_value).expanduser()
+    if not metadata.is_absolute():
+        relative = _validated_member_name(metadata_value)
+        metadata = root.joinpath(*relative.parts)
+    metadata = metadata.resolve()
+    try:
+        metadata.relative_to(root)
+    except ValueError:
+        return None
+    if not metadata.is_file():
+        return None
+    try:
+        payload = json.loads(metadata.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    resources: list[dict[str, Any]] = []
+    if isinstance(payload.get("resource"), dict):
+        resources.append(payload["resource"])
+    resources.extend(
+        item for item in payload.get("resources", []) if isinstance(item, dict)
+    )
+    original_key = _normalize_local_path(
+        str(dependency.get("original_path") or dependency.get("path") or "")
+    )
+    ordered = sorted(
+        resources,
+        key=lambda item: _normalize_local_path(str(item.get("original_path") or ""))
+        != original_key,
+    )
+    for item in ordered:
+        library_path = str(item.get("library_path") or "").strip()
+        if not library_path:
+            continue
+        relative = _validated_member_name(library_path)
+        candidate = metadata.parent.joinpath(*relative.parts).resolve()
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            continue
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _write_directory(
+    archive: zipfile.ZipFile,
+    source: Path,
+    archive_root: str,
+    *,
+    ignored_directory_names: set[str] | None = None,
+) -> None:
     wrote_file = False
     for path in sorted(source.rglob("*")):
         if not path.is_file():
             continue
+        relative_path = path.relative_to(source)
+        if ignored_directory_names and any(
+            part.casefold() in ignored_directory_names for part in relative_path.parts[:-1]
+        ):
+            continue
         wrote_file = True
-        relative = path.relative_to(source).as_posix()
+        relative = relative_path.as_posix()
         archive_name = f"{archive_root.rstrip('/')}/{relative}"
         archive.write(path, archive_name, compress_type=_compression_for(path))
     if not wrote_file:
@@ -279,7 +503,12 @@ def _compression_for(path: Path) -> int:
     return zipfile.ZIP_DEFLATED
 
 
-def _safe_extract(package: Path, destination: Path) -> None:
+def _safe_extract(
+    package: Path,
+    destination: Path,
+    *,
+    max_extracted_bytes: int = MAX_EXTRACTED_BYTES,
+) -> None:
     destination.mkdir(parents=True, exist_ok=False)
     total_size = 0
     with zipfile.ZipFile(package, "r") as archive:
@@ -292,7 +521,7 @@ def _safe_extract(package: Path, destination: Path) -> None:
                 destination.joinpath(*name.parts).mkdir(parents=True, exist_ok=True)
                 continue
             total_size += int(member.file_size)
-            if total_size > MAX_EXTRACTED_BYTES:
+            if total_size > max_extracted_bytes:
                 raise ValueError("迁移包解压后大小超过限制")
             target = destination.joinpath(*name.parts)
             target.parent.mkdir(parents=True, exist_ok=True)

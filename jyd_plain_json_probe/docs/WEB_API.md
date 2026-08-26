@@ -4,6 +4,7 @@
 
 ```text
 GET  /app/new
+GET  /app/new/templates
 GET  /app/new/gallery
 GET  /app/new/voices
 GET  /app/new/login
@@ -12,7 +13,7 @@ GET  /api/auth/session
 POST /api/auth/logout
 ```
 
-前三个页面要求有效的数字人普通账号会话；未登录访问时以 `303` 跳转到
+前四个业务页面要求有效的数字人普通账号会话；未登录访问时以 `303` 跳转到
 `/app/new/login?next=原地址`。登录接口仍由工作台代理数字人网站账号验证，并设置
 HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登录页面额外把返回范围
 限制在 `/app/new` 内，避免开放跳转。静态页面不得保存数字人访问令牌。
@@ -389,18 +390,23 @@ RunningHub 手动取消后的“生成视频”按取消时所处阶段创建新
 
 ## 账号剪映模板
 
-新版“上传与生成”页底部用一个小按钮打开“我的剪映模板”弹窗。模板按数字人账号隔离，项目只
+新版提供独立的 `/app/new/templates`“剪映模板中心”，支持上传、筛选、封面展示、重命名、
+资源修复、删除和跳回核心工作台复用；“上传与生成”页底部仍保留快速选择弹窗。模板按数字人账号隔离，项目只
 保存 `template_id` 和显示名称；4B 提交时服务端会再次按当前账号解析成受信任的草稿路径，前端
 不能传服务器本地路径。
 
 纯网页上传使用 Chrome/Edge 的目录授权。用户应选择具体草稿目录，通常位于
 `%LOCALAPPDATA%\JianyingPro\User Data\Projects\com.lveditor.draft\草稿名`。网页只上传
 `draft_content.json`、`draft_meta_info.json` 等必要描述文件，不会上传整个草稿目录。服务端自动
-识别主视频和语音字幕轨；已知字幕轨名称优先，其次按连续性、覆盖率、短文本比例综合判断。
+识别可选的主视频占位轨和语音字幕轨；没有视频轨的纯字幕、花字、贴纸或特效模板也可保存，
+生成时会自动加入当前项目主视频。已知字幕轨名称优先，其次按连续性、覆盖率、短文本比例综合判断。
 多条字幕轨同分时拒绝导入，并提示用户只保留一条连续语音字幕轨，不让用户手选内部 ID。
 
 ```text
 GET    /api/new/jianying-templates
+GET    /api/new/jianying-templates/{template_id}/cover
+POST   /api/new/jianying-template-import-tickets
+POST   /api/new/jianying-template-imports/{ticket}
 POST   /api/new/jianying-templates
 PUT    /api/new/jianying-templates/{template_id}/draft-files?path=...
 POST   /api/new/jianying-templates/{template_id}/analyze
@@ -410,6 +416,10 @@ PATCH  /api/new/jianying-templates/{template_id}
 DELETE /api/new/jianying-templates/{template_id}
 PUT    /api/new/projects/{project_id}/jianying-template
 ```
+
+本机采集器导入时，已登录浏览器先调用 `jianying-template-import-tickets`，获得绑定当前 `user_id`
+和模板名称的十分钟一次性凭证；采集器再把 `template_center` 模式迁移包上传到凭证地址。上传接口不读取
+浏览器 Cookie，也不接受客户端指定用户编号，凭证消费后立即失效。
 
 若花字/字体/贴纸资源未进入服务端中央素材库，分析返回 `NEEDS_RESOURCES`、资源标识和剪映
 `User Data\Cache` 下的候选相对目录。网页经用户再次授权后，只读取这些精确资源 ID 目录中的

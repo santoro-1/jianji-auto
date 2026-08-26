@@ -16,6 +16,7 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 from jyd_probe.draft_transfer import (  # noqa: E402
     build_transfer_package,
     import_transfer_package,
+    materialize_transfer_package,
 )
 
 
@@ -62,9 +63,15 @@ class DraftTransferTest(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        backup = draft_dir / ".backup" / "CAC33168-2EAA-4579-9268-6451A9B6AB79"
+        backup.mkdir(parents=True)
+        (backup / "20260824163414_366318737feaf0073790e019056ba537.save.bak").write_bytes(
+            b"historical-backup"
+        )
         plan = {
             "plan_id": "plan1",
             "report_id": "report1",
+            "mode": "template_center",
             "draft": {
                 "name": "剪辑母版",
                 "analyzed_draft_dir": str(draft_dir),
@@ -96,6 +103,23 @@ class DraftTransferTest(unittest.TestCase):
             names = archive.namelist()
         self.assertTrue(any(name.endswith("source video.mp4") for name in names))
         self.assertFalse(any(name.endswith("old.mp3") for name in names))
+        self.assertFalse(any("/.backup/" in name for name in names))
+
+        account_root = self.temp / "account-template"
+        staging_root = self.temp / "short-staging"
+        materialized = materialize_transfer_package(
+            package_path,
+            account_root,
+            required_mode="template_center",
+            staging_root=staging_root,
+        )
+        account_draft = json.loads(
+            (account_root / "draft" / "draft_content.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(materialized["asset_count"], 1)
+        self.assertTrue(Path(account_draft["materials"]["videos"][0]["path"]).is_file())
+        self.assertEqual(account_draft["materials"]["audios"][0]["path"], str(skipped_audio))
+        self.assertEqual(list(staging_root.iterdir()), [])
 
         result = import_transfer_package(
             package_path,
@@ -200,6 +224,66 @@ class DraftTransferTest(unittest.TestCase):
         self.assertEqual(nested["styles"][0]["font"]["path"], str(font_file.resolve()))
         self.assertEqual(result["library_reference_count"], 1)
         self.assertEqual(result["rewritten_path_count"], 2)
+
+    def test_template_center_packages_visual_from_collector_library_match(self) -> None:
+        old_effect_path = r"C:\Users\editor\Cache\artistEffect\123\hash"
+        library_root = self.temp / "text_effect_library"
+        metadata = library_root / "bundles" / "effect-123" / "text_effect.json"
+        resource = metadata.parent / "resources" / "effect"
+        resource.mkdir(parents=True)
+        (resource / "effect.json").write_text('{"visual":true}', encoding="utf-8")
+        metadata.write_text(
+            json.dumps({
+                "resource": {
+                    "original_path": old_effect_path,
+                    "library_path": "resources/effect",
+                }
+            }),
+            encoding="utf-8",
+        )
+        draft_dir = self.temp / "central-visual-draft"
+        draft_dir.mkdir()
+        (draft_dir / "draft_content.json").write_text(
+            json.dumps({
+                "duration": 1_000_000,
+                "tracks": [],
+                "materials": {"texts": [{"id": "t1", "font_path": old_effect_path}]},
+            }),
+            encoding="utf-8",
+        )
+        package_path = self.temp / "central-visual.zip"
+        package = build_transfer_package(
+            {
+                "mode": "template_center",
+                "draft": {"name": "视觉模板", "analyzed_draft_dir": str(draft_dir)},
+                "summary": {"ready_for_upload": True},
+                "dependencies": [{
+                    "kind": "text_effect",
+                    "path": old_effect_path,
+                    "original_path": old_effect_path,
+                    "status": "central_library",
+                    "decision": "upload",
+                    "central_match": {
+                        "library_root": str(library_root),
+                        "metadata_file": "bundles/effect-123/text_effect.json",
+                    },
+                }],
+            },
+            package_path,
+        )
+        self.assertEqual(package["asset_count"], 1)
+        destination = self.temp / "central-visual-account"
+        materialize_transfer_package(
+            package_path,
+            destination,
+            required_mode="template_center",
+        )
+        imported = json.loads(
+            (destination / "draft" / "draft_content.json").read_text(encoding="utf-8")
+        )
+        rewritten = Path(imported["materials"]["texts"][0]["font_path"])
+        self.assertTrue((rewritten / "effect.json").is_file())
+        self.assertNotEqual(str(rewritten), old_effect_path)
 
 
 if __name__ == "__main__":

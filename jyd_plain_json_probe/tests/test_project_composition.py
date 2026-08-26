@@ -43,6 +43,7 @@ class ProjectCompositionApiTest(unittest.TestCase):
             auth_authority=False,
             auth_server_url="http://127.0.0.1:8000",
             execution_mode="agent",
+            enable_legacy_new_workbench_video_engines=True,
         )
         for directory in (
             self.settings.storage_root,
@@ -79,6 +80,78 @@ class ProjectCompositionApiTest(unittest.TestCase):
 
         self.assertTrue(actions["backfill_seedvr2"])
         self.assertTrue(actions["retry_composition"])
+
+    def test_startup_retires_only_unstarted_legacy_composition_operations(self) -> None:
+        store = ProjectStore(self.root / "retire_legacy.sqlite3")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="旧画面启动恢复",
+            items=[
+                {"row_key": "1", "script_text": "未进入云端。"},
+                {"row_key": "2", "script_text": "已经进入云端。"},
+            ],
+            settings={"generation_mode": "minimax_h3_ref2va"},
+        )
+        project_id = project["project_id"]
+        first_id = project["items"][0]["item_id"]
+        second_id = project["items"][1]["item_id"]
+        for index, item_id in enumerate((first_id, second_id), start=1):
+            audio_path = self.root / f"audio-{index}.mp3"
+            audio_path.write_bytes(b"ID3audio")
+            store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=item_id,
+                asset_type="audio",
+                source_type="minimax",
+                status="READY",
+                filename=audio_path.name,
+                managed_path=str(audio_path),
+                make_current=True,
+            )
+        first = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=first_id,
+            operation_type="COMPOSITION_GENERATE",
+            idempotency_key="legacy-starting",
+        )
+        second = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=second_id,
+            operation_type="COMPOSITION_GENERATE",
+            idempotency_key="legacy-running",
+        )
+        store.claim_pending_operation(
+            "user-1",
+            project_id,
+            first["operation_id"],
+            operation_type="COMPOSITION_GENERATE",
+        )
+        store.transition_operation(
+            "user-1",
+            project_id,
+            second_id,
+            operation_id=second["operation_id"],
+            operation_type="COMPOSITION_GENERATE",
+            status="RUNNING",
+            item_status="DIGITAL_HUMAN_RUNNING",
+        )
+
+        self.assertEqual(store.retire_unstarted_legacy_composition_operations(), 1)
+        refreshed = store.get_project("user-1", project_id)
+        operations = {item["operation_id"]: item for item in refreshed["operations"]}
+        items = {item["item_id"]: item for item in refreshed["items"]}
+        self.assertEqual(operations[first["operation_id"]]["status"], "FAILED")
+        self.assertEqual(
+            operations[first["operation_id"]]["error_code"],
+            "NEW_WORKBENCH_H3_ONLY",
+        )
+        self.assertEqual(items[first_id]["status"], "AUDIO_READY")
+        self.assertEqual(operations[second["operation_id"]]["status"], "RUNNING")
+        self.assertEqual(items[second_id]["status"], "DIGITAL_HUMAN_RUNNING")
 
     def _wait_for_project(
         self,

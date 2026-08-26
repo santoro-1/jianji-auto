@@ -104,7 +104,8 @@ class NewFrontendTest(unittest.TestCase):
         ):
             self.assertNotIn(user_facing_label, page)
 
-        # Archived projects can still be read by the legacy backend, but main has no route to it.
+        # Archived projects can still be read, while legacy mutation routes are
+        # retained only to return an explicit H3-only conflict to old clients.
         paths = {route.path for route in create_app(self.settings).routes}
         self.assertIn("/api/new/projects/{project_id}/ltx/state", paths)
         self.assertIn(
@@ -114,26 +115,31 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/api/new/projects/{project_id}/ltx/generate", paths)
         self.assertIn("/api/new/projects/{project_id}/ltx/refresh", paths)
 
-    def test_ltx_row_and_selected_generation_never_use_image_composition(self) -> None:
+    def test_all_visible_video_actions_start_multi_reference_only(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
         single_start = page.index("async function runSingleVideo")
-        single_end = page.index("async function generateSelectedAudio", single_start)
+        single_end = page.index("async function backfillRowSeedvr2", single_start)
         single = page[single_start:single_end]
-        self.assertIn("await startGlobalLtxGeneration([script])", single)
-        self.assertLess(
-            single.index("await startGlobalLtxGeneration([script])"),
-            single.index("script.allowedActions?.start_composition"),
-        )
+        self.assertIn("await startGlobalH3Generation([script])", single)
+        self.assertNotIn("startGlobalLtxGeneration", single)
+        self.assertNotIn("/composition/generate", single)
 
         selected_start = page.index("async function generateSelectedVideos")
         selected_end = page.index("async function", selected_start + 1)
         selected = page[selected_start:selected_end]
-        self.assertIn("await startGlobalLtxGeneration(missingBase)", selected)
-        self.assertLess(
-            selected.index("await startGlobalLtxGeneration(missingBase)"),
-            selected.index("item.allowedActions?.start_composition"),
-        )
+        self.assertIn("await startGlobalH3Generation(missingBase)", selected)
+        self.assertNotIn("startGlobalLtxGeneration", selected)
+        self.assertNotIn("/composition/generate", selected)
+
+        global_start = page.index("async function startGlobalFinalVideoGeneration")
+        global_end = page.index("async function retryFailedCompositionItems", global_start)
+        global_generation = page[global_start:global_end]
+        self.assertIn("await startGlobalH3Generation()", global_generation)
+        self.assertNotIn("startGlobalLtxGeneration", global_generation)
+        self.assertNotIn("startGlobalComposition", global_generation)
+        self.assertNotIn("retryFailedCompositionItems", global_generation)
+        self.assertIn("const canBackfillSeedvr2 = false", page)
 
     def test_header_has_no_three_route_switcher(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
@@ -204,7 +210,7 @@ class NewFrontendTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("/api/runtime/pages", runtime_script)
         self.assertIn('window.addEventListener("pagehide"', runtime_script)
-        for name in ("index.html", "login.html", "gallery.html", "voice-library.html"):
+        for name in ("index.html", "login.html", "gallery.html", "voice-library.html", "templates.html"):
             page = (FRONTEND_ROOT / name).read_text(encoding="utf-8")
             self.assertIn("/app-static/workbench-runtime.js", page, name)
 
@@ -290,7 +296,17 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("titleStatus === 'NOT_REQUESTED'", html)
         self.assertIn("startContentAnalysisForChangedScripts", html)
         self.assertIn("markContentAnalysisPending", html)
-        self.assertIn("AI 分析中...", html)
+        self.assertIn("scheduleContentAnalysisStatusPoll", html)
+        self.assertIn("CONTENT_ANALYSIS_STATUS_POLL_INTERVAL_MS = 5000", html)
+        self.assertIn("projectHasPendingContentAnalysis", html)
+        self.assertIn("reconcileContentAnalysisStatusPoll(project);", html)
+        self.assertIn("item?.visual_analysis?.analysis_status === 'PENDING'", html)
+        self.assertIn("scheduleContentAnalysisStatusPoll(projectId, [rowId]);", html)
+        self.assertIn("scheduleContentAnalysisStatusPoll(projectId, refreshItemIds);", html)
+        self.assertIn("analysisStatus === 'PENDING' ? ''", html)
+        self.assertIn("AI 分析中 · 等待网站返回", html)
+        self.assertIn("详细阶段记录在 data/logs/workbench.log", html)
+        self.assertIn("overall_status: 'PENDING',\n                    errors: {}", html)
         self.assertIn("生成声音预览和脚本分析", html)
         self.assertIn("一键下载视频", html)
         self.assertIn("一键下载声音", html)
@@ -382,7 +398,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("waitForSelectedScriptSaves", html)
         self.assertIn("Promise.allSettled(saves)", html)
         self.assertIn("item_ids: itemIds", html)
-        self.assertIn("item_ids: fresh.map((item) => item.id)", html)
+        self.assertIn("item_ids: targets.map(item => item.id)", html)
         self.assertNotIn("simulateExcelParsing", html)
         self.assertNotIn("loadSampleData", html)
         self.assertNotIn("const sampleImages", html)
@@ -438,16 +454,17 @@ class NewFrontendTest(unittest.TestCase):
             html,
         )
 
-    def test_selected_composition_rows_do_not_start_and_retry_twice(self) -> None:
+    def test_selected_videos_use_one_multi_reference_start(self) -> None:
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertIn(
-            "const retries = missingBase.filter((item) => item.allowedActions?.retry_composition && !isPrecloudCompositionFailure(item));",
-            html,
-        )
-        self.assertIn("item.allowedActions?.start_composition || isPrecloudCompositionFailure(item)", html)
+        start = html.index("async function generateSelectedVideos")
+        end = html.index("async function generateAllVoicePreviews", start)
+        selected = html[start:end]
+        self.assertEqual(selected.count("startGlobalH3Generation(missingBase)"), 1)
+        self.assertNotIn("retry_composition", selected)
+        self.assertNotIn("/composition/generate", selected)
 
     def test_new_frontend_styles_are_bundled_locally(self) -> None:
-        pages = ("index.html", "login.html", "voice-library.html", "gallery.html")
+        pages = ("index.html", "login.html", "voice-library.html", "gallery.html", "templates.html")
         for page in pages:
             html = (FRONTEND_ROOT / page).read_text(encoding="utf-8")
             self.assertIn('/app-static/new/tailwind.generated.css', html, page)
@@ -623,20 +640,16 @@ class NewFrontendTest(unittest.TestCase):
 
     def test_complete_video_flow_keeps_internal_stages_out_of_user_results(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertIn("/composition/generate", workspace)
+        self.assertIn("/h3/prepare", workspace)
+        self.assertIn("/h3/confirm", workspace)
         self.assertIn("/composition/status", workspace)
-        self.assertIn("/composition/retry", workspace)
-        self.assertIn("/composition/seedvr2-backfill", workspace)
-        self.assertIn("补跑 SeedVR2 高清", workspace)
-        self.assertIn("不会重新生成数字人", workspace)
+        self.assertIn("const canBackfillSeedvr2 = false", workspace)
         self.assertIn("data-preview-video-url", workspace)
         self.assertIn("/base-video", workspace)
         self.assertIn("以剪映草稿为准", workspace)
         self.assertIn("生成完整成片", workspace)
         self.assertIn("/postprocess/generate", workspace)
         self.assertIn("/postprocess-settings", workspace)
-        self.assertIn("continueFinalGenerationAfterComposition", workspace)
-        self.assertIn("setFinalGenerationPhase('composition')", workspace)
         self.assertIn("startGlobalPostprocess()", workspace)
         self.assertIn("/h3/overrides", workspace)
         self.assertIn("高级覆盖（可选）", workspace)
@@ -646,10 +659,11 @@ class NewFrontendTest(unittest.TestCase):
             workspace.index("async function retryFailedCompositionItems()")
         ]
         self.assertLess(
-            final_flow.index("const compositionTargets"),
+            final_flow.index("startGlobalH3Generation"),
             final_flow.index("const canPostprocess"),
         )
-        self.assertIn("item_ids: restartable.map((item) => item.id)", workspace)
+        self.assertNotIn("startGlobalComposition", final_flow)
+        self.assertNotIn("retryFailedCompositionItems", final_flow)
         self.assertIn("data-final-video-url", workspace)
         self.assertIn("video-preview-time", workspace)
         self.assertIn("loadedmetadata", workspace)
@@ -797,41 +811,18 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("旧视频预览已关闭", workspace)
         self.assertIn("历史视频不会继续冒充当前版本", workspace)
 
-    def test_admin_runninghub_pool_is_selected_per_fresh_4a_confirmation(self) -> None:
+    def test_visible_generation_flow_uses_h3_account_selection_only(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
-        self.assertIn("confirmRunningHubCost", workspace)
-        self.assertIn("/api/new/runninghub-execution-accounts", workspace)
-        self.assertIn("summary.pool_access === true", workspace)
-        self.assertIn("isAdmin || summary.pool_access", workspace)
-        self.assertIn("authenticatedSession?.user?.is_admin === true", workspace)
-        self.assertIn("本次执行账号（每次重新默认全选）", workspace)
-        self.assertIn("取消勾选仅影响本次", workspace)
-        self.assertIn("请至少选择一个 RunningHub 执行账号", workspace)
-        self.assertIn("summary.default_selected_account_ids", workspace)
-        self.assertIn("balance.remain_coins", workspace)
-        self.assertIn("剩余 ${balance.remain_coins} RH 币", workspace)
-        self.assertIn("数字人账号池", workspace)
-        self.assertIn("SeedVR2 放大账号池", workspace)
-        self.assertIn("seedvr2_execution_account_ids", workspace)
-        self.assertIn("execution_mode: 'dual_pool_v1'", workspace)
-        self.assertIn("当前执行模式：${modeLabel}", workspace)
-        self.assertIn("runningHubExecutionSummary", workspace)
-        self.assertIn("refreshRunningHubExecutionSummaries", workspace)
-        self.assertIn("runningHubLockedItemContext", workspace)
-        self.assertIn("isPrecloudCompositionFailure", workspace)
-        self.assertIn("已锁定，将自动沿用首次被云端接收的执行账号", workspace)
-        self.assertIn("（已锁定任务账号）", workspace)
-        self.assertIn("{ items: [script] }", workspace)
-        self.assertIn("{ items: fresh }", workspace)
-        self.assertIn("等待云端分配实际执行账号", workspace)
-        self.assertIn("（数字人 + 放大）", workspace)
-        self.assertIn("数字人 ${digital} / 放大 ${seedvr2}", workspace)
-        self.assertEqual(
-            workspace.count(
-                "...runningHubSelectionRequestFields(selectedRunningHubAccountIds)"
-            ),
-            4,
-        )
+        self.assertIn("/api/new/h3/accounts", workspace)
+        self.assertIn("selectH3Accounts(accounts)", workspace)
+        self.assertIn("selected_account_ids: selected", workspace)
+        self.assertIn("/h3/prepare", workspace)
+        self.assertIn("/h3/confirm", workspace)
+        final_start = workspace.index("async function startGlobalFinalVideoGeneration")
+        final_end = workspace.index("async function retryFailedCompositionItems", final_start)
+        visible_final_flow = workspace[final_start:final_end]
+        self.assertNotIn("confirmRunningHubCost", visible_final_flow)
+        self.assertNotIn("runningHubSelectionRequestFields", visible_final_flow)
 
     def test_composition_poll_errors_are_deduplicated_and_backed_off(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
@@ -861,9 +852,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("incomingProjectId !== currentProjectId", workspace)
         self.assertIn("if (activeProject?.project_id !== projectId) return;", workspace)
         self.assertIn("compositionStatusRequestProjectId === activeProject?.project_id", workspace)
-        self.assertIn("if (ltxMode && ltxActive)", workspace)
-        self.assertIn("else if (ltxMode && isGeneratingLtx)", workspace)
-        self.assertIn("else if (h3Mode && h3Active)", workspace)
+        self.assertNotIn("if (ltxMode && ltxActive)", workspace)
+        self.assertNotIn("else if (ltxMode && isGeneratingLtx)", workspace)
+        self.assertIn("if (h3Mode && h3Active)", workspace)
         self.assertIn("else if (h3Mode && isGeneratingH3)", workspace)
 
     def test_module_6_uses_real_variant_api_and_inherited_ai_cover(self) -> None:
@@ -929,6 +920,7 @@ class NewFrontendTest(unittest.TestCase):
                 "/app/new/generate",
                 "/app/new/gallery",
                 "/app/new/voices",
+                "/app/new/templates",
             ):
                 response = client.get(path, follow_redirects=False)
                 self.assertEqual(response.status_code, 303, path)
@@ -997,6 +989,7 @@ class NewFrontendTest(unittest.TestCase):
                     "/app/new/generate": "index.html",
                     "/app/new/gallery": "gallery.html",
                     "/app/new/voices": "voice-library.html",
+                    "/app/new/templates": "templates.html",
                 }
                 for path, filename in expected_files.items():
                     response = client.get(path)
@@ -1026,6 +1019,39 @@ class NewFrontendTest(unittest.TestCase):
                 closed = client.get("/app/new", follow_redirects=False)
                 self.assertEqual(closed.status_code, 303)
                 self.assertEqual(closed.headers["location"], "/app/new/login?next=/app/new")
+
+    def test_legacy_video_mutations_are_rejected_before_any_engine_call(self) -> None:
+        user = {"user_id": "center-user", "username": "tester", "enabled": True}
+
+        def verify(_client, token):
+            return user if token == "center-token" else None
+
+        with patch(
+            "jyd_probe.auth_center.AuthCenterClient.login",
+            return_value={"access_token": "center-token", "user": user},
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.verify",
+            new=verify,
+        ):
+            with TestClient(create_app(self.settings)) as client:
+                client.post(
+                    "/api/auth/login",
+                    json={"username": "tester", "password": "pass123"},
+                )
+                requests = (
+                    ("put", "/api/new/projects/project-1/generation-mode", {"mode": "runninghub_digital_human"}),
+                    ("put", "/api/new/projects/project-1/items/item-1/ltx/source-video", None),
+                    ("post", "/api/new/projects/project-1/ltx/generate", {}),
+                    ("post", "/api/new/projects/project-1/ltx/refresh", {}),
+                    ("post", "/api/new/projects/project-1/items/item-1/ltx/retry", {}),
+                    ("post", "/api/new/projects/project-1/composition/generate", {}),
+                    ("post", "/api/new/projects/project-1/items/item-1/composition/retry", {}),
+                    ("post", "/api/new/projects/project-1/items/item-1/composition/seedvr2-backfill", {}),
+                )
+                for method, path, payload in requests:
+                    response = getattr(client, method)(path, json=payload)
+                    self.assertEqual(response.status_code, 409, path)
+                    self.assertIn("只支持多参考", response.json()["detail"])
 
     def test_logged_in_login_page_only_redirects_inside_new_app(self) -> None:
         user = {"user_id": "center-user", "username": "tester", "enabled": True}

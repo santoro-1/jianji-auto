@@ -1222,10 +1222,20 @@ def _build_visual_video_additions(
                 corner=corner,
                 scale=scale,
                 opacity=float(_value(item, "opacity", default=1.0)),
-                track_name="全屏 B-roll" if fullscreen else "语义前景视频",
-                optional=True,
-                render_below_text=True,
-                layer_order=30 if fullscreen else 10,
+                track_name=str(
+                    _value(
+                        item,
+                        "track_name",
+                        default="全屏 B-roll" if fullscreen else "语义前景视频",
+                    )
+                ),
+                optional=_as_bool(_value(item, "optional", default=True)),
+                render_below_text=_as_bool(
+                    _value(item, "render_below_text", default=True)
+                ),
+                layer_order=int(
+                    _value(item, "layer_order", default=30 if fullscreen else 10)
+                ),
             )
         )
     return additions

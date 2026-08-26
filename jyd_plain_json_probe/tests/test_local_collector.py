@@ -48,6 +48,14 @@ class LocalCollectorServiceTest(unittest.TestCase):
         self.assertEqual(DEFAULT_RENDER_SERVER_URL, "http://127.0.0.1:8010")
         self.assertEqual(self.settings.render_server_url, DEFAULT_RENDER_SERVER_URL)
 
+    def test_double_click_does_not_open_obsolete_local_workbench_url(self) -> None:
+        source = (
+            PROJECT_ROOT / "apps" / "collector" / "run_local_collector.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("if args.open_browser and not args.no_browser:", source)
+        self.assertIn('collector_url = f"http://{args.host}:{args.port}/"', source)
+        self.assertNotIn("settings.render_server_url.rstrip('/')}/app", source)
+
     def test_lists_plain_and_encrypted_drafts_and_analyzes_plain_draft(self) -> None:
         source_video = self.temp / "source.mp4"
         source_video.write_bytes(b"video")
@@ -103,6 +111,7 @@ class LocalCollectorServiceTest(unittest.TestCase):
         report = service.analyze_draft(plain_dir, hash_limit_bytes=-1)
         self.assertTrue(report["report_id"])
         self.assertEqual(report["draft"]["name"], "成片草稿")
+        self.assertEqual(report["draft"]["main_video"]["material_id"], "video-material")
         self.assertEqual(report["summary"]["upload_required_count"], 1)
         self.assertEqual(service.get_report(report["report_id"])["report_id"], report["report_id"])
         plan = service.create_upload_plan(
@@ -119,6 +128,29 @@ class LocalCollectorServiceTest(unittest.TestCase):
         self.assertEqual(plan["summary"]["upload_count"], 1)
         self.assertTrue(plan["summary"]["ready_for_upload"])
         self.assertEqual(service.get_upload_plan(plan["plan_id"])["plan_id"], plan["plan_id"])
+
+        template_plan = service.create_upload_plan(
+            report["report_id"],
+            {
+                "audio": "replace",
+                "video_effects": "keep",
+                "text_style": "keep",
+                "text_effects": "keep",
+                "text_templates": "keep",
+            },
+            mode="template_center",
+        )
+        self.assertEqual(template_plan["mode"], "template_center")
+        self.assertEqual(template_plan["summary"]["upload_count"], 0)
+        with patch.object(service, "_post_package", return_value={"template": {"name": "账号模板"}}) as posted:
+            uploaded = service.upload_plan(
+                template_plan["plan_id"],
+                template_name="账号模板",
+                server_url="http://192.168.1.20:8010",
+                template_import_ticket="one-time-ticket",
+            )
+        self.assertEqual(uploaded["server_result"]["template"]["name"], "账号模板")
+        self.assertEqual(posted.call_args.kwargs["template_import_ticket"], "one-time-ticket")
 
     def test_persists_root_and_rejects_draft_outside_configured_root(self) -> None:
         alternative_root = self.temp / "alternative"
