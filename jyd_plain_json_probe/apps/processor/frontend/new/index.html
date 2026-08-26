@@ -2150,10 +2150,36 @@
             try {
                 const quote = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/retry/prepare`, { method: 'POST', body: '{}' });
                 const paid = Number(quote.estimated_paid_calls || 0) > 0;
-                if (!window.confirm(paid ? `重试会产生 ${quote.estimated_paid_calls} 次付费调用，继续？` : '本次只重新下载已有云端结果，不产生新的生成调用，继续？')) return;
+                if (!window.confirm(paid ? `重试会产生 ${quote.estimated_paid_calls} 次付费调用，继续？` : '本次只重新下载已有云端结果，不产生新的生成调用，继续？')) return false;
                 const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/retry/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `retry-${Date.now()}`, quote_token: quote.quote_token, cost_confirmed: paid }) });
                 syncProjectInputs(result.project); scheduleH3StatusPoll(1000);
-            } catch (error) { showToast('重试失败', publicGenerationMessage(error.message), 'warning'); }
+                return true;
+            } catch (error) {
+                showToast('视频分段重试失败', publicGenerationMessage(error.message), 'warning');
+                return false;
+            }
+        }
+
+        function h3RetryableSegmentsForScript(script) {
+            const segments = Array.isArray(script?.h3Settings?.segments)
+                ? script.h3Settings.segments
+                : [];
+            return segments.filter((segment) => (
+                segment?.can_retry
+                && String(segment?.segment_id || '').trim()
+            ));
+        }
+
+        async function retryH3FailedSegmentsForRow(script) {
+            const segments = h3RetryableSegmentsForScript(script);
+            if (!segments.length) {
+                showToast('没有可重试的视频分段', '请先刷新状态；成功分段不会被重新提交。', 'warning');
+                return;
+            }
+            for (const segment of segments) {
+                const started = await h3RetrySegment(String(segment.segment_id));
+                if (!started) break;
+            }
         }
 
         async function h3RegenerateSegment(segmentId) {
@@ -5243,6 +5269,10 @@
             const row = button.closest('tr');
             const rowId = row.getAttribute('data-id');
             const script = uploadedScripts.find((item) => item.id === rowId);
+            if (isH3GenerationMode()) {
+                void retryH3FailedSegmentsForRow(script);
+                return;
+            }
             if (isPrecloudCompositionFailure(script)) {
                 regenerateRowVideo(button);
                 return;

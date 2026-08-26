@@ -188,6 +188,12 @@ class NewFrontendTest(unittest.TestCase):
             "await startGlobalPostprocess(completedTargets.map((item) => item.id));",
             page,
         )
+        self.assertIn("function h3RetryableSegmentsForScript(script)", page)
+        self.assertIn("retryH3FailedSegmentsForRow(script)", page)
+        self.assertIn(
+            "if (isH3GenerationMode()) {\n                void retryH3FailedSegmentsForRow(script);",
+            page,
+        )
         postprocess_start = page[
             page.index("async function startGlobalPostprocess") :
             page.index("function scheduleVariantStatusPoll")

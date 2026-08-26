@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -28,6 +29,47 @@ from jyd_probe.project_postprocess import (  # noqa: E402
 )
 from jyd_probe.h3_handoff import import_h3_handoff  # noqa: E402
 from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
+
+
+def test_postprocess_agent_offline_has_terminal_failure_reason() -> None:
+    class OfflineAgentQueue:
+        execution_mode = "agent"
+
+        @staticmethod
+        def list_agents():
+            return [{"agent_id": "processor-1", "status": "offline"}]
+
+    coordinator = object.__new__(ProjectPostprocessCoordinator)
+    coordinator.render_queue = OfflineAgentQueue()
+    coordinator.stall_timeout_seconds = 30 * 60
+    coordinator.no_agent_grace_seconds = 60
+    queued_at = (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()
+
+    stalled = coordinator._active_render_stall(
+        {"created_at": queued_at},
+        {"status": "pending", "queued_at": queued_at},
+    )
+
+    assert stalled is not None
+    assert stalled[0] == "JY_RENDER_AGENT_OFFLINE"
+    assert "处理机未连接" in stalled[1]
+
+
+def test_postprocess_active_job_has_bounded_waiting_time() -> None:
+    coordinator = object.__new__(ProjectPostprocessCoordinator)
+    coordinator.render_queue = object()
+    coordinator.stall_timeout_seconds = 30 * 60
+    coordinator.no_agent_grace_seconds = 60
+    started_at = (datetime.now(timezone.utc) - timedelta(minutes=31)).isoformat()
+
+    stalled = coordinator._active_render_stall(
+        {"started_at": started_at},
+        {"status": "running", "started_at": started_at},
+    )
+
+    assert stalled is not None
+    assert stalled[0] == "JY_RENDER_TIMEOUT"
+    assert "停止无限等待" in stalled[1]
 
 
 def _health_music_intent() -> dict[str, object]:

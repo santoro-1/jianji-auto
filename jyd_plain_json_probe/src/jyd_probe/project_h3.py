@@ -756,9 +756,18 @@ class ProjectH3Coordinator:
             if isinstance(outputs.get("base_video"), dict)
             else {}
         )
+        current_audio_path = Path(str(current_audio.get("managed_path") or ""))
+        current_base_path = Path(str(current_base.get("managed_path") or ""))
+        current_files_ready = (
+            current_audio_path.is_file()
+            and current_audio_path.stat().st_size > 0
+            and current_base_path.is_file()
+            and current_base_path.stat().st_size > 0
+        )
         if (
             current_audio.get("metadata", {}).get("h3_segment_signature") == signature
             and current_base.get("metadata", {}).get("h3_segment_signature") == signature
+            and current_files_ready
         ):
             segment_script = "".join(str(value.get("script_text") or "") for value in segments)
             if "".join(segment_script.split()) == "".join(script_text.split()):

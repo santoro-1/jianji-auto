@@ -464,6 +464,17 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
         script_text
     )
 
+    # A copied deployment may retain database rows while losing derived local
+    # files.  Re-sync must rebuild from successful H3 segment results instead
+    # of treating matching metadata as proof that the files still exist.
+    Path(repaired_item["outputs"]["audio"]["managed_path"]).unlink()
+    Path(repaired_item["outputs"]["base_video"]["managed_path"]).unlink()
+    healed = coordinator.sync("user-1", project_id, "token")["project"]["items"][0]
+    assert Path(healed["outputs"]["audio"]["managed_path"]).is_file()
+    assert Path(healed["outputs"]["base_video"]["managed_path"]).is_file()
+    assert healed["outputs"]["audio"]["metadata"]["h3_segment_signature"]
+    assert healed["outputs"]["base_video"]["metadata"]["h3_segment_signature"]
+
     # A later H3 quote must still use the reviewed MiniMax input audio, not the
     # H3-generated authoritative output that is now current in JYD.
     coordinator.prepare(

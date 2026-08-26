@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import hashlib
 import json
 import logging
@@ -65,6 +66,8 @@ from .unified_visual_plan import remap_saved_visual_plan
 
 
 CAPTION_MAX_WIDTH_RATIO = 0.8
+POSTPROCESS_STALL_TIMEOUT_SECONDS = 30 * 60
+POSTPROCESS_NO_AGENT_GRACE_SECONDS = 60
 CAPTION_MAX_LINES = 1
 CAPTION_TRANSFORM_Y = -850 / 1920
 CAPTION_BOTTOM_OFFSET_RATIO = 0.5 + CAPTION_TRANSFORM_Y / 2
@@ -2146,6 +2149,8 @@ class ProjectPostprocessCoordinator:
         require_precise_alignment: bool = False,
         semantic_visual_library_root: Path | None = None,
         semantic_visual_catalog: SemanticVisualCatalog | None = None,
+        stall_timeout_seconds: float = POSTPROCESS_STALL_TIMEOUT_SECONDS,
+        no_agent_grace_seconds: float = POSTPROCESS_NO_AGENT_GRACE_SECONDS,
     ) -> None:
         self.store = store
         self.render_queue = render_queue
@@ -2169,6 +2174,8 @@ class ProjectPostprocessCoordinator:
         self.music_selector = ProjectMusicSelector(music_matcher, self.bgm_assets)
         self.caption_aligner = caption_aligner
         self.require_precise_alignment = bool(require_precise_alignment)
+        self.stall_timeout_seconds = max(1.0, float(stall_timeout_seconds))
+        self.no_agent_grace_seconds = max(0.0, float(no_agent_grace_seconds))
         self.semantic_visual_library_root = Path(
             semantic_visual_library_root
             or (
@@ -2186,6 +2193,61 @@ class ProjectPostprocessCoordinator:
                 )
             except SemanticVisualCatalogError:
                 self.semantic_visual_catalog = None
+
+    @staticmethod
+    def _timestamp_age_seconds(*values: object) -> float | None:
+        now = datetime.now(timezone.utc)
+        for value in values:
+            text = str(value or "").strip()
+            if not text:
+                continue
+            try:
+                parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return max(0.0, (now - parsed.astimezone(timezone.utc)).total_seconds())
+        return None
+
+    def _active_render_stall(
+        self,
+        operation: dict[str, Any],
+        status: dict[str, Any],
+    ) -> tuple[str, str] | None:
+        age = self._timestamp_age_seconds(
+            status.get("heartbeat_at"),
+            status.get("started_at"),
+            status.get("queued_at"),
+            status.get("created_at"),
+            operation.get("started_at"),
+            operation.get("created_at"),
+        )
+        execution_mode = str(
+            getattr(self.render_queue, "execution_mode", "") or ""
+        ).lower()
+        if execution_mode == "agent" and age is not None:
+            list_agents = getattr(self.render_queue, "list_agents", None)
+            try:
+                agents = list_agents() if callable(list_agents) else []
+            except Exception:
+                agents = None
+            online = (
+                [value for value in agents if value.get("status") != "offline"]
+                if agents is not None
+                else None
+            )
+            if online == [] and age >= self.no_agent_grace_seconds:
+                return (
+                    "JY_RENDER_AGENT_OFFLINE",
+                    "剪映处理机未连接，任务已结束等待；启动处理机后可点击重试失败阶段",
+                )
+        if age is not None and age >= self.stall_timeout_seconds:
+            return (
+                "JY_RENDER_TIMEOUT",
+                "剪映后处理任务超过 30 分钟没有完成，已停止无限等待；可点击重试失败阶段",
+            )
+        return None
 
     def _automatic_bgm_mix(
         self,
@@ -3125,6 +3187,13 @@ class ProjectPostprocessCoordinator:
         return self.sync(owner_user_id, project_id)
 
     def sync(self, owner_user_id: str, project_id: str) -> dict[str, Any]:
+        queue_store = getattr(self.render_queue, "store", None)
+        recover_expired = getattr(queue_store, "recover_expired_leases", None)
+        if callable(recover_expired):
+            try:
+                recover_expired()
+            except Exception:
+                pass
         project = self.store.get_project(owner_user_id, project_id)
         operations, latest_by_item = _active_postprocess_operations(project)
         items = {str(item["item_id"]): item for item in project["items"]}
@@ -3158,6 +3227,22 @@ class ProjectPostprocessCoordinator:
                 continue
             remote_status = str(status.get("status") or "")
             if remote_status in {"pending", "running"}:
+                stalled = self._active_render_stall(operation, status)
+                if stalled is None:
+                    continue
+                error_code, error_message = stalled
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=operation_id,
+                    operation_type=operation_type,
+                    status="FAILED",
+                    item_status=("COMPOSITION_FAILED" if is_latest else preserved_item_status),
+                    result={"job_id": job_id},
+                    error_code=error_code,
+                    error_message=error_message,
+                )
                 continue
             if remote_status != "completed":
                 self.store.transition_operation(
