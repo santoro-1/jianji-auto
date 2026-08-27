@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 import hashlib
@@ -64,6 +65,20 @@ ACTIVE_ITEM_STATUSES = {
     "POSTPROCESS_RUNNING",
     "VARIANT_QUEUED",
     "VARIANT_RUNNING",
+}
+
+# H3 status polling is allowed to advance rows into H3, but it must never
+# overwrite a local stage that already consumed the H3 base video.  The H3
+# metadata and failed segments are still refreshed separately.
+H3_DOWNSTREAM_ITEM_STATUSES = {
+    "BASE_VIDEO_READY",
+    "POSTPROCESS_RUNNING",
+    "COMPOSITION_READY",
+    "COMPOSITION_FAILED",
+    "VARIANT_QUEUED",
+    "VARIANT_RUNNING",
+    "VARIANT_READY",
+    "VARIANT_FAILED",
 }
 
 EDITABLE_ITEM_STATUSES = PROJECT_ITEM_STATUSES - ACTIVE_ITEM_STATUSES
@@ -1480,6 +1495,11 @@ class ProjectStore:
                 """,
                 (owner_id, safe_limit, safe_offset),
             ).fetchall()
+            now = _now()
+            for row in rows:
+                self._reconcile_durable_project_state(
+                    connection, str(row["project_id"]), now=now
+                )
             projects = [
                 self._project_payload(connection, row["project_id"])
                 for row in rows
@@ -1496,6 +1516,9 @@ class ProjectStore:
         self.recover_stale_analysis_pending(force=False)
         with self._connect() as connection:
             row = self._owned_project(connection, owner_user_id, project_id)
+            self._reconcile_durable_project_state(
+                connection, str(row["project_id"]), now=_now()
+            )
             return self._project_payload(connection, row["project_id"])
 
     def visual_analysis_recovery_projects(self) -> list[dict[str, Any]]:
@@ -4054,7 +4077,31 @@ class ProjectStore:
                 if remote is None:
                     continue
                 remote_item_status = str(remote.get("status") or remote_status).upper()
-                if remote_status == "AWAITING_COST_CONFIRMATION":
+                current_item_status = str(item["status"])
+                if current_item_status in H3_DOWNSTREAM_ITEM_STATUSES:
+                    item_status = current_item_status
+                elif item["current_base_video_asset_id"]:
+                    subtitles = _object(item["subtitles_json"], _default_subtitles())
+                    active_postprocess = connection.execute(
+                        """
+                        SELECT 1 FROM project_operations
+                        WHERE item_id=?
+                          AND operation_type IN ('POSTPROCESS_GENERATE', 'POSTPROCESS_EXPORT')
+                          AND status IN ('PENDING', 'RUNNING')
+                        LIMIT 1
+                        """,
+                        (item["item_id"],),
+                    ).fetchone()
+                    if active_postprocess is not None:
+                        item_status = "POSTPROCESS_RUNNING"
+                    elif (
+                        item["current_video_asset_id"]
+                        or str(subtitles.get("status") or "") == "PREVIEW_READY"
+                    ):
+                        item_status = "COMPOSITION_READY"
+                    else:
+                        item_status = "BASE_VIDEO_READY"
+                elif remote_status == "AWAITING_COST_CONFIRMATION":
                     item_status = "H3_COST_PENDING"
                 elif remote_item_status in {"FAILED", "PARTIAL_FAILED"}:
                     item_status = "H3_FAILED"
@@ -5960,6 +6007,157 @@ class ProjectStore:
             )
         else:
             raise ValueError(f"素材类型不能设为当前版本: {asset_type}")
+
+    def _reconcile_durable_project_state(
+        self,
+        connection: sqlite3.Connection,
+        project_id: str,
+        *,
+        now: str,
+    ) -> int:
+        """Repair interrupted local status writes from durable assets and operations.
+
+        A process can stop after an audio file or postprocess preview is committed but
+        before its operation/item status is finalized.  Only exact audio remote-item
+        matches and terminal postprocess operation sets are recovered here, so a live
+        paid request is never retired merely because an older asset exists.
+        """
+
+        items = connection.execute(
+            """
+            SELECT item_id, status, current_audio_asset_id,
+                   current_base_video_asset_id, current_video_asset_id,
+                   subtitles_json
+            FROM project_items
+            WHERE project_id=?
+            ORDER BY position
+            """,
+            (project_id,),
+        ).fetchall()
+        if not items:
+            return 0
+
+        active_operations = connection.execute(
+            """
+            SELECT * FROM project_operations
+            WHERE project_id=? AND item_id IS NOT NULL
+              AND status IN ('PENDING', 'STARTING', 'RUNNING')
+            ORDER BY rowid
+            """,
+            (project_id,),
+        ).fetchall()
+        completed_operation_ids: set[str] = set()
+        assets_by_id: dict[str, sqlite3.Row] = {}
+        audio_asset_ids = {
+            str(item["current_audio_asset_id"])
+            for item in items
+            if item["current_audio_asset_id"]
+        }
+        if audio_asset_ids:
+            placeholders = ",".join("?" for _ in audio_asset_ids)
+            asset_rows = connection.execute(
+                f"SELECT * FROM project_assets WHERE asset_id IN ({placeholders})",
+                tuple(sorted(audio_asset_ids)),
+            ).fetchall()
+            assets_by_id = {str(asset["asset_id"]): asset for asset in asset_rows}
+
+        for operation in active_operations:
+            if str(operation["operation_type"]) != "AUDIO_GENERATE":
+                continue
+            item = next(
+                (
+                    value
+                    for value in items
+                    if str(value["item_id"]) == str(operation["item_id"])
+                ),
+                None,
+            )
+            if item is None or not item["current_audio_asset_id"]:
+                continue
+            asset = assets_by_id.get(str(item["current_audio_asset_id"]))
+            if asset is None:
+                continue
+            operation_payload = _object(operation["payload_json"], {})
+            operation_result = _object(operation["result_json"], {})
+            asset_external_ref = _object(asset["external_ref_json"], {})
+            remote_item_id = str(operation_result.get("item_id") or "").strip()
+            if not remote_item_id or remote_item_id != str(
+                asset_external_ref.get("remote_item_id") or ""
+            ).strip():
+                continue
+            result_batch_id = str(operation_result.get("batch_id") or "").strip()
+            asset_batch_id = str(asset_external_ref.get("batch_id") or "").strip()
+            if result_batch_id and asset_batch_id and result_batch_id != asset_batch_id:
+                continue
+            if operation_payload.get("retry") is True:
+                try:
+                    result_generation = int(
+                        operation_result.get("generation_version") or 0
+                    )
+                    asset_generation = int(
+                        asset_external_ref.get("generation_version") or 0
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if result_generation <= 0 or result_generation != asset_generation:
+                    continue
+            connection.execute(
+                """
+                UPDATE project_operations
+                SET status='SUCCEEDED', error_code=NULL, error_message=NULL,
+                    updated_at=?, finished_at=COALESCE(finished_at, ?)
+                WHERE operation_id=?
+                """,
+                (now, now, operation["operation_id"]),
+            )
+            completed_operation_ids.add(str(operation["operation_id"]))
+
+        active_types_by_item: dict[str, set[str]] = defaultdict(set)
+        for operation in active_operations:
+            if str(operation["operation_id"]) in completed_operation_ids:
+                continue
+            active_types_by_item[str(operation["item_id"])].add(
+                str(operation["operation_type"])
+            )
+
+        repaired_items = 0
+        for item in items:
+            item_id = str(item["item_id"])
+            status = str(item["status"])
+            active_types = active_types_by_item.get(item_id, set())
+            if status in {"AUDIO_QUEUED", "AUDIO_RUNNING"}:
+                if "AUDIO_GENERATE" in active_types:
+                    continue
+            elif status == "POSTPROCESS_RUNNING":
+                if active_types & {"POSTPROCESS_GENERATE", "POSTPROCESS_EXPORT"}:
+                    continue
+            else:
+                continue
+
+            subtitles = _object(item["subtitles_json"], _default_subtitles())
+            preview_ready = str(subtitles.get("status") or "") == "PREVIEW_READY"
+            if item["current_video_asset_id"] or (
+                item["current_base_video_asset_id"] and preview_ready
+            ):
+                next_status = "COMPOSITION_READY"
+            elif item["current_base_video_asset_id"]:
+                next_status = "BASE_VIDEO_READY"
+            elif item["current_audio_asset_id"]:
+                next_status = "AUDIO_READY"
+            else:
+                next_status = "DRAFT"
+            if next_status == status:
+                continue
+            connection.execute(
+                "UPDATE project_items SET status=?, updated_at=? WHERE item_id=?",
+                (next_status, now, item_id),
+            )
+            repaired_items += 1
+
+        recovered = len(completed_operation_ids) + repaired_items
+        if recovered:
+            self._refresh_project_status(connection, project_id, now=now)
+        return recovered
 
     def _refresh_project_status(
         self, connection: sqlite3.Connection, project_id: str, *, now: str

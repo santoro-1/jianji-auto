@@ -255,6 +255,43 @@
         </div>
     </div>
 
+    <!-- Music collection modal -->
+    <div id="music-capture-modal" class="fixed inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="music-capture-title" onclick="closeMusicCaptureModalFromBackdrop(event)">
+        <div class="glass-panel-heavy w-full max-w-xl p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-200">
+            <div class="flex items-start justify-between gap-4 mb-5">
+                <div>
+                    <h3 id="music-capture-title" class="text-lg font-bold text-white"><i class="fa-solid fa-music text-brand-accent mr-2"></i>音乐采集</h3>
+                    <p class="text-[11px] text-gray-400 mt-1">从本机剪映草稿提取音乐并正式加入工作台音乐库。</p>
+                </div>
+                <button type="button" onclick="closeMusicCaptureModal()" aria-label="关闭音乐采集" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="rounded-xl border border-indigo-400/15 bg-indigo-500/5 px-4 py-3 text-[11px] leading-5 text-gray-300">
+                先在剪映中新建“音乐采集”草稿，把歌曲放到顶层音频轨道并保存。这里采集后会立即出现在 BGM 手动选择列表，但暂不参与自动选歌。
+            </div>
+            <div class="mt-4 space-y-4">
+                <div>
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <label for="music-capture-draft" class="block text-xs font-semibold text-gray-400">选择剪映草稿</label>
+                        <button id="music-capture-refresh" type="button" onclick="refreshMusicCaptureDrafts()" class="text-[10px] font-semibold text-brand-accent hover:text-white"><i class="fa-solid fa-rotate mr-1"></i>重新扫描</button>
+                    </div>
+                    <select id="music-capture-draft" class="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2.5 text-sm text-gray-200 border-glow">
+                        <option value="">正在读取本机剪映草稿...</option>
+                    </select>
+                </div>
+                <details class="rounded-xl border border-white/5 bg-slate-950/30 px-4 py-3">
+                    <summary class="cursor-pointer text-[10px] font-semibold text-gray-400">本机采集器连接设置</summary>
+                    <label for="music-capture-collector-url" class="block text-[10px] text-gray-500 mt-3 mb-1.5">采集器地址</label>
+                    <input id="music-capture-collector-url" type="url" class="w-full bg-slate-900/60 border border-slate-700/60 rounded-lg px-3 py-2 text-xs text-gray-300 border-glow" placeholder="http://127.0.0.1:8765">
+                </details>
+                <p id="music-capture-status" class="min-h-[20px] text-[11px] text-gray-400">请先启动本机草稿采集器。</p>
+            </div>
+            <div class="mt-5 flex items-center justify-end gap-3 border-t border-white/5 pt-4">
+                <button type="button" onclick="closeMusicCaptureModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300">取消</button>
+                <button id="music-capture-submit" type="button" onclick="collectMusicFromDraft()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-brand-primary to-brand-secondary text-white shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>采集并加入音乐库</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Subtitle Editor Modal -->
     <div id="subtitle-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300">
         <div class="glass-panel-heavy w-full max-w-md p-6 rounded-2xl shadow-2xl border border-white/10 transform scale-95 transition-all duration-300">
@@ -613,6 +650,7 @@
             <nav class="hidden md:flex items-center gap-1">
                 <a href="/app/new" data-workspace-nav="workspace" class="workspace-nav-link px-4 py-2 rounded-xl text-sm font-semibold transition-all"><i class="fa-solid fa-sliders mr-1.5 text-brand-accent"></i>核心工作台</a>
                 <a href="/app/new/templates" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clapperboard mr-1.5"></i>剪映模板中心</a>
+                <button type="button" onclick="openMusicCaptureModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-music mr-1.5"></i>音乐采集</button>
                 <a href="/app/new/gallery" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-photo-film mr-1.5"></i>成果视频库</a>
                 <a href="/app/new/voices" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-microphone-lines mr-1.5"></i>声音克隆中心</a>
                 <button id="activity-button" type="button" onclick="openActivityModal()" class="px-4 py-2 rounded-xl text-sm font-semibold text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-clock-rotate-left mr-1.5"></i>运行记录<span id="activity-count" class="hidden ml-1.5 min-w-5 px-1.5 py-0.5 rounded-full bg-brand-primary/20 text-[9px] text-brand-accent"></span></button>
@@ -1577,6 +1615,134 @@
             return result;
         }
 
+        const MUSIC_CAPTURE_COLLECTOR_URL_KEY = 'jyd.collectorUrl';
+
+        function musicCaptureCollectorUrl() {
+            const input = document.getElementById('music-capture-collector-url');
+            const saved = localStorage.getItem(MUSIC_CAPTURE_COLLECTOR_URL_KEY) || '';
+            const fallback = window.location.port === '8001' ? 'http://127.0.0.1:8766' : 'http://127.0.0.1:8765';
+            return String(input?.value || saved || fallback).trim().replace(/\/+$/, '');
+        }
+
+        async function musicCaptureCollectorApi(path, options = {}) {
+            const baseUrl = musicCaptureCollectorUrl();
+            let response;
+            try {
+                response = await fetch(`${baseUrl}${path}`, options);
+            } catch (error) {
+                throw new Error(`无法连接本机草稿采集器 ${baseUrl}，请先启动采集器`);
+            }
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.detail || `采集器请求失败（HTTP ${response.status}）`);
+            return result;
+        }
+
+        function setMusicCaptureStatus(message, tone = 'normal') {
+            const status = document.getElementById('music-capture-status');
+            status.textContent = message;
+            status.className = `min-h-[20px] text-[11px] ${tone === 'error' ? 'text-rose-400' : (tone === 'success' ? 'text-emerald-400' : 'text-gray-400')}`;
+        }
+
+        function setMusicCaptureModalOpen(open) {
+            const modal = document.getElementById('music-capture-modal');
+            const panel = modal.querySelector('.glass-panel-heavy');
+            modal.classList.toggle('opacity-0', !open);
+            modal.classList.toggle('pointer-events-none', !open);
+            panel.classList.toggle('scale-95', !open);
+            panel.classList.toggle('scale-100', open);
+        }
+
+        async function openMusicCaptureModal() {
+            const input = document.getElementById('music-capture-collector-url');
+            input.value = musicCaptureCollectorUrl();
+            setMusicCaptureModalOpen(true);
+            await refreshMusicCaptureDrafts();
+        }
+
+        function closeMusicCaptureModal() {
+            setMusicCaptureModalOpen(false);
+        }
+
+        function closeMusicCaptureModalFromBackdrop(event) {
+            if (event.target?.id === 'music-capture-modal') closeMusicCaptureModal();
+        }
+
+        async function refreshMusicCaptureDrafts() {
+            const select = document.getElementById('music-capture-draft');
+            const refresh = document.getElementById('music-capture-refresh');
+            const submit = document.getElementById('music-capture-submit');
+            const collectorUrl = musicCaptureCollectorUrl();
+            localStorage.setItem(MUSIC_CAPTURE_COLLECTOR_URL_KEY, collectorUrl);
+            refresh.disabled = true;
+            submit.disabled = true;
+            select.innerHTML = '<option value="">正在读取本机剪映草稿...</option>';
+            setMusicCaptureStatus('正在连接本机草稿采集器...');
+            try {
+                const drafts = await musicCaptureCollectorApi('/api/drafts');
+                select.innerHTML = '';
+                if (!Array.isArray(drafts) || !drafts.length) {
+                    select.innerHTML = '<option value="">没有找到剪映草稿</option>';
+                    setMusicCaptureStatus('没有找到剪映草稿，请先在剪映中保存“音乐采集”草稿。', 'error');
+                    return;
+                }
+                drafts.forEach((draft) => {
+                    const option = document.createElement('option');
+                    option.value = draft.path || '';
+                    const count = Number(draft.audio_count || 0);
+                    const encryption = draft.encryption_status === 'encrypted' ? ' · 采集时自动解密' : '';
+                    option.textContent = `${draft.name || '未命名草稿'}${count ? ` · 音频 ${count}` : ''}${encryption}`;
+                    select.appendChild(option);
+                });
+                const preferred = drafts.findIndex((draft) => /^音乐采集(?:[ _\-—－]|$)/.test(String(draft.name || '')));
+                select.selectedIndex = preferred >= 0 ? preferred : 0;
+                submit.disabled = !select.value;
+                setMusicCaptureStatus(`已连接采集器，找到 ${drafts.length} 个剪映草稿。`);
+            } catch (error) {
+                select.innerHTML = '<option value="">本机采集器未连接</option>';
+                setMusicCaptureStatus(error.message, 'error');
+            } finally {
+                refresh.disabled = false;
+            }
+        }
+
+        async function collectMusicFromDraft() {
+            const select = document.getElementById('music-capture-draft');
+            const submit = document.getElementById('music-capture-submit');
+            if (!select.value) {
+                setMusicCaptureStatus('请先选择一个包含音乐的剪映草稿。', 'error');
+                return;
+            }
+            submit.disabled = true;
+            setMusicCaptureStatus('正在解密草稿、提取音乐并正式加入音乐库...');
+            try {
+                const result = await musicCaptureCollectorApi('/api/drafts/collect-personal-assets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        draft_dir: select.value,
+                        kinds: ['audio'],
+                        upload: true,
+                        server_url: window.location.origin
+                    })
+                });
+                const audio = result?.results?.audio || {};
+                if (!audio.ok) throw new Error(audio.message || '草稿中没有找到可采集的音乐');
+                await loadPostprocessOptions();
+                updateTableLayout();
+                const imported = Number(audio.copied_count || 0);
+                const existing = Number(audio.existing_count || 0);
+                const total = Number(audio.encountered_asset_count || imported + existing);
+                const message = `采集完成：识别 ${total} 首，新入库 ${imported} 首${existing ? `，已有 ${existing} 首未重复导入` : ''}。现在可以在 BGM 中手动选择。`;
+                setMusicCaptureStatus(message, 'success');
+                showToast('音乐已加入音乐库', message, 'success');
+            } catch (error) {
+                setMusicCaptureStatus(error.message, 'error');
+                showToast('音乐采集失败', error.message, 'warning');
+            } finally {
+                submit.disabled = !select.value;
+            }
+        }
+
         function isH3GenerationMode() {
             return true;
         }
@@ -1945,6 +2111,7 @@
         }
 
         function latestMinimaxAudio(item) {
+            if (['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item?.voiceStatus)) return null;
             const history = Array.isArray(item?.assetHistory?.audio) ? item.assetHistory.audio : [];
             const candidates = history.filter(asset => asset?.source_type === 'minimax' && asset?.status === 'READY');
             return candidates.length ? candidates[candidates.length - 1] : null;
@@ -2027,7 +2194,7 @@
                 const actions = item?.allowed_actions || {};
                 return Boolean(item?.settings?.h3?.remote_batch_id)
                     && h3OutputFileAvailable(item?.outputs?.base_video)
-                    && Boolean(actions.start_postprocess || actions.retry_postprocess);
+                    && Boolean(actions.start_postprocess);
             });
         }
 
@@ -2177,11 +2344,14 @@
                 const completedTargets = uploadedScripts.filter(item => (
                     item.h3Settings?.remote_batch_id
                     && item.baseVideo
-                    && (item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
+                    && item.allowedActions?.start_postprocess
                 ));
                 if (completedTargets.length) {
                     showToast('画面已回填', '正在继续生成字幕、BGM 和可编辑剪映预览。', 'success');
-                    await startGlobalPostprocess(completedTargets.map((item) => item.id));
+                    await startGlobalPostprocess(
+                        completedTargets.map((item) => item.id),
+                        { allowRetry: false }
+                    );
                 }
                 if (h3StateIsActive(result.project)) {
                     scheduleH3StatusPoll();
@@ -2683,8 +2853,11 @@
                 const compositionOperation = [...compositionOperations].reverse().find(operation => operation.item_id === item.item_id) || null;
                 const audioHistory = Array.isArray(item.asset_history?.audio) ? item.asset_history.audio : [];
                 const recordedMinimaxAudio = item.outputs?.minimax_audio;
+                const audioGenerationActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.status);
                 const sharedMinimaxAudio = (recordedMinimaxAudio?.file_exists !== false ? recordedMinimaxAudio : null)
-                    || [...audioHistory].reverse().find(asset => asset?.source_type === 'minimax' && asset?.status === 'READY' && asset?.file_exists !== false)
+                    || (!audioGenerationActive
+                        ? [...audioHistory].reverse().find(asset => asset?.source_type === 'minimax' && asset?.status === 'READY' && asset?.file_exists !== false)
+                        : null)
                     || null;
                 return ({
                 id: item.item_id,
@@ -2699,7 +2872,7 @@
                 voiceAssetId: item.settings?.voice_asset_id || null,
                 postprocessSettings: item.settings?.postprocess || {},
                 variantSettings: item.settings?.variants || {},
-                voiceStatus: sharedMinimaxAudio ? 'AUDIO_READY' : item.status,
+                voiceStatus: audioGenerationActive ? item.status : (sharedMinimaxAudio ? 'AUDIO_READY' : item.status),
                 compositionStatus: item.status,
                 audio: sharedMinimaxAudio,
                 authoritativeAudio: h3OutputFileAvailable(item.outputs?.audio) ? item.outputs.audio : null,
@@ -7493,14 +7666,17 @@
             }
         }
 
-        async function startGlobalPostprocess(itemIds = null) {
+        async function startGlobalPostprocess(itemIds = null, { allowRetry = true } = {}) {
             if (isStartingPostprocess) return;
             const projectId = activeProject?.project_id;
             if (!projectId) return;
             const requestedIds = Array.isArray(itemIds) ? new Set(itemIds) : null;
             const targetItems = uploadedScripts.filter((item) =>
                 (!requestedIds || requestedIds.has(item.id))
-                && Boolean(item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
+                && Boolean(
+                    item.allowedActions?.start_postprocess
+                    || (allowRetry && item.allowedActions?.retry_postprocess)
+                )
             );
             if (!fontPresets.length || !targetItems.length) {
                 setFinalGenerationPhase(null);
@@ -7779,13 +7955,16 @@
             if (stillActive) return;
             const completedTargets = uploadedScripts.filter((item) =>
                 item.baseVideo
-                && (item.allowedActions?.start_postprocess || item.allowedActions?.retry_postprocess)
+                && item.allowedActions?.start_postprocess
             );
             if (!completedTargets.length) {
                 setFinalGenerationPhase(null);
                 return;
             }
-            await startGlobalPostprocess(completedTargets.map((item) => item.id));
+            await startGlobalPostprocess(
+                completedTargets.map((item) => item.id),
+                { allowRetry: false }
+            );
         }
 
         // Toggle User profile dropdown

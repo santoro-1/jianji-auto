@@ -870,6 +870,200 @@ class ProjectApiTest(unittest.TestCase):
         self.assertEqual(len(restarted_detail["operations"]), 1)
         self.assertEqual(len(restarted_detail["links"]), 1)
 
+    def test_project_read_recovers_durable_audio_and_postprocess_completion(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="持久化结果状态恢复",
+            items=[
+                {"row_key": "001", "script_text": "声音状态恢复。"},
+                {"row_key": "002", "script_text": "后期状态恢复。"},
+            ],
+        )
+        project_id = project["project_id"]
+        audio_item_id = project["items"][0]["item_id"]
+        postprocess_item_id = project["items"][1]["item_id"]
+
+        audio_operation = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=audio_item_id,
+            operation_type="AUDIO_GENERATE",
+            idempotency_key="audio-durable-result",
+        )
+        store.transition_audio_operation(
+            "user-1",
+            project_id,
+            audio_item_id,
+            status="RUNNING",
+            item_status="AUDIO_RUNNING",
+            result={"batch_id": "batch-1", "item_id": "remote-audio-1"},
+        )
+        audio_asset = store.add_asset(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=audio_item_id,
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename="audio.mp3",
+            external_ref={"batch_id": "batch-1", "remote_item_id": "remote-audio-1"},
+            make_current=True,
+        )
+        store.add_asset(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=audio_item_id,
+            asset_type="base_video",
+            source_type="h3",
+            status="READY",
+            filename="audio-row-base.mp4",
+            make_current=True,
+        )
+        store.set_item_subtitles(
+            "user-1",
+            project_id,
+            audio_item_id,
+            {
+                "source": "test",
+                "raw_cues": [],
+                "render_cues": [],
+                "bound_audio_asset_id": audio_asset["asset_id"],
+                "status": "PREVIEW_READY",
+            },
+        )
+
+        store.add_asset(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=postprocess_item_id,
+            asset_type="base_video",
+            source_type="h3",
+            status="READY",
+            filename="postprocess-row-base.mp4",
+            make_current=True,
+        )
+        store.set_item_subtitles(
+            "user-1",
+            project_id,
+            postprocess_item_id,
+            {
+                "source": "test",
+                "raw_cues": [],
+                "render_cues": [],
+                "status": "PREVIEW_READY",
+            },
+        )
+        postprocess_operation = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=postprocess_item_id,
+            operation_type="POSTPROCESS_GENERATE",
+            idempotency_key="postprocess-durable-result",
+        )
+
+        with store._transaction() as connection:
+            connection.execute(
+                "UPDATE project_operations SET status='SUCCEEDED' WHERE operation_id=?",
+                (postprocess_operation["operation_id"],),
+            )
+            connection.execute(
+                "UPDATE project_items SET status='AUDIO_RUNNING' WHERE item_id=?",
+                (audio_item_id,),
+            )
+            connection.execute(
+                "UPDATE project_items SET status='POSTPROCESS_RUNNING' WHERE item_id=?",
+                (postprocess_item_id,),
+            )
+            connection.execute(
+                "UPDATE projects SET status='PROCESSING' WHERE project_id=?",
+                (project_id,),
+            )
+
+        recovered = store.get_project("user-1", project_id)
+        recovered_items = {item["item_id"]: item for item in recovered["items"]}
+        recovered_operations = {
+            operation["operation_id"]: operation
+            for operation in recovered["operations"]
+        }
+        self.assertEqual(recovered["status"], "COMPOSITION_READY")
+        self.assertEqual(
+            recovered_items[audio_item_id]["status"], "COMPOSITION_READY"
+        )
+        self.assertEqual(
+            recovered_items[postprocess_item_id]["status"], "COMPOSITION_READY"
+        )
+        self.assertEqual(
+            recovered_operations[audio_operation["operation_id"]]["status"],
+            "SUCCEEDED",
+        )
+        self.assertEqual(
+            recovered_operations[postprocess_operation["operation_id"]]["status"],
+            "SUCCEEDED",
+        )
+
+    def test_project_read_keeps_unfinished_same_item_audio_retry_active(self) -> None:
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id="user-1",
+            owner_username="tester",
+            name="新声音仍在生成",
+            items=[{"row_key": "001", "script_text": "不要误收旧声音。"}],
+        )
+        project_id = project["project_id"]
+        item_id = project["items"][0]["item_id"]
+        operation = store.create_operation(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item_id,
+            operation_type="AUDIO_GENERATE",
+            idempotency_key="new-audio-generation",
+            payload={"retry": True, "remote_item_id": "remote-shared"},
+        )
+        store.transition_audio_operation(
+            "user-1",
+            project_id,
+            item_id,
+            status="RUNNING",
+            item_status="AUDIO_RUNNING",
+            result={"batch_id": "batch-1", "item_id": "remote-shared"},
+        )
+        store.add_asset(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename="old-audio.mp3",
+            external_ref={
+                "batch_id": "batch-1",
+                "remote_item_id": "remote-shared",
+                "generation_version": 1,
+            },
+            make_current=True,
+        )
+        with store._transaction() as connection:
+            connection.execute(
+                "UPDATE project_items SET status='AUDIO_RUNNING' WHERE item_id=?",
+                (item_id,),
+            )
+            connection.execute(
+                "UPDATE projects SET status='PROCESSING' WHERE project_id=?",
+                (project_id,),
+            )
+
+        active = store.get_project("user-1", project_id)
+        active_operation = next(
+            value
+            for value in active["operations"]
+            if value["operation_id"] == operation["operation_id"]
+        )
+        self.assertEqual(active["status"], "PROCESSING")
+        self.assertEqual(active["items"][0]["status"], "AUDIO_RUNNING")
+        self.assertEqual(active_operation["status"], "RUNNING")
+
     def test_transition_operation_can_finish_a_superseded_attempt(self) -> None:
         store = ProjectStore(self.settings.storage_root / "control.db")
         project = store.create_project(

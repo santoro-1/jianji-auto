@@ -176,6 +176,27 @@ class NewFrontendTest(unittest.TestCase):
             page.index("syncProjectInputs(await saveH3Settings(false));"),
         )
 
+    def test_audio_regeneration_keeps_polling_instead_of_reusing_history(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "const audioGenerationActive = ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.status);",
+            page,
+        )
+        self.assertIn("|| (!audioGenerationActive", page)
+        self.assertIn(
+            "voiceStatus: audioGenerationActive ? item.status : (sharedMinimaxAudio ? 'AUDIO_READY' : item.status)",
+            page,
+        )
+        self.assertIn(
+            "if (['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item?.voiceStatus)) return null;",
+            page,
+        )
+        self.assertIn(
+            "uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus))",
+            page,
+        )
+
     def test_partial_video_failures_keep_successful_rows_and_auto_preview(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
@@ -203,10 +224,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("h3FailureToastSignatures.get(projectId) !== signature", page)
         self.assertIn("h3FailureToastSignatures.delete(activeProject.project_id)", page)
         self.assertIn("segment.error_message || segment.error_code", page)
-        self.assertIn(
-            "await startGlobalPostprocess(completedTargets.map((item) => item.id));",
-            page,
-        )
+        self.assertIn("{ allowRetry: false }", page)
         self.assertIn(
             "baseVideo: h3OutputFileAvailable(item.outputs?.base_video) ? item.outputs.base_video : null",
             page,
@@ -216,9 +234,15 @@ class NewFrontendTest(unittest.TestCase):
             page.index("async function h3RetrySegment")
         ]
         self.assertLess(
-            refresh.index("await startGlobalPostprocess(completedTargets.map((item) => item.id));"),
+            refresh.index("{ allowRetry: false }"),
             refresh.index("if (h3StateIsActive(result.project))"),
         )
+        self.assertNotIn("allowedActions?.retry_postprocess", refresh)
+        pending_postprocess = page[
+            page.index("function h3HasPendingPostprocess") :
+            page.index("function h3OutputFileAvailable")
+        ]
+        self.assertNotIn("retry_postprocess", pending_postprocess)
         self.assertIn("function h3RetryableSegmentsForScript(script)", page)
         self.assertIn("retryH3FailedSegmentsForRow(script)", page)
         self.assertIn(
@@ -236,9 +260,10 @@ class NewFrontendTest(unittest.TestCase):
         ]
         self.assertIn("const completedTargets = uploadedScripts.filter", composition_continuation)
         self.assertIn(
-            "startGlobalPostprocess(completedTargets.map((item) => item.id))",
+            "{ allowRetry: false }",
             composition_continuation,
         )
+        self.assertNotIn("allowedActions?.retry_postprocess", composition_continuation)
         self.assertNotIn("if (failed)", composition_continuation)
 
     def test_workbench_pages_report_runtime_leases(self) -> None:

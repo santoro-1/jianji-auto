@@ -283,6 +283,82 @@ def test_h3_batch_registry_keeps_multiple_rows_independent(tmp_path: Path) -> No
     assert second["items"][1]["settings"]["h3"]["remote_batch_id"] == "h3-batch-row-2"
 
 
+def test_h3_snapshot_does_not_regress_completed_local_postprocess(
+    tmp_path: Path,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 后期状态单向前进",
+        items=[{"row_key": "1", "script_text": "已经完成的脚本。"}],
+    )
+    project_id = str(project["project_id"])
+    item_id = str(project["items"][0]["item_id"])
+    base_path = tmp_path / "base.mp4"
+    base_path.write_bytes(b"base-video")
+    store.add_asset(
+        owner_user_id="user-1",
+        project_id=project_id,
+        item_id=item_id,
+        asset_type="base_video",
+        source_type="h3",
+        status="READY",
+        filename=base_path.name,
+        managed_path=str(base_path),
+        make_current=True,
+    )
+    store.set_item_subtitles(
+        "user-1",
+        project_id,
+        item_id,
+        {
+            "source": "h3_generated_audio",
+            "raw_cues": [],
+            "render_cues": [{"text": "已经完成的脚本。", "start_us": 0, "end_us": 1_000_000}],
+            "status": "PREVIEW_READY",
+        },
+    )
+    with store._transaction() as connection:
+        connection.execute(
+            "UPDATE project_items SET status='COMPOSITION_READY' WHERE item_id=?",
+            (item_id,),
+        )
+
+    active_snapshot = {
+        "batch_id": "h3-batch-1",
+        "status": "ACTIVE",
+        "items": [
+            {
+                "item_id": "remote-row-1",
+                "row_id": "1",
+                "status": "SUCCESS",
+                "segments": [],
+            }
+        ],
+    }
+    active = store.set_h3_batch_snapshot(
+        "user-1", project_id, prepare_key="quote-1", snapshot=active_snapshot
+    )
+    assert active["items"][0]["status"] == "COMPOSITION_READY"
+
+    # Reproduce the stale state from DH-20260826-0003.  A later terminal batch
+    # sync must recover from durable local evidence instead of preserving
+    # H3_RUNNING forever.
+    with store._transaction() as connection:
+        connection.execute(
+            "UPDATE project_items SET status='H3_RUNNING' WHERE item_id=?",
+            (item_id,),
+        )
+    terminal = store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="quote-1",
+        snapshot={**active_snapshot, "status": "FAILED"},
+    )
+    assert terminal["items"][0]["status"] == "COMPOSITION_READY"
+
+
 def test_h3_coordinator_can_prepare_an_idle_row_while_another_row_runs(
     tmp_path: Path,
 ) -> None:
