@@ -33,11 +33,14 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("filename=${encodeURIComponent(file.name)}", page)
         self.assertNotIn("'X-Filename': file.name", page)
 
-    def test_h3_confirmation_uses_the_current_generation_tail(self) -> None:
+    def test_h3_generation_confirmation_is_minimal(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
-        self.assertIn("0.1 秒仅扩大生成窗口", page)
-        self.assertNotIn("0.5 秒仅扩大生成窗口", page)
+        self.assertIn("title: '是否确认生成？'", page)
+        self.assertIn("confirmText: '是'", page)
+        self.assertIn("cancelText: '否'", page)
+        self.assertNotIn("系统将自动切为", page)
+        self.assertNotIn("仅扩大生成窗口", page)
 
     def test_h3_reuses_row_audio_preview_without_an_extra_review_action(self) -> None:
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
@@ -98,7 +101,6 @@ class NewFrontendTest(unittest.TestCase):
             "H3 多参考",
             "H3 成片",
             "H3 费用",
-            "H3 分段",
             "选择 H3",
             "H3 参数",
         ):
@@ -157,7 +159,7 @@ class NewFrontendTest(unittest.TestCase):
 
         self.assertIn("async function resumeExistingH3Batch(targets)", page)
         self.assertIn("费用预览已保留", page)
-        self.assertIn("正在恢复上一次已冻结的费用预览", page)
+        self.assertNotIn("正在恢复上一次已冻结的费用预览", page)
         self.assertIn("if (await resumeExistingH3Batch(targets)) return;", page)
         self.assertIn("const recoveredBatch = (recovered.h3_batches || []).find", page)
         self.assertIn("body: JSON.stringify({ cost_confirmed: true, batch_id: batchId })", page)
@@ -207,6 +209,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("function h3FailedSegments(project = activeProject)", page)
         self.assertIn("function h3HasPendingPostprocess(project = activeProject)", page)
         self.assertIn("function h3NeedsLocalMaterialization(project = activeProject)", page)
+        self.assertIn("const hasUncachedSuccessfulSegment", page)
+        self.assertIn("segment?.local_preview_ready !== true", page)
+        self.assertIn("hasUncachedSuccessfulSegment", page)
         self.assertIn("remoteStatus === 'SUCCESS'", page)
         self.assertIn("function h3OutputFileAvailable(asset)", page)
         self.assertIn("asset.file_exists !== false", page)
@@ -222,7 +227,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("const h3FailureToastSignatures = new Map()", page)
         self.assertIn("function h3FailureToastSignature(failedSegments)", page)
         self.assertIn("h3FailureToastSignatures.get(projectId) !== signature", page)
-        self.assertIn("h3FailureToastSignatures.delete(activeProject.project_id)", page)
+        self.assertIn("h3FailureToastSignatures.delete(projectId)", page)
         self.assertIn("segment.error_message || segment.error_code", page)
         self.assertIn("{ allowRetry: false }", page)
         self.assertIn(
@@ -244,6 +249,13 @@ class NewFrontendTest(unittest.TestCase):
         ]
         self.assertNotIn("retry_postprocess", pending_postprocess)
         self.assertIn("function h3RetryableSegmentsForScript(script)", page)
+        retry = page[
+            page.index("async function h3RetrySegment") :
+            page.index("function h3RetryableSegmentsForScript")
+        ]
+        self.assertLess(retry.index("/h3/status"), retry.index("/retry/prepare"))
+        self.assertIn("H3 批次已更新", retry)
+        self.assertIn("currentSegment?.can_retry", retry)
         self.assertIn("retryH3FailedSegmentsForRow(script)", page)
         self.assertIn(
             "if (isH3GenerationMode()) {\n                void retryH3FailedSegmentsForRow(script);",
@@ -428,9 +440,13 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("reconcileInactiveCompositionProjects", html)
         self.assertIn("INACTIVE_COMPOSITION_SYNC_INTERVAL_MS = 60000", html)
         self.assertIn("projectHasActiveComposition(project)", html)
+        self.assertIn("projectNeedsAudioSync(project)", html)
+        self.assertIn("projectNeedsH3Sync(project)", html)
+        self.assertIn("projectNeedsPostprocessSync(project)", html)
+        self.assertIn("projectNeedsVariantSync(project)", html)
         self.assertIn("project.project_id !== activeProject?.project_id", html)
         self.assertIn(
-            "workspaceApi(`/api/new/projects/${projectId}/composition/status`)",
+            "workspaceApi(`/api/new/projects/${projectId}/${stage.path}`)",
             html,
         )
         self.assertIn("void reconcileInactiveCompositionProjects(false)", html)
@@ -487,9 +503,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("生成结果", html)
         self.assertIn("--table-header-accent: #818cf8", html)
         self.assertIn("--table-header-accent: #2dd4bf", html)
-        self.assertEqual(html.count('scope="col" class="table-header-input'), 13)
+        self.assertEqual(html.count('scope="col" class="table-header-input'), 11)
         self.assertEqual(html.count('scope="col" class="table-header-output'), 3)
-        self.assertIn('colspan="16"', html)
+        self.assertIn('colspan="14"', html)
         self.assertLess(html.index(">画面</th>"), html.index(">姿态</th>"))
         self.assertLess(html.index(">姿态</th>"), html.index(">背景音乐</th>"))
         self.assertIn("handleRowLayoutProfileChange", html)
@@ -499,8 +515,8 @@ class NewFrontendTest(unittest.TestCase):
         self.assertLess(html.index(">背景音乐</th>"), html.index(">字幕样式</th>"))
         self.assertLess(html.index(">字幕样式</th>"), html.index(">语义视觉</th>"))
         self.assertLess(html.index(">语义视觉</th>"), html.index(">视频预览</th>"))
-        self.assertLess(html.index(">视频预览</th>"), html.index(">变体数</th>"))
-        self.assertLess(html.index(">再补 X 个变体</th>"), html.index(">单条生成</th>"))
+        self.assertLess(html.index(">视频预览</th>"), html.index(">片段检查</th>"))
+        self.assertLess(html.index(">片段检查</th>"), html.index(">单条生成</th>"))
         self.assertIn("table-actions-column", html)
         self.assertIn("row-semantic-visual-cell", html)
         self.assertIn(
@@ -512,7 +528,7 @@ class NewFrontendTest(unittest.TestCase):
             html,
         )
         self.assertIn(
-            'class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>',
+            'class="table-header-output px-4 py-3.5 w-36 text-center whitespace-nowrap">片段检查</th>',
             html,
         )
 
@@ -687,18 +703,19 @@ class NewFrontendTest(unittest.TestCase):
             workspace,
         )
 
-    def test_each_project_row_has_smart_audio_video_and_variant_actions(self) -> None:
+    def test_each_project_row_has_smart_audio_video_and_segment_review_actions(self) -> None:
         html = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
         self.assertIn("function runSingleAudio(buttonEl)", html)
         self.assertIn("function runSingleVideo(buttonEl)", html)
-        self.assertIn("function runSingleVariants(buttonEl)", html)
+        self.assertNotIn('onclick="runSingleVariants(this)"', html)
+        self.assertIn('onclick="openH3SegmentPreviewModal(this)"', html)
         self.assertIn("item_ids: [rowId]", html)
         self.assertIn("重新生成声音", html)
         self.assertIn("const pendingScriptSaves = new Map()", html)
         self.assertIn("await retryCloningAudio(buttonEl)", html)
         self.assertNotIn("已复用当前声音", html)
         self.assertIn("复用视频", html)
-        self.assertIn("复用变体", html)
+        self.assertIn("重试这段", html)
 
     def test_complete_video_flow_keeps_internal_stages_out_of_user_results(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
@@ -847,7 +864,8 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn("images.unsplash.com", workspace)
         self.assertNotIn("selectAlignment", workspace)
         self.assertNotIn("modal-stroke-color", workspace)
-        self.assertIn("Boolean(activeProject?.allowed_actions?.generate_variants)", workspace)
+        self.assertNotIn('id="btn-generate-variants"', workspace)
+        self.assertNotIn('id="btn-variant-settings"', workspace)
         self.assertNotIn("正在重新合成第 ${rowId} 条带 BGM 和字幕的视频", workspace)
         self.assertIn("项目运行记录", workspace)
         self.assertIn("downloadProjectDiagnostics", workspace)
@@ -919,8 +937,28 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("if (h3Mode && isGeneratingH3)", workspace)
         self.assertIn("else if (h3Mode && h3Active)", workspace)
 
-    def test_module_6_uses_real_variant_api_and_inherited_ai_cover(self) -> None:
+    def test_variant_workspace_is_replaced_by_wrapping_h3_segment_review(self) -> None:
         workspace = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        table = workspace[
+            workspace.index('id="synthesis-table"') : workspace.index('</table>')
+        ]
+        self.assertIn(">片段检查</th>", table)
+        self.assertNotIn(">变体数</th>", table)
+        self.assertNotIn(">变体预览</th>", table)
+        self.assertNotIn(">再补 X 个变体</th>", table)
+        self.assertIn('id="h3-segment-preview-modal"', workspace)
+        self.assertIn("xl:grid-cols-5", workspace)
+        self.assertIn("overflow-y-auto overflow-x-hidden", workspace)
+        self.assertIn("preload=\"metadata\"", workspace)
+        self.assertIn("重试这段", workspace)
+        self.assertIn("/h3-segments/${segmentNumber}/preview", workspace)
+        self.assertIn("segment.local_preview_ready === true", workspace)
+        self.assertIn("baseMatchesSegment", workspace)
+        self.assertNotIn('id="btn-generate-variants"', workspace)
+        self.assertNotIn('id="btn-variant-settings"', workspace)
+
+        # Keep legacy APIs and stored outputs readable while the workspace stops
+        # offering new variant generation.
         self.assertIn("/variants/generate", workspace)
         self.assertIn("/variants/status", workspace)
         self.assertIn("/variants/supplement", workspace)
@@ -928,8 +966,6 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("method: 'DELETE'", workspace)
         self.assertIn("最大差异优先", workspace)
         self.assertIn('id="variant-use-stickers" type="checkbox" checked', workspace)
-        self.assertIn("等待 AI 标题", workspace)
-        self.assertIn("AI 封面已就绪", workspace)
         self.assertNotIn("variant-cover-modal", workspace)
         self.assertNotIn("rowVariantCovers", workspace)
         self.assertIn("字幕字体和背景音乐继承模块 4B", workspace)
@@ -946,6 +982,10 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("/api/new/projects/{project_id}/items/{item_id}/variants/supplement", paths)
         self.assertIn("/api/new/projects/{project_id}/items/{item_id}/variants/retry", paths)
         self.assertIn("/api/new/projects/{project_id}/items/{item_id}/variants/{asset_id}", paths)
+        self.assertIn(
+            "/api/new/projects/{project_id}/items/{item_id}/h3-segments/{segment_number}/preview",
+            paths,
+        )
 
     def test_module_7_gallery_uses_real_results_and_portrait_preview(self) -> None:
         index = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")

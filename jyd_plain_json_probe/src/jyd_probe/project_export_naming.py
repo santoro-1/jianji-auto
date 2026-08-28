@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-from typing import Any, Mapping
+from typing import AbstractSet, Any, Mapping
 
 
 _INVALID_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]+')
@@ -146,16 +146,22 @@ def variant_draft_name(item: Mapping[str, Any], *, index: int) -> str:
     return Path(variant_export_filename(item, index=index)).stem
 
 
-def available_draft_name(draft_root: str | Path, preferred_name: str) -> str:
+def available_draft_name(
+    draft_root: str | Path,
+    preferred_name: str,
+    *,
+    reserved_names: AbstractSet[str] | None = None,
+) -> str:
     """Keep a readable export-based name without overwriting an existing draft."""
 
     root = Path(draft_root).expanduser().resolve()
     preferred = _safe_component(preferred_name, fallback="未命名草稿")
-    if not (root / preferred).exists():
+    reserved = reserved_names or frozenset()
+    if preferred not in reserved and not (root / preferred).exists():
         return preferred
     for duplicate_index in range(2, 1000):
         candidate = f"{preferred}-{duplicate_index:02d}"
-        if not (root / candidate).exists():
+        if candidate not in reserved and not (root / candidate).exists():
             return candidate
     raise FileExistsError(f"剪映草稿同名副本过多: {preferred}")
 

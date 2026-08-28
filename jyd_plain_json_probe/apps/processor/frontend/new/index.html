@@ -502,6 +502,25 @@
         </div>
     </div>
 
+    <!-- H3 source-segment review modal: five cards per desktop row, vertical wrap only. -->
+    <div id="h3-segment-preview-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300 px-3 sm:px-4" role="dialog" aria-modal="true" aria-labelledby="h3-segment-preview-title">
+        <div class="glass-panel-heavy flex w-full max-w-[1500px] max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-white/10 shadow-2xl transform scale-95 transition-all duration-300">
+            <div class="flex items-start justify-between gap-4 border-b border-white/5 px-5 py-4">
+                <div>
+                    <h3 id="h3-segment-preview-title" class="text-lg font-bold text-white"><i class="fa-solid fa-film text-brand-primary mr-2"></i>片段检查</h3>
+                    <p id="h3-segment-preview-summary" class="mt-1 text-[11px] text-gray-400">当前视频尚无可检查片段</p>
+                </div>
+                <button type="button" onclick="closeH3SegmentPreviewModal()" aria-label="关闭片段检查" class="w-8 h-8 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto overflow-x-hidden narrow-scrollbar p-4 sm:p-5">
+                <div id="h3-segment-preview-grid" class="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
+            </div>
+            <div class="flex justify-end border-t border-white/5 px-5 py-4">
+                <button type="button" onclick="closeH3SegmentPreviewModal()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-brand-primary to-brand-secondary hover:brightness-110 text-white shadow-lg transition-all">完成查看</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Project activity and support diagnostics -->
     <div id="activity-modal" class="fixed inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-200 px-4" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
         <div class="glass-panel-heavy w-full max-w-3xl max-h-[86vh] overflow-hidden rounded-2xl border border-white/10 shadow-2xl transform scale-95 transition-all duration-200 flex flex-col">
@@ -534,7 +553,7 @@
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-3">
-                <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
+                <button id="confirm-action-cancel-button" type="button" onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-gray-300 transition-colors">取消</button>
                 <button id="confirm-action-button" type="button" onclick="confirmPendingAction()" class="px-5 py-2 rounded-xl text-xs font-semibold bg-red-500 hover:bg-red-400 text-white shadow-lg shadow-red-500/20 transition-all">确认</button>
             </div>
         </div>
@@ -573,6 +592,8 @@
                     <div class="absolute inset-0 bg-black/30"></div>
                 </div>
                 <video id="video-preview-local" class="hidden absolute inset-0 w-full h-full object-contain bg-black" preload="metadata"></video>
+                <canvas id="video-preview-template-canvas" class="hidden absolute inset-0 z-[18] w-full h-full pointer-events-none" aria-label="剪映模板 JSON 网页预览"></canvas>
+                <div id="video-preview-template-status" class="hidden absolute z-[30] left-3 bottom-[74px] max-w-[calc(100%-1.5rem)] rounded-lg border border-cyan-400/30 bg-slate-950/80 px-2.5 py-1.5 text-[9px] leading-4 text-cyan-100 backdrop-blur pointer-events-none"></div>
                 <div id="video-preview-cover" class="hidden absolute z-[8] pointer-events-none overflow-hidden bg-black" aria-live="off">
                     <img id="video-preview-cover-image" class="absolute inset-0 h-full w-full object-cover" src="" alt="当前三帧封面">
                     <div id="video-preview-cover-overlay" class="absolute left-0 w-full bg-black/50"></div>
@@ -1001,7 +1022,7 @@
 
                     <!-- Table container scrollable (Adaptive height to occupy full vertical space) -->
                     <div class="overflow-x-auto relative flex-1 overflow-y-auto">
-                        <table id="synthesis-table" class="w-full table-fixed border-collapse text-left text-xs min-w-[1900px]">
+                        <table id="synthesis-table" class="w-full table-fixed border-collapse text-left text-xs min-w-[1650px]">
                             <thead class="text-[10px] font-bold uppercase tracking-wider sticky top-0 z-10 border-b border-slate-800/80">
                                 <tr>
                                     <th scope="col" class="table-header-input px-3 py-3.5 w-12 text-center whitespace-nowrap"><input id="select-all-project-items" type="checkbox" aria-label="全选脚本行" onchange="toggleSelectAllRows(this.checked)" class="rounded border-slate-600 bg-slate-900 text-brand-primary focus:ring-brand-primary"></th>
@@ -1016,16 +1037,14 @@
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">字幕样式</th>
                                     <th scope="col" class="table-header-input px-4 py-3.5 w-44 text-center whitespace-nowrap">语义视觉</th>
                                     <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">视频预览</th>
-                                    <th scope="col" class="table-header-input px-4 py-3.5 w-24 text-center whitespace-nowrap">变体数</th>
-                                    <th scope="col" class="table-header-output px-4 py-3.5 w-32 text-center whitespace-nowrap">变体预览</th>
-                                    <th scope="col" class="table-header-input px-4 py-3.5 w-28 text-center whitespace-nowrap">再补 X 个变体</th>
+                                    <th scope="col" class="table-header-output px-4 py-3.5 w-36 text-center whitespace-nowrap">片段检查</th>
                                     <th scope="col" class="table-header-input table-actions-column px-4 py-3.5 w-36 text-center whitespace-nowrap">单条生成</th>
                                 </tr>
                             </thead>
                             <tbody id="synthesis-table-body" class="divide-y divide-slate-800/40">
                                 <!-- Placeholders when empty -->
                                 <tr id="empty-table-placeholder">
-                                    <td colspan="16" class="px-6 py-20 text-center text-gray-500">
+                                    <td colspan="14" class="px-6 py-20 text-center text-gray-500">
                                         <div class="flex flex-col items-center justify-center">
                                             <i class="fa-solid fa-rectangle-list text-3xl mb-3 text-slate-700"></i>
                                             <p class="font-bold text-gray-400 text-sm">暂无脚本配置数据</p>
@@ -1080,15 +1099,6 @@
                                 <span>一键下载视频</span>
                             </button>
 
-                            <div class="generation-page-only flex w-full md:w-auto" aria-label="生成变体控制">
-                                <button id="btn-generate-variants" disabled onclick="startGlobalVariantGeneration()" class="flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap">
-                                    <i class="fa-solid fa-code-branch"></i>
-                                    <span>生成变体</span>
-                                </button>
-                                <button id="btn-variant-settings" disabled onclick="openVariantModal()" title="生成变体设置" aria-label="打开生成变体设置" class="px-3 py-3 rounded-r-xl bg-slate-800 border-y border-r border-slate-700/60 text-slate-500 cursor-not-allowed transition-all">
-                                    <i class="fa-solid fa-gear"></i>
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -1203,6 +1213,7 @@
         let isDownloadingProjectVideos = false;
         let finalGenerationPhase = null;
         let activeVariantPreviewRow = null;
+        let activeH3SegmentPreviewItemId = null;
         let pendingConfirmAction = null;
         let pendingConfirmCancelAction = null;
         let pendingConfirmValidator = null;
@@ -1366,13 +1377,14 @@
             }, 3500);
         }
 
-        function openConfirmModal({ title, message, confirmText = '确认', extraHtml = '', validate = null, onConfirm, onCancel = null }) {
+        function openConfirmModal({ title, message, confirmText = '确认', cancelText = '取消', extraHtml = '', validate = null, onConfirm, onCancel = null }) {
             pendingConfirmAction = typeof onConfirm === 'function' ? onConfirm : null;
             pendingConfirmCancelAction = typeof onCancel === 'function' ? onCancel : null;
             pendingConfirmValidator = typeof validate === 'function' ? validate : null;
             document.getElementById('confirm-action-title').textContent = title;
             document.getElementById('confirm-action-message').textContent = message;
             document.getElementById('confirm-action-button').textContent = confirmText;
+            document.getElementById('confirm-action-cancel-button').textContent = cancelText;
             const extra = document.getElementById('confirm-action-extra');
             extra.innerHTML = extraHtml;
             extra.classList.toggle('hidden', !extraHtml);
@@ -2206,10 +2218,15 @@
             return (project?.items || []).some((item) => {
                 const h3 = item?.settings?.h3 || {};
                 const remoteStatus = String(h3.remote_status || '').toUpperCase();
+                const hasUncachedSuccessfulSegment = (h3.segments || []).some((segment) =>
+                    String(segment?.status || '').toUpperCase() === 'SUCCESS'
+                    && segment?.local_preview_ready !== true
+                );
                 return Boolean(h3.remote_batch_id)
-                    && remoteStatus === 'SUCCESS'
-                    && (!h3OutputFileAvailable(item?.outputs?.audio)
-                        || !h3OutputFileAvailable(item?.outputs?.base_video));
+                    && (hasUncachedSuccessfulSegment
+                        || (remoteStatus === 'SUCCESS'
+                            && (!h3OutputFileAvailable(item?.outputs?.audio)
+                                || !h3OutputFileAvailable(item?.outputs?.base_video))));
             });
         }
 
@@ -2225,10 +2242,17 @@
                 .join('|');
         }
 
-        async function confirmPreparedH3Batch(prepared, { resumed = false } = {}) {
-            const fee = prepared?.h3_batch?.fee_snapshot || prepared?.project?.settings?.h3?.fee_snapshot || {};
-            const resumeNote = resumed ? '正在恢复上一次已冻结的费用预览，不会重新计算或重复创建批次。\n\n' : '';
-            const confirmedByUser = window.confirm(`${resumeNote}系统将自动切为 ${Number(fee.segment_count || 0)} 段，预计 ${Number(fee.estimated_paid_calls || 0)} 次付费调用，可复用 ${Number(fee.reusable_result_count || 0)} 段。\n\n0.1 秒仅扩大生成窗口，最终不会机械裁掉。确认付费并开始？`);
+        async function confirmPreparedH3Batch(prepared) {
+            const confirmedByUser = await new Promise((resolve) => {
+                openConfirmModal({
+                    title: '是否确认生成？',
+                    message: '',
+                    confirmText: '是',
+                    cancelText: '否',
+                    onConfirm: () => resolve(true),
+                    onCancel: () => resolve(false),
+                });
+            });
             if (!confirmedByUser) {
                 showToast('费用预览已保留', '下次点击生成视频会继续当前预览，不会重新计算或产生费用。', 'info');
                 return false;
@@ -2276,7 +2300,7 @@
                 return rows.length === targetRows.length && rows.every((row, index) => row === targetRows[index]);
             });
             if (pending) {
-                await confirmPreparedH3Batch({ project: existing.project, h3_batch: pending }, { resumed: true });
+                await confirmPreparedH3Batch({ project: existing.project, h3_batch: pending });
                 return true;
             }
             if (h3NeedsLocalMaterialization(existing.project)) {
@@ -2385,12 +2409,26 @@
         }
 
         async function h3RetrySegment(segmentId) {
+            const projectId = activeProject?.project_id;
+            if (!projectId) return false;
             try {
-                const quote = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/retry/prepare`, { method: 'POST', body: '{}' });
+                const refreshed = await workspaceApi(`/api/new/projects/${projectId}/h3/status`);
+                if (activeProject?.project_id !== projectId) return false;
+                syncProjectInputs(refreshed.project);
+                const currentSegment = (refreshed.project?.items || []).flatMap((item) =>
+                    Array.isArray(item?.settings?.h3?.segments) ? item.settings.h3.segments : []
+                ).find((segment) => String(segment?.segment_id || '') === String(segmentId || ''));
+                if (!currentSegment?.can_retry) {
+                    showToast('H3 批次已更新', '刚才显示的失败分段已被新批次替换，页面已刷新；请重试当前仍显示失败的分段。', 'warning');
+                    return false;
+                }
+                const currentSegmentId = String(currentSegment.segment_id);
+                const quote = await workspaceApi(`/api/new/projects/${projectId}/h3/segments/${currentSegmentId}/retry/prepare`, { method: 'POST', body: '{}' });
                 const paid = Number(quote.estimated_paid_calls || 0) > 0;
                 if (!window.confirm(paid ? `重试会产生 ${quote.estimated_paid_calls} 次付费调用，继续？` : '本次只重新下载已有云端结果，不产生新的生成调用，继续？')) return false;
-                const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/retry/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `retry-${Date.now()}`, quote_token: quote.quote_token, cost_confirmed: paid }) });
-                h3FailureToastSignatures.delete(activeProject.project_id);
+                const result = await workspaceApi(`/api/new/projects/${projectId}/h3/segments/${currentSegmentId}/retry/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `retry-${Date.now()}`, quote_token: quote.quote_token, cost_confirmed: paid }) });
+                if (activeProject?.project_id !== projectId) return false;
+                h3FailureToastSignatures.delete(projectId);
                 syncProjectInputs(result.project); scheduleH3StatusPoll(1000);
                 return true;
             } catch (error) {
@@ -2424,10 +2462,170 @@
         async function h3RegenerateSegment(segmentId) {
             try {
                 const quote = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/regeneration/prepare`, { method: 'POST', body: '{}' });
-                if (!window.confirm(`该段及连续下游预计产生 ${Number(quote.estimated_paid_calls || 0)} 次付费调用，继续？`)) return;
+                if (!window.confirm(`该段及连续下游预计产生 ${Number(quote.estimated_paid_calls || 0)} 次付费调用，继续？`)) return false;
                 const result = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/segments/${segmentId}/regeneration/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_key: globalThis.crypto?.randomUUID?.() || `regen-${Date.now()}`, quote_token: quote.quote_token, cost_confirmed: true }) });
                 syncProjectInputs(result.project); scheduleH3StatusPoll(1000);
-            } catch (error) { showToast('重生成失败', publicGenerationMessage(error.message), 'warning'); }
+                return true;
+            } catch (error) {
+                showToast('重生成失败', publicGenerationMessage(error.message), 'warning');
+                return false;
+            }
+        }
+
+        function h3SegmentReviewStatus(segment) {
+            const status = String(segment?.status || 'PENDING').toUpperCase();
+            const labels = {
+                SUCCESS: ['已完成', 'text-emerald-300', 'border-emerald-400/25 bg-emerald-500/5'],
+                FAILED: ['生成失败', 'text-rose-300', 'border-rose-400/25 bg-rose-500/5'],
+                DOWNLOAD_FAILED: ['下载失败', 'text-rose-300', 'border-rose-400/25 bg-rose-500/5'],
+                CANCELLED: ['已取消', 'text-rose-300', 'border-rose-400/25 bg-rose-500/5'],
+                RUNNING: ['生成中', 'text-brand-accent', 'border-brand-primary/25 bg-brand-primary/5'],
+                QUEUED: ['排队中', 'text-brand-accent', 'border-brand-primary/25 bg-brand-primary/5'],
+                UPLOADING: ['上传中', 'text-brand-accent', 'border-brand-primary/25 bg-brand-primary/5'],
+                SUBMITTING: ['提交中', 'text-brand-accent', 'border-brand-primary/25 bg-brand-primary/5'],
+                WAITING_DEPENDENCY: ['等待前一段', 'text-amber-300', 'border-amber-400/20 bg-amber-500/5'],
+                WAITING_REGENERATION_DEPENDENCY: ['等待重新生成', 'text-amber-300', 'border-amber-400/20 bg-amber-500/5'],
+                PENDING: ['等待生成', 'text-gray-400', 'border-slate-800 bg-slate-950/50']
+            };
+            return { status, values: labels[status] || [status, 'text-gray-400', 'border-slate-800 bg-slate-950/50'] };
+        }
+
+        function h3SegmentPreviewRenderKey(script) {
+            return JSON.stringify({
+                itemId: script?.id || '',
+                baseAssetId: script?.baseVideo?.asset_id || '',
+                segments: (script?.h3Settings?.segments || []).map((segment) => [
+                    segment?.segment_id || '',
+                    segment?.status || '',
+                    segment?.normalized_video_sha256 || '',
+                    segment?.completed_at || '',
+                    segment?.local_preview_ready === true,
+                    segment?.local_preview_is_current === true,
+                    segment?.local_preview_error || '',
+                    segment?.can_retry === true,
+                    segment?.can_regenerate === true,
+                    segment?.error_code || '',
+                    segment?.error_message || ''
+                ])
+            });
+        }
+
+        function openH3SegmentPreviewModal(button) {
+            const row = button.closest('tr');
+            activeH3SegmentPreviewItemId = row?.getAttribute('data-id') || null;
+            if (!activeH3SegmentPreviewItemId) return;
+            renderH3SegmentPreviewModal({ force: true });
+            const modal = document.getElementById('h3-segment-preview-modal');
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            modalBox.classList.remove('scale-95');
+            modalBox.classList.add('scale-100');
+        }
+
+        function renderH3SegmentPreviewModal({ force = false } = {}) {
+            if (!activeH3SegmentPreviewItemId) return;
+            const script = uploadedScripts.find((item) => item.id === activeH3SegmentPreviewItemId);
+            if (!script) {
+                closeH3SegmentPreviewModal();
+                return;
+            }
+            const grid = document.getElementById('h3-segment-preview-grid');
+            const segments = Array.isArray(script.h3Settings?.segments)
+                ? [...script.h3Settings.segments].sort((left, right) => Number(left.index || 0) - Number(right.index || 0))
+                : [];
+            const renderKey = h3SegmentPreviewRenderKey(script);
+            if (!force && grid.dataset.renderKey === renderKey) return;
+            grid.dataset.renderKey = renderKey;
+            grid.innerHTML = '';
+
+            segments.forEach((segment, arrayIndex) => {
+                const segmentNumber = Number(segment.index ?? arrayIndex) + 1;
+                const statusInfo = h3SegmentReviewStatus(segment);
+                const [statusLabel, statusTextClass, cardClass] = statusInfo.values;
+                const isActive = H3_ACTIVE_ITEM_STATUSES.has(statusInfo.status);
+                const canRetry = segment.can_retry === true;
+                const canRegenerate = segment.can_regenerate === true;
+                const canAct = !isActive && (canRetry || canRegenerate);
+                const card = document.createElement('article');
+                card.className = `min-w-0 overflow-hidden rounded-xl border ${cardClass}`;
+                const baseSourceSegmentIds = Array.isArray(script.baseVideo?.metadata?.source_segment_ids)
+                    ? script.baseVideo.metadata.source_segment_ids
+                    : [];
+                const baseMatchesSegment = String(baseSourceSegmentIds[segmentNumber - 1] || '') === String(segment.segment_id || '');
+                const localPreviewReady = segment.local_preview_ready === true || baseMatchesSegment;
+                const previewUrl = localPreviewReady
+                    ? `/api/new/projects/${encodeURIComponent(activeProject.project_id)}/items/${encodeURIComponent(script.id)}/h3-segments/${segmentNumber}/preview?asset_id=${encodeURIComponent(script.baseVideo?.asset_id || 'current')}`
+                    : '';
+                const error = String(segment.local_preview_error || segment.error_message || segment.error_code || '').trim();
+                const scriptText = String(segment.script_text || '').trim();
+                card.innerHTML = `
+                    <div class="relative aspect-[9/16] w-full overflow-hidden bg-black">
+                        ${previewUrl
+                            ? `<video controls playsinline preload="metadata" class="h3-segment-review-video h-full w-full object-contain bg-black" src="${previewUrl}"></video>`
+                            : '<div class="flex h-full items-center justify-center px-4 text-center text-[10px] text-gray-500"><span><i class="fa-solid fa-film mb-2 block text-xl text-slate-700"></i>片段完成后可在这里播放</span></div>'}
+                        <span class="absolute left-2 top-2 rounded-md bg-black/75 px-2 py-1 text-[9px] font-bold text-white">第 ${segmentNumber} 段</span>
+                        <span class="absolute right-2 top-2 rounded-md bg-black/75 px-2 py-1 text-[9px] ${statusTextClass}">${escapeHtml(statusLabel)}</span>
+                    </div>
+                    <div class="space-y-2 p-3">
+                        <p class="line-clamp-2 min-h-[2.25rem] text-[10px] leading-[1.125rem] text-gray-300" title="${escapeHtml(scriptText)}">${escapeHtml(scriptText || '暂无分段台词')}</p>
+                        ${error ? `<p class="line-clamp-2 text-[9px] leading-4 text-rose-300" title="${escapeHtml(error)}">${escapeHtml(error)}</p>` : ''}
+                        ${previewUrl && segment.local_preview_is_current === false ? '<p class="text-[9px] text-amber-300">新版本处理中，当前播放的是上一版本</p>' : ''}
+                        ${isActive && previewUrl && segment.local_preview_is_current !== false ? '<p class="text-[9px] text-amber-300">正在重新生成，当前播放的是上一版本</p>' : ''}
+                    </div>`;
+                const action = document.createElement('button');
+                action.type = 'button';
+                action.disabled = !canAct;
+                action.className = canAct
+                    ? 'mx-3 mb-3 w-[calc(100%_-_1.5rem)] rounded-lg border border-brand-primary/35 bg-brand-primary/10 px-3 py-2 text-[10px] font-semibold text-brand-accent hover:border-brand-accent hover:text-white transition-colors'
+                    : 'mx-3 mb-3 w-[calc(100%_-_1.5rem)] cursor-not-allowed rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold text-gray-600';
+                action.innerHTML = isActive
+                    ? '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>处理中'
+                    : `<i class="fa-solid fa-rotate mr-1.5"></i>${canAct ? '重试这段' : (statusInfo.status === 'SUCCESS' ? '暂不可重试' : '等待片段就绪')}`;
+                if (canAct) {
+                    action.addEventListener('click', async () => {
+                        action.disabled = true;
+                        const segmentId = String(segment.segment_id || '');
+                        const started = canRetry
+                            ? await h3RetrySegment(segmentId)
+                            : await h3RegenerateSegment(segmentId);
+                        if (!started) action.disabled = false;
+                        renderH3SegmentPreviewModal({ force: true });
+                    });
+                }
+                card.appendChild(action);
+                grid.appendChild(card);
+            });
+
+            if (!segments.length) {
+                grid.innerHTML = '<div class="col-span-full py-16 text-center text-xs text-gray-500"><i class="fa-solid fa-film mb-3 block text-2xl text-slate-700"></i>当前视频尚未建立 H3 分段</div>';
+            }
+            grid.querySelectorAll('video').forEach((video) => {
+                video.addEventListener('play', () => {
+                    grid.querySelectorAll('video').forEach((other) => {
+                        if (other !== video) other.pause();
+                    });
+                });
+            });
+            const completed = segments.filter((segment) => String(segment.status || '').toUpperCase() === 'SUCCESS').length;
+            document.getElementById('h3-segment-preview-summary').textContent = `任务 ${script.rowKey} · 共 ${segments.length} 段 · 已完成 ${completed}/${segments.length}`;
+        }
+
+        function refreshOpenH3SegmentPreviewModal() {
+            const modal = document.getElementById('h3-segment-preview-modal');
+            if (!modal || modal.classList.contains('pointer-events-none')) return;
+            renderH3SegmentPreviewModal();
+        }
+
+        function closeH3SegmentPreviewModal() {
+            const modal = document.getElementById('h3-segment-preview-modal');
+            if (!modal) return;
+            modal.querySelectorAll('video').forEach((video) => video.pause());
+            const modalBox = modal.querySelector('.glass-panel-heavy');
+            modalBox.classList.remove('scale-100');
+            modalBox.classList.add('scale-95');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            document.getElementById('h3-segment-preview-grid').dataset.renderKey = '';
+            activeH3SegmentPreviewItemId = null;
         }
 
         async function h3CancelSegment(segmentId) {
@@ -2557,9 +2755,49 @@
         }
 
         function projectHasActiveComposition(project) {
-            return (project?.items || []).some((item) =>
+            if ((project?.items || []).some((item) =>
                 COMPOSITION_ACTIVE_ITEM_STATUSES.includes(item.status)
+            )) return true;
+            return projectHasActiveOperation(project, new Set(['COMPOSITION_GENERATE']));
+        }
+
+        function projectHasActiveOperation(project, operationTypes) {
+            return (project?.operations || []).some((operation) =>
+                operationTypes.has(String(operation?.operation_type || ''))
+                && ['PENDING', 'STARTING', 'RUNNING'].includes(String(operation?.status || ''))
             );
+        }
+
+        function projectNeedsAudioSync(project) {
+            return (project?.items || []).some((item) =>
+                ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.status)
+            ) || projectHasActiveOperation(project, new Set(['AUDIO_GENERATE']));
+        }
+
+        function projectNeedsH3Sync(project) {
+            return project?.settings?.generation_mode === 'minimax_h3_ref2va'
+                && (h3StateIsActive(project) || h3NeedsLocalMaterialization(project));
+        }
+
+        function projectNeedsPostprocessSync(project) {
+            return (project?.items || []).some((item) => item.status === 'POSTPROCESS_RUNNING')
+                || projectHasActiveOperation(project, new Set(['POSTPROCESS_GENERATE', 'POSTPROCESS_EXPORT']));
+        }
+
+        function projectNeedsVariantSync(project) {
+            return (project?.items || []).some((item) =>
+                ['VARIANT_QUEUED', 'VARIANT_RUNNING'].includes(item.status)
+            ) || projectHasActiveOperation(project, new Set(['VARIANT_GENERATE', 'VARIANT_SUPPLEMENT', 'VARIANT_RETRY']));
+        }
+
+        function inactiveProjectReconciliationStages(project) {
+            return [
+                { path: 'audio/status', needed: projectNeedsAudioSync },
+                { path: 'h3/status', needed: projectNeedsH3Sync },
+                { path: 'composition/status', needed: projectHasActiveComposition },
+                { path: 'postprocess/status', needed: projectNeedsPostprocessSync },
+                { path: 'variants/status', needed: projectNeedsVariantSync }
+            ].filter((stage) => stage.needed(project));
         }
 
         function projectHasPendingWork(project) {
@@ -2637,23 +2875,24 @@
                 const candidates = [...availableProjects].filter((project) =>
                     project?.project_id
                     && project.project_id !== activeProject?.project_id
-                    && projectHasActiveComposition(project)
+                    && inactiveProjectReconciliationStages(project).length
                 );
                 for (const candidate of candidates) {
                     const projectId = candidate.project_id;
-                    try {
-                        const synced = await workspaceApi(`/api/new/projects/${projectId}/composition/status`);
-                        const listedIndex = availableProjects.findIndex(
-                            (project) => project.project_id === projectId
-                        );
-                        if (listedIndex >= 0) availableProjects[listedIndex] = synced;
-                        if (activeProject?.project_id === projectId) {
-                            syncProjectInputs(synced, { renderTable: !projectHasActiveItems(synced) });
+                    let syncedProject = candidate;
+                    for (const stage of inactiveProjectReconciliationStages(candidate)) {
+                        try {
+                            const response = await workspaceApi(`/api/new/projects/${projectId}/${stage.path}`);
+                            syncedProject = response?.project || response;
+                        } catch (_) {
+                            // One cloud stage can be temporarily unavailable while
+                            // local Jianying jobs for the same project still reconcile.
                         }
-                    } catch (_) {
-                        // Other projects are best-effort reconciliation. Their
-                        // own page keeps the existing visible retry and error flow.
                     }
+                    const listedIndex = availableProjects.findIndex(
+                        (project) => project.project_id === projectId
+                    );
+                    if (listedIndex >= 0) availableProjects[listedIndex] = syncedProject;
                 }
                 renderProjectSelector(activeProject?.project_id || '');
             } catch (_) {
@@ -2672,6 +2911,7 @@
             clearTimeout(variantStatusPollTimer);
             clearTimeout(h3StatusPollTimer);
             clearTimeout(ltxStatusPollTimer);
+            closeH3SegmentPreviewModal();
             activeProject = null;
             uploadedScripts = [];
             uploadedImages = [];
@@ -2971,6 +3211,7 @@
             scheduleVariantStatusPoll();
             scheduleH3StatusPoll();
             reconcileContentAnalysisStatusPoll(project);
+            refreshOpenH3SegmentPreviewModal();
             window.JYDTemplates?.refreshButton();
         }
 
@@ -3824,8 +4065,15 @@
                     : (script.baseVideo
                         ? (script.assetHistory?.composition_video?.length ? '重生成视频' : '继续生成视频')
                         : (videoWasGenerated ? '重生成视频' : '生成视频'));
-                const variantsCanReuse = rowVariantsCanReuse(script);
-                const variantsWereGenerated = Boolean(script.variants?.length || script.variantGenerationOperation);
+                const h3Segments = Array.isArray(script.h3Settings?.segments) ? script.h3Settings.segments : [];
+                const h3CompletedSegments = h3Segments.filter((segment) => String(segment.status || '').toUpperCase() === 'SUCCESS').length;
+                const h3FailedSegmentCount = h3Segments.filter((segment) => ['FAILED', 'DOWNLOAD_FAILED', 'CANCELLED'].includes(String(segment.status || '').toUpperCase())).length;
+                const h3SegmentCheckReady = h3Segments.length > 0;
+                const h3SegmentCheckLabel = h3FailedSegmentCount
+                    ? `${h3FailedSegmentCount} 段需处理`
+                    : (h3CompletedSegments === h3Segments.length && h3Segments.length
+                        ? `${h3Segments.length} 段 · 点击检查`
+                        : `已完成 ${h3CompletedSegments}/${h3Segments.length}`);
                 const singleActionClass = 'row-single-stage-action w-full px-2 py-1 rounded-lg border text-[9px] font-semibold transition-colors whitespace-nowrap';
                 const ltxItem = ltxStateForItem(script.id);
                 const ltxStatus = String(ltxItem?.status || '').toUpperCase();
@@ -3997,45 +4245,15 @@
                             <div class="row-runninghub-execution-summary">${runningHubExecutionHtml}</div>
                         </div>
                     </td>
-                    <td class="px-4 py-4 text-center whitespace-nowrap">
-                        <div class="relative w-16 mx-auto">
-                            <input type="number" min="1" max="500" value="${Number(script.variantSettings?.count) || 20}" onchange="handleVariantCountChange(this); persistVariantSettings()" disabled title="完整成片生成后不会自动生成变体" class="row-variant-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-600 cursor-not-allowed focus:outline-none">
-                            <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
-                        </div>
-                        <div class="mt-2 text-[9px] ${script.postprocessSettings?.cover_title?.line_1 && script.postprocessSettings?.cover_title?.line_2 ? 'text-emerald-300' : 'text-slate-500'}"><i class="fa-solid fa-image mr-1"></i>${script.postprocessSettings?.cover_title?.line_1 && script.postprocessSettings?.cover_title?.line_2 ? 'AI 封面已就绪' : '等待 AI 标题'}</div>
-                    </td>
                     <td class="px-4 py-3 text-center whitespace-nowrap">
-                        <div class="row-variant-preview-container flex flex-col items-center justify-center min-h-[76px]">
-                            <div class="row-variant-status-wait flex flex-col items-center gap-1 text-gray-600 text-[9px]">
-                                <i class="fa-solid fa-photo-film text-sm"></i>
-                                <span>暂无变体</span>
-                            </div>
-                            <div class="row-variant-status-loading hidden flex flex-col items-center gap-1 text-brand-primary text-[9px]">
-                                <i class="fa-solid fa-spinner fa-spin text-sm"></i>
-                                <span class="row-variant-loading-text">正在生成 0/0</span>
-                            </div>
-                            <div class="row-variant-status-failed hidden flex-col items-center gap-1 text-rose-400 text-[9px]">
-                                <i class="fa-solid fa-triangle-exclamation text-sm"></i><span>部分生成失败</span>
-                                <button type="button" onclick="retryRowVariants(this)" class="text-rose-300 hover:text-white"><i class="fa-solid fa-rotate mr-1"></i>只重试失败项</button>
-                            </div>
-                            <button onclick="openVariantPreviewModal(this)" class="row-variant-status-ready hidden flex-col items-center gap-1.5 group/variant" title="查看全部变体">
-                                <span class="relative block w-20 h-11">
-                                    <span class="absolute left-2 top-0 w-16 h-9 rounded-md bg-brand-secondary/25 border border-brand-secondary/35 rotate-3"></span>
-                                    <span class="absolute left-0.5 top-1 w-16 h-9 rounded-md bg-brand-primary/25 border border-brand-primary/35 -rotate-2"></span>
-                                    <span class="absolute left-1 top-1.5 w-16 h-9 rounded-md bg-gradient-to-br from-slate-700 to-slate-950 border border-brand-primary/50 flex items-center justify-center group-hover/variant:border-brand-accent transition-colors"><i class="fa-solid fa-play text-[9px] text-white"></i></span>
-                                </span>
-                                <span class="row-variant-ready-count text-[9px] text-brand-accent font-semibold">0 个变体</span>
-                            </button>
-                        </div>
-                    </td>
-                    <td class="px-4 py-4 text-center whitespace-nowrap">
-                        <div class="flex flex-col items-center gap-1.5">
-                            <div class="relative w-16">
-                                <input type="number" min="1" max="500" value="5" disabled class="row-variant-extra-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[10px] text-center text-gray-600 cursor-not-allowed focus:outline-none">
-                                <span class="absolute right-2 top-1.5 text-[9px] text-gray-600 pointer-events-none">个</span>
-                            </div>
-                            <button onclick="addMoreRowVariants(this)" disabled class="row-add-variants-btn px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-900 text-[9px] font-semibold text-gray-600 cursor-not-allowed whitespace-nowrap"><i class="fa-solid fa-plus mr-1"></i>补充生成</button>
-                        </div>
+                        <button type="button" ${h3SegmentCheckReady ? '' : 'disabled'} onclick="openH3SegmentPreviewModal(this)" class="mx-auto flex min-h-[76px] w-24 flex-col items-center justify-center gap-1.5 rounded-xl border ${h3SegmentCheckReady ? (h3FailedSegmentCount ? 'border-rose-400/30 bg-rose-500/5 text-rose-300 hover:border-rose-300' : 'border-cyan-400/30 bg-cyan-500/5 text-brand-accent hover:border-brand-accent hover:text-white') : 'cursor-not-allowed border-slate-900 bg-slate-950/50 text-gray-600'} transition-colors" title="${h3SegmentCheckReady ? '查看当前视频的全部 H3 原始片段' : '生成 H3 分段后可检查'}">
+                            <span class="relative block h-9 w-16">
+                                <span class="absolute left-2 top-0 h-7 w-12 rotate-3 rounded-md border border-brand-secondary/30 bg-brand-secondary/15"></span>
+                                <span class="absolute left-0 top-1 h-7 w-12 -rotate-2 rounded-md border border-brand-primary/30 bg-brand-primary/15"></span>
+                                <span class="absolute left-1 top-2 flex h-7 w-12 items-center justify-center rounded-md border border-cyan-400/40 bg-slate-950"><i class="fa-solid ${h3FailedSegmentCount ? 'fa-triangle-exclamation' : 'fa-play'} text-[9px]"></i></span>
+                            </span>
+                            <span class="text-[9px] font-semibold">${escapeHtml(h3SegmentCheckLabel)}</span>
+                        </button>
                     </td>
                     <td class="table-actions-column px-3 py-3 text-center">
                         <div class="flex flex-col items-stretch justify-center gap-1.5">
@@ -4044,9 +4262,6 @@
                             </button>
                             <button ${itemActive || (!videoCanReuse && !script.audio) ? 'disabled' : ''} onclick="runSingleVideo(this)" title="${videoCanReuse ? '当前成片未失效，点击直接复用，不会重新调用 RunningHub' : '只生成当前行完整成片'}" class="generation-page-only ${singleActionClass} ${itemActive || (!videoCanReuse && !script.audio) ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-secondary/30 text-fuchsia-300 hover:text-white hover:border-brand-secondary'}">
                                 <i class="fa-solid fa-film mr-1"></i>${videoActionText}
-                            </button>
-                            <button ${itemActive || !videoCanReuse ? 'disabled' : ''} onclick="runSingleVariants(this)" title="${variantsCanReuse ? '当前变体配置未改变，点击直接复用' : '只生成当前行变体'}" class="generation-page-only ${singleActionClass} ${itemActive || !videoCanReuse ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-emerald-400/30 text-emerald-300 hover:text-white hover:border-emerald-300'}">
-                                <i class="fa-solid fa-photo-film mr-1"></i>${variantsCanReuse ? '复用变体' : (variantsWereGenerated ? '重生成变体' : '生成变体')}
                             </button>
                             <button onclick="downloadClonedAudio(this)" title="导出音频" disabled class="audio-page-only btn-download-audio self-center w-7 h-7 rounded-lg bg-slate-950 border border-slate-900 text-gray-600 flex items-center justify-center cursor-not-allowed">
                                 <i class="fa-solid fa-download"></i>
@@ -4064,18 +4279,6 @@
                 toggleRowAudioStatusUI(tr, voiceStatus);
                 if (voiceStatus === 'ready') markRowAudioPreviewReady(tr);
                 toggleRowVideoStatusUI(tr, videoStatus);
-                toggleRowVariantStatusUI(tr, variantStatus);
-                if (variantStatus === 'loading') {
-                    const jobs = script.variantOperation?.result?.jobs || [];
-                    const finished = jobs.filter(job => ['completed', 'failed'].includes(job.status)).length;
-                    tr.querySelector('.row-variant-loading-text').textContent = jobs.length
-                        ? `正在生成 ${finished}/${jobs.length}`
-                        : '正在排队';
-                }
-                if (script.variants.length) {
-                    tr.querySelector('.row-variant-ready-count').textContent = `${script.variants.length} 个变体`;
-                    if (variantStatus === 'ready') setRowSupplementControls(tr, true);
-                }
             });
 
             applyArticleTypeVisibility();
@@ -5422,6 +5625,7 @@
 
         function toggleRowVariantStatusUI(row, status) {
             const container = row.querySelector('.row-variant-preview-container');
+            if (!container) return;
             ['wait', 'loading', 'failed', 'ready'].forEach(item => {
                 const element = container.querySelector(`.row-variant-status-${item}`);
                 element.classList.add('hidden');
@@ -5436,6 +5640,7 @@
         function setRowSupplementControls(row, enabled) {
             const countInput = row.querySelector('.row-variant-extra-count');
             const button = row.querySelector('.row-add-variants-btn');
+            if (!countInput || !button) return;
             countInput.disabled = !enabled;
             button.disabled = !enabled;
             countInput.className = enabled
@@ -5469,7 +5674,8 @@
         function markRowVariantsReady(row, count) {
             row.setAttribute('data-variant-status', 'ready');
             row.setAttribute('data-variant-generated', String(count));
-            row.querySelector('.row-variant-ready-count').textContent = `${count} 个变体`;
+            const label = row.querySelector('.row-variant-ready-count');
+            if (label) label.textContent = `${count} 个变体`;
             toggleRowVariantStatusUI(row, 'ready');
             setRowSupplementControls(row, true);
         }
@@ -5623,42 +5829,13 @@
         }
 
         function refreshVariantActionAvailability() {
-            const rows = Array.from(document.querySelectorAll('.table-data-row'));
-            const allVideosReady = rows.length > 0 && rows.every(row => row.getAttribute('data-video-status') === 'ready');
             const exportableVideoCount = uploadedScripts.filter((item) =>
                 Boolean(item.compositionVideo)
                 || Boolean(item.baseVideo && item.subtitles?.status === 'PREVIEW_READY')
                 || item.compositionStatus === 'POSTPROCESS_RUNNING'
             ).length;
-            const mainButton = document.getElementById('btn-generate-variants');
-            const settingsButton = document.getElementById('btn-variant-settings');
             const downloadButton = document.getElementById('btn-download-project-videos');
-            const backendAllowsVariants = Boolean(activeProject?.allowed_actions?.generate_variants);
-            const canGenerate = backendAllowsVariants && allVideosReady && !isGeneratingVariants;
-            const canConfigure = backendAllowsVariants && rows.length > 0 && !isGeneratingVariants;
             const canDownload = exportableVideoCount > 0 && !isDownloadingProjectVideos;
-
-            rows.forEach(row => {
-                const input = row.querySelector('.row-variant-count');
-                const enabled = canConfigure && row.getAttribute('data-video-status') === 'ready';
-                input.disabled = !enabled;
-                input.className = enabled
-                    ? "row-variant-count w-full bg-slate-950/60 border border-slate-800/80 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-200 focus:outline-none focus:border-brand-primary/50"
-                    : "row-variant-count w-full bg-slate-950 border border-slate-900 rounded-lg py-1.5 pl-2 pr-5 text-[11px] text-center text-gray-600 cursor-not-allowed focus:outline-none";
-            });
-
-            mainButton.disabled = !canGenerate;
-            settingsButton.disabled = !canConfigure;
-            mainButton.innerHTML = isGeneratingVariants
-                ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在生成变体...</span>'
-                : '<i class="fa-solid fa-code-branch"></i><span>生成变体</span>';
-            mainButton.className = canGenerate
-                ? "flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-gradient-to-r from-brand-secondary to-brand-primary hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap cursor-pointer shadow-lg shadow-brand-primary/20 active:scale-[0.98]"
-                : "flex-1 md:flex-none px-6 py-3 rounded-l-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all whitespace-nowrap";
-            settingsButton.className = canConfigure
-                ? `px-3 py-3 rounded-r-xl border-y border-r transition-all cursor-pointer ${globalVariantConfig ? 'bg-brand-primary/25 border-brand-primary/50 text-brand-accent hover:text-white' : 'bg-slate-800 border-slate-700/60 text-gray-300 hover:bg-slate-700 hover:text-white'}`
-                : "px-3 py-3 rounded-r-xl bg-slate-800 border-y border-r border-slate-700/60 text-slate-500 cursor-not-allowed transition-all";
-            settingsButton.title = globalVariantConfig ? "已使用自定义变体设置" : "使用最大差异优先算法，点击配置";
             downloadButton.disabled = !canDownload;
             downloadButton.innerHTML = isDownloadingProjectVideos
                 ? '<i class="fa-solid fa-spinner fa-spin"></i><span>正在导出并打包...</span>'
@@ -6528,6 +6705,11 @@
             return activeVideoPreviewRow?.getAttribute('data-preview-mode') === 'browser';
         }
 
+        function activePreviewUsesJianyingTemplate() {
+            return isBrowserCompositionPreview()
+                && Boolean(activeProject?.settings?.jianying_template?.template_id);
+        }
+
         const BROWSER_COVER_DURATION_SECONDS = 3 / 30;
 
         function activePreviewCoverTitle() {
@@ -6559,7 +6741,7 @@
         }
 
         function shouldShowPreviewCover() {
-            if (!isBrowserCompositionPreview() || !activePreviewCoverTitle()) return false;
+            if (!isBrowserCompositionPreview() || activePreviewUsesJianyingTemplate() || !activePreviewCoverTitle()) return false;
             const video = document.getElementById('video-preview-local');
             return !previewCoverPrefixPlayed
                 && (!Number.isFinite(video.currentTime) || video.currentTime <= 0.001);
@@ -6630,6 +6812,7 @@
             const scale = Math.min(frameWidth / video.videoWidth, frameHeight / video.videoHeight);
             const displayedWidth = video.videoWidth * scale;
             const displayedHeight = video.videoHeight * scale;
+            const horizontalMargin = (frameWidth - displayedWidth) / 2;
             const verticalMargin = (frameHeight - displayedHeight) / 2;
             const style = activeLayoutProfileConfig().caption || activePreviewScript()?.subtitles?.style || {};
             const safeWidth = displayedWidth * Number(style.max_width_ratio || 0.8);
@@ -6644,16 +6827,27 @@
             caption.style.fontSize = `${Math.max(11, displayedWidth * fontSize / 220)}px`;
             caption.style.lineHeight = '1';
             caption.style.whiteSpace = 'nowrap';
+            caption.style.fontWeight = '700';
+            caption.style.fontStyle = 'normal';
+            caption.style.textDecoration = 'none';
+            caption.style.backgroundColor = 'transparent';
             caption.style.webkitTextStroke = '0px transparent';
             caption.style.paintOrder = 'stroke fill';
             caption.style.textShadow = `${Math.max(1, displayedWidth * 0.004)}px ${Math.max(1, displayedWidth * 0.004)}px ${Math.max(1, displayedWidth * 0.005)}px rgba(0, 0, 0, ${shadowAlpha})`;
             caption.style.transform = 'translate(-50%, -50%)';
+            window.JYDTemplateBrowserPreview?.applyCaptionStyle({
+                caption,
+                displayedWidth,
+                displayedHeight,
+                horizontalMargin,
+                verticalMargin
+            });
         }
 
         function updatePreviewTopTitles() {
             const label = document.getElementById('video-preview-title-label');
             const headline = document.getElementById('video-preview-title-headline');
-            if (!isBrowserCompositionPreview() || shouldShowPreviewCover()) {
+            if (!isBrowserCompositionPreview() || activePreviewUsesJianyingTemplate() || shouldShowPreviewCover()) {
                 [label, headline].forEach((element) => {
                     element.textContent = '';
                     element.classList.add('hidden');
@@ -6687,7 +6881,7 @@
 
         function updatePreviewDisclaimer() {
             const disclaimer = document.getElementById('video-preview-disclaimer');
-            if (!isBrowserCompositionPreview() || shouldShowPreviewCover()) {
+            if (!isBrowserCompositionPreview() || activePreviewUsesJianyingTemplate() || shouldShowPreviewCover()) {
                 disclaimer.textContent = '';
                 disclaimer.classList.add('hidden');
                 return;
@@ -6812,7 +7006,7 @@
         function updatePreviewSemanticOverlay() {
             updatePreviewSemanticVideo();
             const image = document.getElementById('video-preview-semantic-overlay');
-            if (!isBrowserCompositionPreview() || shouldShowPreviewCover()) {
+            if (!isBrowserCompositionPreview() || activePreviewUsesJianyingTemplate() || shouldShowPreviewCover()) {
                 image.classList.add('hidden');
                 image.removeAttribute('src');
                 return;
@@ -6889,7 +7083,7 @@
         function updatePreviewSemanticVideo() {
             const overlayVideo = document.getElementById('video-preview-semantic-video');
             const baseVideo = document.getElementById('video-preview-local');
-            if (!isBrowserCompositionPreview() || shouldShowPreviewCover()) {
+            if (!isBrowserCompositionPreview() || activePreviewUsesJianyingTemplate() || shouldShowPreviewCover()) {
                 overlayVideo.pause();
                 overlayVideo.classList.add('hidden');
                 return;
@@ -6980,7 +7174,7 @@
         function updatePreviewFixedNameplate() {
             const image = document.getElementById('video-preview-fixed-nameplate');
             const textElements = [1, 2, 3].map((index) => document.getElementById(`video-preview-nameplate-text-${index}`));
-            if (!isBrowserCompositionPreview() || shouldShowPreviewCover()) {
+            if (!isBrowserCompositionPreview() || activePreviewUsesJianyingTemplate() || shouldShowPreviewCover()) {
                 image.classList.add('hidden');
                 textElements.forEach((element) => element.classList.add('hidden'));
                 return;
@@ -7145,6 +7339,7 @@
                 ? `<i class="fa-solid fa-file-video mr-2"></i>${hadExportedVersion ? '重新导出带封面 MP4' : '导出带封面 MP4'}`
                 : '<i class="fa-solid fa-download mr-2"></i>下载此视频';
             if (!isBrowserCompositionPreview()) {
+                window.JYDTemplateBrowserPreview?.reset();
                 caption.textContent = '';
                 caption.classList.add('hidden');
                 updatePreviewCover();
@@ -7221,6 +7416,7 @@
             updatePreviewDisclaimer();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
+            await window.JYDTemplateBrowserPreview?.prepare();
             if (!document.getElementById('video-preview-local').paused) void playPreviewBgm();
         }
 
@@ -7234,6 +7430,7 @@
                 updatePreviewDisclaimer();
                 updatePreviewSemanticOverlay();
                 updatePreviewFixedNameplate();
+                window.JYDTemplateBrowserPreview?.render();
                 if (eventName === 'loadedmetadata') syncPreviewBgm(true);
                 else if (eventName === 'timeupdate') syncPreviewBgm(false);
             });
@@ -7242,12 +7439,14 @@
             syncPreviewPlayButtonState();
             updatePreviewCover();
             updatePreviewSemanticOverlay();
+            window.JYDTemplateBrowserPreview?.play();
             void playPreviewBgm();
         });
         previewVideoElement.addEventListener('pause', () => {
             syncPreviewPlayButtonState();
             updatePreviewCover();
             updatePreviewSemanticOverlay();
+            window.JYDTemplateBrowserPreview?.stop();
             stopPreviewBgm();
         });
         previewVideoElement.addEventListener('seeking', () => syncPreviewBgm(true));
@@ -7261,6 +7460,7 @@
             updatePreviewDisclaimer();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
+            window.JYDTemplateBrowserPreview?.render();
         });
         previewVideoElement.addEventListener('ended', () => {
             stopPreviewBgm();
@@ -7272,6 +7472,7 @@
             updatePreviewDisclaimer();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
+            window.JYDTemplateBrowserPreview?.stop();
         });
         document.getElementById('video-preview-progress-track').addEventListener('click', (event) => {
             if (!Number.isFinite(previewVideoElement.duration) || previewVideoElement.duration <= 0) return;
@@ -7286,6 +7487,7 @@
             updatePreviewDisclaimer();
             updatePreviewSemanticOverlay();
             updatePreviewFixedNameplate();
+            window.JYDTemplateBrowserPreview?.render();
         });
 
         function openVideoModal(rowId = '001', imageSrc = '') {
@@ -7332,6 +7534,7 @@
             previewCoverPlayDelayTimer = null;
             previewCoverPrefixPlayed = false;
             localVideo.pause();
+            window.JYDTemplateBrowserPreview?.reset();
             stopPreviewBgm();
             syncPreviewPlayButtonState();
             document.getElementById('video-preview-cover').classList.add('hidden');
@@ -8042,7 +8245,15 @@
             syncProject: syncProjectInputs,
             toast: showToast
         };
+        window.JYD_TEMPLATE_PREVIEW_CONTEXT = {
+            api: workspaceApi,
+            getProject: () => activeProject,
+            getScript: activePreviewScript,
+            isBrowserPreview: isBrowserCompositionPreview,
+            refreshCaptionLayout: updatePreviewCaptionLayout
+        };
     </script>
+    <script src="/app-static/new/template-browser-preview.js?v=20260828-6"></script>
     <script src="/app-static/new/template-manager.js"></script>
 </body>
 </html>

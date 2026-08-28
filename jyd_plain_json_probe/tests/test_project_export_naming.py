@@ -60,3 +60,19 @@ def test_existing_draft_gets_a_non_destructive_numeric_suffix(tmp_path) -> None:
     assert available_draft_name(
         tmp_path, "账号5-鸡汤文-2-composition"
     ) == "账号5-鸡汤文-2-composition-03"
+
+
+def test_planned_batch_drafts_reserve_names_before_directories_exist(tmp_path) -> None:
+    reserved = {"shared-source-composition"}
+    assert available_draft_name(
+        tmp_path,
+        "shared-source-composition",
+        reserved_names=reserved,
+    ) == "shared-source-composition-02"
+
+    reserved.add("shared-source-composition-02")
+    assert available_draft_name(
+        tmp_path,
+        "shared-source-composition",
+        reserved_names=reserved,
+    ) == "shared-source-composition-03"

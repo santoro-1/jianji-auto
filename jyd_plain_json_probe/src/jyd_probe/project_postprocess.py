@@ -62,7 +62,9 @@ from .semantic_visuals import (
     load_semantic_visual_catalog,
 )
 from .subtitles import CaptionCue, caption_cues_from_payload
+from .template_library import load_plain_draft_json
 from .unified_visual_plan import remap_saved_visual_plan
+from .user_templates import detect_caption_tracks
 
 
 CAPTION_MAX_WIDTH_RATIO = 0.8
@@ -133,6 +135,8 @@ COVER_LINE_1_COLOR = "#FADF4A"
 COVER_LINE_2_COLOR = "#F5F6F0"
 CAPTION_MIN_SLICE_US = 80_000
 _BREAK_CHARS = set("，,、：:。.！？!?；;")
+_CAPTION_OPENING_QUOTES = frozenset("“‘")
+_CAPTION_CLOSING_QUOTES = frozenset("”’")
 _HIDDEN_CAPTION_PUNCTUATION = _BREAK_CHARS | set("…")
 _HARD_SENTENCE_BREAKS = set("。.！？!?；;…\r\n")
 _SOFT_SENTENCE_BREAKS = set("，,、：:")
@@ -1040,6 +1044,7 @@ def _preferred_syntax_break_offsets(text: str) -> set[int]:
         left_word, left_flag, _left_start, boundary = left
         right_word, right_flag, _right_start, right_end = right
         following_flag = tagged[index + 2][1] if index + 2 < len(tagged) else ""
+        nearby_words = {entry[0] for entry in tagged[index + 2 : index + 4]}
         if left_word in {"的", "地", "得"} and (
             right_flag.startswith(("m", "q")) or right_flag == "j"
         ):
@@ -1055,6 +1060,7 @@ def _preferred_syntax_break_offsets(text: str) -> set[int]:
             _is_nominal_flag(left_flag)
             and right_flag in {"d", "df", "zg"}
             and following_flag.startswith(("a", "n", "p", "v"))
+            and "的" not in nearby_words
         ):
             # Complete subject before an adverb-led predicate:
             # 八十几岁很多人|已经在坐轮椅。
@@ -1449,6 +1455,88 @@ def _merge_unbreakable_term_boundaries(
     return merged
 
 
+def _attach_standalone_quote_groups(
+    groups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Bind standalone quotes to speech without giving them their own time range.
+
+    Content analysis may return a Chinese opening or closing quote as a standalone
+    phrase. Quotes stay visible in the rendered caption, but they are not spoken
+    ASR tokens and must never become an independent cue. Opening quotes bind right
+    and closing quotes bind left. The spoken group's original time range is retained
+    so the quote does not occupy timeline duration of its own.
+    """
+
+    attached: list[dict[str, Any]] = []
+    pending_opening: dict[str, Any] | None = None
+
+    def attach_left(
+        spoken: dict[str, Any], punctuation: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            **spoken,
+            "text": str(spoken.get("text") or "")
+            + str(punctuation.get("text") or ""),
+            "break_after": str(punctuation.get("break_after") or "allow"),
+            "hard_break_after": bool(punctuation.get("hard_break_after")),
+            "unit_count": int(spoken.get("unit_count") or 1)
+            + int(punctuation.get("unit_count") or 1),
+        }
+
+    def attach_right(
+        punctuation: dict[str, Any], spoken: dict[str, Any]
+    ) -> dict[str, Any]:
+        return {
+            **spoken,
+            "text": str(punctuation.get("text") or "")
+            + str(spoken.get("text") or ""),
+            "unit_count": int(punctuation.get("unit_count") or 1)
+            + int(spoken.get("unit_count") or 1),
+        }
+
+    for source in groups:
+        group = dict(source)
+        punctuation = _normalized_caption_text(str(group.get("text") or ""))
+        is_quote_only = bool(punctuation) and all(
+            character in _CAPTION_OPENING_QUOTES | _CAPTION_CLOSING_QUOTES
+            for character in punctuation
+        )
+        if not is_quote_only:
+            if pending_opening is not None:
+                group = attach_right(pending_opening, group)
+                pending_opening = None
+            attached.append(group)
+            continue
+
+        is_opening_quote = all(
+            character in _CAPTION_OPENING_QUOTES for character in punctuation
+        )
+        if is_opening_quote:
+            if pending_opening is None:
+                pending_opening = group
+            else:
+                pending_opening = attach_left(pending_opening, group)
+            continue
+
+        if pending_opening is not None:
+            if attached:
+                attached[-1] = attach_left(attached[-1], pending_opening)
+            else:
+                group = attach_right(pending_opening, group)
+            pending_opening = None
+        if attached:
+            attached[-1] = attach_left(attached[-1], group)
+        else:
+            pending_opening = group
+
+    if pending_opening is not None:
+        if attached:
+            attached[-1] = attach_left(attached[-1], pending_opening)
+        else:
+            attached.append(pending_opening)
+    return attached
+
+
 def _merge_orphan_sentence_tails(
     groups: list[dict[str, Any]],
     metrics: FontMetrics,
@@ -1836,6 +1924,7 @@ def _layout_semantic_groups(
     # interpreted: otherwise a model result such as `0.|5到1公斤` makes the
     # decimal point look like sentence punctuation and silently removes it.
     groups = _merge_unbreakable_term_boundaries(groups)
+    groups = _attach_standalone_quote_groups(groups)
     clauses: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     for source in groups:
@@ -2278,6 +2367,61 @@ class ProjectPostprocessCoordinator:
             strong_vocals=strong_vocals,
         )
 
+    def _apply_standard_visual_content(
+        self,
+        job: dict[str, Any],
+        item: dict[str, Any],
+        *,
+        settings: dict[str, Any],
+        font: dict[str, Any],
+        profile_id: str,
+        video_duration_us: int,
+    ) -> None:
+        visual_analysis = dict(item.get("visual_analysis") or {})
+        visual_overlays = bound_visual_overlays_to_video(
+            apply_layout_to_visual_overlays(
+                bind_semantic_overlays_to_render_cues(
+                    str(item.get("script_text") or ""),
+                    frozen_visual_overlays(
+                        item,
+                        library_root=self.semantic_visual_library_root,
+                        catalog=self.semantic_visual_catalog,
+                    ),
+                    list(dict(item.get("subtitles") or {}).get("render_cues") or []),
+                    (
+                        dict(visual_analysis.get("candidate_request") or {})
+                        if isinstance(visual_analysis.get("candidate_request"), dict)
+                        else None
+                    ),
+                ),
+                profile_id,
+            ),
+            video_duration_us,
+        )
+        existing_visuals = list(job.get("visual_overlays") or [])
+        if existing_visuals or visual_overlays:
+            job["visual_overlays"] = [*existing_visuals, *visual_overlays]
+        job["fixed_overlays"] = [
+            fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
+        ]
+        title_texts = [
+            *build_top_title_texts(
+                settings.get("top_title"), font=font, layout_profile_id=profile_id
+            ),
+            *nameplate_texts(profile_id, font=font),
+            *build_source_attribution_texts(
+                visual_overlays,
+                font=font,
+                layout_profile_id=profile_id,
+                video_duration_us=video_duration_us or None,
+            ),
+        ]
+        if title_texts:
+            job["texts"] = title_texts
+        cover = build_project_cover(item, fonts=self.fonts)
+        if cover is not None:
+            job["cover"] = cover
+
     def _build_draft_job(
         self,
         item: dict[str, Any],
@@ -2438,59 +2582,43 @@ class ProjectPostprocessCoordinator:
                 video_duration_us,
                 int(profile_data.get("draft_duration_us", 0) or 0),
             )
+            try:
+                caption_tracks = detect_caption_tracks(
+                    load_plain_draft_json(draft_dir),
+                    preferred_track_id=str(caption_track.get("track_id") or ""),
+                )
+            except ValueError:
+                stored_caption_tracks = profile_data.get("caption_tracks")
+                caption_tracks = (
+                    [dict(track) for track in stored_caption_tracks if isinstance(track, dict)]
+                    if isinstance(stored_caption_tracks, list)
+                    else [caption_track]
+                )
+            primary_caption_track_id = str(caption_tracks[0].get("track_id") or "")
             job["subtitle_range_replacements"] = [
                 {
-                    "track_index": int(caption_track.get("typed_track_index", 0)),
-                    "base_segment_index": int(caption_track.get("base_segment_index", 0)),
+                    "track_index": int(track.get("typed_track_index", 0)),
+                    "base_segment_index": int(track.get("base_segment_index", 0)),
                     "start_us": 0,
                     "end_us": replace_end_us,
-                    "subtitles": [dict(cue) for cue in subtitles["render_cues"]],
+                    "subtitles": (
+                        [dict(cue) for cue in subtitles["render_cues"]]
+                        if str(track.get("track_id") or "") == primary_caption_track_id
+                        else []
+                    ),
                 }
+                for track in caption_tracks
             ]
             job.pop("captions", None)
             return job
-        visual_analysis = dict(item.get("visual_analysis") or {})
-        visual_overlays = bound_visual_overlays_to_video(
-            apply_layout_to_visual_overlays(
-                bind_semantic_overlays_to_render_cues(
-                    str(item.get("script_text") or ""),
-                    frozen_visual_overlays(
-                        item,
-                        library_root=self.semantic_visual_library_root,
-                        catalog=self.semantic_visual_catalog,
-                    ),
-                    subtitles["render_cues"],
-                    (
-                        dict(visual_analysis.get("candidate_request") or {})
-                        if isinstance(visual_analysis.get("candidate_request"), dict)
-                        else None
-                    ),
-                ),
-                profile_id,
-            ),
-            video_duration_us,
+        self._apply_standard_visual_content(
+            job,
+            item,
+            settings=settings,
+            font=font,
+            profile_id=profile_id,
+            video_duration_us=video_duration_us,
         )
-        job["visual_overlays"] = visual_overlays
-        job["fixed_overlays"] = [
-            fixed_nameplate_overlay(self.semantic_visual_library_root, profile_id)
-        ]
-        title_texts = [
-            *build_top_title_texts(
-                settings.get("top_title"), font=font, layout_profile_id=profile_id
-            ),
-            *nameplate_texts(profile_id, font=font),
-            *build_source_attribution_texts(
-                visual_overlays,
-                font=font,
-                layout_profile_id=profile_id,
-                video_duration_us=video_duration_us or None,
-            ),
-        ]
-        if title_texts:
-            job["texts"] = title_texts
-        cover = build_project_cover(item, fonts=self.fonts)
-        if cover is not None:
-            job["cover"] = cover
         return job
 
     def start(
@@ -2763,6 +2891,7 @@ class ProjectPostprocessCoordinator:
         draft_jobs: list[dict[str, Any]] = []
         draft_variants: list[dict[str, Any]] = []
         draft_operations: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        reserved_draft_names: set[str] = set()
         for item, subtitles in subtitle_updates:
             selected = resolved_settings[str(item["item_id"])]
             self.store.configure_item_postprocess(
@@ -2829,8 +2958,11 @@ class ProjectPostprocessCoordinator:
             if not isinstance(latest_item, dict):
                 raise KeyError("项目脚本行不存在")
             draft_name = available_draft_name(
-                self.draft_root, composition_draft_name(latest_item)
+                self.draft_root,
+                composition_draft_name(latest_item),
+                reserved_names=reserved_draft_names,
             )
+            reserved_draft_names.add(draft_name)
             job = self._build_draft_job(
                 latest_item,
                 draft_name=draft_name,

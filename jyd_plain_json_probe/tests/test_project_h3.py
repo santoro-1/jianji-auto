@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -11,7 +12,10 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from jyd_probe.project_h3 import ProjectH3Coordinator  # noqa: E402
+from jyd_probe.project_h3 import (  # noqa: E402
+    ProjectH3Coordinator,
+    current_h3_segment_preview_path,
+)
 from jyd_probe.project_h3_media import H3MediaAssets  # noqa: E402
 from jyd_probe.project_store import ProjectStore  # noqa: E402
 
@@ -20,6 +24,8 @@ class FakeH3Client:
     def __init__(self) -> None:
         self.uploads: list[tuple[str, str]] = []
         self.approvals: list[dict[str, object]] = []
+        self.downloads: list[str] = []
+        self.video_payloads: dict[str, bytes] = {}
         self.prepared: dict | None = None
         self.snapshot = {
             "batch_id": "h3-batch-1",
@@ -92,8 +98,11 @@ class FakeH3Client:
         *,
         max_bytes: int,
     ) -> int:
+        self.downloads.append(segment_id)
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(f"video:{segment_id}".encode())
+        target.write_bytes(
+            self.video_payloads.get(segment_id, f"video:{segment_id}".encode())
+        )
         return target.stat().st_size
 
 
@@ -281,6 +290,231 @@ def test_h3_batch_registry_keeps_multiple_rows_independent(tmp_path: Path) -> No
     assert second["items"][0]["settings"]["h3"]["remote_batch_id"] == "h3-batch-row-1"
     assert second["items"][1]["status"] == "H3_COST_PENDING"
     assert second["items"][1]["settings"]["h3"]["remote_batch_id"] == "h3-batch-row-2"
+
+
+def test_h3_sync_downloads_successful_segments_incrementally_and_versions_preview(
+    tmp_path: Path,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 逐段下载",
+        items=[{"row_key": "1", "script_text": "第一段，第二段。"}],
+    )
+    project_id = str(project["project_id"])
+    item_id = str(project["items"][0]["item_id"])
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={
+            "continuity_mode": "soft_chain",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    first_payload = b"video:h3-segment-1"
+    first_sha256 = hashlib.sha256(first_payload).hexdigest()
+    partial_snapshot = {
+        "batch_id": "h3-batch-1",
+        "status": "ACTIVE",
+        "items": [
+            {
+                "item_id": "remote-row-1",
+                "row_id": "1",
+                "status": "RUNNING",
+                "segments": [
+                    {
+                        "segment_id": "h3-segment-1",
+                        "index": 0,
+                        "script_text": "第一段，",
+                        "status": "SUCCESS",
+                        "normalized_video_download_url": "/segment-1/video",
+                        "normalized_video_sha256": first_sha256,
+                        "completed_at": "2026-08-28T01:00:00+00:00",
+                    },
+                    {
+                        "segment_id": "h3-segment-2",
+                        "index": 1,
+                        "script_text": "第二段。",
+                        "status": "RUNNING",
+                        "normalized_video_download_url": None,
+                        "normalized_video_sha256": None,
+                        "completed_at": None,
+                    },
+                ],
+            }
+        ],
+    }
+    store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="quote-1",
+        snapshot=partial_snapshot,
+    )
+    client = FakeH3Client()
+    client.snapshot = partial_snapshot
+    storage_root = tmp_path / "storage"
+    coordinator = ProjectH3Coordinator(
+        store,
+        client,  # type: ignore[arg-type]
+        storage_root=storage_root,
+        media_preparer=fake_media_preparer,
+    )
+
+    first_sync = coordinator.sync("user-1", project_id, "token")["project"]
+    first_item = first_sync["items"][0]
+    assert client.downloads == ["h3-segment-1"]
+    assert first_item["outputs"]["base_video"] is None
+    assert first_item["settings"]["h3"]["segments"][0][
+        "local_preview_ready"
+    ] is True
+    assert first_item["settings"]["h3"]["segments"][0][
+        "local_preview_is_current"
+    ] is True
+    preview = current_h3_segment_preview_path(
+        first_sync,
+        item_id=item_id,
+        segment_number=1,
+        storage_root=storage_root,
+    )
+    assert preview.read_bytes() == first_payload
+
+    coordinator.sync("user-1", project_id, "token")
+    assert client.downloads == ["h3-segment-1"]
+
+    regenerating_snapshot = copy.deepcopy(partial_snapshot)
+    regenerating_segment = regenerating_snapshot["items"][0]["segments"][0]
+    regenerating_segment.update(
+        {
+            "status": "PENDING",
+            "normalized_video_download_url": None,
+            "normalized_video_sha256": None,
+            "completed_at": None,
+        }
+    )
+    client.snapshot = regenerating_snapshot
+    regenerating = coordinator.sync("user-1", project_id, "token")["project"]
+    regenerating_local = regenerating["items"][0]["settings"]["h3"]["segments"][0]
+    assert regenerating_local["local_preview_ready"] is True
+    assert regenerating_local["local_preview_is_current"] is False
+    assert current_h3_segment_preview_path(
+        regenerating,
+        item_id=item_id,
+        segment_number=1,
+        storage_root=storage_root,
+    ).read_bytes() == first_payload
+
+    regenerated_payload = b"video:h3-segment-1:version-2"
+    regenerated_snapshot = copy.deepcopy(partial_snapshot)
+    regenerated_snapshot["items"][0]["segments"][0].update(
+        {
+            "normalized_video_sha256": hashlib.sha256(
+                regenerated_payload
+            ).hexdigest(),
+            "completed_at": "2026-08-28T02:00:00+00:00",
+        }
+    )
+    client.video_payloads["h3-segment-1"] = regenerated_payload
+    client.snapshot = regenerated_snapshot
+    regenerated = coordinator.sync("user-1", project_id, "token")["project"]
+    assert client.downloads == ["h3-segment-1", "h3-segment-1"]
+    assert current_h3_segment_preview_path(
+        regenerated,
+        item_id=item_id,
+        segment_number=1,
+        storage_root=storage_root,
+    ).read_bytes() == regenerated_payload
+
+    second_payload = b"video:h3-segment-2"
+    completed_snapshot = copy.deepcopy(regenerated_snapshot)
+    completed_snapshot["status"] = "SUCCESS"
+    completed_snapshot["items"][0]["status"] = "SUCCESS"
+    completed_snapshot["items"][0]["segments"][1].update(
+        {
+            "status": "SUCCESS",
+            "normalized_video_download_url": "/segment-2/video",
+            "normalized_video_sha256": hashlib.sha256(second_payload).hexdigest(),
+            "completed_at": "2026-08-28T03:00:00+00:00",
+        }
+    )
+    client.snapshot = completed_snapshot
+    completed = coordinator.sync("user-1", project_id, "token")["project"]
+    assert client.downloads == [
+        "h3-segment-1",
+        "h3-segment-1",
+        "h3-segment-2",
+    ]
+    assert completed["items"][0]["status"] == "BASE_VIDEO_READY"
+    assert completed["items"][0]["outputs"]["base_video"]["source_type"] == "h3"
+
+
+def test_h3_retry_rejects_a_segment_replaced_by_a_newer_batch(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 旧分段重试",
+        items=[{"row_key": "1", "script_text": "测试脚本。"}],
+    )
+    project_id = str(project["project_id"])
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="old-quote",
+        snapshot={
+            "batch_id": "old-batch",
+            "status": "FAILED",
+            "items": [{
+                "item_id": "old-item",
+                "row_id": "1",
+                "status": "FAILED",
+                "segments": [{
+                    "segment_id": "old-segment",
+                    "segment_index": 1,
+                    "status": "FAILED",
+                    "can_retry": True,
+                }],
+            }],
+        },
+    )
+    store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="new-quote",
+        snapshot={
+            "batch_id": "new-batch",
+            "status": "FAILED",
+            "items": [{
+                "item_id": "new-item",
+                "row_id": "1",
+                "status": "FAILED",
+                "segments": [{
+                    "segment_id": "new-segment",
+                    "segment_index": 1,
+                    "status": "FAILED",
+                    "can_retry": True,
+                }],
+            }],
+        },
+    )
+    coordinator = ProjectH3Coordinator(store, FakeH3Client())  # type: ignore[arg-type]
+
+    with pytest.raises(ValueError, match="当前 H3 批次已更新"):
+        coordinator.prepare_retry("user-1", project_id, "token", "old-segment")
 
 
 def test_h3_snapshot_does_not_regress_completed_local_postprocess(

@@ -22,6 +22,55 @@ KNOWN_CAPTION_TRACK_NAMES = {
     "自动字幕",
 }
 IGNORED_REPLACED_DEPENDENCY_KINDS = {"audio"}
+_BROWSER_PREVIEW_MEDIA_SUFFIXES = {
+    ".avif",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".mov",
+    ".mp4",
+    ".png",
+    ".webm",
+    ".webp",
+}
+_BROWSER_PREVIEW_FONT_SUFFIXES = {".otf", ".ttf", ".woff", ".woff2"}
+_BROWSER_PREVIEW_MATERIAL_FIELDS = {
+    "adjust_params",
+    "category_id",
+    "category_name",
+    "content",
+    "duration",
+    "effect_id",
+    "height",
+    "has_shadow",
+    "id",
+    "line_spacing",
+    "material_id",
+    "material_name",
+    "name",
+    "resource_id",
+    "shadow_alpha",
+    "shadow_angle",
+    "shadow_color",
+    "shadow_distance",
+    "shadow_point",
+    "shadow_smoothing",
+    "source_platform",
+    "text_info_resources",
+    "type",
+    "value",
+    "width",
+}
+_BROWSER_PREVIEW_SEGMENT_FIELDS = {
+    "clip",
+    "extra_material_refs",
+    "id",
+    "material_id",
+    "render_index",
+    "source_timerange",
+    "target_timerange",
+    "track_render_index",
+}
 
 
 def _is_builtin_font_dependency(dependency: dict[str, Any]) -> bool:
@@ -139,7 +188,7 @@ def _timerange(segment: dict[str, Any]) -> tuple[int, int]:
     return start, duration
 
 
-def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
+def _caption_track_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
     texts = _text_materials(data)
     duration = max(1, int(data.get("duration", 0) or 0))
     candidates: list[dict[str, Any]] = []
@@ -168,6 +217,10 @@ def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
             )
             values = [_text_value(material) for _, _, material in ordinary]
             short_ratio = sum(1 for value in values if 0 < len(value) <= 40) / len(values)
+            has_recognition = any(
+                any(material.get(key) for key in ("recognize_task_id", "recognize_text", "words", "current_words"))
+                for _, _, material in ordinary
+            )
             score = min(len(ordinary), 20) * 2
             if lowered in KNOWN_CAPTION_TRACK_NAMES:
                 score += 120
@@ -193,18 +246,111 @@ def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
                     "segment_count": len(ordinary),
                     "coverage_ratio": round((end - start) / duration, 4),
                     "sample_texts": [value for value in values[:3] if value],
+                    "_ranges": ranges,
+                    "_values": values,
+                    "_overlap": overlap,
+                    "_short_ratio": short_ratio,
+                    "_has_recognition": has_recognition,
                 }
             )
         typed_index += 1
+    return candidates
+
+
+def _caption_timing_matches(
+    left: list[tuple[int, int]], right: list[tuple[int, int]]
+) -> bool:
+    if not left or len(left) != len(right):
+        return False
+    for (left_start, left_duration), (right_start, right_duration) in zip(
+        left, right, strict=True
+    ):
+        tolerance = max(120_000, int(max(left_duration, right_duration) * 0.15))
+        if abs(left_start - right_start) > tolerance:
+            return False
+        if abs(left_duration - right_duration) > tolerance:
+            return False
+    return True
+
+
+def _normalized_caption_values(values: list[str]) -> list[str]:
+    return [
+        "".join(character.casefold() for character in value if character.isalnum())
+        for value in values
+    ]
+
+
+def _is_caption_sibling(candidate: dict[str, Any], primary: dict[str, Any]) -> bool:
+    if candidate["track_id"] == primary["track_id"]:
+        return True
+    lowered = str(candidate.get("track_name") or "").casefold()
+    named_caption = any(
+        token in lowered for token in ("字幕", "caption", "subtitle", "歌词")
+    )
+    dynamic_caption = (
+        int(candidate.get("segment_count") or 0) >= 2
+        and not bool(candidate.get("_overlap"))
+        and float(candidate.get("coverage_ratio") or 0) >= 0.35
+        and float(candidate.get("_short_ratio") or 0) >= 0.75
+    )
+    same_timing = _caption_timing_matches(
+        list(candidate.get("_ranges") or []), list(primary.get("_ranges") or [])
+    )
+    candidate_values = _normalized_caption_values(list(candidate.get("_values") or []))
+    primary_values = _normalized_caption_values(list(primary.get("_values") or []))
+    same_text = (
+        bool(candidate_values)
+        and any(candidate_values)
+        and candidate_values == primary_values
+    )
+    return (
+        (same_timing and same_text)
+        or (
+            named_caption
+            and (dynamic_caption or bool(candidate.get("_has_recognition")))
+        )
+        or (dynamic_caption and bool(candidate.get("_has_recognition")))
+    )
+
+
+def _public_caption_track(candidate: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in candidate.items()
+        if key != "score" and not key.startswith("_")
+    }
+
+
+def detect_caption_tracks(
+    data: dict[str, Any], *, preferred_track_id: str = ""
+) -> list[dict[str, Any]]:
+    candidates = _caption_track_candidates(data)
     if not candidates:
         raise ValueError("模板中没有可用的普通文字字幕轨")
     candidates.sort(key=lambda item: (item["score"], item["segment_count"]), reverse=True)
-    best = candidates[0]
-    if best["score"] < 60:
+    preferred = next(
+        (
+            candidate
+            for candidate in candidates
+            if preferred_track_id
+            and candidate["track_id"] == str(preferred_track_id)
+        ),
+        None,
+    )
+    best = preferred or candidates[0]
+    if preferred is None and best["score"] < 60:
         raise ValueError("无法自动确认字幕轨，请在剪映中保留一条连续字幕轨后重新上传")
-    if len(candidates) > 1 and candidates[1]["score"] >= best["score"] - 8:
-        raise ValueError("模板中存在多条相似字幕轨，请只保留一条语音字幕轨后重新上传")
-    return {key: value for key, value in best.items() if key != "score"}
+    siblings = [
+        candidate
+        for candidate in candidates
+        if candidate is not best and _is_caption_sibling(candidate, best)
+    ]
+    siblings.sort(key=lambda item: int(item.get("typed_track_index") or 0))
+    return [_public_caption_track(best), *map(_public_caption_track, siblings)]
+
+
+def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
+    return detect_caption_tracks(data)[0]
 
 
 def detect_main_video(data: dict[str, Any]) -> dict[str, Any] | None:
@@ -258,6 +404,35 @@ def _rewrite_paths(value: Any, path_map: dict[str, str]) -> Any:
         if rewritten != nested:
             return json.dumps(rewritten, ensure_ascii=False, separators=(",", ":"))
     return value
+
+
+def _without_local_paths(value: Any) -> Any:
+    """Keep template styling JSON while removing host-specific filesystem paths."""
+
+    if isinstance(value, dict):
+        return {
+            key: ("" if key.casefold().endswith("path") else _without_local_paths(item))
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_without_local_paths(item) for item in value]
+    return value
+
+
+def _parse_text_content(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if not isinstance(value, str):
+        return {}
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return {"text": value}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _browser_text_content(value: Any) -> dict[str, Any]:
+    return _without_local_paths(_parse_text_content(value))
 
 
 class UserTemplateStore:
@@ -325,9 +500,11 @@ class UserTemplateStore:
             )
             draft_dir = root / "draft"
             data = load_plain_draft_json(draft_dir)
+            caption_tracks = detect_caption_tracks(data)
             profile = {
                 "draft_duration_us": int(data.get("duration", 0) or 0),
-                "caption_track": detect_caption_track(data),
+                "caption_track": caption_tracks[0],
+                "caption_tracks": caption_tracks,
                 "main_video": detect_main_video(data),
             }
             now = _now()
@@ -414,6 +591,122 @@ class UserTemplateStore:
             "content_hash": str(meta.get("content_hash") or ""),
         }
 
+    def browser_preview(self, owner_user_id: str, template_id: str) -> dict[str, Any]:
+        """Return the timeline subset that the workbench can safely parse in-browser."""
+
+        root = self._root(owner_user_id, template_id)
+        meta = self._load(root, owner_user_id)
+        if meta.get("status") != "READY":
+            raise ValueError("剪映模板尚未准备完成")
+        draft_dir = root / "draft"
+        data = load_plain_draft_json(draft_dir)
+        materials = data.get("materials") if isinstance(data.get("materials"), dict) else {}
+        browser_materials: dict[str, list[dict[str, Any]]] = {}
+        for group, values in materials.items():
+            if not isinstance(group, str) or not isinstance(values, list):
+                continue
+            output: list[dict[str, Any]] = []
+            for value in values:
+                if not isinstance(value, dict) or not value.get("id"):
+                    continue
+                item = {
+                    key: _without_local_paths(raw)
+                    for key, raw in value.items()
+                    if key in _BROWSER_PREVIEW_MATERIAL_FIELDS and key != "content"
+                }
+                if group == "texts" or value.get("type") == "text":
+                    item["content"] = _browser_text_content(value.get("content"))
+                    font_candidate = self._browser_font_candidate(root, value)
+                    if font_candidate is not None:
+                        font_asset_id = self._browser_asset_id(font_candidate)
+                        item["browser_font_url"] = (
+                            f"/api/new/jianying-templates/{template_id}/browser-assets/"
+                            f"{font_asset_id}"
+                        )
+                candidate = self._browser_asset_candidate(root, value.get("path"))
+                if candidate is not None:
+                    asset_id = self._browser_asset_id(candidate)
+                    item["browser_asset_url"] = (
+                        f"/api/new/jianying-templates/{template_id}/browser-assets/{asset_id}"
+                    )
+                output.append(item)
+            if output:
+                browser_materials[group] = output
+
+        tracks: list[dict[str, Any]] = []
+        for raw_track in data.get("tracks", []):
+            if not isinstance(raw_track, dict):
+                continue
+            segments = []
+            for raw_segment in raw_track.get("segments", []):
+                if not isinstance(raw_segment, dict):
+                    continue
+                segments.append(
+                    {
+                        key: _without_local_paths(value)
+                        for key, value in raw_segment.items()
+                        if key in _BROWSER_PREVIEW_SEGMENT_FIELDS
+                    }
+                )
+            tracks.append(
+                {
+                    "id": str(raw_track.get("id") or ""),
+                    "name": str(raw_track.get("name") or ""),
+                    "type": str(raw_track.get("type") or ""),
+                    "segments": segments,
+                }
+            )
+        profile = dict(meta.get("profile") or {})
+        stored_caption_track_id = str(
+            dict(profile.get("caption_track") or {}).get("track_id") or ""
+        )
+        caption_tracks = detect_caption_tracks(
+            data, preferred_track_id=stored_caption_track_id
+        )
+        caption_track_id = str(caption_tracks[0].get("track_id") or "")
+        return {
+            "schema": "jyd.template-browser-preview.v1",
+            "template_id": str(meta.get("template_id") or ""),
+            "name": str(meta.get("name") or ""),
+            "content_hash": str(meta.get("content_hash") or ""),
+            "duration_us": max(0, int(data.get("duration", 0) or 0)),
+            "canvas_config": _without_local_paths(
+                data.get("canvas_config") if isinstance(data.get("canvas_config"), dict) else {}
+            ),
+            "caption_track_id": caption_track_id,
+            "caption_track_ids": [
+                str(track.get("track_id") or "") for track in caption_tracks
+            ],
+            "main_video_segment_id": str(
+                dict(profile.get("main_video") or {}).get("segment_id") or ""
+            ),
+            "tracks": tracks,
+            "materials": browser_materials,
+        }
+
+    def browser_preview_asset_path(
+        self, owner_user_id: str, template_id: str, asset_id: str
+    ) -> Path:
+        root = self._root(owner_user_id, template_id)
+        meta = self._load(root, owner_user_id)
+        if meta.get("status") != "READY":
+            raise ValueError("剪映模板尚未准备完成")
+        data = load_plain_draft_json(root / "draft")
+        materials = data.get("materials") if isinstance(data.get("materials"), dict) else {}
+        for values in materials.values():
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                if not isinstance(value, dict):
+                    continue
+                candidates = [self._browser_asset_candidate(root, value.get("path"))]
+                if value.get("type") == "text" or "content" in value:
+                    candidates.append(self._browser_font_candidate(root, value))
+                for candidate in candidates:
+                    if candidate is not None and self._browser_asset_id(candidate) == asset_id:
+                        return candidate
+        raise FileNotFoundError("模板预览素材不存在")
+
     def upload_draft_file(
         self, owner_user_id: str, template_id: str, relative_path: str, content: bytes
     ) -> dict[str, Any]:
@@ -447,9 +740,11 @@ class UserTemplateStore:
         shutil.copytree(prepared.draft_dir, draft_dir)
         data = load_plain_draft_json(draft_dir)
         main_video = detect_main_video(data)
+        caption_tracks = detect_caption_tracks(data)
         profile = {
             "draft_duration_us": int(data.get("duration", 0) or 0),
-            "caption_track": detect_caption_track(data),
+            "caption_track": caption_tracks[0],
+            "caption_tracks": caption_tracks,
             "main_video": main_video,
         }
         report = analyze_draft_import(
@@ -576,9 +871,12 @@ class UserTemplateStore:
                 )
                 path_map[_path_key(original)] = str(replacement)
         self._apply_path_map(root / "draft", path_map)
+        content_path = root / "draft" / "draft_content.json"
         meta["path_map"] = path_map
         meta["missing_resources"] = unresolved
         meta["status"] = "READY" if not unresolved else "NEEDS_RESOURCES"
+        if content_path.is_file():
+            meta["content_hash"] = hashlib.sha256(content_path.read_bytes()).hexdigest()
         meta["updated_at"] = _now()
         self._save(root, meta)
         return self._public(meta, root=root)
@@ -610,6 +908,94 @@ class UserTemplateStore:
         target = (owner_root / clean_id).resolve()
         target.relative_to(owner_root)
         return target
+
+    @staticmethod
+    def _browser_asset_id(path: Path) -> str:
+        resolved = path.resolve()
+        stat = resolved.stat()
+        versioned = f"{resolved}|{stat.st_size}|{stat.st_mtime_ns}"
+        return hashlib.sha256(versioned.encode("utf-8")).hexdigest()[:24]
+
+    def _browser_asset_candidate(self, root: Path, raw_path: Any) -> Path | None:
+        text = str(raw_path or "").strip().strip('"')
+        if not text:
+            return None
+        candidate = Path(text).expanduser()
+        if not candidate.is_absolute():
+            candidate = root / "draft" / candidate
+        try:
+            candidate = candidate.resolve()
+        except OSError:
+            return None
+        allowed_roots = (root.resolve(), self.libraries_root.resolve())
+        if not any(
+            self._is_relative_to(candidate, allowed_root)
+            for allowed_root in allowed_roots
+        ):
+            return None
+        if candidate.is_file():
+            return candidate if candidate.suffix.casefold() in _BROWSER_PREVIEW_MEDIA_SUFFIXES else None
+        if not candidate.is_dir():
+            return None
+        preferred: list[Path] = []
+        fallback: list[Path] = []
+        for index, path in enumerate(candidate.rglob("*")):
+            if index >= 5000:
+                break
+            if not path.is_file() or path.suffix.casefold() not in _BROWSER_PREVIEW_MEDIA_SUFFIXES:
+                continue
+            name = path.stem.casefold()
+            (preferred if any(token in name for token in ("preview", "cover", "thumb")) else fallback).append(path)
+        values = sorted(preferred) or sorted(fallback)
+        return values[0].resolve() if values else None
+
+    def _browser_font_candidate(
+        self, root: Path, material: dict[str, Any]
+    ) -> Path | None:
+        raw_paths: list[Any] = [material.get("font_path")]
+        content = _parse_text_content(material.get("content"))
+        for style in content.get("styles", []):
+            if not isinstance(style, dict):
+                continue
+            font = style.get("font")
+            if isinstance(font, dict):
+                raw_paths.append(font.get("path"))
+        allowed_roots = (root.resolve(), self.libraries_root.resolve())
+        for raw_path in raw_paths:
+            text = str(raw_path or "").strip().strip('"')
+            if not text:
+                continue
+            candidate = Path(text).expanduser()
+            if not candidate.is_absolute():
+                candidate = root / "draft" / candidate
+            try:
+                candidate = candidate.resolve()
+            except OSError:
+                continue
+            if not any(
+                self._is_relative_to(candidate, allowed_root)
+                for allowed_root in allowed_roots
+            ):
+                continue
+            if candidate.is_file() and candidate.suffix.casefold() in _BROWSER_PREVIEW_FONT_SUFFIXES:
+                return candidate
+            if candidate.is_dir():
+                fonts = sorted(
+                    path.resolve()
+                    for path in candidate.rglob("*")
+                    if path.is_file() and path.suffix.casefold() in _BROWSER_PREVIEW_FONT_SUFFIXES
+                )
+                if fonts:
+                    return fonts[0]
+        return None
+
+    @staticmethod
+    def _is_relative_to(path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            return False
 
     def _load(self, root: Path, owner_user_id: str) -> dict[str, Any]:
         path = root / "template.json"

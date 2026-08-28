@@ -261,6 +261,9 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 signature = "f" * 64
                 h3_master_path = settings.storage_root / "h3-master-av.mp4"
                 h3_master_path.write_bytes(b"h3-master-with-audio")
+                h3_segment_path = settings.storage_root / "segments" / "segment-001.mp4"
+                h3_segment_path.parent.mkdir(parents=True, exist_ok=True)
+                h3_segment_path.write_bytes(b"h3-source-segment")
                 store.add_asset(
                     owner_user_id=user["user_id"],
                     project_id=project_id,
@@ -283,7 +286,10 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                     status="READY",
                     filename="h3-base-video-silent.mp4",
                     managed_path=str(silent_base_path),
-                    metadata={"h3_segment_signature": signature},
+                    metadata={
+                        "h3_segment_signature": signature,
+                        "source_segment_ids": ["remote-h3-segment-1"],
+                    },
                     make_current=True,
                 )
                 audible_preview = client.get(
@@ -296,6 +302,15 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 )
                 assert editable_base.status_code == 200, editable_base.text
                 assert editable_base.content == b"silent-base-video"
+                segment_preview = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/1/preview"
+                )
+                assert segment_preview.status_code == 200, segment_preview.text
+                assert segment_preview.content == b"h3-source-segment"
+                missing_segment = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/2/preview"
+                )
+                assert missing_segment.status_code == 404
                 shared_preview = client.get(
                     f"/api/new/projects/{project_id}/items/{item_id}/audio"
                 )

@@ -10,6 +10,7 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from jyd_probe.caption_alignment import build_alignment  # noqa: E402
 from jyd_probe.project_postprocess import derive_project_render_cues  # noqa: E402
 from jyd_probe.semantic_subtitles import (  # noqa: E402
     SemanticSubtitleMappingError,
@@ -118,6 +119,62 @@ def test_v20_boundaries_are_hard_and_ten_full_width_characters_fit() -> None:
         "肚子饿了第一个想吃的",
         "就是鸡蛋",
     ]
+
+
+def test_standalone_chinese_quotes_remain_visible_without_own_timing_cue() -> None:
+    script = "大家会说：“他真厉害。”只会问：“老板怎么说？”"
+    units = _units(
+        [
+            ("大家会说：", "phrase", "none", "prefer"),
+            ("“", "phrase", "none", "prefer"),
+            ("他真厉害。", "phrase", "none", "prefer"),
+            ("”", "phrase", "none", "prefer"),
+            ("只会问：", "phrase", "none", "prefer"),
+            ("“", "phrase", "none", "prefer"),
+            ("老板怎么说？", "phrase", "none", "prefer"),
+            ("”", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 4_000_000, "text": script}]
+    spoken = [character for character in script if "\u4e00" <= character <= "\u9fff"]
+    alignment = build_alignment(
+        script,
+        raw_cues,
+        {
+            "model": "paraformer-zh",
+            "tokens": [
+                {
+                    "text": character,
+                    "startSeconds": 0.1 + index * 0.12,
+                    "endSeconds": 0.2 + index * 0.12,
+                }
+                for index, character in enumerate(spoken)
+            ],
+        },
+        audio_asset_id="audio-current",
+        audio_version=2,
+    )
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(
+            script,
+            units,
+            raw_cues,
+            prompt_version="jyd.content-analysis.prompt.v20",
+        ),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        asr_alignment=alignment,
+        require_precise_alignment=True,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    assert mapping["status"] == "SUCCESS"
+    assert all(text and text not in {"“", "”", "‘", "’"} for text in texts)
+    assert "".join(texts) == "大家会说“他真厉害”只会问“老板怎么说”"
+    assert any("“他真厉害”" in text for text in texts)
+    assert any("“老板怎么说”" in text for text in texts)
+    assert all(int(cue["duration_us"]) > 0 for cue in render_cues)
 
 
 def test_semantic_layout_keeps_connectors_numbers_words_and_tilde_intact() -> None:

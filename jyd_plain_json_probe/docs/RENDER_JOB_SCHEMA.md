@@ -132,6 +132,13 @@ jyd_plain_json_probe/data/template_library/demo_template/
 
 `library_root` 留空时使用 `jyd_plain_json_probe/template_library`。模板库里的草稿应当已经是明文，所以渲染时不会重复解密。
 
+账号新模板的 `subtitle_range_replacements` 会把所识别字幕组中的主轨重建为当前文案，并把
+时间与文案一致的描边、阴影等重复口播字幕轨清空；标题、人物介绍以及新模板的其他文字、贴图、
+动画和特效全部保留。若基础片段来自剪映自动字幕，
+新增片段必须同步更新 `content`、`base_content` 和识别文字元数据，并解除旧
+`recognize_task_id`；否则剪映可能在属性面板显示新文案，却仍在画布中渲染模板第一条字幕。
+模板模式不再加入旧默认模板的固定标题、名牌文字、免责声明、三帧封面或语义视觉层。
+
 已经完成时间线构建、只需要编码 MP4 时，使用 `existing_draft`：
 
 ```json
@@ -162,6 +169,8 @@ jyd_plain_json_probe/data/template_library/demo_template/
 ```
 
 `draft_name` 留空时自动生成。真实导出 MP4 时，`draft_root` 应该是剪映实际的 `JianyingPro Drafts` 目录。
+项目工作台一次批量提交多个 4B 草稿时，会同时检查磁盘已有目录和本批尚未落盘的预留名称；
+重名项使用递增数字后缀，保证队列开始执行前每个 job 的 `draft_name` 已经唯一。
 
 ## captions
 

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import copy
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 from pathlib import Path
+import threading
 from typing import Any, Callable
+import uuid
 
 from .auth_center import AuthCenterClient
 from .caption_alignment import CaptionAlignmentError, alignment_matches
@@ -31,6 +35,165 @@ H3_ACTIVE_ITEM_STATUSES = {
 }
 
 
+def _h3_segment_cache_key(
+    *,
+    remote_batch_id: str,
+    remote_item_id: str,
+    segment_id: str,
+) -> str:
+    payload = {
+        "remote_batch_id": str(remote_batch_id or ""),
+        "remote_item_id": str(remote_item_id or ""),
+        "segment_id": str(segment_id or ""),
+    }
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _h3_segment_cache_files(
+    storage_root: Path,
+    *,
+    owner_user_id: str,
+    project_id: str,
+    item_id: str,
+    remote_batch_id: str,
+    remote_item_id: str,
+    segment_id: str,
+) -> tuple[Path, Path]:
+    key = _h3_segment_cache_key(
+        remote_batch_id=remote_batch_id,
+        remote_item_id=remote_item_id,
+        segment_id=segment_id,
+    )
+    directory = (
+        Path(storage_root).resolve()
+        / "projects"
+        / str(owner_user_id)
+        / str(project_id)
+        / str(item_id)
+        / "h3"
+        / "segment-cache"
+        / key
+    )
+    return directory / "current.mp4", directory / "current.json"
+
+
+def current_h3_segment_preview_path(
+    project: dict[str, Any],
+    *,
+    item_id: str,
+    segment_number: int,
+    storage_root: Path,
+) -> Path:
+    """Resolve one current, already-materialized H3 source segment for review."""
+
+    if segment_number < 1:
+        raise ValueError("H3 分段序号必须从 1 开始")
+    item = next(
+        (
+            value
+            for value in project.get("items", [])
+            if isinstance(value, dict) and str(value.get("item_id") or "") == item_id
+        ),
+        None,
+    )
+    if item is None:
+        raise KeyError("脚本行不存在")
+    root = Path(storage_root).resolve()
+    owner = project.get("owner") if isinstance(project.get("owner"), dict) else {}
+    owner_user_id = str(owner.get("user_id") or "").strip()
+    settings = item.get("settings") if isinstance(item.get("settings"), dict) else {}
+    h3 = settings.get("h3") if isinstance(settings.get("h3"), dict) else {}
+    raw_segments = h3.get("segments")
+    segments = raw_segments if isinstance(raw_segments, list) else []
+    current_segment = None
+    for value in segments:
+        if not isinstance(value, dict):
+            continue
+        try:
+            index = int(value.get("index"))
+        except (TypeError, ValueError):
+            continue
+        if index == segment_number - 1:
+            current_segment = value
+            break
+    remote_batch_id = str(h3.get("remote_batch_id") or "").strip()
+    remote_item_id = str(h3.get("remote_item_id") or "").strip()
+    segment_id = (
+        str(current_segment.get("segment_id") or "").strip()
+        if isinstance(current_segment, dict)
+        else ""
+    )
+    if owner_user_id and remote_batch_id and remote_item_id and segment_id:
+        cache_path, _ = _h3_segment_cache_files(
+            root,
+            owner_user_id=owner_user_id,
+            project_id=str(project.get("project_id") or ""),
+            item_id=item_id,
+            remote_batch_id=remote_batch_id,
+            remote_item_id=remote_item_id,
+            segment_id=segment_id,
+        )
+        cache_path = cache_path.resolve()
+        try:
+            cache_path.relative_to(root)
+        except ValueError as exc:
+            raise FileNotFoundError("H3 分段文件不存在") from exc
+        if cache_path.is_file() and cache_path.stat().st_size > 0:
+            return cache_path
+
+    # Compatibility for H3 assets produced before incremental segment caching.
+    outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
+    base_video = (
+        outputs.get("base_video")
+        if isinstance(outputs.get("base_video"), dict)
+        else None
+    )
+    if base_video is None or str(base_video.get("source_type") or "").lower() != "h3":
+        raise FileNotFoundError("当前 H3 片段尚未准备完成")
+    metadata = (
+        base_video.get("metadata")
+        if isinstance(base_video.get("metadata"), dict)
+        else {}
+    )
+    source_segment_ids = metadata.get("source_segment_ids")
+    if not isinstance(source_segment_ids, list) or not source_segment_ids:
+        h3 = item.get("settings", {}).get("h3", {})
+        source_segment_ids = (
+            h3.get("segments") if isinstance(h3.get("segments"), list) else []
+        )
+    if segment_number > len(source_segment_ids):
+        raise FileNotFoundError("H3 分段不存在")
+    if current_segment is not None and metadata.get("source_segment_ids"):
+        bound_segment_id = str(source_segment_ids[segment_number - 1] or "").strip()
+        if bound_segment_id != segment_id:
+            raise FileNotFoundError("当前 H3 分段尚未准备完成")
+
+    base_path = Path(str(base_video.get("managed_path") or "")).resolve()
+    try:
+        base_path.relative_to(root)
+    except ValueError as exc:
+        raise FileNotFoundError("H3 分段文件不存在") from exc
+    path = (
+        base_path.parent
+        / "segments"
+        / f"segment-{segment_number:03d}.mp4"
+    ).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as exc:
+        raise FileNotFoundError("H3 分段文件不存在") from exc
+    if not path.is_file() or path.stat().st_size <= 0:
+        raise FileNotFoundError("H3 分段文件不存在")
+    return path
+
+
 class ProjectH3Coordinator:
     """Bind the cloud H3 quote/confirm lifecycle to an existing JYD project."""
 
@@ -41,6 +204,7 @@ class ProjectH3Coordinator:
         *,
         storage_root: Path | None = None,
         max_video_bytes: int = 2 * 1024 * 1024 * 1024,
+        max_segment_download_workers: int = 3,
         caption_aligner: Any = None,
         require_precise_alignment: bool = False,
         media_preparer: Callable[..., H3MediaAssets] = prepare_h3_media,
@@ -51,9 +215,14 @@ class ProjectH3Coordinator:
             Path(storage_root).resolve() if storage_root is not None else None
         )
         self.max_video_bytes = int(max_video_bytes)
+        self.max_segment_download_workers = max(
+            1, min(8, int(max_segment_download_workers))
+        )
         self.caption_aligner = caption_aligner
         self.require_precise_alignment = bool(require_precise_alignment)
         self.media_preparer = media_preparer
+        self._segment_download_locks: dict[str, threading.Lock] = {}
+        self._segment_download_locks_guard = threading.Lock()
 
     def accounts(self, token: str) -> dict[str, Any]:
         return self.client.list_h3_execution_accounts(token)
@@ -646,7 +815,7 @@ class ProjectH3Coordinator:
                     and str(segment.get("segment_id") or "") == clean_id
                 ):
                     return segment
-        raise KeyError("H3 分段不属于当前项目或已失效")
+        raise ValueError("当前 H3 批次已更新，请刷新状态后重试当前失败分段")
 
     def prepare_regeneration(
         self,
@@ -806,6 +975,14 @@ class ProjectH3Coordinator:
         for record in records_to_sync:
             remote_batch_id = str(record.get("batch_id") or "")
             snapshot = self.client.get_h3_batch(token, remote_batch_id)
+            if self.storage_root is not None:
+                snapshot = self._cache_snapshot_segments(
+                    owner_user_id,
+                    project_id,
+                    token,
+                    project=project,
+                    snapshot=snapshot,
+                )
             snapshots.append(snapshot)
             project = self.store.set_h3_batch_snapshot(
                 owner_user_id,
@@ -836,12 +1013,37 @@ class ProjectH3Coordinator:
         }
 
     @staticmethod
-    def _segment_signature(segments: list[dict[str, Any]]) -> str:
+    def _segment_result_signature(segment: dict[str, Any]) -> str:
+        normalized_sha256 = str(
+            segment.get("normalized_video_sha256") or ""
+        ).strip().lower()
+        completed_at = str(segment.get("completed_at") or "").strip()
+        video_url = str(segment.get("normalized_video_download_url") or "").strip()
+        payload = {
+            "normalized_video_sha256": normalized_sha256,
+            "completed_at": completed_at,
+            # Legacy H3 servers do not expose a result hash or completion time.
+            # Keep the URL in the identity so those responses remain usable.
+            "video": video_url,
+        }
+        return hashlib.sha256(
+            json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+
+    @classmethod
+    def _segment_signature(
+        cls, segments: list[dict[str, Any]]
+    ) -> str:
         payload = [
             {
                 "segment_id": str(segment.get("segment_id") or ""),
                 "index": int(segment.get("index") or 0),
-                "video": str(segment.get("normalized_video_download_url") or ""),
+                "result_signature": cls._segment_result_signature(segment),
             }
             for segment in segments
         ]
@@ -855,7 +1057,7 @@ class ProjectH3Coordinator:
         ).hexdigest()
 
     @staticmethod
-    def _ready_segments(remote_item: dict[str, Any]) -> list[dict[str, Any]] | None:
+    def _ordered_segments(remote_item: dict[str, Any]) -> list[dict[str, Any]] | None:
         raw_segments = remote_item.get("segments")
         if not isinstance(raw_segments, list) or not raw_segments:
             return None
@@ -869,6 +1071,15 @@ class ProjectH3Coordinator:
             return None
         if indexes != list(range(len(segments))):
             return None
+        return segments
+
+    @classmethod
+    def _ready_segments(
+        cls, remote_item: dict[str, Any]
+    ) -> list[dict[str, Any]] | None:
+        segments = cls._ordered_segments(remote_item)
+        if segments is None:
+            return None
         for segment in segments:
             if (
                 str(segment.get("status") or "").upper() != "SUCCESS"
@@ -878,6 +1089,225 @@ class ProjectH3Coordinator:
             ):
                 return None
         return segments
+
+    @staticmethod
+    def _segment_is_downloadable(segment: dict[str, Any]) -> bool:
+        return bool(
+            str(segment.get("status") or "").upper() == "SUCCESS"
+            and str(segment.get("segment_id") or "").strip()
+            and str(segment.get("normalized_video_download_url") or "").strip()
+        )
+
+    def _segment_cache_files(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        remote_item: dict[str, Any],
+        segment: dict[str, Any],
+    ) -> tuple[Path, Path]:
+        assert self.storage_root is not None
+        return _h3_segment_cache_files(
+            self.storage_root,
+            owner_user_id=owner_user_id,
+            project_id=project_id,
+            item_id=item_id,
+            remote_batch_id=str(remote_item.get("batch_id") or ""),
+            remote_item_id=str(remote_item.get("item_id") or ""),
+            segment_id=str(segment.get("segment_id") or ""),
+        )
+
+    @staticmethod
+    def _read_segment_cache_metadata(path: Path) -> dict[str, Any]:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    def _cached_segment_path(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        remote_item: dict[str, Any],
+        segment: dict[str, Any],
+        *,
+        require_current: bool,
+    ) -> Path | None:
+        video_path, metadata_path = self._segment_cache_files(
+            owner_user_id, project_id, item_id, remote_item, segment
+        )
+        if not video_path.is_file() or video_path.stat().st_size <= 0:
+            return None
+        if not require_current:
+            return video_path
+        metadata = self._read_segment_cache_metadata(metadata_path)
+        if metadata.get("result_signature") != self._segment_result_signature(segment):
+            return None
+        return video_path
+
+    def _segment_download_lock(self, video_path: Path) -> threading.Lock:
+        key = str(video_path.resolve())
+        with self._segment_download_locks_guard:
+            return self._segment_download_locks.setdefault(key, threading.Lock())
+
+    def _download_segment_to_cache(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        item_id: str,
+        remote_item: dict[str, Any],
+        segment: dict[str, Any],
+    ) -> Path:
+        video_path, metadata_path = self._segment_cache_files(
+            owner_user_id, project_id, item_id, remote_item, segment
+        )
+        result_signature = self._segment_result_signature(segment)
+        lock = self._segment_download_lock(video_path)
+        with lock:
+            current = self._cached_segment_path(
+                owner_user_id,
+                project_id,
+                item_id,
+                remote_item,
+                segment,
+                require_current=True,
+            )
+            if current is not None:
+                return current
+            video_path.parent.mkdir(parents=True, exist_ok=True)
+            suffix = uuid.uuid4().hex
+            temporary_video = video_path.with_name(f"current.{suffix}.mp4.tmp")
+            temporary_metadata = metadata_path.with_name(f"current.{suffix}.json.tmp")
+            try:
+                self.client.download_h3_segment_video(
+                    token,
+                    str(segment["segment_id"]),
+                    temporary_video,
+                    max_bytes=self.max_video_bytes,
+                )
+                if not temporary_video.is_file() or temporary_video.stat().st_size <= 0:
+                    raise ValueError("数字人网站返回了空的 H3 分段视频")
+                expected_sha256 = str(
+                    segment.get("normalized_video_sha256") or ""
+                ).strip().lower()
+                if expected_sha256 and self._sha256_file(temporary_video) != expected_sha256:
+                    raise ValueError("H3 分段下载结果与云端版本摘要不一致")
+                temporary_video.replace(video_path)
+                temporary_metadata.write_text(
+                    json.dumps(
+                        {
+                            "schema": "jyd.h3-segment-cache.v1",
+                            "remote_batch_id": str(remote_item.get("batch_id") or ""),
+                            "remote_item_id": str(remote_item.get("item_id") or ""),
+                            "segment_id": str(segment.get("segment_id") or ""),
+                            "segment_index": int(segment.get("index") or 0),
+                            "result_signature": result_signature,
+                            "normalized_video_sha256": expected_sha256 or None,
+                            "completed_at": str(segment.get("completed_at") or "") or None,
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                temporary_metadata.replace(metadata_path)
+                return video_path
+            finally:
+                temporary_video.unlink(missing_ok=True)
+                temporary_metadata.unlink(missing_ok=True)
+
+    def _cache_snapshot_segments(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        project: dict[str, Any],
+        snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Download each successful result immediately and annotate local readiness."""
+
+        cached_snapshot = copy.deepcopy(snapshot)
+        local_items_by_row = {
+            str(value.get("row_key") or ""): value
+            for value in project.get("items", [])
+            if isinstance(value, dict)
+        }
+        pending: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+        for remote_value in cached_snapshot.get("items", []):
+            if not isinstance(remote_value, dict):
+                continue
+            item = local_items_by_row.get(str(remote_value.get("row_id") or ""))
+            if not isinstance(item, dict):
+                continue
+            remote_item = {"batch_id": cached_snapshot.get("batch_id"), **remote_value}
+            raw_segments = remote_value.get("segments")
+            if not isinstance(raw_segments, list):
+                continue
+            for segment in raw_segments:
+                if not isinstance(segment, dict) or not str(
+                    segment.get("segment_id") or ""
+                ).strip():
+                    continue
+                existing = self._cached_segment_path(
+                    owner_user_id,
+                    project_id,
+                    str(item["item_id"]),
+                    remote_item,
+                    segment,
+                    require_current=False,
+                )
+                segment["local_preview_ready"] = existing is not None
+                segment["local_preview_is_current"] = False
+                segment.pop("local_preview_error", None)
+                if self._segment_is_downloadable(segment):
+                    current = self._cached_segment_path(
+                        owner_user_id,
+                        project_id,
+                        str(item["item_id"]),
+                        remote_item,
+                        segment,
+                        require_current=True,
+                    )
+                    if current is not None:
+                        segment["local_preview_ready"] = True
+                        segment["local_preview_is_current"] = True
+                    else:
+                        pending.append((item, remote_item, segment))
+
+        if not pending:
+            return cached_snapshot
+        worker_count = min(self.max_segment_download_workers, len(pending))
+        with ThreadPoolExecutor(
+            max_workers=worker_count,
+            thread_name_prefix="h3-segment-download",
+        ) as executor:
+            futures = {
+                executor.submit(
+                    self._download_segment_to_cache,
+                    owner_user_id,
+                    project_id,
+                    token,
+                    item_id=str(item["item_id"]),
+                    remote_item=remote_item,
+                    segment=segment,
+                ): segment
+                for item, remote_item, segment in pending
+            }
+            for future in as_completed(futures):
+                segment = futures[future]
+                try:
+                    future.result()
+                except (OSError, RuntimeError, ValueError) as exc:
+                    segment["local_preview_error"] = str(exc)[:500]
+                else:
+                    segment["local_preview_ready"] = True
+                    segment["local_preview_is_current"] = True
+        return cached_snapshot
 
     def _materialize_ready_items(
         self,
@@ -931,6 +1361,22 @@ class ProjectH3Coordinator:
         script_text = str(item.get("script_text") or "")
         script_sha256 = hashlib.sha256(script_text.encode("utf-8")).hexdigest()
         script_length = len(script_text)
+        item_id = str(item["item_id"])
+        segment_paths: list[Path] = []
+        for segment in segments:
+            cached = self._cached_segment_path(
+                owner_user_id,
+                project_id,
+                item_id,
+                remote_item,
+                segment,
+                require_current=True,
+            )
+            if cached is None:
+                # The cloud result is complete, but at least one current local
+                # segment is still downloading or will be retried on next poll.
+                return
+            segment_paths.append(cached)
         outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
         current_audio = outputs.get("audio") if isinstance(outputs.get("audio"), dict) else {}
         current_base = (
@@ -961,7 +1407,6 @@ class ProjectH3Coordinator:
                 )
             return
         assert self.storage_root is not None
-        item_id = str(item["item_id"])
         target_dir = (
             self.storage_root
             / "projects"
@@ -971,27 +1416,6 @@ class ProjectH3Coordinator:
             / "h3"
             / signature
         )
-        segment_dir = target_dir / "segments"
-        segment_paths: list[Path] = []
-        for segment in segments:
-            index = int(segment["index"])
-            target = segment_dir / f"segment-{index + 1:03d}.mp4"
-            if not target.is_file() or target.stat().st_size <= 0:
-                temporary = target.with_suffix(".mp4.tmp")
-                try:
-                    self.client.download_h3_segment_video(
-                        token,
-                        str(segment["segment_id"]),
-                        temporary,
-                        max_bytes=self.max_video_bytes,
-                    )
-                    if not temporary.is_file() or temporary.stat().st_size <= 0:
-                        raise ValueError("数字人网站返回了空的 H3 分段视频")
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    temporary.replace(target)
-                finally:
-                    temporary.unlink(missing_ok=True)
-            segment_paths.append(target)
         assets = self.media_preparer(
             segment_paths=segment_paths,
             segment_texts=[str(value["script_text"]) for value in segments],

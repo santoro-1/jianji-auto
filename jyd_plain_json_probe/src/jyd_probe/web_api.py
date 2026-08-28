@@ -61,7 +61,7 @@ from .project_composition import (
     ProjectCompositionCoordinator,
     ProjectCompositionStartDispatcher,
 )
-from .project_h3 import ProjectH3Coordinator
+from .project_h3 import ProjectH3Coordinator, current_h3_segment_preview_path
 from .project_ltx import (
     LtxWorkbenchClient,
     LtxWorkbenchError,
@@ -2269,6 +2269,42 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if cover is None:
             raise HTTPException(status_code=404, detail="剪映模板没有封面")
         return FileResponse(cover)
+
+    @app.get("/api/new/jianying-templates/{template_id}/browser-preview")
+    def get_jianying_template_browser_preview(
+        template_id: str, request: Request
+    ) -> JSONResponse:
+        user = current_project_user(request)
+        try:
+            payload = user_template_store.browser_preview(user["user_id"], template_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return JSONResponse(payload, headers={"Cache-Control": "private, no-store"})
+
+    @app.get(
+        "/api/new/jianying-templates/{template_id}/browser-assets/{asset_id}"
+    )
+    def get_jianying_template_browser_asset(
+        template_id: str, asset_id: str, request: Request
+    ) -> FileResponse:
+        user = current_project_user(request)
+        if len(asset_id) != 24 or not asset_id.isalnum():
+            raise HTTPException(status_code=404, detail="模板预览素材不存在")
+        try:
+            path = user_template_store.browser_preview_asset_path(
+                user["user_id"], template_id, asset_id
+            )
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return FileResponse(
+            path,
+            media_type=mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            headers={"Cache-Control": "private, max-age=86400"},
+        )
 
     @app.post("/api/new/jianying-templates", status_code=201)
     def create_jianying_template(
@@ -4670,6 +4706,39 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             media_type="video/mp4",
             headers={
                 "Cache-Control": "private, max-age=86400",
+                "Content-Disposition": "inline",
+            },
+        )
+
+    @app.get(
+        "/api/new/projects/{project_id}/items/{item_id}/h3-segments/{segment_number}/preview"
+    )
+    def preview_new_project_h3_segment(
+        project_id: str,
+        item_id: str,
+        segment_number: int,
+        request: Request,
+    ) -> FileResponse:
+        """Serve one local H3 source segment without exposing cloud credentials."""
+
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+            path = current_h3_segment_preview_path(
+                project,
+                item_id=item_id,
+                segment_number=segment_number,
+                storage_root=settings.storage_root,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (FileNotFoundError, ValueError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return FileResponse(
+            path,
+            media_type="video/mp4",
+            headers={
+                "Cache-Control": "private, no-store",
                 "Content-Disposition": "inline",
             },
         )

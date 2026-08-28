@@ -125,13 +125,21 @@ class CaptionRenderContractTest(unittest.TestCase):
                         "status": "READY",
                         "managed_path": "D:/segment-2.mp4",
                         "external_ref": {"video_index": 2},
-                        "metadata": {"start_seconds": 1.25, "end_seconds": 3.0},
+                        "metadata": {
+                            "start_seconds": 1.25,
+                            "end_seconds": 3.0,
+                            "actual_duration_us": 1_750_000,
+                        },
                     },
                     {
                         "status": "READY",
                         "managed_path": "D:/segment-1.mp4",
                         "external_ref": {"video_index": 1},
-                        "metadata": {"start_seconds": 0, "end_seconds": 1.25},
+                        "metadata": {
+                            "start_seconds": 0,
+                            "end_seconds": 1.25,
+                            "actual_duration_us": 1_250_000,
+                        },
                     },
                 ],
             },
@@ -187,13 +195,21 @@ class CaptionRenderContractTest(unittest.TestCase):
                         "status": "READY",
                         "managed_path": "D:/current-2.mp4",
                         "external_ref": {"video_index": 2, "remote_task_id": "current-2"},
-                        "metadata": {"start_seconds": 1.25, "end_seconds": 3},
+                        "metadata": {
+                            "start_seconds": 1.25,
+                            "end_seconds": 3,
+                            "actual_duration_us": 1_750_000,
+                        },
                     },
                     {
                         "status": "READY",
                         "managed_path": "D:/current-1.mp4",
                         "external_ref": {"video_index": 1, "remote_task_id": "current-1"},
-                        "metadata": {"start_seconds": 0, "end_seconds": 1.25},
+                        "metadata": {
+                            "start_seconds": 0,
+                            "end_seconds": 1.25,
+                            "actual_duration_us": 1_250_000,
+                        },
                     },
                 ],
             },
@@ -227,7 +243,11 @@ class CaptionRenderContractTest(unittest.TestCase):
                         "status": "READY",
                         "managed_path": "D:/enhanced-1.mp4",
                         "external_ref": {"video_index": 1, "remote_task_id": "task-1"},
-                        "metadata": {"start_seconds": 0, "end_seconds": 1.25},
+                        "metadata": {
+                            "start_seconds": 0,
+                            "end_seconds": 1.25,
+                            "actual_duration_us": 1_250_000,
+                        },
                     },
                     {
                         "asset_id": "raw-1",
@@ -243,7 +263,11 @@ class CaptionRenderContractTest(unittest.TestCase):
                         "status": "READY",
                         "managed_path": "D:/enhanced-2.mp4",
                         "external_ref": {"video_index": 2, "remote_task_id": "task-2"},
-                        "metadata": {"start_seconds": 1.25, "end_seconds": 3},
+                        "metadata": {
+                            "start_seconds": 1.25,
+                            "end_seconds": 3,
+                            "actual_duration_us": 1_750_000,
+                        },
                     },
                     {
                         "asset_id": "raw-2",

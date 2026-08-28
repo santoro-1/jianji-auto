@@ -1546,6 +1546,84 @@ def _set_text_material_text(material: dict[str, Any], new_text: str) -> None:
     material["content"] = json.dumps(parsed, ensure_ascii=False)
 
 
+def _sync_generated_subtitle_metadata(
+    material: dict[str, Any],
+    new_text: str,
+    duration_us: int,
+) -> None:
+    """Detach a cloned auto-caption material from its source recognition text.
+
+    Jianying auto-caption materials can store the rendered text in both
+    ``content`` and ``base_content``.  They also carry recognition metadata.
+    When a template caption is cloned, leaving those fields unchanged makes
+    Jianying render the source template's first caption even though the text
+    inspector shows the newly assigned ``content`` value.
+    """
+
+    base_source_len = 0
+    base_content = material.get("base_content")
+    if isinstance(base_content, str) and base_content:
+        try:
+            parsed = json.loads(base_content)
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, dict):
+            source_text = str(parsed.get("text", ""))
+            source_len = len(source_text)
+            base_source_len = source_len
+            target_len = len(new_text)
+            styles = parsed.get("styles")
+            if not isinstance(styles, list) or not styles:
+                styles = [{"range": [0, target_len]}]
+                parsed["styles"] = styles
+            for style in styles:
+                if isinstance(style, dict):
+                    style["range"] = _scaled_style_range(
+                        style.get("range"), source_len, target_len
+                    )
+            parsed["text"] = new_text
+            material["base_content"] = json.dumps(parsed, ensure_ascii=False)
+
+    if "recognize_text" in material:
+        material["recognize_text"] = new_text
+    if "recognize_task_id" in material:
+        material["recognize_task_id"] = ""
+    if "current_words" in material:
+        material["current_words"] = {}
+    if "words" in material:
+        duration_ms = max(1, (duration_us + 999) // 1000)
+        material["words"] = {
+            "start_time": [0],
+            "end_time": [duration_ms],
+            "text": [new_text],
+        }
+
+    keywords = material.get("subtitle_keywords")
+    if isinstance(keywords, dict):
+        ranges = keywords.get("range")
+        if isinstance(ranges, list):
+            target_len = len(new_text)
+            scaled_ranges: list[dict[str, Any]] = []
+            for item in ranges:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    old_start = int(item.get("location", 0))
+                    old_length = int(item.get("length", base_source_len))
+                except (TypeError, ValueError):
+                    old_start = 0
+                    old_length = base_source_len
+                new_start, new_end = _scaled_style_range(
+                    [old_start, old_start + old_length], base_source_len, target_len
+                )
+                scaled = deepcopy(item)
+                if "location" in scaled or new_start:
+                    scaled["location"] = new_start
+                scaled["length"] = new_end - new_start
+                scaled_ranges.append(scaled)
+            keywords["range"] = scaled_ranges
+
+
 def _text_materials_list(materials: dict[str, Any]) -> list[dict[str, Any]]:
     texts = materials.setdefault("texts", [])
     if not isinstance(texts, list):
@@ -1605,6 +1683,7 @@ def _make_subtitle_material(
     base_material: dict[str, Any],
     new_material_id: str,
     text: str,
+    duration_us: int,
     preset: dict[str, Any] | None,
 ) -> dict[str, Any]:
     material = deepcopy(base_material)
@@ -1616,6 +1695,7 @@ def _make_subtitle_material(
         _apply_text_style_preset_to_material(material, preset, text)
     else:
         _set_text_material_text(material, text)
+    _sync_generated_subtitle_metadata(material, text, duration_us)
     return material
 
 
@@ -1691,7 +1771,13 @@ def _replace_subtitle_range_in_data(data: dict[str, Any], item: SubtitleRangeRep
             )
 
         new_material_id = new_json_id()
-        material = _make_subtitle_material(base_material, new_material_id, line.text, preset)
+        material = _make_subtitle_material(
+            base_material,
+            new_material_id,
+            line.text,
+            line.duration_us,
+            preset,
+        )
         segment = _make_subtitle_segment(
             base_segment,
             new_material_id,

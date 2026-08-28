@@ -8,11 +8,20 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from jyd_probe.content_replace import _fit_timeline_duration
+from jyd_probe.content_replace import (
+    SubtitleLine,
+    SubtitleRangeReplacement,
+    _fit_timeline_duration,
+    _replace_subtitle_range_in_data,
+)
 from jyd_probe.draft_transfer import build_transfer_package
 from jyd_probe.project_postprocess import ProjectPostprocessCoordinator
 from jyd_probe.render_job import _build_subtitle_range_replacements
-from jyd_probe.user_templates import UserTemplateStore, detect_caption_track
+from jyd_probe.user_templates import (
+    UserTemplateStore,
+    detect_caption_track,
+    detect_caption_tracks,
+)
 from jyd_probe.web_api import WebApiSettings, create_app
 
 
@@ -67,6 +76,93 @@ def test_user_template_upload_analyze_and_owner_isolation(tmp_path):
     assert store.render_binding("user-a", created["template_id"])["name"] == "上传1"
     with pytest.raises(FileNotFoundError):
         store.get("user-b", created["template_id"])
+
+
+def test_user_template_browser_preview_is_timeline_json_without_local_paths(tmp_path):
+    store = UserTemplateStore(tmp_path / "templates", libraries_root=tmp_path / "libraries")
+    draft = _draft()
+    draft["materials"]["texts"][0]["content"] = json.dumps(
+        {
+            "text": "网页标题",
+            "styles": [{
+                "font": {
+                    "path": r"D:\JianyingPro\Resources\Font\SystemFont\zh-hans.ttf",
+                    "id": "",
+                },
+                "size": 18,
+            }],
+        },
+        ensure_ascii=False,
+    )
+    draft["materials"]["video_effects"] = [{
+        "id": "effect-material",
+        "effect_id": "7399493359015890228",
+        "name": "萤火",
+        "path": "",
+    }]
+    draft["materials"]["texts"][0]["line_spacing"] = 0.12
+    draft["materials"]["texts"][0].update({
+        "has_shadow": False,
+        "shadow_alpha": 0.0,
+        "shadow_angle": -45.0,
+        "shadow_distance": 5.0,
+        "shadow_point": {"x": 0.636396, "y": -0.636396},
+        "shadow_smoothing": 0.45,
+    })
+    draft["materials"]["texts"].append({
+        "id": "sample-title-material",
+        "content": json.dumps({"text": "母版示例标题"}, ensure_ascii=False),
+    })
+    draft["tracks"].append({
+        "id": "sample-title-track",
+        "type": "text",
+        "segments": [{
+            "id": "sample-title-segment",
+            "material_id": "sample-title-material",
+            "target_timerange": {"start": 0, "duration": 4_000_000},
+        }],
+    })
+    duplicate_caption_track = json.loads(
+        json.dumps(draft["tracks"][1], ensure_ascii=False)
+    )
+    duplicate_caption_track["id"] = "caption-shadow-track"
+    duplicate_caption_track["name"] = "字幕阴影"
+    draft["tracks"].append(duplicate_caption_track)
+    draft["tracks"].append({
+        "id": "effect-track",
+        "type": "effect",
+        "segments": [{
+            "id": "effect-segment",
+            "material_id": "effect-material",
+            "target_timerange": {"start": 0, "duration": 4_000_000},
+        }],
+    })
+    created = store.create("user-a", "网页预览模板")
+    store.upload_draft_file(
+        "user-a",
+        created["template_id"],
+        "draft_content.json",
+        json.dumps(draft, ensure_ascii=False).encode("utf-8"),
+    )
+    store.analyze("user-a", created["template_id"])
+
+    preview = store.browser_preview("user-a", created["template_id"])
+    encoded = json.dumps(preview, ensure_ascii=False)
+
+    assert preview["schema"] == "jyd.template-browser-preview.v1"
+    assert preview["caption_track_id"] == "caption-track"
+    assert preview["caption_track_ids"] == ["caption-track", "caption-shadow-track"]
+    assert "cleared_text_track_ids" not in preview
+    assert preview["materials"]["texts"][0]["content"]["text"] == "网页标题"
+    assert preview["materials"]["texts"][0]["content"]["styles"][0]["font"]["path"] == ""
+    assert preview["materials"]["texts"][0]["line_spacing"] == 0.12
+    assert preview["materials"]["texts"][0]["shadow_alpha"] == 0.0
+    assert preview["materials"]["texts"][0]["has_shadow"] is False
+    assert preview["materials"]["texts"][0]["shadow_distance"] == 5.0
+    assert preview["materials"]["texts"][0]["shadow_point"] == {"x": 0.636396, "y": -0.636396}
+    assert preview["materials"]["texts"][0]["shadow_smoothing"] == 0.45
+    assert preview["materials"]["video_effects"][0]["name"] == "萤火"
+    assert "D:\\JianyingPro" not in encoded
 
 
 def test_user_template_without_video_track_is_ready(tmp_path):
@@ -240,13 +336,16 @@ def test_uploaded_cache_resource_keeps_safe_tail_below_resource_id(tmp_path):
     assert escaped == payload.resolve()
 
 
-def test_caption_detection_rejects_ambiguous_tracks():
+def test_caption_detection_groups_duplicate_dialogue_tracks():
     data = _draft()
     duplicate = json.loads(json.dumps(data["tracks"][1], ensure_ascii=False))
     duplicate["id"] = "other-caption-track"
     data["tracks"].append(duplicate)
-    with pytest.raises(ValueError, match="多条相似字幕轨"):
-        detect_caption_track(data)
+    detected = detect_caption_tracks(data)
+    assert [track["track_id"] for track in detected] == [
+        "caption-track",
+        "other-caption-track",
+    ]
 
 
 def test_caption_detection_supports_flower_text_template_materials():
@@ -292,6 +391,88 @@ def test_render_job_parses_template_subtitle_range():
     assert replacements[0].subtitles[0].text == "新字幕"
 
 
+def test_empty_template_text_replacement_removes_sample_track_only():
+    data = _draft()
+    data["materials"]["texts"].append({
+        "id": "sample-title-material",
+        "content": json.dumps({"text": "母版旧标题"}, ensure_ascii=False),
+    })
+    data["tracks"].append({
+        "id": "sample-title-track",
+        "type": "text",
+        "segments": [{
+            "id": "sample-title-segment",
+            "material_id": "sample-title-material",
+            "target_timerange": {"start": 0, "duration": 4_000_000},
+        }],
+    })
+
+    _replace_subtitle_range_in_data(
+        data,
+        SubtitleRangeReplacement(
+            track_index=1,
+            base_segment_index=0,
+            start_us=0,
+            end_us=4_000_000,
+            subtitles=[],
+        ),
+    )
+
+    assert len(data["tracks"][1]["segments"]) == 2
+    assert data["tracks"][2]["segments"] == []
+
+
+def test_template_subtitle_replacement_detaches_cloned_recognition_text():
+    data = _draft()
+    base = data["materials"]["texts"][0]
+    base["content"] = json.dumps(
+        {"text": "一个人加上AI", "styles": [{"range": [0, 7]}]},
+        ensure_ascii=False,
+    )
+    base["base_content"] = json.dumps(
+        {"text": "一个人加上AI", "styles": [{"range": [0, 7]}]},
+        ensure_ascii=False,
+    )
+    base["recognize_text"] = "一个人加上AI就能管理100"
+    base["recognize_task_id"] = "source-recognition-task"
+    base["current_words"] = {"text": ["一个人"]}
+    base["words"] = {
+        "start_time": [0, 360],
+        "end_time": [360, 1_300],
+        "text": ["一个人", "加上AI"],
+    }
+    base["subtitle_keywords"] = {"range": [{"length": 7}]}
+
+    _replace_subtitle_range_in_data(
+        data,
+        SubtitleRangeReplacement(
+            start_us=0,
+            end_us=2_000_000,
+            subtitles=[
+                SubtitleLine(start_us=0, duration_us=900_001, text="创业最累的人往往"),
+                SubtitleLine(start_us=900_001, duration_us=1_099_999, text="最没有站位"),
+            ],
+        ),
+    )
+
+    track = data["tracks"][1]
+    materials_by_id = {item["id"]: item for item in data["materials"]["texts"]}
+    generated = [materials_by_id[segment["material_id"]] for segment in track["segments"][:2]]
+    expected = [("创业最累的人往往", 901), ("最没有站位", 1_100)]
+    for material, (text, duration_ms) in zip(generated, expected, strict=True):
+        assert json.loads(material["content"])["text"] == text
+        assert json.loads(material["base_content"])["text"] == text
+        assert material["recognize_text"] == text
+        assert material["recognize_task_id"] == ""
+        assert material["current_words"] == {}
+        assert material["words"] == {
+            "start_time": [0],
+            "end_time": [duration_ms],
+            "text": [text],
+        }
+        assert material["subtitle_keywords"] == {"range": [{"length": len(text)}]}
+
+
 def test_template_timeline_follows_video_without_extending_new_captions():
     data = {
         "duration": 4_000_000,
@@ -309,10 +490,51 @@ def test_template_timeline_follows_video_without_extending_new_captions():
     assert data["tracks"][2]["segments"][0]["target_timerange"]["duration"] == 6_000_000
 
 
-def test_4b_template_job_preserves_template_visuals_and_replaces_dynamic_media(tmp_path):
+def test_4b_template_job_preserves_new_template_and_replaces_dynamic_slots(tmp_path):
     draft_dir = tmp_path / "template-draft"
     draft_dir.mkdir()
-    (draft_dir / "draft_content.json").write_text("{}", encoding="utf-8")
+    (draft_dir / "draft_content.json").write_text(
+        json.dumps({
+            "duration": 4_000_000,
+            "materials": {
+                "texts": [
+                    {"id": "sample-title", "content": json.dumps({"text": "母版旧标题"}, ensure_ascii=False)},
+                    {"id": "caption", "content": json.dumps({"text": "母版旧字幕"}, ensure_ascii=False)},
+                    {"id": "caption-shadow", "content": json.dumps({"text": "母版旧字幕"}, ensure_ascii=False)},
+                ],
+            },
+            "tracks": [
+                {
+                    "id": "sample-title-track",
+                    "type": "text",
+                    "segments": [{
+                        "id": "sample-title-segment",
+                        "material_id": "sample-title",
+                        "target_timerange": {"start": 0, "duration": 4_000_000},
+                    }],
+                },
+                {
+                    "id": "caption-track",
+                    "type": "text",
+                    "segments": [{
+                        "id": "caption-segment",
+                        "material_id": "caption",
+                        "target_timerange": {"start": 0, "duration": 4_000_000},
+                    }],
+                },
+                {
+                    "id": "caption-shadow-track",
+                    "type": "text",
+                    "segments": [{
+                        "id": "caption-shadow-segment",
+                        "material_id": "caption-shadow",
+                        "target_timerange": {"start": 0, "duration": 4_000_000},
+                    }],
+                },
+            ],
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
     video = tmp_path / "base.mp4"
     audio = tmp_path / "voice.mp3"
     font = tmp_path / "font.ttf"
@@ -337,13 +559,18 @@ def test_4b_template_job_preserves_template_visuals_and_replaces_dynamic_media(t
         },
         "settings": {"postprocess": {
             "font_identity": "font",
+            "top_title": {"label": "当前栏目", "headline": "当前标题"},
             "jianying_template": {
                 "template_id": "template-1",
                 "draft_dir": str(draft_dir),
                 "profile": {
                     "draft_duration_us": 4_000_000,
                     "main_video": {"typed_track_index": 1, "segment_index": 2},
-                    "caption_track": {"typed_track_index": 3, "base_segment_index": 4},
+                    "caption_track": {
+                        "track_id": "caption-track",
+                        "typed_track_index": 1,
+                        "base_segment_index": 0,
+                    },
                 },
             },
         }},
@@ -356,10 +583,20 @@ def test_4b_template_job_preserves_template_visuals_and_replaces_dynamic_media(t
     assert job["remove_existing_audio"] is True
     assert job["video_replacements"][0]["track_index"] == 1
     assert job["video_replacements"][0]["media_path"] == str(video.resolve())
-    assert job["subtitle_range_replacements"][0]["track_index"] == 3
-    assert job["subtitle_range_replacements"][0]["subtitles"][0]["text"] == "新字幕"
+    caption, duplicate_caption = job["subtitle_range_replacements"]
+    assert caption["track_index"] == 1
+    assert caption["subtitles"][0]["text"] == "新字幕"
+    assert duplicate_caption["track_index"] == 2
+    assert duplicate_caption["subtitles"] == []
+    assert all(
+        replacement["track_index"] != 0
+        for replacement in job["subtitle_range_replacements"]
+    )
     assert "captions" not in job
     assert "visual_overlays" not in job
+    assert "fixed_overlays" not in job
+    assert "texts" not in job
+    assert "cover" not in job
 
 
 def test_template_job_adds_required_main_video_when_template_has_no_video_track(tmp_path):
@@ -413,6 +650,7 @@ def test_new_frontend_exposes_compact_template_modal():
     root = Path(__file__).resolve().parents[1]
     page = (root / "apps" / "processor" / "frontend" / "new" / "index.html").read_text(encoding="utf-8")
     manager = (root / "apps" / "processor" / "frontend" / "new" / "template-manager.js").read_text(encoding="utf-8")
+    browser_preview = (root / "apps" / "processor" / "frontend" / "new" / "template-browser-preview.js").read_text(encoding="utf-8")
     assert 'id="btn-jianying-template"' in page
     assert 'id="jianying-template-modal"' in page
     assert 'src="/app-static/new/template-manager.js"' in page
@@ -424,6 +662,22 @@ def test_new_frontend_exposes_compact_template_modal():
     assert "请通过 HTTPS" not in manager
     assert "缺少 ${template.missing_resources?.length || 0} 个花字资源" not in manager
     assert "RESOURCE_KIND_LABELS" in manager
+    assert 'id="video-preview-template-canvas"' in page
+    assert 'src="/app-static/new/template-browser-preview.js?v=20260828-6"' in page
+    assert "/browser-preview" in browser_preview
+    assert "function captionSource" in browser_preview
+    assert "function captionTrackIds" in browser_preview
+    assert "function applyCaptionStyle" in browser_preview
+    assert "function captionShadowCSS" in browser_preview
+    assert "displayedWidth * distance / 1080" in browser_preview
+    assert "新模板已接管画面；当前字幕已套用模板字幕轨" not in browser_preview
+    assert "setStatus('');" in browser_preview
+    assert "cleared_text_track_ids" not in browser_preview
+    assert "clearedTracks.has" not in browser_preview
+    assert "activePreviewUsesJianyingTemplate" in page
+    assert "refreshCaptionLayout: updatePreviewCaptionLayout" in page
+    assert "effectKind" in browser_preview
+    assert "萤火" in browser_preview
 
 
 def test_new_frontend_exposes_account_template_center():
@@ -528,6 +782,12 @@ def test_template_api_binds_ready_template_to_current_account_project(tmp_path):
             )
             assert uploaded.status_code == 200
             assert client.post(f"/api/new/jianying-templates/{template_id}/analyze").json()["status"] == "READY"
+            browser_preview = client.get(
+                f"/api/new/jianying-templates/{template_id}/browser-preview"
+            )
+            assert browser_preview.status_code == 200
+            assert browser_preview.json()["schema"] == "jyd.template-browser-preview.v1"
+            assert "C:\\missing" not in browser_preview.text
             project_response = client.post(
                 "/api/new/projects",
                 json={"name": "模板项目", "items": [{"row_key": "1", "script_text": "测试脚本"}]},
