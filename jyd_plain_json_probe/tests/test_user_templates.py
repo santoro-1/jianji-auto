@@ -233,6 +233,69 @@ def test_collector_package_import_is_permanent_and_owner_isolated(tmp_path):
     assert rewritten_sticker != sticker
 
 
+def test_collector_package_import_and_subtitle_replace_support_mixed_tracks(tmp_path):
+    draft_dir = tmp_path / "mixed-collector-draft"
+    draft_dir.mkdir()
+    draft = _draft()
+    caption_track = draft["tracks"][1]
+    caption_track["type"] = "mixed"
+    caption_track["segments"].insert(0, {
+        "id": "mixed-non-text-segment",
+        "material_id": "video-material",
+        "target_timerange": {"start": 0, "duration": 4_000_000},
+    })
+    (draft_dir / "draft_content.json").write_text(
+        json.dumps(draft, ensure_ascii=False), encoding="utf-8"
+    )
+    package_path = tmp_path / "mixed-template-center.zip"
+    build_transfer_package(
+        {
+            "mode": "template_center",
+            "plan_id": "mixed-template-plan",
+            "report_id": "mixed-template-report",
+            "draft": {"name": "mixed 采集草稿", "analyzed_draft_dir": str(draft_dir)},
+            "policies": {"audio": "replace"},
+            "summary": {"ready_for_upload": True, "upload_count": 0},
+            "dependencies": [],
+        },
+        package_path,
+    )
+    store = UserTemplateStore(tmp_path / "templates", libraries_root=tmp_path / "libraries")
+
+    imported = store.import_transfer_package("user-a", "mixed 账号模板", package_path)
+
+    assert imported["status"] == "READY"
+    caption = imported["profile"]["caption_track"]
+    assert caption["track_type"] == "mixed"
+    assert caption["typed_track_index"] == 0
+    assert caption["base_segment_index"] == 1
+
+    binding = store.render_binding("user-a", imported["template_id"])
+    stored_path = Path(binding["draft_dir"]) / "draft_content.json"
+    stored = json.loads(stored_path.read_text(encoding="utf-8"))
+    changed = _replace_subtitle_range_in_data(
+        stored,
+        SubtitleRangeReplacement(
+            start_us=0,
+            end_us=4_000_000,
+            subtitles=[SubtitleLine(start_us=0, duration_us=4_000_000, text="替换字幕")],
+            track_index=caption["typed_track_index"],
+            base_segment_index=caption["base_segment_index"],
+        ),
+    )
+
+    assert changed == 3
+    mixed_track = stored["tracks"][1]
+    assert any(
+        segment.get("id") == "mixed-non-text-segment"
+        for segment in mixed_track["segments"]
+    )
+    assert any(
+        material.get("content") and "替换字幕" in material["content"]
+        for material in stored["materials"]["texts"]
+    )
+
+
 def test_user_template_ignores_jianying_builtin_system_font_path(tmp_path):
     store = UserTemplateStore(tmp_path / "templates", libraries_root=tmp_path / "libraries")
     draft = _draft()

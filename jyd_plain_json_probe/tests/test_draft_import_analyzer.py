@@ -227,6 +227,76 @@ class DraftImportAnalyzerTest(unittest.TestCase):
         self.assertFalse(report["summary"]["ready_for_packaging"])
         self.assertEqual(report["summary"]["blocked_missing_count"], 1)
 
+    def test_recognizes_text_materials_inside_mixed_tracks(self) -> None:
+        ordinary_text_content = json.dumps(
+            {"text": "新版普通文字", "styles": []},
+            ensure_ascii=False,
+        )
+        template_text_content = json.dumps(
+            {"text": "新版复合文字", "styles": []},
+            ensure_ascii=False,
+        )
+        draft = {
+            "tracks": [
+                {
+                    "id": "mixed-track-with-text",
+                    "type": "mixed",
+                    "segments": [
+                        self._segment("ordinary-segment", "ordinary-text", 2_000_000),
+                        self._segment("template-segment", "template-material", 2_000_000),
+                        self._segment("video-segment", "video-material", 2_000_000),
+                    ],
+                },
+                {
+                    "id": "mixed-track-without-text",
+                    "type": "mixed",
+                    "segments": [
+                        self._segment("other-video-segment", "other-video-material", 2_000_000),
+                    ],
+                },
+            ],
+            "materials": {
+                "texts": [
+                    {"id": "ordinary-text", "content": ordinary_text_content},
+                    {"id": "template-text", "content": template_text_content},
+                ],
+                "text_templates": [
+                    {
+                        "id": "template-material",
+                        "name": "新版复合文字模板",
+                        "text_info_resources": [{"text_material_id": "template-text"}],
+                    }
+                ],
+                "videos": [
+                    {"id": "video-material"},
+                    {"id": "other-video-material"},
+                ],
+            },
+        }
+
+        report = analyze_draft_import(
+            draft,
+            source_draft_dir=self.draft_dir,
+            workspace_root=self.workspace,
+            hash_limit_bytes=-1,
+        )
+
+        self.assertEqual(report["summary"]["slot_counts"]["texts"], 1)
+        self.assertEqual(report["summary"]["slot_counts"]["text_templates"], 1)
+        self.assertEqual(report["summary"]["track_type_counts"], {"mixed": 2})
+        self.assertEqual(report["editable_slots"]["texts"][0]["text"], "新版普通文字")
+        self.assertEqual(
+            report["editable_slots"]["text_templates"][0]["texts"],
+            ["新版复合文字"],
+        )
+        self.assertEqual(
+            report["editable_slots"]["texts"][0]["selector"]["track_type"],
+            "mixed",
+        )
+        self.assertTrue(
+            any("非标准文字轨道（mixed=1）" in warning for warning in report["warnings"])
+        )
+
     @staticmethod
     def _segment(segment_id: str, material_id: str, duration: int) -> dict[str, object]:
         return {

@@ -272,10 +272,35 @@ def text_tracks(data: dict[str, Any]) -> list[tuple[int, dict[str, Any]]]:
     tracks = data.get("tracks", [])
     if not isinstance(tracks, list):
         return []
+
+    materials = data.get("materials", {})
+    if not isinstance(materials, dict):
+        materials = {}
+    text_material_ids = {
+        str(material.get("id") or "")
+        for collection in ("texts", "text_templates")
+        for material in (
+            materials.get(collection, [])
+            if isinstance(materials.get(collection), list)
+            else []
+        )
+        if isinstance(material, dict) and material.get("id")
+    }
+
+    def is_text_bearing_track(track: dict[str, Any]) -> bool:
+        if track.get("type") == "text":
+            return True
+        segments = track.get("segments", [])
+        return isinstance(segments, list) and any(
+            isinstance(segment, dict)
+            and str(segment.get("material_id") or "") in text_material_ids
+            for segment in segments
+        )
+
     return [
         (index, track)
         for index, track in enumerate(tracks)
-        if isinstance(track, dict) and track.get("type") == "text"
+        if isinstance(track, dict) and is_text_bearing_track(track)
     ]
 
 

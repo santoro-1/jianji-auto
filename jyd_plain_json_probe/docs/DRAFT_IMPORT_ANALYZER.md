@@ -32,6 +32,8 @@
 
 每个槽位同时保存素材 ID、轨道 ID、片段 ID 和当前下标。后续修改优先使用稳定 ID 定位，下标只作为兼容信息，避免轨道顺序变化后替换错位置。
 
+文字槽位不能只依赖轨道的 `type == "text"`。部分剪映版本会把普通文字片段放进 `mixed` 轨道；分析器、账号模板字幕轨检测和后续字幕替换会统一逐个检查 segment 的 `material_id`，命中 `materials.texts` 时按普通文字/花字处理，命中 `materials.text_templates` 时按复合文字模板处理。报告的 `summary.track_type_counts` 保留原始轨道类型统计，使用素材引用兼容识别时会同时写入 `warnings`。替换 mixed 轨道中的字幕时，轨道内引用其他素材集合的 segment 必须原样保留。
+
 ## 依赖状态
 
 - `central_library`：服务器素材库已经存在，不需要上传。

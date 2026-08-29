@@ -11,6 +11,7 @@ import uuid
 from .draft_crypto import prepare_plain_draft_dir
 from .draft_import_analyzer import analyze_draft_import
 from .draft_transfer import materialize_transfer_package
+from .cli import text_tracks
 from .template_library import load_plain_draft_json
 
 
@@ -192,10 +193,7 @@ def _caption_track_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
     texts = _text_materials(data)
     duration = max(1, int(data.get("duration", 0) or 0))
     candidates: list[dict[str, Any]] = []
-    typed_index = 0
-    for raw_index, track in enumerate(data.get("tracks", [])):
-        if not isinstance(track, dict) or track.get("type") != "text":
-            continue
+    for typed_index, (raw_index, track) in enumerate(text_tracks(data)):
         ordinary: list[tuple[int, dict[str, Any], dict[str, Any]]] = []
         for segment_index, segment in enumerate(track.get("segments", [])):
             if not isinstance(segment, dict):
@@ -238,6 +236,7 @@ def _caption_track_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
                     "score": score,
                     "track_id": str(track.get("id") or ""),
                     "track_name": name,
+                    "track_type": str(track.get("type") or ""),
                     "raw_track_index": raw_index,
                     "typed_track_index": typed_index,
                     "base_segment_index": ordinary[0][0],
@@ -253,7 +252,6 @@ def _caption_track_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
                     "_has_recognition": has_recognition,
                 }
             )
-        typed_index += 1
     return candidates
 
 

@@ -1631,7 +1631,13 @@ def _text_materials_list(materials: dict[str, Any]) -> list[dict[str, Any]]:
     return texts
 
 
-def _trim_text_track_range(track: dict[str, Any], start_us: int, end_us: int) -> int:
+def _trim_text_track_range(
+    track: dict[str, Any],
+    start_us: int,
+    end_us: int,
+    *,
+    text_material_ids: set[str] | None = None,
+) -> int:
     segments = track.get("segments", [])
     if not isinstance(segments, list):
         raise RuntimeError("目标文本轨道 segments 不是列表，无法重建字幕")
@@ -1641,6 +1647,13 @@ def _trim_text_track_range(track: dict[str, Any], start_us: int, end_us: int) ->
 
     for segment in segments:
         if not isinstance(segment, dict):
+            kept.append(segment)
+            continue
+
+        if (
+            text_material_ids is not None
+            and str(segment.get("material_id") or "") not in text_material_ids
+        ):
             kept.append(segment)
             continue
 
@@ -1746,7 +1759,22 @@ def _replace_subtitle_range_in_data(data: dict[str, Any], item: SubtitleRangeRep
         preset = _load_text_style_preset(style_path)
         style_path_label = str(style_path)
 
-    removed_or_trimmed = _trim_text_track_range(track, item.start_us, item.end_us)
+    text_material_ids = {
+        str(material.get("id") or "")
+        for collection in ("texts", "text_templates")
+        for material in (
+            materials.get(collection, [])
+            if isinstance(materials.get(collection), list)
+            else []
+        )
+        if isinstance(material, dict) and material.get("id")
+    }
+    removed_or_trimmed = _trim_text_track_range(
+        track,
+        item.start_us,
+        item.end_us,
+        text_material_ids=text_material_ids,
+    )
     texts = _text_materials_list(materials)
     segments = track.get("segments", [])
     if not isinstance(segments, list):

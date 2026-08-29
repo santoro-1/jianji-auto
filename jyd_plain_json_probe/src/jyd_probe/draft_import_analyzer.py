@@ -61,6 +61,33 @@ def analyze_draft_import(
             records=dependency_records,
         )
 
+    fallback_text_tracks: dict[tuple[str, str, int], str] = {}
+    for slot_kind in ("texts", "text_templates"):
+        for slot in slots[slot_kind]:
+            selector = slot.get("selector", {})
+            if not isinstance(selector, dict):
+                continue
+            track_type = str(selector.get("track_type", ""))
+            if track_type == "text":
+                continue
+            fallback_text_tracks[
+                (
+                    str(selector.get("scope", "")),
+                    str(selector.get("track_id", "")),
+                    int(selector.get("raw_track_index", -1)),
+                )
+            ] = track_type or "<empty>"
+
+    if fallback_text_tracks:
+        fallback_type_counts = Counter(fallback_text_tracks.values())
+        fallback_summary = ", ".join(
+            f"{track_type}={count}"
+            for track_type, count in sorted(fallback_type_counts.items())
+        )
+        warnings.append(
+            f"检测到非标准文字轨道（{fallback_summary}），已根据文字素材引用兼容识别"
+        )
+
     dependencies = sorted(
         dependency_records.values(),
         key=lambda item: (str(item.get("status", "")), str(item.get("kind", "")), str(item.get("path", ""))),
@@ -115,6 +142,7 @@ def analyze_draft_import(
         "central_catalog": catalog["summary"],
         "summary": {
             "slot_counts": {key: len(value) for key, value in slots.items()},
+            "track_type_counts": _track_type_counts(contexts),
             "dependency_count": len(dependencies),
             "dependency_status_counts": dict(sorted(status_counts.items())),
             "dependency_kind_counts": dict(sorted(kind_counts.items())),
@@ -273,7 +301,22 @@ def _collect_slots(
             effect_track_number += 1
             continue
 
-        if track_type != "text":
+        is_standard_text_track = track_type == "text"
+        has_referenced_text_material = any(
+            isinstance(segment, dict)
+            and str(segment.get("material_id", "")) in texts
+            for segment in segments
+        )
+        has_referenced_text_template = any(
+            isinstance(segment, dict)
+            and str(segment.get("material_id", "")) in text_templates
+            for segment in segments
+        )
+        if not (
+            is_standard_text_track
+            or has_referenced_text_material
+            or has_referenced_text_template
+        ):
             continue
         for segment_index, segment in enumerate(segments):
             if not isinstance(segment, dict):
@@ -301,7 +344,7 @@ def _collect_slots(
                         },
                     )
                 )
-            else:
+            elif material_id in texts or is_standard_text_track:
                 material = texts.get(material_id, {})
                 parsed = _parse_content(material.get("content"))
                 styles = parsed.get("styles", []) if isinstance(parsed, dict) else []
@@ -358,6 +401,7 @@ def _slot_record(
             "scope": scope,
             "track_id": str(track.get("id", "")),
             "track_name": str(track.get("name", "")),
+            "track_type": str(track.get("type", "")),
             "raw_track_index": raw_track_index,
             "typed_track_index": typed_track_index,
             "segment_id": segment_id,
@@ -849,6 +893,19 @@ def _draft_version_fields(data: dict[str, Any]) -> dict[str, Any]:
         if key in data and data[key] not in (None, ""):
             result[key] = data[key]
     return result
+
+
+def _track_type_counts(contexts: list[tuple[str, dict[str, Any]]]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for _, draft in contexts:
+        tracks = draft.get("tracks", [])
+        if not isinstance(tracks, list):
+            continue
+        for track in tracks:
+            if not isinstance(track, dict):
+                continue
+            counts[str(track.get("type", "")) or "<empty>"] += 1
+    return dict(sorted(counts.items()))
 
 
 def _path_key(path: Path | None) -> str:
