@@ -451,18 +451,16 @@ def _clean_script(value: Any) -> str:
 def _clean_source_metadata(article_type: Any, assigned_account: Any) -> dict[str, str]:
     clean_article_type = str(article_type or "").strip()
     clean_assigned_account = str(assigned_account or "").strip()
-    if not clean_article_type:
-        raise ValueError("文章类型不能为空")
-    if not clean_assigned_account:
-        raise ValueError("分配账号不能为空")
     if len(clean_article_type) > 120:
         raise ValueError("文章类型不能超过 120 个字符")
     if len(clean_assigned_account) > 120:
         raise ValueError("分配账号不能超过 120 个字符")
-    return {
-        "article_type": clean_article_type,
-        "assigned_account": clean_assigned_account,
-    }
+    metadata: dict[str, str] = {}
+    if clean_article_type:
+        metadata["article_type"] = clean_article_type
+    if clean_assigned_account:
+        metadata["assigned_account"] = clean_assigned_account
+    return metadata
 
 
 def _clean_status(value: Any, *, allowed: set[str], label: str) -> str:
@@ -1709,6 +1707,11 @@ class ProjectStore:
                     "source_metadata": _clean_source_metadata(
                         raw.get("article_type"), raw.get("assigned_account")
                     ),
+                    "source_metadata_fields": {
+                        key
+                        for key in ("article_type", "assigned_account")
+                        if key in raw
+                    },
                 }
             )
 
@@ -1734,9 +1737,22 @@ class ProjectStore:
             for row in normalized:
                 existing = existing_by_key[row["row_key"]]
                 settings = _object(existing["settings_json"], {})
+                current_source_metadata = settings.get("source_metadata")
+                source_metadata = (
+                    current_source_metadata
+                    if isinstance(current_source_metadata, dict)
+                    else {}
+                )
+                updated_source_metadata = dict(source_metadata)
+                for field in row["source_metadata_fields"]:
+                    value = row["source_metadata"].get(field)
+                    if value:
+                        updated_source_metadata[field] = value
+                    else:
+                        updated_source_metadata.pop(field, None)
                 updated_settings = {
                     **settings,
-                    "source_metadata": row["source_metadata"],
+                    "source_metadata": updated_source_metadata,
                 }
                 if updated_settings != settings:
                     prepared.append((_json(updated_settings), str(existing["item_id"])))

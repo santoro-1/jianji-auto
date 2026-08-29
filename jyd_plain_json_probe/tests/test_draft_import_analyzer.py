@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import sys
 import unittest
+from unittest.mock import patch
 import uuid
 
 
@@ -296,6 +297,173 @@ class DraftImportAnalyzerTest(unittest.TestCase):
         self.assertTrue(
             any("非标准文字轨道（mixed=1）" in warning for warning in report["warnings"])
         )
+
+    def test_resolves_draft_placeholder_resources_inside_the_draft_directory(self) -> None:
+        matting = self.draft_dir / "matting" / "matting-hash"
+        figure = self.draft_dir / "video" / "figure_algorithm" / "video-material"
+        matting.mkdir(parents=True)
+        figure.mkdir(parents=True)
+        (matting / "mask.bin").write_bytes(b"mask")
+        (figure / "artifact.bin").write_bytes(b"figure")
+        draft = {
+            "tracks": [
+                {
+                    "id": "video-track",
+                    "type": "video",
+                    "segments": [self._segment("video-segment", "video-material", 1_000_000)],
+                }
+            ],
+            "materials": {
+                "videos": [
+                    {
+                        "id": "video-material",
+                        "matting": {
+                            "path": "##_draftpath_placeholder_SAMPLE_##/matting/matting-hash"
+                        },
+                    }
+                ],
+                "effects": [
+                    {
+                        "id": "effect-material",
+                        "resource_id": "7406016931926379816",
+                        "algorithm_artifact_path": (
+                            "##_draftpath_placeholder_SAMPLE_##/video/figure_algorithm/"
+                            "video-material"
+                        ),
+                    }
+                ],
+            },
+        }
+
+        report = analyze_draft_import(
+            draft,
+            source_draft_dir=self.draft_dir,
+            workspace_root=self.workspace,
+            hash_limit_bytes=-1,
+        )
+
+        dependencies = {item["original_path"]: item for item in report["dependencies"]}
+        matting_item = dependencies[
+            "##_draftpath_placeholder_SAMPLE_##/matting/matting-hash"
+        ]
+        figure_item = dependencies[
+            "##_draftpath_placeholder_SAMPLE_##/video/figure_algorithm/video-material"
+        ]
+        self.assertEqual(matting_item["path"], str(matting.resolve()))
+        self.assertEqual(matting_item["status"], "upload_required")
+        self.assertEqual(figure_item["path"], str(figure.resolve()))
+        self.assertEqual(figure_item["status"], "upload_required")
+        self.assertTrue(report["summary"]["ready_for_packaging"])
+
+    def test_merges_stale_and_current_font_paths_by_resource_id(self) -> None:
+        resource_id = "7080096967543493150"
+        stale_font = (
+            self.temp
+            / "Admin"
+            / "Cache"
+            / "effect"
+            / resource_id
+            / "font-hash"
+            / "SharedFont.ttf"
+        )
+        current_font = (
+            self.temp
+            / "san"
+            / "Cache"
+            / "effect"
+            / resource_id
+            / "font-hash"
+            / "SharedFont.ttf"
+        )
+        current_font.parent.mkdir(parents=True)
+        current_font.write_bytes(b"font-data")
+        content = json.dumps(
+            {
+                "text": "字体路径迁移",
+                "styles": [
+                    {"font": {"id": resource_id, "path": str(current_font)}}
+                ],
+            },
+            ensure_ascii=False,
+        )
+        draft = {
+            "tracks": [],
+            "materials": {
+                "texts": [
+                    {
+                        "id": "text-material",
+                        "font_path": str(stale_font),
+                        "fonts": [
+                            {
+                                "resource_id": resource_id,
+                                "effect_id": resource_id,
+                                "path": str(current_font),
+                            }
+                        ],
+                        "content": content,
+                    }
+                ]
+            },
+        }
+
+        report = analyze_draft_import(
+            draft,
+            source_draft_dir=self.draft_dir,
+            workspace_root=self.workspace,
+            hash_limit_bytes=None,
+        )
+
+        fonts = [item for item in report["dependencies"] if item["kind"] == "font"]
+        self.assertEqual(len(fonts), 1)
+        self.assertEqual(fonts[0]["status"], "upload_required")
+        self.assertEqual(fonts[0]["path"], str(current_font.resolve()))
+        self.assertEqual(
+            {value.replace("\\", "/") for value in fonts[0]["path_aliases"]},
+            {str(stale_font).replace("\\", "/"), str(current_font).replace("\\", "/")},
+        )
+        self.assertEqual(report["summary"]["missing_count"], 0)
+        self.assertTrue(report["summary"]["ready_for_packaging"])
+
+    def test_recovers_stale_user_path_from_the_current_jianying_cache(self) -> None:
+        resource_id = "7423616268764189193"
+        local_app_data = self.temp / "current-user" / "AppData" / "Local"
+        current_font = (
+            local_app_data
+            / "JianyingPro"
+            / "User Data"
+            / "Cache"
+            / "effect"
+            / resource_id
+            / "font-hash"
+            / "Recovered.ttf"
+        )
+        current_font.parent.mkdir(parents=True)
+        current_font.write_bytes(b"recovered-font")
+        stale_font = (
+            "C:/Users/Admin/AppData/Local/JianyingPro/User Data/Cache/effect/"
+            f"{resource_id}/font-hash/Recovered.ttf"
+        )
+        draft = {
+            "tracks": [],
+            "materials": {
+                "texts": [{"id": "text-material", "font_path": stale_font}]
+            },
+        }
+
+        with patch.dict("os.environ", {"LOCALAPPDATA": str(local_app_data)}):
+            report = analyze_draft_import(
+                draft,
+                source_draft_dir=self.draft_dir,
+                workspace_root=self.workspace,
+                hash_limit_bytes=None,
+            )
+
+        fonts = [item for item in report["dependencies"] if item["kind"] == "font"]
+        self.assertEqual(len(fonts), 1)
+        self.assertEqual(fonts[0]["path"], str(current_font.resolve()))
+        self.assertEqual(fonts[0]["status"], "upload_required")
+        self.assertEqual(fonts[0]["path_aliases"], [stale_font])
+        self.assertTrue(report["summary"]["ready_for_packaging"])
 
     @staticmethod
     def _segment(segment_id: str, material_id: str, duration: int) -> dict[str, object]:

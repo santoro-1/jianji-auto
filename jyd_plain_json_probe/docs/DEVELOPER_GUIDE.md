@@ -461,7 +461,9 @@ data/template_library/<template_id>/
 - `/api/new/projects/{id}/voice`：原子地把已保存音色设为项目默认值并应用到全部脚本行。
 - `/api/new/projects/{id}/items/{item_id}/voice`：覆盖单个脚本行的音色。
 - `/api/new/projects/{id}/audio*`：项目声音生成、状态同步、单行重试、试听和下载。
-- `/api/new/h3/accounts`：读取安全 H3 执行账号摘要。
+- `/api/new/h3/accounts`：读取安全 H3 执行账号摘要。每次调用都由数字人云端强制刷新
+  `accountStatus`；响应只带本次 RH 币、查询时间和可选状态，余额为 0、未知或读取失败均禁选。
+  该代理调用使用 150 秒上限，覆盖多个账号实时查询的服务端等待时间。
 - `/api/new/projects/{id}/h3/settings`：H3 默认参数；历史 `identity_image_ids` 仅兼容读取，正式前端
   不再维护第二套人物图选择。
 - `/api/new/projects/{id}/items/{item_id}/h3/reference-video`：逐行参考视频素材版本。
@@ -480,6 +482,8 @@ data/template_library/<template_id>/
 - `/api/new/projects/{id}/items/{item_id}/postprocess/export`：用户明确下载时按需启动一次剪映导出。
 - `GET/POST /api/new/projects/{id}/items/{item_id}/current-video`：下载当前视频或上传本地视频并切换版本。
 - `GET /api/new/projects/{id}/videos/download`：一次性 ZIP 下载项目所有未变体当前成片。
+- `GET /api/new/projects/{id}/items/{item_id}/h3-segments/download`：从“片段检查”按当前批次顺序下载
+  已落盘的 H3 原始分段；单段返回 MP4，多段返回带顺序清单的一次性 ZIP。
 - `/api/new/projects/{id}/items/{item_id}/original-materials`：下载单个原始片段或包含顺序清单的多片段 ZIP。
 - `POST /api/new/projects/import-h3-handoff`：新交接导入 `h3.jyd_handoff.v2`，历史读取兼容 v1。
   v2 必须声明完整 H3 原生音画母版、`separate_h3_generated_audio` 分轨策略、H3 权威音频和
@@ -775,7 +779,9 @@ BGM 不使用固定音量：`bgm_loudness.py` 通过 FFmpeg `loudnorm` 测量人
 纵向滚动；视频使用本地已下载的 H3 原始音画且 `preload=metadata`。成功但主观不合格的分段
 复用 H3 主动重生成，失败分段复用失败重试，均沿用现有费用确认与历史 attempt 保护。
 `ProjectH3Coordinator.sync()` 在保存云端快照前按成功分段增量下载，单次最多三路并发；缓存键绑定
-批次、远端 item 和 `segment_id`，结果版本再绑定云端标准化视频 SHA-256 与完成时间。状态响应中的
+批次、远端 item 和 `segment_id`。`video_delivery.mode=runninghub_direct` 时直接从 RunningHub HTTPS
+地址下载，不转发账号中心令牌，以服务端 `result_signature` 换版并记录本机文件 SHA-256；历史
+`auth_center` 模式继续绑定云端标准化视频 SHA-256 与完成时间。状态响应中的
 `local_preview_ready` / `local_preview_is_current` 只描述本机缓存，不能替代云端任务状态。重生成期间
 稳定的 `current.mp4` 保留上一版本，新版本校验后原子切换；只有全部当前版本缓存齐全才调用
 `prepare_h3_media()` 合并和登记 `base_video`，不得在最终阶段重复下载整行。

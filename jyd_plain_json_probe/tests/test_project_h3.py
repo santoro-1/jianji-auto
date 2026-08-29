@@ -97,7 +97,9 @@ class FakeH3Client:
         target: Path,
         *,
         max_bytes: int,
+        delivery: dict | None = None,
     ) -> int:
+        del delivery
         self.downloads.append(segment_id)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(
@@ -451,6 +453,102 @@ def test_h3_sync_downloads_successful_segments_incrementally_and_versions_previe
     assert completed["items"][0]["outputs"]["base_video"]["source_type"] == "h3"
 
 
+def test_h3_sync_prefers_runninghub_direct_delivery(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 直达下载",
+        items=[{"row_key": "1", "script_text": "第一段。"}],
+    )
+    project_id = str(project["project_id"])
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={"continuity_mode": "fast"},
+    )
+    signature = "a" * 64
+    snapshot = {
+        "batch_id": "h3-batch-1",
+        "status": "SUCCESS",
+        "items": [
+            {
+                "item_id": "remote-row-1",
+                "row_id": "1",
+                "status": "SUCCESS",
+                "segments": [
+                    {
+                        "segment_id": "h3-segment-direct",
+                        "index": 0,
+                        "script_text": "第一段。",
+                        "status": "SUCCESS",
+                        "normalized_video_download_url": (
+                            "/api/workbench/h3-segments/h3-segment-direct/video"
+                        ),
+                        "normalized_video_sha256": None,
+                        "completed_at": "2026-08-29T00:00:00+00:00",
+                        "video_delivery": {
+                            "mode": "runninghub_direct",
+                            "download_url": "https://files.example/h3.mp4",
+                            "result_signature": signature,
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+    store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="direct-1",
+        snapshot=snapshot,
+    )
+
+    class _DirectClient(FakeH3Client):
+        def __init__(self) -> None:
+            super().__init__()
+            self.delivery_seen: dict | None = None
+
+        def download_h3_segment_video(
+            self,
+            token: str,
+            segment_id: str,
+            target: Path,
+            *,
+            max_bytes: int,
+            delivery: dict | None = None,
+        ) -> int:
+            self.delivery_seen = delivery
+            return super().download_h3_segment_video(
+                token,
+                segment_id,
+                target,
+                max_bytes=max_bytes,
+                delivery=delivery,
+            )
+
+    client = _DirectClient()
+    client.snapshot = snapshot
+    coordinator = ProjectH3Coordinator(
+        store,
+        client,  # type: ignore[arg-type]
+        storage_root=tmp_path / "storage",
+        media_preparer=fake_media_preparer,
+    )
+    synchronized = coordinator.sync("user-1", project_id, "token")["project"]
+    assert client.delivery_seen == snapshot["items"][0]["segments"][0][
+        "video_delivery"
+    ]
+    segment = synchronized["items"][0]["settings"]["h3"]["segments"][0]
+    assert segment["local_preview_ready"] is True
+    cache_root = tmp_path / "storage" / "projects" / "user-1" / project_id
+    metadata = next(cache_root.rglob("current.json"))
+    cached = json.loads(metadata.read_text(encoding="utf-8"))
+    assert cached["result_signature"] == signature
+    assert cached["local_video_sha256"]
+
+
 def test_h3_retry_rejects_a_segment_replaced_by_a_newer_batch(tmp_path: Path) -> None:
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
@@ -783,6 +881,8 @@ def test_h3_sync_recovers_missing_files_from_a_non_latest_successful_batch(
     assert Path(first["outputs"]["base_video"]["managed_path"]).is_file()
     assert first["outputs"]["audio"]["metadata"]["h3_segment_signature"]
     assert first["outputs"]["base_video"]["metadata"]["h3_segment_signature"]
+    assert first["outputs"]["audio"]["metadata"]["duration_us"] == 1_000_000
+    assert first["outputs"]["base_video"]["metadata"]["duration_us"] == 1_000_000
 
 
 def test_h3_sync_recovers_item_owned_legacy_batch_after_install_path_move(

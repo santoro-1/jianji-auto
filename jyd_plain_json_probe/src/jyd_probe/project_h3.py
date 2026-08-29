@@ -1014,6 +1014,14 @@ class ProjectH3Coordinator:
 
     @staticmethod
     def _segment_result_signature(segment: dict[str, Any]) -> str:
+        delivery = (
+            segment.get("video_delivery")
+            if isinstance(segment.get("video_delivery"), dict)
+            else {}
+        )
+        provider_signature = str(delivery.get("result_signature") or "").strip().lower()
+        if provider_signature:
+            return provider_signature
         normalized_sha256 = str(
             segment.get("normalized_video_sha256") or ""
         ).strip().lower()
@@ -1084,7 +1092,7 @@ class ProjectH3Coordinator:
             if (
                 str(segment.get("status") or "").upper() != "SUCCESS"
                 or not str(segment.get("segment_id") or "").strip()
-                or not str(segment.get("normalized_video_download_url") or "").strip()
+                or not cls._segment_is_downloadable(segment)
                 or not str(segment.get("script_text") or "").strip()
             ):
                 return None
@@ -1092,10 +1100,23 @@ class ProjectH3Coordinator:
 
     @staticmethod
     def _segment_is_downloadable(segment: dict[str, Any]) -> bool:
+        delivery = (
+            segment.get("video_delivery")
+            if isinstance(segment.get("video_delivery"), dict)
+            else {}
+        )
+        direct_ready = bool(
+            str(delivery.get("mode") or "") == "runninghub_direct"
+            and str(delivery.get("download_url") or "").strip()
+            and str(delivery.get("result_signature") or "").strip()
+        )
         return bool(
             str(segment.get("status") or "").upper() == "SUCCESS"
             and str(segment.get("segment_id") or "").strip()
-            and str(segment.get("normalized_video_download_url") or "").strip()
+            and (
+                direct_ready
+                or str(segment.get("normalized_video_download_url") or "").strip()
+            )
         )
 
     def _segment_cache_files(
@@ -1188,13 +1209,19 @@ class ProjectH3Coordinator:
                     str(segment["segment_id"]),
                     temporary_video,
                     max_bytes=self.max_video_bytes,
+                    delivery=(
+                        segment.get("video_delivery")
+                        if isinstance(segment.get("video_delivery"), dict)
+                        else None
+                    ),
                 )
                 if not temporary_video.is_file() or temporary_video.stat().st_size <= 0:
                     raise ValueError("数字人网站返回了空的 H3 分段视频")
+                actual_sha256 = self._sha256_file(temporary_video)
                 expected_sha256 = str(
                     segment.get("normalized_video_sha256") or ""
                 ).strip().lower()
-                if expected_sha256 and self._sha256_file(temporary_video) != expected_sha256:
+                if expected_sha256 and actual_sha256 != expected_sha256:
                     raise ValueError("H3 分段下载结果与云端版本摘要不一致")
                 temporary_video.replace(video_path)
                 temporary_metadata.write_text(
@@ -1207,6 +1234,7 @@ class ProjectH3Coordinator:
                             "segment_index": int(segment.get("index") or 0),
                             "result_signature": result_signature,
                             "normalized_video_sha256": expected_sha256 or None,
+                            "local_video_sha256": actual_sha256,
                             "completed_at": str(segment.get("completed_at") or "") or None,
                         },
                         ensure_ascii=False,
@@ -1422,6 +1450,10 @@ class ProjectH3Coordinator:
             script_text=script_text,
             target_dir=target_dir,
         )
+        duration_us = sum(
+            max(1, round(float(value) * 1_000_000))
+            for value in assets.segment_durations_seconds
+        )
         common_metadata = {
             "h3_segment_signature": signature,
             "remote_batch_id": remote_item.get("batch_id"),
@@ -1430,6 +1462,7 @@ class ProjectH3Coordinator:
             "authoritative_av": "h3_generated",
             "script_sha256": script_sha256,
             "script_length": script_length,
+            "duration_us": duration_us,
         }
         self.store.add_asset(
             owner_user_id=owner_user_id,

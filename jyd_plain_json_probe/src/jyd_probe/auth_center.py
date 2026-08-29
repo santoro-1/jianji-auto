@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 from .logging_config import log_event
@@ -551,6 +551,7 @@ class AuthCenterClient:
         return self._post(
             "/api/workbench/h3-execution-accounts",
             {"access_token": token},
+            timeout_seconds=150.0,
         )
 
     def approve_h3_audio_source(
@@ -777,10 +778,27 @@ class AuthCenterClient:
         target: Path,
         *,
         max_bytes: int,
+        delivery: dict[str, Any] | None = None,
     ) -> int:
         clean_segment_id = str(segment_id or "").strip()
         if not clean_segment_id:
             raise ValueError("H3 分段编号不能为空")
+        if isinstance(delivery, dict) and str(delivery.get("mode") or "") == (
+            "runninghub_direct"
+        ):
+            direct_url = self._validated_direct_video_url(delivery.get("download_url"))
+            return self._download_request(
+                Request(
+                    direct_url,
+                    method="GET",
+                    headers={"Accept": "video/mp4,*/*"},
+                ),
+                target,
+                max_bytes=max_bytes,
+                timeout_seconds=300.0,
+                failure_message="直连下载 RunningHub H3 分段失败",
+                remote_label="RunningHub",
+            )
         return self._download(
             f"/api/workbench/h3-segments/{clean_segment_id}/video",
             token,
@@ -788,6 +806,25 @@ class AuthCenterClient:
             max_bytes=max_bytes,
             timeout_seconds=300.0,
             failure_message="下载 H3 标准化分段失败",
+        )
+
+    @staticmethod
+    def _validated_direct_video_url(value: object) -> str:
+        url = str(value or "").strip()
+        parsed = urlsplit(url)
+        if (
+            parsed.scheme.lower() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+        ):
+            raise ValueError("数字人网站返回了不安全的 H3 直达地址")
+        # RunningHub/COS object names may contain Chinese characters. urllib's
+        # Request expects an ASCII-safe request target, so preserve existing
+        # percent escapes while encoding only the path component.
+        encoded_path = quote(parsed.path, safe="/%:@!$&'()*+,;=-._~")
+        return urlunsplit(
+            (parsed.scheme, parsed.netloc, encoded_path, parsed.query, parsed.fragment)
         )
 
     def _download(
@@ -805,12 +842,44 @@ class AuthCenterClient:
             method="GET",
             headers={"Authorization": f"Bearer {token}", "Accept": "*/*"},
         )
+        return self._download_request(
+            request,
+            target,
+            max_bytes=max_bytes,
+            timeout_seconds=timeout_seconds,
+            failure_message=failure_message,
+            remote_label="数字人网站",
+        )
+
+    def _download_request(
+        self,
+        request: Request,
+        target: Path,
+        *,
+        max_bytes: int,
+        timeout_seconds: float,
+        failure_message: str,
+        remote_label: str,
+    ) -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
         size = 0
         try:
             with urlopen(
                 request, timeout=max(self.timeout_seconds, timeout_seconds)
             ) as response:
+                content_length = str(
+                    getattr(response, "headers", {}).get("Content-Length") or ""
+                ).strip()
+                if content_length:
+                    try:
+                        declared_size = int(content_length)
+                    except ValueError:
+                        declared_size = 0
+                    if declared_size > max_bytes:
+                        raise AuthCenterError(
+                            "远程文件超过工作台允许的文件大小",
+                            status_code=413,
+                        )
                 with target.open("wb") as output:
                     while True:
                         chunk = response.read(1024 * 1024)
@@ -824,20 +893,20 @@ class AuthCenterClient:
             raw = exc.read()
             target.unlink(missing_ok=True)
             raise AuthCenterError(
-                self._detail(raw) or f"数字人网站拒绝下载（HTTP {exc.code}）",
+                self._detail(raw) or f"{remote_label}拒绝下载（HTTP {exc.code}）",
                 status_code=int(exc.code),
             ) from exc
         except (URLError, OSError, TimeoutError) as exc:
             target.unlink(missing_ok=True)
             raise AuthCenterConnectionError(
-                f"{failure_message}，请检查数字人网站是否在线"
+                f"{failure_message}，请检查{remote_label}是否在线"
             ) from exc
         except BaseException:
             target.unlink(missing_ok=True)
             raise
         if size <= 0:
             target.unlink(missing_ok=True)
-            raise AuthCenterError("数字人网站返回了空文件")
+            raise AuthCenterError(f"{remote_label}返回了空文件")
         return size
 
     def _multipart_post(

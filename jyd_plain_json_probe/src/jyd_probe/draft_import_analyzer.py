@@ -4,6 +4,7 @@ from collections import Counter
 from datetime import datetime
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Iterator
 from urllib.parse import urlparse
@@ -440,8 +441,24 @@ def _collect_dependencies(
             for path_value, pointer, nearby_identifiers in _walk_paths(material):
                 dependency_kind = _dependency_kind(collection, pointer, path_value)
                 identifiers = _merge_identifiers(material_identifiers, nearby_identifiers)
+                if dependency_kind == "font":
+                    identifiers = _merge_identifiers(
+                        _font_path_identifiers(path_value),
+                        nearby_identifiers,
+                        material_identifiers,
+                    )
                 resolved_path, external = _resolve_dependency_path(path_value, draft_dir)
-                key = f"external:{path_value}" if external else _path_key(resolved_path)
+                if resolved_path is not None and not external and not resolved_path.exists():
+                    cache_alias = _resolve_current_jianying_cache_path(path_value)
+                    if cache_alias is not None:
+                        resolved_path = cache_alias
+                key = _dependency_key(
+                    kind=dependency_kind,
+                    path_value=path_value,
+                    resolved_path=resolved_path,
+                    external=external,
+                    identifiers=identifiers,
+                )
                 can_skip = dependency_kind in {
                     "audio",
                     "sound_effect",
@@ -450,26 +467,45 @@ def _collect_dependencies(
                     "text_template_resource",
                     "font",
                 }
+                candidate = _dependency_record(
+                    original_path=path_value,
+                    resolved_path=resolved_path,
+                    external=external,
+                    kind=dependency_kind,
+                    identifiers=identifiers,
+                    catalog=catalog,
+                    hash_limit_bytes=hash_limit_bytes,
+                    can_skip_if_replaced=can_skip,
+                )
+                candidate["path_aliases"] = [path_value]
+                candidate["references"] = []
                 record = records.get(key)
                 if record is None:
-                    record = _dependency_record(
-                        original_path=path_value,
-                        resolved_path=resolved_path,
-                        external=external,
-                        kind=dependency_kind,
-                        identifiers=identifiers,
-                        catalog=catalog,
-                        hash_limit_bytes=hash_limit_bytes,
-                        can_skip_if_replaced=can_skip,
-                    )
-                    record["references"] = []
+                    record = candidate
                     records[key] = record
                 else:
+                    previous_can_skip = bool(record.get("can_skip_if_replaced"))
+                    previous_identifiers = dict(record.get("identifiers", {}))
+                    aliases = _unique_strings(
+                        [
+                            *record.get("path_aliases", []),
+                            str(record.get("original_path", "")),
+                            path_value,
+                        ]
+                    )
+                    references = list(record.get("references", []))
+                    if _dependency_candidate_rank(candidate) > _dependency_candidate_rank(record):
+                        record = candidate
+                        records[key] = record
+                    record["path_aliases"] = aliases
+                    record["references"] = references
                     record["can_skip_if_replaced"] = bool(
-                        record.get("can_skip_if_replaced") and can_skip
+                        previous_can_skip and can_skip
                     )
                     record["identifiers"] = _merge_identifiers(
-                        record.get("identifiers", {}), identifiers
+                        previous_identifiers,
+                        record.get("identifiers", {}),
+                        identifiers,
                     )
                 reference = {
                     "scope": scope,
@@ -732,6 +768,17 @@ def _walk_paths(value: Any, pointer: str = "") -> Iterator[tuple[str, str, dict[
 
 
 def _resolve_dependency_path(value: str, draft_dir: Path) -> tuple[Path | None, bool]:
+    normalized = value.strip().replace("\\", "/")
+    placeholder_marker = "_##/"
+    if normalized.startswith("##_draftpath_placeholder_") and placeholder_marker in normalized:
+        relative = normalized.split(placeholder_marker, 1)[1].lstrip("/")
+        draft_root = draft_dir.resolve(strict=False)
+        candidate = (draft_root / Path(relative)).resolve(strict=False)
+        try:
+            candidate.relative_to(draft_root)
+        except ValueError:
+            return None, True
+        return candidate, False
     parsed = urlparse(value)
     if parsed.scheme and parsed.scheme.lower() not in {"file"} and len(parsed.scheme) > 1:
         return None, True
@@ -739,6 +786,84 @@ def _resolve_dependency_path(value: str, draft_dir: Path) -> tuple[Path | None, 
     if not path.is_absolute():
         path = draft_dir / path
     return path.resolve(strict=False), False
+
+
+def _dependency_key(
+    *,
+    kind: str,
+    path_value: str,
+    resolved_path: Path | None,
+    external: bool,
+    identifiers: dict[str, str],
+) -> str:
+    if kind == "font":
+        for identifier in ("resource_id", "effect_id"):
+            token = str(identifiers.get(identifier, "")).strip()
+            if token:
+                return f"font:{identifier}:{token}"
+    return f"external:{path_value}" if external else _path_key(resolved_path)
+
+
+def _font_path_identifiers(value: str) -> dict[str, str]:
+    parts = value.strip().replace("\\", "/").split("/")
+    for index, part in enumerate(parts[:-1]):
+        if part.casefold() != "effect" or index + 1 >= len(parts):
+            continue
+        token = parts[index + 1].strip()
+        if token.isdigit() and len(token) >= 10:
+            return {"resource_id": token, "effect_id": token}
+    return {}
+
+
+def _resolve_current_jianying_cache_path(value: str) -> Path | None:
+    local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+    if not local_app_data:
+        return None
+    parts = [part for part in value.strip().replace("\\", "/").split("/") if part]
+    lowered = [part.casefold() for part in parts]
+    marker = ["jianyingpro", "user data", "cache"]
+    start = -1
+    for index in range(max(0, len(parts) - len(marker) + 1)):
+        if lowered[index : index + len(marker)] == marker:
+            start = index + len(marker)
+            break
+    if start < 0 or start >= len(parts):
+        return None
+    cache_root = (
+        Path(local_app_data).expanduser().resolve(strict=False)
+        / "JianyingPro"
+        / "User Data"
+        / "Cache"
+    ).resolve(strict=False)
+    candidate = cache_root.joinpath(*parts[start:]).resolve(strict=False)
+    try:
+        candidate.relative_to(cache_root)
+    except ValueError:
+        return None
+    return candidate if candidate.exists() else None
+
+
+def _dependency_candidate_rank(value: dict[str, Any]) -> tuple[int, int, int, int]:
+    status = str(value.get("status", ""))
+    return (
+        int(bool(value.get("exists"))),
+        int(status in {"upload_required", "central_library"}),
+        int(status == "upload_required"),
+        int(value.get("size_bytes", 0) or 0),
+    )
+
+
+def _unique_strings(values: list[Any]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        token = str(value or "").strip()
+        normalized = token.replace("/", "\\").rstrip("\\").casefold()
+        if not token or not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(token)
+    return result
 
 
 def _dependency_kind(collection: str, pointer: str, path_value: str) -> str:

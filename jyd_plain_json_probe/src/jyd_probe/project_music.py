@@ -4,6 +4,7 @@ from datetime import datetime
 import hashlib
 from typing import Any, Mapping
 
+from .draft_factory import probe_video_duration_us
 from .music_matching import (
     MusicProfileError,
     MusicProfileMatcher,
@@ -62,6 +63,19 @@ def item_video_duration_us(item: Mapping[str, Any]) -> int:
     duration = base_metadata.get("duration_us")
     if type(duration) is int and duration > 0:
         return duration
+
+    # H3 assets created by older builds did not persist duration_us even though
+    # the merged base video was already present on disk.  Probe that local file
+    # before falling back to audio/subtitle timing so existing projects remain
+    # usable when caption bindings are stale or incomplete.
+    base_video_path = str(base_video.get("managed_path") or "").strip()
+    if base_video_path:
+        try:
+            duration = probe_video_duration_us(base_video_path)
+        except (OSError, RuntimeError, ValueError):
+            duration = 0
+        if duration > 0:
+            return duration
 
     segment_ends = []
     for segment in outputs.get("original_video_segments") or []:

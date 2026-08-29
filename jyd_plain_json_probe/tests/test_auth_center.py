@@ -40,7 +40,71 @@ class _Response:
         return self.stream.read()
 
 
+class _BinaryResponse:
+    status = 200
+
+    def __init__(self, payload: bytes):
+        self.stream = io.BytesIO(payload)
+        self.headers = {"Content-Length": str(len(payload))}
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return None
+
+    def read(self, size: int = -1) -> bytes:
+        return self.stream.read(size)
+
+
 class AuthCenterTest(unittest.TestCase):
+    def test_h3_direct_download_does_not_forward_center_token(self) -> None:
+        payload = b"direct-h3-video"
+        target = PROJECT_ROOT / ".pytest-direct-h3-video.tmp"
+        target.unlink(missing_ok=True)
+        try:
+            with patch(
+                "jyd_probe.auth_center.urlopen",
+                return_value=_BinaryResponse(payload),
+            ) as request_mock:
+                size = AuthCenterClient("https://video.example").download_h3_segment_video(
+                    "center-token",
+                    "segment-1",
+                    target,
+                    max_bytes=1024,
+                    delivery={
+                        "mode": "runninghub_direct",
+                        "download_url": "https://rh-files.example/output/H3_一采.mp4",
+                        "result_signature": "a" * 64,
+                    },
+                )
+            request = request_mock.call_args.args[0]
+            self.assertEqual(
+                request.full_url,
+                "https://rh-files.example/output/H3_%E4%B8%80%E9%87%87.mp4",
+            )
+            self.assertNotIn("Authorization", request.headers)
+            self.assertEqual(size, len(payload))
+            self.assertEqual(target.read_bytes(), payload)
+        finally:
+            target.unlink(missing_ok=True)
+
+    def test_h3_direct_download_rejects_non_https_url(self) -> None:
+        with patch("jyd_probe.auth_center.urlopen") as request_mock:
+            with self.assertRaises(ValueError):
+                AuthCenterClient("https://video.example").download_h3_segment_video(
+                    "center-token",
+                    "segment-1",
+                    PROJECT_ROOT / ".pytest-invalid-h3-video.tmp",
+                    max_bytes=1024,
+                    delivery={
+                        "mode": "runninghub_direct",
+                        "download_url": "http://127.0.0.1/video.mp4",
+                        "result_signature": "a" * 64,
+                    },
+                )
+        request_mock.assert_not_called()
+
     def test_client_classifies_remote_business_rejection(self) -> None:
         error = HTTPError(
             "https://video.example/api/workbench/start",
@@ -248,6 +312,30 @@ class AuthCenterTest(unittest.TestCase):
             )
         )
         self.assertEqual(result, dual_summary)
+
+        h3_summary = {
+            "accounts": [
+                {
+                    "id": 11,
+                    "selectable": False,
+                    "balance": {"status": "AVAILABLE", "remain_coins": "0"},
+                }
+            ],
+            "default_selected_account_ids": [],
+        }
+        with patch(
+            "jyd_probe.auth_center.urlopen",
+            return_value=_Response(h3_summary),
+        ) as request_mock:
+            result = AuthCenterClient(
+                "http://127.0.0.1:8000"
+            ).list_h3_execution_accounts("center-token")
+        request = request_mock.call_args.args[0]
+        self.assertTrue(
+            request.full_url.endswith("/api/workbench/h3-execution-accounts")
+        )
+        self.assertEqual(request_mock.call_args.kwargs["timeout"], 150.0)
+        self.assertEqual(result, h3_summary)
 
         with patch(
             "jyd_probe.auth_center.urlopen",

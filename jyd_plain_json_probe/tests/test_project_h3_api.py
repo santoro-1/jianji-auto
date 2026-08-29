@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from io import BytesIO
+import json
 from pathlib import Path
 import shutil
 import sys
 import uuid
 from unittest.mock import patch
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -264,6 +267,10 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 h3_segment_path = settings.storage_root / "segments" / "segment-001.mp4"
                 h3_segment_path.parent.mkdir(parents=True, exist_ok=True)
                 h3_segment_path.write_bytes(b"h3-source-segment")
+                second_h3_segment_path = (
+                    settings.storage_root / "segments" / "segment-002.mp4"
+                )
+                second_h3_segment_path.write_bytes(b"h3-source-segment-2")
                 store.add_asset(
                     owner_user_id=user["user_id"],
                     project_id=project_id,
@@ -288,7 +295,10 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                     managed_path=str(silent_base_path),
                     metadata={
                         "h3_segment_signature": signature,
-                        "source_segment_ids": ["remote-h3-segment-1"],
+                        "source_segment_ids": [
+                            "remote-h3-segment-1",
+                            "remote-h3-segment-2",
+                        ],
                     },
                     make_current=True,
                 )
@@ -307,10 +317,33 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 )
                 assert segment_preview.status_code == 200, segment_preview.text
                 assert segment_preview.content == b"h3-source-segment"
-                missing_segment = client.get(
+                second_segment_preview = client.get(
                     f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/2/preview"
                 )
+                assert second_segment_preview.status_code == 200
+                assert second_segment_preview.content == b"h3-source-segment-2"
+                missing_segment = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/3/preview"
+                )
                 assert missing_segment.status_code == 404
+                source_download = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/download"
+                )
+                assert source_download.status_code == 200, source_download.text
+                assert source_download.headers["content-type"] == "application/zip"
+                with zipfile.ZipFile(BytesIO(source_download.content)) as archive:
+                    assert archive.namelist() == [
+                        "1-segment-001.mp4",
+                        "1-segment-002.mp4",
+                        "片段顺序清单.json",
+                    ]
+                    assert archive.read("1-segment-001.mp4") == b"h3-source-segment"
+                    assert archive.read("1-segment-002.mp4") == b"h3-source-segment-2"
+                    manifest = json.loads(archive.read("片段顺序清单.json"))
+                    assert [entry["segment_id"] for entry in manifest] == [
+                        "remote-h3-segment-1",
+                        "remote-h3-segment-2",
+                    ]
                 shared_preview = client.get(
                     f"/api/new/projects/{project_id}/items/{item_id}/audio"
                 )

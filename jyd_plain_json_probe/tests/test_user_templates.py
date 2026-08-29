@@ -9,14 +9,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from jyd_probe.content_replace import (
+    ContentReplaceJob,
+    ContentReplaceResult,
     SubtitleLine,
     SubtitleRangeReplacement,
+    VideoSegmentReplacement,
     _fit_timeline_duration,
+    _remove_unreferenced_replaced_video_materials,
     _replace_subtitle_range_in_data,
+    _video_material_ids_before_replacement,
 )
 from jyd_probe.draft_transfer import build_transfer_package
 from jyd_probe.project_postprocess import ProjectPostprocessCoordinator
-from jyd_probe.render_job import _build_subtitle_range_replacements
+from jyd_probe.render_job import _build_subtitle_range_replacements, run_render_job
 from jyd_probe.user_templates import (
     UserTemplateStore,
     detect_caption_track,
@@ -183,6 +188,48 @@ def test_user_template_without_video_track_is_ready(tmp_path):
     assert analyzed["status"] == "READY"
     assert analyzed["profile"]["main_video"] is None
     assert analyzed["profile"]["caption_track"]["track_id"] == "caption-track"
+
+
+def test_replaced_template_video_cleanup_removes_only_unreferenced_placeholder():
+    draft = _draft()
+    draft["materials"]["videos"].append(
+        {"id": "overlay-material", "path": r"C:\kept\overlay.mp4"}
+    )
+    draft["tracks"].append(
+        {
+            "id": "overlay-track",
+            "type": "video",
+            "segments": [
+                {
+                    "id": "overlay-segment",
+                    "material_id": "overlay-material",
+                    "target_timerange": {"start": 0, "duration": 1_000_000},
+                }
+            ],
+        }
+    )
+    job = ContentReplaceJob(
+        template_draft_dir="template",
+        output_root="output",
+        video_segment_replacements=[
+            VideoSegmentReplacement(
+                media_path="current.mp4", track_index=0, segment_index=0
+            )
+        ],
+    )
+    candidates = _video_material_ids_before_replacement(draft, job)
+    draft["tracks"][0]["segments"][0]["material_id"] = "current-material"
+    draft["materials"]["videos"].append(
+        {"id": "current-material", "path": r"D:\current.mp4"}
+    )
+
+    removed = _remove_unreferenced_replaced_video_materials(draft, candidates)
+
+    assert removed == 1
+    assert {item["id"] for item in draft["materials"]["videos"]} == {
+        "current-material",
+        "overlay-material",
+    }
 
 
 def test_collector_package_import_is_permanent_and_owner_isolated(tmp_path):
@@ -536,21 +583,74 @@ def test_template_subtitle_replacement_detaches_cloned_recognition_text():
         assert material["subtitle_keywords"] == {"range": [{"length": len(text)}]}
 
 
-def test_template_timeline_follows_video_without_extending_new_captions():
+def test_template_timeline_extends_only_long_tail_followers_from_original_end():
     data = {
-        "duration": 4_000_000,
+        # Replacing the main video can update this value before the template
+        # elements are fitted, so the original template duration is supplied
+        # independently below.
+        "duration": 14_000_000,
         "tracks": [
-            {"type": "text", "segments": [{"target_timerange": {"start": 0, "duration": 4_000_000}}]},
-            {"type": "text", "segments": [{"target_timerange": {"start": 0, "duration": 4_000_000}}]},
-            {"type": "effect", "segments": [{"target_timerange": {"start": 0, "duration": 4_000_000}}]},
+            {"type": "text", "segments": [{"target_timerange": {"start": 0, "duration": 10_000_000}}]},
+            {"type": "text", "segments": [{"target_timerange": {"start": 2_000_000, "duration": 8_000_000}}]},
+            {"type": "effect", "segments": [{"target_timerange": {"start": 6_000_000, "duration": 4_000_000}}]},
+            {"type": "effect", "segments": [{"target_timerange": {"start": 5_000_000, "duration": 5_000_000}}]},
+            {"type": "effect", "segments": [{"target_timerange": {"start": 1_000_000, "duration": 7_000_000}}]},
         ],
     }
-    changed = _fit_timeline_duration(data, 6_000_000, protected_text_track_indexes={0})
+    changed = _fit_timeline_duration(
+        data,
+        14_000_000,
+        template_duration_us=10_000_000,
+        protected_text_track_indexes={0},
+    )
     assert changed > 0
-    assert data["duration"] == 6_000_000
-    assert data["tracks"][0]["segments"][0]["target_timerange"]["duration"] == 4_000_000
-    assert data["tracks"][1]["segments"][0]["target_timerange"]["duration"] == 6_000_000
-    assert data["tracks"][2]["segments"][0]["target_timerange"]["duration"] == 6_000_000
+    assert data["duration"] == 14_000_000
+    # Generated caption tracks are protected even when they originally reached
+    # the template tail.
+    assert data["tracks"][0]["segments"][0]["target_timerange"]["duration"] == 10_000_000
+    # A delayed nameplate that lasted over five seconds and touched the old tail
+    # follows the replacement video to its new end.
+    assert data["tracks"][1]["segments"][0]["target_timerange"]["duration"] == 12_000_000
+    # Short tail elements, exactly-five-second elements and long non-tail
+    # elements retain their authored timing.
+    assert data["tracks"][2]["segments"][0]["target_timerange"]["duration"] == 4_000_000
+    assert data["tracks"][3]["segments"][0]["target_timerange"]["duration"] == 5_000_000
+    assert data["tracks"][4]["segments"][0]["target_timerange"]["duration"] == 7_000_000
+
+
+def test_render_job_preserves_original_template_duration_for_tail_fitting(tmp_path):
+    template = tmp_path / "template"
+    template.mkdir()
+    (template / "draft_content.json").write_text(
+        json.dumps({"duration": 10_000_000, "materials": {}, "tracks": []}),
+        encoding="utf-8",
+    )
+    output_dir = tmp_path / "drafts" / "rendered"
+    captured = {}
+
+    def fake_replace(job):
+        captured["job"] = job
+        output_dir.mkdir(parents=True)
+        return ContentReplaceResult(
+            output_dir=output_dir,
+            output_name="rendered",
+            top_level_changes=0,
+            json_changes=0,
+        )
+
+    with patch("jyd_probe.render_job.run_content_replace_job", side_effect=fake_replace):
+        run_render_job({
+            "source": {"type": "template", "template_draft_dir": str(template)},
+            "timeline_duration_us": 14_000_000,
+            "output": {
+                "draft_root": str(tmp_path / "drafts"),
+                "draft_name": "rendered",
+                "skip_export": True,
+            },
+        })
+
+    assert captured["job"].template_timeline_duration_us == 10_000_000
+    assert captured["job"].timeline_duration_us == 14_000_000
 
 
 def test_4b_template_job_preserves_new_template_and_replaces_dynamic_slots(tmp_path):

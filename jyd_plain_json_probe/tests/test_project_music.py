@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import sys
 import unittest
+from unittest.mock import patch
 import uuid
 
 
@@ -90,6 +91,22 @@ class ProjectMusicSelectionTest(unittest.TestCase):
         item["outputs"]["audio"]["metadata"] = {"duration_us": 10_000_000}
         item["outputs"]["base_video"] = {"metadata": {"duration_us": 9_000_000}}
         self.assertEqual(item_video_duration_us(item), 9_000_000)
+
+    def test_duration_probes_legacy_base_video_without_persisted_metadata(self) -> None:
+        item = _item()
+        item["outputs"]["base_video"] = {
+            "managed_path": "legacy-h3-base.mp4",
+            "metadata": {},
+        }
+        item["subtitles"]["bound_audio_asset_id"] = "stale-audio"
+
+        with patch(
+            "jyd_probe.project_music.probe_video_duration_us",
+            return_value=8_250_000,
+        ) as probe:
+            self.assertEqual(item_video_duration_us(item), 8_250_000)
+
+        probe.assert_called_once_with("legacy-h3-base.mp4")
 
     def test_analysis_can_choose_a_preliminary_top1_before_audio_exists(self) -> None:
         selector = ProjectMusicSelector(self.matcher, self.available)

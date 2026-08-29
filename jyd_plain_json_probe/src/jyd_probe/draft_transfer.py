@@ -69,6 +69,7 @@ def build_transfer_package(plan: dict[str, Any], output_path: str | Path) -> dic
                     "is_directory": source.is_dir(),
                     "size_bytes": int(dependency.get("size_bytes", 0) or 0),
                     "checksum_sha256": str(dependency.get("checksum_sha256", "")),
+                    "path_aliases": _string_list(dependency.get("path_aliases")),
                     "references": dependency.get("references", []),
                 }
             )
@@ -91,6 +92,7 @@ def build_transfer_package(plan: dict[str, Any], output_path: str | Path) -> dic
                     "identity": str(central_match.get("identity", "")),
                     "library_file": library_file,
                     "checksum_sha256": str(central_match.get("checksum_sha256", "")),
+                    "path_aliases": _string_list(dependency.get("path_aliases")),
                     "references": dependency.get("references", []),
                 }
             )
@@ -195,7 +197,7 @@ def materialize_transfer_package(
                 shutil.copytree(extracted_asset, target)
             else:
                 shutil.copy2(extracted_asset, target)
-            for source_key in (item.get("source_path"), item.get("original_path")):
+            for source_key in _transfer_source_paths(item):
                 normalized = _normalize_local_path(str(source_key or ""))
                 if normalized:
                     path_map[normalized] = str(target.resolve())
@@ -225,6 +227,10 @@ def materialize_transfer_package(
             normalized = _normalize_local_path(str(item.get("original_path", "")))
             if normalized:
                 path_map[normalized] = str(target)
+            for alias in _string_list(item.get("path_aliases")):
+                normalized = _normalize_local_path(alias)
+                if normalized:
+                    path_map[normalized] = str(target)
 
         rewrite_count = 0
         for filename in ("draft_content.json", "draft_meta_info.json"):
@@ -335,7 +341,7 @@ def import_transfer_package(
                 shutil.copytree(extracted_asset, target)
             else:
                 shutil.copy2(extracted_asset, target)
-            for source_key in (item.get("source_path"), item.get("original_path")):
+            for source_key in _transfer_source_paths(item):
                 normalized = _normalize_local_path(str(source_key or ""))
                 if normalized:
                     path_map[normalized] = str(target.resolve())
@@ -365,6 +371,10 @@ def import_transfer_package(
             normalized = _normalize_local_path(str(item.get("original_path", "")))
             if normalized:
                 path_map[normalized] = str(target)
+            for alias in _string_list(item.get("path_aliases")):
+                normalized = _normalize_local_path(alias)
+                if normalized:
+                    path_map[normalized] = str(target)
 
         rewrite_count = 0
         for filename in ("draft_content.json", "draft_meta_info.json"):
@@ -576,6 +586,30 @@ def _rewrite_paths(value: Any, path_map: dict[str, str]) -> tuple[Any, int]:
 
 def _normalize_local_path(value: str) -> str:
     return value.strip().replace("/", "\\").rstrip("\\").casefold()
+
+
+def _transfer_source_paths(item: dict[str, Any]) -> list[str]:
+    return _string_list(
+        [
+            item.get("source_path"),
+            item.get("original_path"),
+            *_string_list(item.get("path_aliases")),
+        ]
+    )
+
+
+def _string_list(value: Any) -> list[str]:
+    values = value if isinstance(value, (list, tuple)) else [value]
+    result: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        token = str(item or "").strip()
+        normalized = _normalize_local_path(token)
+        if not token or not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(token)
+    return result
 
 
 def _safe_archive_name(value: str) -> str:

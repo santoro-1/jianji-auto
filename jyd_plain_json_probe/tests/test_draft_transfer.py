@@ -285,6 +285,68 @@ class DraftTransferTest(unittest.TestCase):
         self.assertTrue((rewritten / "effect.json").is_file())
         self.assertNotEqual(str(rewritten), old_effect_path)
 
+    def test_rewrites_every_alias_of_one_uploaded_font(self) -> None:
+        draft_dir = self.temp / "font-alias-draft"
+        draft_dir.mkdir()
+        stale_path = r"C:\Users\Admin\Cache\effect\7080096967543493150\font\Shared.ttf"
+        current_font = self.temp / "san" / "effect" / "7080096967543493150" / "Shared.ttf"
+        current_font.parent.mkdir(parents=True)
+        current_font.write_bytes(b"shared-font")
+        draft = {
+            "tracks": [],
+            "materials": {
+                "texts": [
+                    {
+                        "id": "text-1",
+                        "font_path": stale_path,
+                        "fonts": [{"path": str(current_font)}],
+                        "content": json.dumps(
+                            {"styles": [{"font": {"path": str(current_font)}}]},
+                            ensure_ascii=False,
+                        ),
+                    }
+                ]
+            },
+        }
+        (draft_dir / "draft_content.json").write_text(
+            json.dumps(draft, ensure_ascii=False), encoding="utf-8"
+        )
+        package_path = self.temp / "font-alias.zip"
+        build_transfer_package(
+            {
+                "mode": "template_center",
+                "draft": {"name": "字体别名模板", "analyzed_draft_dir": str(draft_dir)},
+                "summary": {"ready_for_upload": True},
+                "dependencies": [
+                    {
+                        "kind": "font",
+                        "path": str(current_font),
+                        "original_path": str(current_font),
+                        "path_aliases": [stale_path, str(current_font)],
+                        "decision": "upload",
+                        "size_bytes": current_font.stat().st_size,
+                    }
+                ],
+            },
+            package_path,
+        )
+
+        destination = self.temp / "font-alias-account"
+        materialize_transfer_package(
+            package_path,
+            destination,
+            required_mode="template_center",
+        )
+        imported = json.loads(
+            (destination / "draft" / "draft_content.json").read_text(encoding="utf-8")
+        )
+        rewritten = imported["materials"]["texts"][0]
+        target_path = rewritten["font_path"]
+        self.assertTrue(Path(target_path).is_file())
+        self.assertEqual(rewritten["fonts"][0]["path"], target_path)
+        nested = json.loads(rewritten["content"])
+        self.assertEqual(nested["styles"][0]["font"]["path"], target_path)
+
 
 if __name__ == "__main__":
     unittest.main()

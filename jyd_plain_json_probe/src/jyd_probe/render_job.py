@@ -202,6 +202,7 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         remove_existing_audio=_as_bool(_value(config, "remove_existing_audio", default=False)),
         remove_existing_effects=_as_bool(_value(config, "remove_existing_effects", default=False)),
         timeline_duration_us=requested_timeline_duration_us,
+        template_timeline_duration_us=source_timeline_duration_us,
     )
 
     replace_result = run_content_replace_job(content_job)
@@ -1475,6 +1476,9 @@ def _export_mp4(
                         f"剪映 UI 自动化连接失效，已重试 {attempt} 次: draft={draft_name}"
                     ) from exc
                 raise
+            home_refreshed = (
+                _refresh_jianying_draft_home(controller) if draft_not_found else False
+            )
             if editor_not_open:
                 print(
                     f"[export] 已找到草稿但点击后未进入编辑页 draft={draft_name}，"
@@ -1490,11 +1494,43 @@ def _export_mp4(
             else:
                 print(
                     f"[export] 剪映首页暂未识别草稿 draft={draft_name}，"
+                    f"{'已主动刷新主页，' if home_refreshed else ''}"
                     f"2 秒后重试（{attempt}/{discovery_attempts}）",
                     flush=True,
                 )
             time.sleep(DRAFT_DISCOVERY_RETRY_DELAY_SECONDS)
     print(f"[export] 剪映导出完成 output={output_mp4}", flush=True)
+
+
+def _refresh_jianying_draft_home(controller: Any) -> bool:
+    """Best-effort catalogue refresh after Jianying cannot see a new draft.
+
+    Newly written draft folders can take several seconds to enter Jianying's
+    virtualised home catalogue.  Recreating the automation controller alone
+    does not refresh that catalogue, so request the standard F5 refresh before
+    the next discovery attempt.  Any UI-version-specific failure is ignored and
+    the existing retry/rebuild path remains available.
+    """
+
+    try:
+        get_window = getattr(controller, "get_window", None)
+        if callable(get_window):
+            get_window()
+        switch_to_home = getattr(controller, "switch_to_home", None)
+        if callable(switch_to_home):
+            switch_to_home()
+        app = getattr(controller, "app", None)
+        send_keys = getattr(app, "SendKeys", None)
+        if not callable(send_keys):
+            return False
+        set_active = getattr(app, "SetActive", None)
+        if callable(set_active):
+            set_active()
+        send_keys("{F5}", waitTime=0.2)
+        return True
+    except Exception as exc:
+        print(f"[export] 剪映主页刷新失败，将继续按原策略重试: {exc}", flush=True)
+        return False
 
 
 def _is_draft_not_found(exc: BaseException) -> bool:

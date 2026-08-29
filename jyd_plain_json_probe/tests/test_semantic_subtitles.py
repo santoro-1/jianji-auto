@@ -825,6 +825,46 @@ def test_real_draft_keeps_comma_clauses_and_number_units_intact() -> None:
     assert any("近5万名" in text for text in texts)
 
 
+def test_validated_boundaries_keep_spaced_number_units_intact() -> None:
+    script = "咱们挑战 15 天的时间，体重在 100 斤以上的，都可以报名。"
+    units = _units(
+        [
+            ("咱们挑战 ", "phrase", "none", "prefer"),
+            ("15 ", "phrase", "none", "prefer"),
+            ("天的时间，", "phrase", "none", "prefer"),
+            ("体重在 ", "phrase", "none", "prefer"),
+            ("100 ", "phrase", "none", "prefer"),
+            ("斤以上的，", "phrase", "none", "prefer"),
+            ("都可以报名。", "phrase", "none", "prefer"),
+        ]
+    )
+    raw_cues = [{"start_us": 0, "end_us": 6_000_000, "text": script}]
+
+    render_cues, mapping = derive_project_render_cues(
+        _item(
+            script,
+            units,
+            raw_cues,
+            prompt_version="jyd.content-analysis.prompt.v22",
+        ),
+        font_path=PRODUCTION_CAPTION_FONT_PATH,
+        font_size=PRODUCTION_CAPTION_FONT_SIZE,
+        max_width_ratio=0.8,
+    )
+
+    texts = [str(cue["text"]) for cue in render_cues]
+    joined = "|".join(texts)
+    joined_without_spaces = joined.replace(" ", "")
+    text_without_spaces = "".join(texts).replace(" ", "")
+    assert mapping["status"] == "SUCCESS"
+    assert "15|天" not in joined_without_spaces
+    assert "100|斤" not in joined_without_spaces
+    assert "15" not in texts
+    assert "100" not in texts
+    assert "15天" in text_without_spaces
+    assert "100斤" in text_without_spaces
+
+
 def test_decimal_range_survives_a_bad_model_boundary() -> None:
     script = "每周掉秤0.5到1公斤是最健康的速度。"
     units = _units(

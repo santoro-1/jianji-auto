@@ -57,6 +57,7 @@ from .cover_apply import (
 
 PathLike = str | Path
 TEXT_STYLE_SCHEMA = "jyd_probe.text_style.v1"
+TIMELINE_TAIL_FOLLOW_MIN_DURATION_US = 5_000_000
 TEXT_MATERIAL_STYLE_KEYS = {
     "typesetting",
     "alignment",
@@ -484,6 +485,7 @@ class ContentReplaceJob:
     replace_first_text: str = ""
     first_video_target_duration_us: int = 0
     timeline_duration_us: int = 0
+    template_timeline_duration_us: int = 0
 
     named_video_replacements: list[NamedVideoReplacement] = field(default_factory=list)
     video_segment_replacements: list[VideoSegmentReplacement] = field(default_factory=list)
@@ -2039,6 +2041,7 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
         changed += _fit_timeline_duration(
             data,
             job.timeline_duration_us,
+            template_duration_us=job.template_timeline_duration_us,
             protected_text_track_indexes={
                 item.track_index for item in job.subtitle_range_replacements
             },
@@ -2053,13 +2056,15 @@ def _fit_timeline_duration(
     data: dict[str, Any],
     target_duration_us: int,
     *,
+    template_duration_us: int = 0,
     protected_text_track_indexes: set[int] | None = None,
 ) -> int:
     if target_duration_us <= 0:
         raise ValueError("时间线时长必须大于 0")
-    original_duration_us = max(0, int(data.get("duration", 0) or 0))
+    current_duration_us = max(0, int(data.get("duration", 0) or 0))
+    original_duration_us = max(0, int(template_duration_us or current_duration_us))
     protected = protected_text_track_indexes or set()
-    changed = int(original_duration_us != target_duration_us)
+    changed = int(current_duration_us != target_duration_us)
     text_track_index = 0
     tracks = data.get("tracks", [])
     for track in tracks if isinstance(tracks, list) else []:
@@ -2094,7 +2099,11 @@ def _fit_timeline_duration(
             )
             if end_us > target_duration_us:
                 next_duration = target_duration_us - start_us
-            elif reaches_original_end and not protect_extension:
+            elif (
+                reaches_original_end
+                and duration_us > TIMELINE_TAIL_FOLLOW_MIN_DURATION_US
+                and not protect_extension
+            ):
                 next_duration = target_duration_us - start_us
             if next_duration != duration_us:
                 timerange["duration"] = max(1, next_duration)
@@ -2174,6 +2183,80 @@ def _remove_replaced_materials(
     return changed
 
 
+def _video_material_ids_before_replacement(
+    data: dict[str, Any], job: ContentReplaceJob
+) -> set[str]:
+    """Return only the top-level video materials targeted by this job.
+
+    pyJianYingDraft adds the replacement material but intentionally leaves the
+    old material object in ``materials.videos``.  Jianying then shows that
+    unreferenced object as "Media Not Found" when the account template did not
+    transfer its disposable placeholder clip.
+    """
+
+    targets = {
+        (int(item.track_index), int(item.segment_index))
+        for item in job.video_segment_replacements
+    }
+    if not targets:
+        return set()
+    result: set[str] = set()
+    typed_track_index = 0
+    for track in data.get("tracks", []):
+        if not isinstance(track, dict) or str(track.get("type") or "") != "video":
+            continue
+        segments = track.get("segments", [])
+        if isinstance(segments, list):
+            for segment_index, segment in enumerate(segments):
+                if (
+                    (typed_track_index, segment_index) not in targets
+                    or not isinstance(segment, dict)
+                ):
+                    continue
+                material_id = str(segment.get("material_id") or "").strip()
+                if material_id:
+                    result.add(material_id)
+        typed_track_index += 1
+    return result
+
+
+def _remove_unreferenced_replaced_video_materials(
+    data: dict[str, Any], candidate_ids: set[str]
+) -> int:
+    """Remove replaced video records only after their last timeline reference is gone."""
+
+    if not candidate_ids:
+        return 0
+    referenced_ids: set[str] = set()
+    for track in data.get("tracks", []):
+        if not isinstance(track, dict):
+            continue
+        segments = track.get("segments", [])
+        if not isinstance(segments, list):
+            continue
+        referenced_ids.update(
+            str(segment.get("material_id") or "").strip()
+            for segment in segments
+            if isinstance(segment, dict) and segment.get("material_id")
+        )
+    removable_ids = candidate_ids - referenced_ids
+    materials = data.get("materials")
+    videos = materials.get("videos") if isinstance(materials, dict) else None
+    if not removable_ids or not isinstance(videos, list):
+        return 0
+    retained = [
+        material
+        for material in videos
+        if not isinstance(material, dict)
+        or str(material.get("id") or material.get("material_id") or "").strip()
+        not in removable_ids
+    ]
+    removed = len(videos) - len(retained)
+    if removed:
+        materials["videos"] = retained
+    return removed
+
+
 def run_content_replace_job(job: ContentReplaceJob) -> ContentReplaceResult:
     draft = import_pyjianyingdraft()
 
@@ -2220,6 +2303,9 @@ def run_content_replace_job(job: ContentReplaceJob) -> ContentReplaceResult:
             "输出副本无需降版本转换: "
             f"source_platform={source_versions}, target_platform={compatibility.target_app_version}"
         )
+    replaced_video_material_ids = _video_material_ids_before_replacement(
+        copied_data, job
+    )
     cleanup_changes = _remove_replaced_materials(
         copied_data,
         remove_audio=job.remove_existing_audio,
@@ -2252,12 +2338,24 @@ def run_content_replace_job(job: ContentReplaceJob) -> ContentReplaceResult:
     log(f"pyJianYingDraft 保存成功: {output_dir / 'draft_content.json'}")
 
     saved_data = load_plain_draft_json(output_dir)
+    orphan_video_changes = _remove_unreferenced_replaced_video_materials(
+        saved_data, replaced_video_material_ids
+    )
+    if orphan_video_changes:
+        log(
+            f"输出副本已清除 {orphan_video_changes} 个已替换且无时间线引用的旧视频素材"
+        )
     cover_path_changes = (
         rebase_cover_material_paths(saved_data, output_dir)
         if prepared_cover is not None
         else 0
     )
-    json_changes = cleanup_changes + cover_path_changes + _apply_json_changes(draft, saved_data, job)
+    json_changes = (
+        cleanup_changes
+        + orphan_video_changes
+        + cover_path_changes
+        + _apply_json_changes(draft, saved_data, job)
+    )
     final_compatibility = normalize_draft_for_legacy_editor(saved_data)
     if final_compatibility.changed:
         log(

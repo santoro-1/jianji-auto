@@ -120,26 +120,18 @@ def parse_project_script_file(content: bytes, filename: str) -> dict[str, Any]:
             if assigned_account_column is not None
             else ""
         )
-        if article_type_column is not None:
-            if not article_type:
-                raise ValueError(f"第 {row_number} 行的文章类型不能为空")
-            if not assigned_account:
-                raise ValueError(f"第 {row_number} 行的分配账号不能为空")
-            if len(article_type) > 120:
-                raise ValueError(f"第 {row_number} 行的文章类型不能超过 120 个字符")
-            if len(assigned_account) > 120:
-                raise ValueError(f"第 {row_number} 行的分配账号不能超过 120 个字符")
+        if article_type_column is not None and len(article_type) > 120:
+            raise ValueError(f"第 {row_number} 行的文章类型不能超过 120 个字符")
+        if assigned_account_column is not None and len(assigned_account) > 120:
+            raise ValueError(f"第 {row_number} 行的分配账号不能超过 120 个字符")
         if row_key in seen:
             raise ValueError(f"脚本行编号重复: {row_key}")
         seen.add(row_key)
         parsed_row = {"row_key": row_key, "script_text": script_text}
         if article_type_column is not None:
-            parsed_row.update(
-                {
-                    "article_type": article_type,
-                    "assigned_account": assigned_account,
-                }
-            )
+            parsed_row["article_type"] = article_type
+        if assigned_account_column is not None:
+            parsed_row["assigned_account"] = assigned_account
         rows.append(parsed_row)
         if len(rows) > MAX_SCRIPT_ROWS:
             raise ValueError(f"单个项目最多包含 {MAX_SCRIPT_ROWS} 条脚本")
@@ -232,17 +224,17 @@ def _find_headers(
                 ),
                 None,
             )
-            if (article_type_column is None) != (assigned_account_column is None):
-                raise ValueError("文章类型、分配账号两列必须同时存在")
             expected_columns = {row_key_column, script_column}
             if article_type_column is not None:
-                expected_columns.update({article_type_column, assigned_account_column})
+                expected_columns.add(article_type_column)
+            if assigned_account_column is not None:
+                expected_columns.add(assigned_account_column)
             actual_columns = {
                 column for column, value in enumerate(values) if str(value).strip()
             }
             if actual_columns != expected_columns:
                 raise ValueError(
-                    "脚本模板只能包含任务ID、脚本内容，或再加文章类型、分配账号两列"
+                    "脚本模板只能包含任务ID、脚本内容，以及可选的文章类型、分配账号列"
                 )
             return (
                 index,
@@ -252,7 +244,7 @@ def _find_headers(
                 assigned_account_column,
             )
     raise ValueError(
-        "没有找到固定表头，请保留任务ID、脚本内容、文章类型、分配账号四列"
+        "没有找到固定表头，请保留任务ID、脚本内容；文章类型、分配账号为可选列"
     )
 
 

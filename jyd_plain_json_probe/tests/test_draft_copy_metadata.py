@@ -103,6 +103,45 @@ class DraftDiscoveryRetryTest(unittest.TestCase):
         self.assertEqual(Controller.attempts, 3)
         self.assertEqual(sleep.call_count, 2)
 
+    def test_export_refreshes_jianying_home_after_draft_not_found(self) -> None:
+        class DraftNotFound(Exception):
+            pass
+
+        class App:
+            keys: list[str] = []
+
+            def SetActive(self):
+                return None
+
+            def SendKeys(self, keys, **_kwargs):
+                App.keys.append(keys)
+
+        class Controller:
+            attempts = 0
+
+            def __init__(self):
+                self.app = App()
+
+            def get_window(self):
+                return None
+
+            def switch_to_home(self):
+                return None
+
+            def export_draft(self, draft_name, output_path, **kwargs):
+                Controller.attempts += 1
+                if Controller.attempts == 1:
+                    raise DraftNotFound(draft_name)
+
+        with (
+            patch("jyd_probe.render_job._load_export_api", return_value=(Controller, (), ())),
+            patch("jyd_probe.render_job.time.sleep"),
+        ):
+            _export_mp4("new-draft", self.root_path("out.mp4"))
+
+        self.assertEqual(Controller.attempts, 2)
+        self.assertEqual(App.keys, ["{F5}"])
+
     def test_export_stops_after_five_draft_discovery_attempts(self) -> None:
         class DraftNotFound(Exception):
             pass

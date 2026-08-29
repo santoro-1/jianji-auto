@@ -507,7 +507,7 @@ class LocalCollectorService:
             connection.putheader("Content-Type", "application/zip")
             connection.putheader("Content-Length", str(package_path.stat().st_size))
             connection.putheader("X-Package-SHA256", checksum)
-            if access_token.strip() and not import_ticket:
+            if access_token.strip():
                 connection.putheader("X-JYD-Access-Token", access_token.strip())
             connection.endheaders()
             with package_path.open("rb") as stream:

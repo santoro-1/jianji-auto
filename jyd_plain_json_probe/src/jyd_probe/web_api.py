@@ -2628,11 +2628,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             parsed = parse_project_script_file(content, original_filename)
             rows = parsed.get("rows") if isinstance(parsed.get("rows"), list) else []
             if not rows or any(
-                not row.get("article_type") or not row.get("assigned_account")
+                "article_type" not in row and "assigned_account" not in row
                 for row in rows
                 if isinstance(row, dict)
             ):
-                raise ValueError("回填分类信息必须使用包含文章类型、分配账号的四列表")
+                raise ValueError("回填分类信息需要至少包含文章类型或分配账号列")
             project_store.import_source_metadata(
                 user["user_id"], project_id, rows
             )
@@ -4741,6 +4741,141 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 "Cache-Control": "private, no-store",
                 "Content-Disposition": "inline",
             },
+        )
+
+    @app.get(
+        "/api/new/projects/{project_id}/items/{item_id}/h3-segments/download"
+    )
+    def download_new_project_h3_segments(
+        project_id: str, item_id: str, request: Request
+    ) -> FileResponse:
+        """Download the current H3 source segments in their playback order."""
+
+        user = current_project_user(request)
+        try:
+            project = project_store.get_project(user["user_id"], project_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="项目不存在") from exc
+        item = next(
+            (
+                value
+                for value in project.get("items", [])
+                if isinstance(value, dict)
+                and str(value.get("item_id") or "") == item_id
+            ),
+            None,
+        )
+        if item is None:
+            raise HTTPException(status_code=404, detail="脚本行不存在")
+
+        item_settings = (
+            item.get("settings") if isinstance(item.get("settings"), dict) else {}
+        )
+        h3 = (
+            item_settings.get("h3")
+            if isinstance(item_settings.get("h3"), dict)
+            else {}
+        )
+        raw_segments = h3.get("segments")
+        segments = []
+        for fallback_index, value in enumerate(
+            raw_segments if isinstance(raw_segments, list) else []
+        ):
+            if not isinstance(value, dict):
+                continue
+            segment = dict(value)
+            try:
+                segment["index"] = max(0, int(segment.get("index")))
+            except (TypeError, ValueError):
+                segment["index"] = fallback_index
+            segments.append(segment)
+        if segments:
+            segments.sort(key=lambda value: value["index"])
+        else:
+            base_video = (item.get("outputs") or {}).get("base_video")
+            base_metadata = (
+                base_video.get("metadata")
+                if isinstance(base_video, dict)
+                and isinstance(base_video.get("metadata"), dict)
+                else {}
+            )
+            source_segment_ids = base_metadata.get("source_segment_ids")
+            if isinstance(source_segment_ids, list):
+                segments = [
+                    {
+                        "index": index,
+                        "segment_id": str(segment_id or ""),
+                        "status": "SUCCESS",
+                    }
+                    for index, segment_id in enumerate(source_segment_ids)
+                ]
+        if not segments:
+            raise HTTPException(status_code=404, detail="当前视频没有可下载的 H3 原始片段")
+
+        resolved: list[tuple[dict[str, Any], Path]] = []
+        for sequence, segment in enumerate(segments, start=1):
+            segment_number = int(segment.get("index", sequence - 1)) + 1
+            status = str(segment.get("status") or "").upper()
+            if status and status != "SUCCESS":
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"第 {sequence} 段尚未生成完成，暂不能打包下载",
+                )
+            if segment.get("local_preview_is_current") is False:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"第 {sequence} 段的新版本尚未下载完成",
+                )
+            try:
+                path = current_h3_segment_preview_path(
+                    project,
+                    item_id=item_id,
+                    segment_number=segment_number,
+                    storage_root=settings.storage_root,
+                )
+            except (FileNotFoundError, KeyError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"第 {sequence} 段原始视频文件不存在",
+                ) from exc
+            resolved.append((segment, path))
+
+        if len(resolved) == 1:
+            segment, path = resolved[0]
+            return FileResponse(
+                path,
+                media_type="video/mp4",
+                filename=segment_export_filename(item, segment, index=1),
+            )
+
+        archive_root = settings.storage_root / "temporary_downloads"
+        archive_root.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_root / f"{uuid.uuid4().hex}.zip"
+        manifest: list[dict[str, Any]] = []
+        with zipfile.ZipFile(
+            archive_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True
+        ) as archive:
+            for sequence, (segment, path) in enumerate(resolved, start=1):
+                archive_name = segment_export_filename(item, segment, index=sequence)
+                archive.write(path, archive_name)
+                manifest.append(
+                    {
+                        "order": sequence,
+                        "filename": archive_name,
+                        "segment_id": segment.get("segment_id"),
+                        "completed_at": segment.get("completed_at"),
+                        "script_text": segment.get("script_text"),
+                    }
+                )
+            archive.writestr(
+                "片段顺序清单.json",
+                json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8"),
+            )
+        return FileResponse(
+            archive_path,
+            media_type="application/zip",
+            filename=f"{project_item_export_stem(item)}-H3原始片段.zip",
+            background=BackgroundTask(_unlink_if_exists, archive_path),
         )
 
     @app.get("/api/new/postprocess/options")

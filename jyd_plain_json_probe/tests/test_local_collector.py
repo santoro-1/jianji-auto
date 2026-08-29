@@ -217,6 +217,25 @@ class LocalCollectorServiceTest(unittest.TestCase):
     def test_default_collector_access_token_is_ready_for_internal_site(self) -> None:
         self.assertEqual(self.settings.access_token, "operator123")
 
+    def test_personal_asset_upload_sends_access_token(self) -> None:
+        package_path = self.temp / "personal-assets.zip"
+        package_path.write_bytes(b"personal-assets")
+
+        with patch("jyd_probe.local_collector.http.client.HTTPConnection") as connection_class:
+            connection = connection_class.return_value
+            connection.getresponse.return_value.status = 200
+            connection.getresponse.return_value.read.return_value = b'{"ok": true}'
+
+            result = LocalCollectorService._post_personal_asset_package(
+                "http://192.168.10.250:8010",
+                package_path,
+                checksum="package-checksum",
+                access_token="operator123",
+            )
+
+        self.assertTrue(result["ok"])
+        connection.putheader.assert_any_call("X-JYD-Access-Token", "operator123")
+
     def test_native_pickers_return_paths_without_copying_files(self) -> None:
         source = self.temp / "本机视频.mp4"
         source.write_bytes(b"video-data")

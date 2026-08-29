@@ -24,8 +24,9 @@ HTTP-only Cookie。`next` 只接受受工作台保护的站内路径，新版登
 
 ## 脚本与图片输入（模块 2）
 
-脚本文件正式模板固定为四列：`任务ID`、`脚本内容`、`文章类型`、`分配账号`；历史两列表
-继续兼容。可从新版页面下载模板：
+脚本文件正式模板固定为四列：`任务ID`、`脚本内容`、`文章类型`、`分配账号`；最后两列的单元格
+均可留空，也可只填其中一项。文件只含一条脚本即可创建项目，历史两列表继续兼容。可从新版
+页面下载模板：
 
 ```text
 GET  /api/new/script-template
@@ -33,7 +34,7 @@ POST /api/new/script-imports/preview?filename=脚本.xlsx
 ```
 
 预览接口使用原始请求体接收 `.xlsx` 或 `.csv`，不创建项目。服务端验证文件大小、XLSX
-压缩包路径和解压大小、固定表头、空 ID、空脚本、四列表分类字段、重复 ID、额外列和
+压缩包路径和解压大小、固定表头、空 ID、空脚本、可选分类字段长度、重复 ID、额外列和
 500 行上限。任何
 一行失败时整体返回 `422`，不会产生半个项目。旧版 `.xls` 需先另存为 `.xlsx` 或 `.csv`。
 
@@ -66,7 +67,7 @@ PUT /api/new/projects/{project_id}/metadata-import?filename=脚本.xlsx
 ```
 
 请求体为四列 `.xlsx`/`.csv` 原始内容。服务端要求任务 ID 集合与当前项目完整一致，以任务 ID
-写入 `settings.source_metadata.article_type` 和 `assigned_account`；Excel 中的旧脚本文字不会
+写入非空的 `settings.source_metadata.article_type` 和 `assigned_account`，空值不报错；Excel 中的旧脚本文字不会
 覆盖当前项目脚本。该事务允许项目处于生成中，只更新分类元数据和项目修订，不清除或失效
 声音、视频、字幕、内容分析、语义视觉及变体，并把四列表保存为新的脚本源文件版本。
 
@@ -306,22 +307,35 @@ H3 单分段重试前，页面必须先调用 `GET /api/new/projects/{project_id
 快照。若原按钮携带的 `segment_id` 已被后续批次替换，页面刷新后停止，不得自动映射到同序号
 的新分段，也不得进入费用确认；服务端对并发期间失效的分段返回 `409`，避免重试另一份冻结输入。
 
+`GET /api/new/h3/accounts` 在每次 H3 生成动作打开账号弹窗前代理云端实时余额刷新。每个账号的
+安全摘要包含 `balance.status`、精确文本 `balance.remain_coins`、`balance.checked_at` 和
+`selectable`；弹窗显示本次 RH 币数，余额为 0、未知、认证失败或临时读取失败时禁用复选框。
+浏览器仍只提交内部 `selected_account_ids`，不接收 API Key、凭据指纹、Base URL 或完整第三方
+响应。云端在实际付费提交前另做一次余额校验，不能把该页面校验当成唯一安全边界。
+
 H3 原始分段人工检查使用：
 
 ```text
 GET /api/new/projects/{project_id}/items/{item_id}/h3-segments/{segment_number}/preview
+GET /api/new/projects/{project_id}/items/{item_id}/h3-segments/download
 ```
 
 `segment_number` 从 1 开始。H3 状态轮询发现某段 `SUCCESS` 后立即把该段下载到项目受管的
 `h3/segment-cache`，最多并发三路；接口读取当前批次、当前远端 item 和当前 `segment_id` 对应的
 本地缓存，不等待同一行全部成功，也不依赖 `base_video` 已经合并完成。云端返回的
-`normalized_video_sha256` 与 `completed_at` 共同参与结果版本绑定；同一分段主动重生成时旧缓存继续
-可预览，新文件校验摘要后原子替换，不同批次或不同分段 ID 不按序号复用旧片。所有当前版本均已
-落盘后才运行 H3 母版合并与静音底片/权威音频拆分。
+`video_delivery` 优先决定传输方式：`runninghub_direct` 由工作台直接从 HTTPS 地址下载，不携带数字人
+网站 Bearer Token；历史 `auth_center` 结果继续从数字人网站下载。直达结果使用服务端
+`result_signature` 识别版本并在本机计算 `local_video_sha256`，历史结果仍使用
+`normalized_video_sha256` 与 `completed_at`。同一分段主动重生成时旧缓存继续可预览，新文件校验后
+原子替换，不同批次或不同分段 ID 不按序号复用旧片。所有当前版本均已落盘后才运行 H3 母版合并
+与静音底片/权威音频拆分。
 
 接口要求项目和脚本行属于当前登录账号，并再次限制路径位于工作台受管目录。它不代理云端下载
 地址、不返回访问令牌，也不会触发 H3 生成、重试或任何费用；缓存缺失或越界时返回 `404`。
 浏览器以 `preload=metadata` 使用该接口，弹层不会同时自动播放多条视频。
+“片段检查”弹层只有在当前批次全部原始分段均已成功落盘时才启用“下载全部原始片段”；单段直接
+返回 MP4，多段按片段序号返回一次性 ZIP，并附带 `片段顺序清单.json`。完整视频预览弹层不再提供
+这个入口，避免把分段原片与已经合成的完整成片混在一起。
 
 `digital-human-settings` 当前保存项目级 `resolution`，含义为数字人画面的最长边像素。
 新版页面允许直接输入任意正整数，默认值为 `1024`。修改时会保留历史视频文件，但解除旧分辨率

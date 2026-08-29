@@ -139,10 +139,10 @@ class ProjectInputsApiTest(unittest.TestCase):
                 content=template.content,
             )
             self.assertEqual(xlsx_preview.status_code, 200, xlsx_preview.text)
-            self.assertEqual(xlsx_preview.json()["total_rows"], 3)
+            self.assertEqual(xlsx_preview.json()["total_rows"], 1)
             self.assertEqual(xlsx_preview.json()["rows"][0]["row_key"], "1")
-            self.assertEqual(xlsx_preview.json()["rows"][0]["article_type"], "干货类")
-            self.assertEqual(xlsx_preview.json()["rows"][0]["assigned_account"], "1")
+            self.assertEqual(xlsx_preview.json()["rows"][0]["article_type"], "")
+            self.assertEqual(xlsx_preview.json()["rows"][0]["assigned_account"], "")
 
             csv_preview = client.post(
                 "/api/new/script-imports/preview?filename=scripts.csv",
@@ -163,19 +163,60 @@ class ProjectInputsApiTest(unittest.TestCase):
                 "/api/new/script-imports/preview?filename=scripts.csv",
                 content=(
                     "任务ID,脚本内容,文章类型,分配账号\n"
-                    "1,第一条口播,干货类,2\n"
-                    "2,第二条口播,鸡汤文,5\n"
+                    "1,唯一一条口播,,\n"
                 ).encode("utf-8-sig"),
             )
             self.assertEqual(four_column_preview.status_code, 200, four_column_preview.text)
             self.assertEqual(
-                four_column_preview.json()["rows"][1],
-                {
-                    "row_key": "2",
-                    "script_text": "第二条口播",
-                    "article_type": "鸡汤文",
-                    "assigned_account": "5",
-                },
+                four_column_preview.json()["rows"],
+                [
+                    {
+                        "row_key": "1",
+                        "script_text": "唯一一条口播",
+                        "article_type": "",
+                        "assigned_account": "",
+                    },
+                ],
+            )
+
+            article_only_preview = client.post(
+                "/api/new/script-imports/preview?filename=article-only.csv",
+                content="任务ID,脚本内容,文章类型\n1,只有一条口播,\n".encode(
+                    "utf-8-sig"
+                ),
+            )
+            self.assertEqual(
+                article_only_preview.status_code, 200, article_only_preview.text
+            )
+            self.assertEqual(
+                article_only_preview.json()["rows"],
+                [
+                    {
+                        "row_key": "1",
+                        "script_text": "只有一条口播",
+                        "article_type": "",
+                    }
+                ],
+            )
+
+            account_only_preview = client.post(
+                "/api/new/script-imports/preview?filename=account-only.csv",
+                content="任务ID,脚本内容,分配账号\n1,只有一条口播,ly1\n".encode(
+                    "utf-8-sig"
+                ),
+            )
+            self.assertEqual(
+                account_only_preview.status_code, 200, account_only_preview.text
+            )
+            self.assertEqual(
+                account_only_preview.json()["rows"],
+                [
+                    {
+                        "row_key": "1",
+                        "script_text": "只有一条口播",
+                        "assigned_account": "ly1",
+                    }
+                ],
             )
 
             duplicate = client.post(
@@ -190,7 +231,7 @@ class ProjectInputsApiTest(unittest.TestCase):
                 content="任务ID,脚本内容,备注\n1,甲,多余\n".encode("utf-8"),
             )
             self.assertEqual(extra_column.status_code, 422)
-            self.assertIn("两列", extra_column.json()["detail"])
+            self.assertIn("可选", extra_column.json()["detail"])
             self.assertEqual(client.get("/api/new/projects").json()["total"], 0)
 
     def test_four_column_metadata_backfill_preserves_current_scripts_and_generation_state(self) -> None:
@@ -229,7 +270,7 @@ class ProjectInputsApiTest(unittest.TestCase):
             content = (
                 "任务ID,脚本内容,文章类型,分配账号\n"
                 "1,表格里的旧脚本一,干货类,2\n"
-                "2,表格里的旧脚本二,鸡汤文,5\n"
+                "2,表格里的旧脚本二,鸡汤文,\n"
             ).encode("utf-8-sig")
             response = client.put(
                 f"/api/new/projects/{project_id}/metadata-import?filename=四列脚本.csv",
@@ -266,7 +307,30 @@ class ProjectInputsApiTest(unittest.TestCase):
                     ).fetchall()
                 ]
             self.assertEqual(after, before)
-            self.assertEqual(settings[1]["source_metadata"]["assigned_account"], "5")
+            self.assertEqual(
+                settings[1]["source_metadata"], {"article_type": "鸡汤文"}
+            )
+
+            article_only = (
+                "任务ID,脚本内容,文章类型\n"
+                "1,表格里的旧脚本一,新干货类\n"
+                "2,表格里的旧脚本二,\n"
+            ).encode("utf-8-sig")
+            partial_response = client.put(
+                f"/api/new/projects/{project_id}/metadata-import?filename=文章类型.csv",
+                content=article_only,
+            )
+            self.assertEqual(
+                partial_response.status_code, 200, partial_response.text
+            )
+            partial_items = partial_response.json()["items"]
+            self.assertEqual(
+                partial_items[0]["settings"]["source_metadata"],
+                {"article_type": "新干货类", "assigned_account": "2"},
+            )
+            self.assertEqual(
+                partial_items[1]["settings"]["source_metadata"], {}
+            )
 
     def test_original_script_file_is_retained_for_result_batch_archives(self) -> None:
         login_patch, verify_patch = self._client_context()
