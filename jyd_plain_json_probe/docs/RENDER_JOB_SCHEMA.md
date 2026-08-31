@@ -92,6 +92,34 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 `fit_to_video` 把累计的供应商/SeedVR2 容器短差转化为片尾口播截断；带生成尾的新任务仍保留
 独立 `video_sequence`，不会进入该回退分支。
 
+H3 与上述 MiniMax/SeedVR2 时间策略不同：当前 `base_video.metadata` 保存
+`video_sequence_version=jyd.h3-video-sequence.v1`、有序 `source_segment_asset_ids`、
+`source_segment_ids` 与 `segment_count`。H3 分段使用实际生成的视频时长，不按输入语音
+裁尾/放慢，也不触发历史短差回退。原片音量为 0，清理后的 H3 权威音频只铺一次；原生
+叠化继承当前母版的 `visual_dissolve_seconds`，不缩短时间轴。
+
+账号模板新增顶层 `main_video_sequence`：
+
+```json
+{
+  "source": {"type": "template", "template_draft_dir": "D:/模板"},
+  "timeline_duration_us": 8000000,
+  "main_video_sequence": {
+    "track_index": 0,
+    "segment_index": 0,
+    "items": [
+      {"media_path": "D:/素材/片段1.mp4", "target_duration_us": 4000000, "volume": 0, "transition_after_us": 500000},
+      {"media_path": "D:/素材/片段2.mp4", "target_duration_us": 4000000, "volume": 0}
+    ]
+  }
+}
+```
+
+它只在输出副本中把指定视频槽替换成多个原生片段，保留构图等视觉参数和其他模板轨道。
+`track_index=-1` 表示模板没有主视频占位，新增底层主视频轨。主轨其他片段重叠或总时长
+不一致时拒绝替换。模板尾部时长适配先于分段插入，防止中间片段被错误拉长。工作台自动
+仅对 H3 模板路径使用此字段，旧数字人模板路径不变。
+
 模板模式用于套用已经存在的剪映草稿。模板可能是明文，也可能是高版本加密草稿；加密草稿会按 `decrypt` 配置自动解密到工作副本：
 
 ```json
@@ -305,8 +333,9 @@ jyd_plain_json_probe/data/template_library/demo_template/
 `fade_in_us` 控制整条 BGM 从时间线开头渐起的时长，单位微秒；只应用于最早的音乐片段，
 并可与该片段用于循环衔接的淡出同时存在。`0` 表示关闭。
 普通 `type=add` 默认仍只播放一次；确实需要循环时可显式传 `loop_to_video=true`。
-`volume` 支持 `0.0` 到 `2.0`。通用提交页未指定时使用页面默认值；数字人 4B 流程则保存
-响度分析得到的冻结音量，普通音乐范围为 `0.08..0.25`，强人声音乐范围为 `0.05..0.16`。
+`volume` 支持 `0.0` 到 `2.0`。通用提交页未指定时使用页面默认值；数字人 4B 流程使用
+`speech-relative-program-lufs.v2` 冻结结果：实际播放时间线增益限制为 `-30..+6 dB`，并受
+BGM 节目 `-6 dBTP` 真峰值和普通 7 dB/强人声 10 dB 短时响度差保护。线性增益可能大于 1.0。
 
 通过 Web API 提交时，`media_path` 还可以替换成以下任意一种引用：
 

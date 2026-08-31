@@ -115,6 +115,7 @@ class UnifiedVisualInput:
     previous: dict[str, Any]
     asr_alignment: dict[str, Any] | None = None
     segment_boundaries: list[dict[str, Any]] | None = None
+    selection_seed: str = ""
 
 
 def prepare_unified_visual_input(
@@ -163,6 +164,7 @@ def prepare_unified_visual_input(
         previous=dict(item.get("visual_analysis") or {}),
         asr_alignment=(dict(alignment) if isinstance(alignment, Mapping) else None),
         segment_boundaries=segment_boundaries,
+        selection_seed=str(item.get("item_id") or item.get("id") or ""),
     )
 
 
@@ -335,7 +337,10 @@ def _retained_overlays(
         if asset is None and automatic_seam:
             continue
         if automatic_seam and asset is not None and (
-            asset.get("auto_eligible") is not True
+            (asset.get("auto_eligible") is not True and not (
+                catalog.source_mode == "folders" and asset.get("source_missing")
+                and asset.get("folder_auto_eligible")
+            ))
             or "seam_broll" not in asset.get("usage_modes", [])
         ):
             continue
@@ -400,6 +405,8 @@ def build_local_visual_result(
         locked_overlays=locked,
         segment_boundaries=visual_input.segment_boundaries or [],
         final_video_duration_us=visual_input.video_duration_us,
+        previous_recipe=visual_input.previous.get("recipe"),
+        selection_seed=visual_input.selection_seed,
     )
     result = {
         "analysis_status": "SUCCESS",

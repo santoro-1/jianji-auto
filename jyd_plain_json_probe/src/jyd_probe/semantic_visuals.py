@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -178,6 +180,7 @@ class SemanticVisualCatalog:
     catalog_version: str
     concepts: tuple[dict[str, Any], ...]
     assets: tuple[dict[str, Any], ...]
+    source_mode: str = "json"
 
     def concept(self, concept_id: str) -> dict[str, Any] | None:
         return next(
@@ -210,6 +213,8 @@ class SemanticVisualCatalog:
         }
         if self.library_id is not None:
             payload["library_id"] = self.library_id
+        if self.source_mode == "folders":
+            payload["source_mode"] = "folders"
         return payload
 
 
@@ -1023,7 +1028,8 @@ def _normalize_v3_video_taxonomy(
 
 
 def _load_semantic_visual_catalog_v3(
-    catalog_root: Path, payload: Mapping[str, Any]
+    catalog_root: Path, payload: Mapping[str, Any], *,
+    content_version: str | None = None, read_quarantine: bool = True,
 ) -> SemanticVisualCatalog:
     if set(payload) != {"schema", "library_id", "concepts", "assets"}:
         raise SemanticVisualCatalogError("invalid semantic visual catalog v3 root")
@@ -1116,7 +1122,7 @@ def _load_semantic_visual_catalog_v3(
         assets.append(asset)
         version_paths.extend(paths)
     quarantine_path = catalog_root / "quarantine" / "platform_ui_pending.json"
-    if quarantine_path.exists():
+    if read_quarantine and quarantine_path.exists():
         try:
             quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -1165,8 +1171,11 @@ def _load_semantic_visual_catalog_v3(
     concepts = [item for item in concepts if item["concept_id"] in available_concepts]
     canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     version_digest = hashlib.sha256(canonical.encode("utf-8"))
-    for path in sorted(version_paths, key=lambda item: str(item).casefold()):
-        _update_file_hash(version_digest, path)
+    if content_version is not None:
+        version_digest.update(content_version.encode("utf-8"))
+    else:
+        for path in sorted(version_paths, key=lambda item: str(item).casefold()):
+            _update_file_hash(version_digest, path)
     return SemanticVisualCatalog(
         root=catalog_root,
         schema=CATALOG_SCHEMA_V3,
@@ -1177,8 +1186,17 @@ def _load_semantic_visual_catalog_v3(
     )
 
 
-def load_semantic_visual_catalog(root: str | Path) -> SemanticVisualCatalog:
+def load_semantic_visual_catalog(
+    root: str | Path, *, source_mode: str | None = None
+) -> SemanticVisualCatalog:
     catalog_root = Path(root).expanduser().resolve()
+    mode = source_mode or os.environ.get("JYD_SEMANTIC_VISUAL_SOURCE_MODE", "json")
+    if mode == "folders":
+        from .semantic_visual_folders import FolderCatalog
+
+        return FolderCatalog(catalog_root)
+    if mode != "json":
+        raise SemanticVisualCatalogError("未知的语义素材来源模式")
     manifest_path = catalog_root / "catalog.json"
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -2066,6 +2084,22 @@ def _choose_unused_asset(
     match_tier: str = "any",
 ) -> dict[str, Any] | None:
     assets = _assets_for_media_policy(catalog, concept_id, media_policy, usage=usage)
+    preferred_id = (candidate.get("_preferred_assets") or {}).get(concept_id)
+    preferred = catalog.asset(preferred_id) if preferred_id else None
+    if (
+        catalog.source_mode == "folders" and preferred is not None
+        and preferred.get("source_missing") is True
+        and preferred.get("folder_auto_eligible") is True
+        and concept_id in preferred.get("concept_ids", ())
+    ):
+        # Retired source files remain valid only for an already frozen choice,
+        # never for first-time automatic selection.
+        restored = {**preferred, "auto_eligible": True}
+        retained_catalog = SemanticVisualCatalog(
+            catalog.root, catalog.schema, catalog.library_id, catalog.catalog_version,
+            catalog.concepts, (restored,), source_mode="folders",
+        )
+        assets += _assets_for_media_policy(retained_catalog, concept_id, media_policy, usage=usage)
     if not assets:
         return None
     occurrence = _candidate_occurrence(mapped, candidate, concept_id)
@@ -2083,11 +2117,30 @@ def _choose_unused_asset(
             continue
         offset = occurrence % len(pool)
         ordered = [*pool[offset:], *pool[:offset]]
+        if catalog.source_mode == "folders":
+            from .semantic_food_matching import food_match_ranks
+
+            seed = str(candidate.get("_selection_seed") or "")
+            first_media = pool[0]["media_type"]
+            food_ranks = food_match_ranks(
+                pool, catalog.concepts, candidate, concept_id, usage=usage,
+            )
+            ordered = sorted(pool, key=lambda asset: (
+                str(asset["asset_id"]) != preferred_id,
+                food_ranks.get(str(asset["asset_id"]), (2, 0)),
+                asset["media_type"] != first_media,
+                hashlib.sha256((seed + ":" + str(candidate.get("candidate_id")) + ":" + asset["asset_id"]).encode()).hexdigest(),
+            ))
+        used_hashes = {
+            asset.get("content_sha256") for asset in catalog.assets
+            if asset["asset_id"] in used_asset_ids and asset.get("content_sha256")
+        } if catalog.source_mode == "folders" else set()
         chosen = next(
             (
                 asset
                 for asset in ordered
                 if str(asset["asset_id"]) not in used_asset_ids
+                and (not asset.get("content_sha256") or asset["content_sha256"] not in used_hashes)
                 and _asset_runtime_available(asset)
             ),
             None,
@@ -2386,10 +2439,24 @@ def build_visual_recipe(
     locked_overlays: Iterable[Mapping[str, Any]] = (),
     segment_boundaries: Iterable[Mapping[str, Any]] = (),
     final_video_duration_us: int | None = None,
+    previous_recipe: Mapping[str, Any] | None = None,
+    selection_seed: str = "",
 ) -> dict[str, Any]:
     """Build one priority-ordered, sentence-timed, video-level deduplicated recipe."""
 
     mapped = {str(item["candidate_id"]): dict(item) for item in mapped_candidates}
+    previous_recipe = previous_recipe or {}
+    if catalog.source_mode == "folders":
+        selection_seed = str(previous_recipe.get("selection_seed") or selection_seed or uuid.uuid4().hex)
+        preferred: dict[str, dict[str, str]] = {}
+        for overlay in previous_recipe.get("overlays", []):
+            if isinstance(overlay, Mapping) and overlay.get("enabled") is not False:
+                preferred.setdefault(str(overlay.get("candidate_id") or ""), {})[
+                    str(overlay.get("concept_id") or "")
+                ] = str(overlay.get("asset_id") or "")
+        for candidate_id, candidate in mapped.items():
+            candidate["_selection_seed"] = selection_seed
+            candidate["_preferred_assets"] = preferred.get(candidate_id, {})
     if final_video_duration_us is None:
         durations = [
             int(item["video_duration_us"])
@@ -2651,6 +2718,7 @@ def build_visual_recipe(
         "library_id": catalog.library_id or DEFAULT_LIBRARY_ID,
         "catalog_version": catalog.catalog_version,
         "media_policy": media_policy,
+        **({"selection_seed": selection_seed} if catalog.source_mode == "folders" else {}),
         "timing_policy_version": VISUAL_TIMING_POLICY_VERSION,
         "used_asset_ids": sorted(used_asset_ids),
         "overlays": overlays,
@@ -2690,6 +2758,7 @@ def frozen_visual_overlays(
         # Refresh only untouched automatic selections; manual/locked recipes remain frozen.
         if (
             current_catalog is not None
+            and current_catalog.source_mode != "folders"
             and overlay.get("selection_mode") == "auto"
             and overlay.get("manual") is not True
             and overlay.get("locked") is not True

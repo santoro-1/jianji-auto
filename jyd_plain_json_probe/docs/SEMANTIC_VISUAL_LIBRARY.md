@@ -1,5 +1,139 @@
 # 语义视觉素材库维护
 
+## 2026-08-31 本地测试：分类文件夹图库
+
+`start_test_processor.ps1` 默认使用 `folders` 模式，语义库单独指向
+`runtime/test_environment/libraries/semantic_visual_library`。正式启动默认仍为 `json`，
+本次不部署服务器，也不修改正式 `data/libraries`。文件夹模式的运行时不读取、合并或回退到
+旧 `catalog.json`（包括旧 quarantine JSON）；旧禁用记录只在首次整理时导入索引。
+
+```text
+runtime/test_environment/libraries/semantic_visual_library/
+  素材/
+    食物/
+      鸡蛋/
+        图片/*.png
+        视频/*.mp4
+      苹果/
+        图片/*.jpg
+    运动/跑步/视频/*.mp4
+    待分类/具体对象/图片/*.png
+  semantic_visual_index.db
+  generated/bundles/<内容摘要>/resources/sticker/singleImage.png
+  generated/videos/<内容摘要>/...
+  catalog.json      （保留，仅 json 模式读取）
+  bundles/ videos/ fixed/ （原目录均保留）
+```
+
+大类仅用于整理，小类名称是新增概念的关键词；已有小类继承旧 JSON 的精确概念、别名和
+语义约束，不把“食物”自动扩展成任意鸡蛋/苹果图。初次导入的前缀分类只是中间结果，
+应继续执行下方的核心食物归类；无法确定对象的素材才保留在“待分类”。图片支持 PNG/JPG/JPEG/WebP/BMP，视频支持
+MP4/MOV/MKV/WebM/M4V。普通图片自动生成兼容包，不需要手写 sticker.json。
+
+首次整理（复制，不删除或移动旧素材；重复执行不会覆盖已经整理好的分类）：
+
+```powershell
+$env:PYTHONPATH='src'
+D:\Myanaconda\python.exe -B -m jyd_probe.semantic_visual_folders migrate --source runtime/test_environment/libraries/semantic_visual_library --target runtime/test_environment/libraries/semantic_visual_library
+```
+
+### 核心食物归类（图片、视频共用）
+
+动作、烹饪方式和分量不再单独建食物小类：`吃鸡蛋 → 食物/鸡蛋`、
+`50克白米饭 → 食物/米饭`、`切芹菜 → 食物/芹菜`、`倒牛奶 → 饮品/牛奶`。
+混合菜按已审核名称中明确的食材多重归属，例如 `黄瓜炒鸡胸 → 黄瓜 + 鸡胸肉`、
+`黄瓜拌木耳 → 黄瓜 + 木耳`；原菜名、描述和标签不丢失。最长实体优先，不能把
+南瓜子拆成南瓜、菠萝蜜拆成菠萝，也不能把“水煮”的水当作额外食材。
+苹果型身材等非食物概念不参与食物拆分。旧名称明显错误时按已审核主体修正，
+不从菜谱常识推断画面里没有明确标明的食材。
+
+先关闭本地测试工作台，再执行（默认只预览；不读旧 JSON、不调用云端）：
+
+```powershell
+$env:PYTHONPATH='src'
+D:\Myanaconda\python.exe -B -m jyd_probe.semantic_food_reclassification --root runtime/test_environment/libraries/semantic_visual_library
+D:\Myanaconda\python.exe -B -m jyd_probe.semantic_food_reclassification --root runtime/test_environment/libraries/semantic_visual_library --apply
+```
+
+执行时逐文件移动，避免 Windows 占用顶层目录；只为新增食材归属补副本。
+稳定 asset ID、内容摘要、历史渲染资源、视频裁切/用途/署名/禁用状态不变；
+更新 concept 归属、语义角色和 video taxonomy 的 exact 概念 ID，不扩大视频用途权限。
+同内容跨食材文件夹仍不在同一视频重复使用。
+
+`reclassification_backups/<时间>/` 保存小型索引备份、变更清单、恢复记录及被合并的冗余分类
+副本，不完整复制媒体库。不删除任何原始媒体，只清理已空的旧分类目录。
+异常自动恢复；进程意外中断时索引标记阻止启用半成品，可在关闭工作台后执行：
+
+```powershell
+D:\Myanaconda\python.exe -B -m jyd_probe.semantic_food_reclassification --root runtime/test_environment/libraries/semantic_visual_library --rollback <本次返回的backup目录>
+```
+
+归类后若用户已改变索引或原素材，恢复会拒绝覆盖，需人工核对。不要删除恢复记录。
+同版本 `--apply` 重复执行不重分类，不覆盖后续手工维护的文件夹。
+
+### 按菜名优先选材（文件夹模式）
+
+`semantic_food_matching.py` 在现有合格候选内排序，不新增大模型请求、不读取图片识别，
+不改变文件夹结构或索引。首次选材顺序：
+
+1. 原菜名精确匹配，兼容“青瓜/黄瓜”“鸡胸/鸡胸肉”“番茄/西红柿”等明确别名及文件编号。
+   保留烹饪方式，不把“煎蛋”和“水煮蛋”视为同一道菜。
+2. 没有可用同名菜时，找同时包含该菜全部明确食材的素材；已有导入素材按审核后的自动概念归属，
+   新放入文件夹的素材也可使用明确菜名补充食材信息。非自动 `related` 和宽泛标签不参与组合匹配。
+3. 没有可用组合时，回到模型已选中主概念的候选中随机；全部不可用或已用过就跳过。
+
+同一匹配档保留媒体偏好并按行种子随机。`mixed` 中同名菜视频优先于普通食材图片，
+但同名菜图片与视频都有时仍按原有食物图片优先策略；仅图片/仅视频和用途限制不变。
+顿号列举只比较当前项，不拼成一道菜；相邻句、替代选项、两道菜之间不借用食材。
+已有冻结选择和人工锁定项优先保留；加素材、刷新或重绑时间不自动换掉原配方。
+此优先级只用于明确语义贴图/小窗视频和列举，不修改普通空镜、接缝空镜及 JSON 模式的规则。
+素材名称不清楚时仍可按食材类别兜底；这不是实时识图，新素材名称和放置文件夹仍需人工保证与画面一致。
+
+日常只向“素材/大类/小类/图片或视频”添加文件；访问图库或开始语义分析时扫描，最多约
+5 秒刷新间隔，无需重启。只对新增/改变的源文件计算摘要、探测视频、生成兼容缓存。
+文件列表、时间戳及索引未变时复用已验证目录，不重复全量构建；首次整理中断时保留标记，
+运行时拒绝启用半成品，重新执行 migrate 可继续。
+新增视频默认静音、只播放一次、从 0 开始最多 3 秒的小窗，不能自动全屏或遮挡接缝；原有
+已审核视频的裁切起点、可用时长、静音、署名、用途白名单、taxonomy 和禁用状态全部保留。
+库中视频能否实际出现在成片仍由原有语义判断和媒体策略决定，不是每个关键词必定加视频。
+
+```powershell
+# 强制扫描并显示索引统计（无云端请求）
+D:\Myanaconda\python.exe -B -m jyd_probe.semantic_visual_folders scan --root runtime/test_environment/libraries/semantic_visual_library
+# 启动文件夹测试模式：http://127.0.0.1:8001/app/new
+.\start_test_processor.ps1
+# 可逆切回旧 JSON，仅影响测试工作台
+.\start_test_processor.ps1 -SemanticVisualSource json
+```
+
+SQLite 保存稳定 concept/asset ID、别名、审核元数据、文件归属和内容摘要，不需要维护另一份
+逐文件 JSON。扫描在事务中发布，单个损坏/复制中的文件跳过，整个扫描失败时继续使用上次
+有效快照，不退回旧 JSON。相同内容跨小类绑定仍按内容去重；同一视频不重复用相同字节素材。
+第一次选材按脚本行种子随机选择，种子及已选素材写入 recipe；加素材、刷新、重启、重新对齐
+字幕不会打乱已有选择。移动整个小类目录可沿用原概念 ID，并增加新目录名作为别名。
+
+删除源文件只停止新选择，不删除生成缓存；已冻结配方继续使用原文件、原位置、原视频范围。
+修改源文件创建新的内容版本，不覆盖历史缓存。不得手动清理 generated 或索引；迁移电脑时
+复制整个语义库。启动切换模式不会批量重写历史项目，既有成片不会自动重渲染。
+
+实现：`semantic_visual_folders.py`、`semantic_food_categories.py`、`semantic_food_reclassification.py`、
+`semantic_food_matching.py`；回归：`tests/test_semantic_visual_folders.py`、
+`tests/test_semantic_food_reclassification.py`、`tests/test_semantic_food_matching.py`。
+
+本机首次整理结果：927 张图片、527 条视频，共复制 1559 个分类文件（多概念素材会出现在
+多个小类），正常索引 1453 个资产、1402 个可自动选用资产。旧图
+`review.u2015.image.d08be59189`（骑自行车）PNG 不完整且无法解码，原文件和 metadata 保存在
+分类目录及索引 `rejected_sources`，暂不启用，不影响其余图库。不能把 1453 与 1454 的差额
+误认为丢失素材。新增/复制中的坏文件按文件版本记录，仅在文件改变后重新尝试。
+本轮分类副本约 5.758 GiB，兼容缓存约 5.284 GiB（仅本机测试磁盘）；原库未删除。
+
+随后核心食物重分类调整了 765 条资产的归属，现有 1986 个分类文件（包含 1 个原有损坏文件），
+正常资产仍为 1453 个、自动可选仍为 1402 个。多食材归属额外复制约 1.851 GiB；
+7 个合并后多余的分类副本移到本次恢复目录，没有删除素材。
+“待分类”只剩原有 4 个“仅手动素材”，不因重新整理而开放自动选用。
+
+## 原有 JSON 模式
+
 语义图片与视频共用同一素材库：
 
 ```text

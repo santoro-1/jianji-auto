@@ -16,7 +16,10 @@ from jyd_probe.project_h3 import (  # noqa: E402
     ProjectH3Coordinator,
     current_h3_segment_preview_path,
 )
-from jyd_probe.project_h3_media import H3MediaAssets  # noqa: E402
+from jyd_probe.project_h3_media import (  # noqa: E402
+    H3MediaAssets,
+    H3_VISUAL_DISSOLVE_SECONDS,
+)
 from jyd_probe.project_store import ProjectStore  # noqa: E402
 
 
@@ -212,6 +215,9 @@ def fake_media_preparer(
             for index, text in enumerate(segment_texts)
         ),
         segment_durations_seconds=tuple(1.0 for _ in segment_texts),
+        visual_dissolve_seconds=(
+            H3_VISUAL_DISSOLVE_SECONDS if len(segment_texts) > 1 else 0.0
+        ),
     )
 
 
@@ -1159,7 +1165,7 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     assert client.prepared["rows"][0]["reference_image_asset_ids"] == [
         "cloud-image-1"
     ]
-    assert client.prepared["reference_image_asset_ids"] == ["cloud-image-1"]
+    assert client.prepared["reference_image_asset_ids"] == []
     assert client.prepared["defaults"]["continuity_mode"] == "loop_anchor"
     assert client.prepared["defaults"]["generation_tail_seconds"] == pytest.approx(0.1)
     assert client.prepared["rows"][0]["overrides"] == {
@@ -1341,7 +1347,7 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
     assert client.prepared["rows"][0]["audio_generation_version"] == 3
 
 
-def test_h3_uses_the_script_snapshot_bound_to_minimax_audio() -> None:
+def test_h3_rejects_audio_snapshot_that_differs_from_current_script() -> None:
     cue_script = "第一句，第二句？"
     item = {
         "row_key": "1",
@@ -1354,4 +1360,100 @@ def test_h3_uses_the_script_snapshot_bound_to_minimax_audio() -> None:
         }
     }
 
-    assert ProjectH3Coordinator._audio_bound_script(item, audio) == cue_script
+    with pytest.raises(ValueError, match="当前脚本与已生成声音不一致"):
+        ProjectH3Coordinator._audio_bound_script(item, audio)
+
+
+@pytest.mark.parametrize("separate_batches", [False, True])
+@pytest.mark.parametrize("broken_row", [0, 1])
+@pytest.mark.parametrize("failure", ["script", "disk"])
+def test_h3_local_error_does_not_block_other_rows(
+    tmp_path: Path, separate_batches: bool, broken_row: int, failure: str,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1", owner_username="tester", name="逐行隔离",
+        items=[{"row_key": str(i + 1), "script_text": f"当前第{i + 1}条。"} for i in range(2)],
+    )
+    project_id = project["project_id"]
+    client = MultiBatchFakeH3Client()
+    for i, item in enumerate(project["items"]):
+        batch_id = f"batch-{i if separate_batches else 0}"
+        snapshot = client.snapshots.setdefault(batch_id, {"batch_id": batch_id, "status": "SUCCESS", "items": []})
+        snapshot["items"].append({
+            "row_id": item["row_key"], "item_id": f"remote-{i}", "status": "SUCCESS",
+            "segments": [{
+                "index": 0, "segment_id": f"segment-{i}", "status": "SUCCESS",
+                "script_text": "旧稿。" if failure == "script" and i == broken_row else item["script_text"],
+                "normalized_video_download_url": f"/segment-{i}/video",
+            }],
+        })
+    for snapshot in client.snapshots.values():
+        store.set_h3_batch_snapshot("user-1", project_id, prepare_key=snapshot["batch_id"], snapshot=snapshot)
+    calls = []
+
+    def prepare(**kwargs):
+        calls.append(kwargs["script_text"])
+        if failure == "disk" and kwargs["script_text"] == project["items"][broken_row]["script_text"]:
+            raise OSError("测试磁盘错误")
+        return fake_media_preparer(**kwargs)
+
+    coordinator = ProjectH3Coordinator(store, client, storage_root=tmp_path / "storage", media_preparer=prepare)
+    result = coordinator.sync("user-1", project_id, "token")["project"]
+    good = result["items"][1 - broken_row]
+    bad = result["items"][broken_row]
+    assert good["status"] == "BASE_VIDEO_READY"
+    assert good["allowed_actions"]["start_postprocess"] is True
+    assert bad["status"] == "H3_REVIEW_REQUIRED"
+    assert bad["outputs"]["base_video"] is None
+    assert bad["settings"]["h3"]["segments"][0]["local_preview_ready"] is True
+    error = bad["settings"]["h3"]["materialization_error"]
+    assert error["requires_input_change"] is (failure == "script")
+    assert client.prepared is None
+    assert client.approvals == []
+    before_calls = list(calls)
+    second = coordinator.sync("user-1", project_id, "token")["project"]
+    assert second["items"][1 - broken_row]["outputs"]["base_video"]["asset_id"] == good["outputs"]["base_video"]["asset_id"]
+    if failure == "script":
+        assert calls == before_calls
+        assert second["items"][broken_row]["status"] == "H3_REVIEW_REQUIRED"
+    else:
+        coordinator.media_preparer = fake_media_preparer
+        recovered = coordinator.sync("user-1", project_id, "token")["project"]
+        assert recovered["items"][broken_row]["status"] == "BASE_VIDEO_READY"
+        assert not recovered["items"][broken_row]["settings"]["h3"]["materialization_error"]
+
+
+def test_h3_prepare_checks_script_before_approval(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(owner_user_id="user-1", owner_username="tester", name="原稿检查", items=[{"row_key": "1", "script_text": "新稿"}])
+    store.set_h3_configuration("user-1", project["project_id"], identity_image_ids=[], defaults={"continuity_mode": "fast"})
+    store.add_asset(
+        owner_user_id="user-1", project_id=project["project_id"], item_id=project["items"][0]["item_id"],
+        asset_type="audio", source_type="minimax", status="READY", filename="old.mp3",
+        metadata={"script_sha256": hashlib.sha256("旧稿".encode()).hexdigest()}, make_current=True,
+    )
+    client = FakeH3Client()
+    coordinator = ProjectH3Coordinator(store, client)
+    with pytest.raises(ValueError, match="当前脚本与已生成声音不一致"):
+        coordinator.prepare("user-1", project["project_id"], "token", idempotency_key="preflight", selected_account_ids=[1])
+    assert client.approvals == []
+    assert client.uploads == []
+    assert client.prepared is None
+
+
+def test_h3_invalidated_result_cannot_replace_new_audio(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(owner_user_id="user-1", owner_username="tester", name="旧结果隔离", items=[{"row_key": "1", "script_text": "原稿"}])
+    project_id, item_id = project["project_id"], project["items"][0]["item_id"]
+    snapshot = {"batch_id": "old-batch", "status": "SUCCESS", "items": [{"row_id": "1", "item_id": "old-item", "status": "SUCCESS", "segments": []}]}
+    store.set_h3_batch_snapshot("user-1", project_id, prepare_key="old", snapshot=snapshot)
+    store.prepare_item_audio_generation("user-1", project_id, item_id)
+    synced = store.set_h3_batch_snapshot("user-1", project_id, prepare_key="old", snapshot=snapshot)
+    assert synced["items"][0]["status"] == "DRAFT"
+    assert synced["items"][0]["settings"]["h3"]["invalidated_reason"] == "AUDIO_VERSION_CHANGED"
+    new_snapshot = {"batch_id": "new-batch", "status": "ACTIVE", "items": [{"row_id": "1", "item_id": "new-item", "status": "RUNNING", "segments": []}]}
+    store.set_h3_batch_snapshot("user-1", project_id, prepare_key="new", snapshot=new_snapshot)
+    synced = store.set_h3_batch_snapshot("user-1", project_id, prepare_key="old", snapshot=snapshot)
+    assert synced["items"][0]["settings"]["h3"]["remote_item_id"] == "new-item"
+    assert synced["items"][0]["status"] == "H3_RUNNING"

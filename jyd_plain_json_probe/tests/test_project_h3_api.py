@@ -322,6 +322,11 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 )
                 assert second_segment_preview.status_code == 200
                 assert second_segment_preview.content == b"h3-source-segment-2"
+                mismatched_segment_preview = client.get(
+                    f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/1/preview",
+                    params={"segment_id": "another-segment"},
+                )
+                assert mismatched_segment_preview.status_code == 404
                 missing_segment = client.get(
                     f"/api/new/projects/{project_id}/items/{item_id}/h3-segments/3/preview"
                 )

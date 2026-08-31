@@ -1762,8 +1762,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             f"{project_store.startup_recovered_analysis_count} 条中断或超时的分析恢复为可重试",
             flush=True,
         )
-    visual_refresh = refresh_saved_visual_plans_for_catalog(
-        project_store, semantic_visual_catalog
+    # A test-library switch must not rewrite historical project recipes at boot.
+    visual_refresh = (
+        {"scanned": 0, "remapped": 0, "retryable": 0, "failed": 0}
+        if semantic_visual_catalog.source_mode == "folders"
+        else refresh_saved_visual_plans_for_catalog(project_store, semantic_visual_catalog)
     )
     if visual_refresh["scanned"]:
         print(
@@ -3331,6 +3334,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             max_video_bytes=settings.max_video_upload_bytes,
             caption_aligner=caption_aligner,
             require_precise_alignment=settings.asr_required,
+            head_cleanup_enabled=True,
         )
 
     @app.get("/api/new/h3/accounts")
@@ -3340,6 +3344,17 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             return project_h3_coordinator(client).accounts(token)
         except AuthCenterError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/h3/segments/{segment_id}/audio-cleanup/retry")
+    def retry_new_h3_audio_cleanup(project_id: str, segment_id: str, request: Request) -> dict[str, Any]:
+        user = current_project_user(request)
+        try:
+            # Local identity/access checks only. This route cannot submit H3 jobs.
+            return {"cleanup": project_h3_coordinator(auth_center).retry_local_head_cleanup(user["user_id"], project_id, segment_id)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.put("/api/new/projects/{project_id}/h3/settings")
     def update_new_project_h3_settings(
@@ -4718,6 +4733,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         item_id: str,
         segment_number: int,
         request: Request,
+        segment_id: str | None = None,
     ) -> FileResponse:
         """Serve one local H3 source segment without exposing cloud credentials."""
 
@@ -4729,6 +4745,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 item_id=item_id,
                 segment_number=segment_number,
                 storage_root=settings.storage_root,
+                expected_segment_id=segment_id,
             )
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -4832,6 +4849,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     item_id=item_id,
                     segment_number=segment_number,
                     storage_root=settings.storage_root,
+                    original=True,
                 )
             except (FileNotFoundError, KeyError, ValueError) as exc:
                 raise HTTPException(

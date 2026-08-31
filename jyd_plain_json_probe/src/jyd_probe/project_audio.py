@@ -149,6 +149,7 @@ class ProjectAudioCoordinator:
         resolution: str = "1024",
         idempotency_key: str,
         item_ids: list[str] | None = None,
+        force_regenerate: bool = False,
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
         if not idempotency_key.strip():
@@ -178,7 +179,7 @@ class ProjectAudioCoordinator:
             # asset is reused instead of creating another paid TTS version.
             selected_items = [
                 item for item in selected_items
-                if item.get("outputs", {}).get("audio") is None
+                if force_regenerate or item.get("outputs", {}).get("audio") is None
             ]
             if not selected_items:
                 return project
@@ -366,6 +367,9 @@ class ProjectAudioCoordinator:
                                 str(item["script_text"]).encode("utf-8")
                             ).hexdigest(),
                             "script_length": len(str(item["script_text"])),
+                            "voice_asset_id": voice_id,
+                            "speech_settings": speech,
+                            "resolution": digital_human_resolution,
                         },
                     )
                     self.store.transition_audio_operation(
@@ -459,6 +463,19 @@ class ProjectAudioCoordinator:
                     continue
                 if provider_status == "AWAITING_REVIEW" and remote_item.get("audio_ready"):
                     local_item = local_by_item[local_item_id]
+                    bound_hash = str(link.get("metadata", {}).get("script_sha256") or "")
+                    current_hash = hashlib.sha256(
+                        str(local_item["script_text"]).encode("utf-8")
+                    ).hexdigest()
+                    if bound_hash and bound_hash != current_hash:
+                        if local_item_id in active_item_ids:
+                            self.store.transition_audio_operation(
+                                owner_user_id, project_id, local_item_id,
+                                status="FAILED", item_status="AUDIO_FAILED",
+                                error_code="AUDIO_SCRIPT_MISMATCH",
+                                error_message="当前脚本与声音任务不一致，请重新生成声音",
+                            )
+                        continue
                     speed = _audio_speed(project, local_item_id)
                     generation_version = int(remote_item.get("generation_version") or 1)
                     captions = remote_item.get("captions")
@@ -487,6 +504,7 @@ class ProjectAudioCoordinator:
                             / project_id
                             / local_item_id
                             / "audio"
+                            / hashlib.sha256(batch_id.encode("utf-8")).hexdigest()[:24]
                         )
                         target = directory / f"v{generation_version}.mp3"
                         temporary = target.with_suffix(".mp3.tmp")
@@ -631,6 +649,8 @@ class ProjectAudioCoordinator:
         settings: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         project = self.store.get_project(owner_user_id, project_id)
+        if not idempotency_key.strip():
+            raise ValueError("声音生成请求缺少幂等键")
         speech = _speech_settings(settings)
         matching_links = [
             link
@@ -645,6 +665,43 @@ class ProjectAudioCoordinator:
         batch_id = str(link.get("metadata", {}).get("batch_id") or "")
         if not batch_id:
             raise ValueError("声音任务缺少数字人批次编号")
+        item = next(value for value in project["items"] if value["item_id"] == item_id)
+        metadata = link.get("metadata", {})
+        batch_link = next(
+            (value for value in project["links"]
+             if value.get("relation") == "digital_human_audio_batch"
+             and value.get("external_id") == batch_id),
+            {},
+        )
+        previous_voice = str(metadata.get("voice_asset_id")
+                             or batch_link.get("metadata", {}).get("voice_asset_id") or "")
+        voice_id = str(item.get("settings", {}).get("voice_asset_id") or previous_voice)
+        previous_speech = metadata.get("speech_settings")
+        if not isinstance(previous_speech, dict):
+            previous_speech = next(
+                (op.get("payload", {}).get("speech_settings", {})
+                 for op in reversed(project.get("operations", []))
+                 if op.get("item_id") == item_id
+                 and op.get("operation_type") == "AUDIO_GENERATE"
+                 and op.get("payload", {}).get("script_sha256") == metadata.get("script_sha256")),
+                {},
+            )
+        script_hash = hashlib.sha256(str(item["script_text"]).encode("utf-8")).hexdigest()
+        if (
+            script_hash != metadata.get("script_sha256")
+            or voice_id != previous_voice
+            or any(previous_speech.get(key) != value for key, value in speech.items() if key != "speed")
+        ):
+            # Remote retry changes speed only; changed inputs need a new immutable task.
+            return self.start(
+                owner_user_id, project_id, token,
+                default_voice_asset_id=voice_id,
+                voice_assignments={item_id: voice_id},
+                settings=settings,
+                resolution=str(metadata.get("resolution") or "1024"),
+                idempotency_key=idempotency_key,
+                item_ids=[item_id], force_regenerate=True,
+            )
         self.store.prepare_item_audio_generation(
             owner_user_id, project_id, item_id
         )
@@ -658,6 +715,8 @@ class ProjectAudioCoordinator:
                 "retry": True,
                 "remote_item_id": link["external_id"],
                 "speech_settings": speech,
+                "script_sha256": script_hash,
+                "voice_asset_id": voice_id,
             },
         )
         self.client.retry_workbench_audio(

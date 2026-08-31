@@ -1,10 +1,12 @@
-param(
+﻿param(
     [string]$Python = "D:\Myanaconda\python.exe",
     [string]$HostAddress = "127.0.0.1",
     [int]$Port = 8001,
     [string]$DraftRoot = "",
     [ValidateSet("embedded", "agent")]
     [string]$ExecutionMode = "embedded",
+    [ValidateSet("folders", "json")]
+    [string]$SemanticVisualSource = "folders",
     [switch]$ResetData
 )
 
@@ -35,6 +37,11 @@ $env:JYD_AUDIO_LIBRARY_ROOT = Join-Path $Test.Libraries "audio_library"
 $env:JYD_EFFECT_LIBRARY_ROOT = Join-Path $Test.Libraries "effect_library"
 $env:JYD_FONT_LIBRARY_ROOT = Join-Path $Test.Libraries "font_library"
 $env:JYD_STICKER_LIBRARY_ROOT = Join-Path $Test.Libraries "sticker_library"
+$env:JYD_SEMANTIC_VISUAL_LIBRARY_ROOT = Join-Path $Test.Libraries "semantic_visual_library"
+$env:JYD_SEMANTIC_VISUAL_SOURCE_MODE = $SemanticVisualSource
+if ($SemanticVisualSource -eq "folders" -and -not (Test-Path -LiteralPath (Join-Path $env:JYD_SEMANTIC_VISUAL_LIBRARY_ROOT "semantic_visual_index.db") -PathType Leaf)) {
+    throw "测试文件夹图库尚未初始化。请按 docs/SEMANTIC_VISUAL_LIBRARY.md 的首次整理命令执行，或使用 -SemanticVisualSource json 临时恢复旧测试图库。"
+}
 $env:JYD_TEXT_EFFECT_LIBRARY_ROOT = Join-Path $Test.Libraries "text_effect_library"
 $env:JYD_TEXT_STYLE_LIBRARY_ROOT = Join-Path $Test.Libraries "text_style_library"
 $env:JYD_TEXT_TEMPLATE_LIBRARY_ROOT = Join-Path $Test.Libraries "text_template_library"
@@ -47,6 +54,7 @@ $env:JYD_AUTH_AUTHORITY = "false"
 
 Write-Host ('[TEST] Website: http://127.0.0.1:{0}/app' -f $Port)
 Write-Host ('[TEST] Data root: {0}' -f $Test.Root)
+Write-Host ('[TEST] Semantic library: {0} ({1})' -f $env:JYD_SEMANTIC_VISUAL_LIBRARY_ROOT, $SemanticVisualSource)
 Write-Host '[TEST] Production data will not be modified.'
 $Launcher = Join-Path $ProjectRoot 'apps\processor\run_web_api.py'
 & $Python -u $Launcher --host $HostAddress --port $Port

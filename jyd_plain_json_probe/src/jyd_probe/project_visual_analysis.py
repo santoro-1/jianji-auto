@@ -408,6 +408,8 @@ class ProjectVisualAnalysisCoordinator:
                             decisions=result["decisions"],
                             media_policy="mixed",
                             locked_overlays=locked,
+                            previous_recipe=target.previous.get("recipe"),
+                            selection_seed=target.item_id,
                         )
                         self.store.complete_item_visual_analysis(
                             owner_user_id,
@@ -578,6 +580,8 @@ class ProjectVisualAnalysisCoordinator:
                             locked_overlays=manual,
                             segment_boundaries=target.visual_input.segment_boundaries or [],
                             final_video_duration_us=target.visual_input.video_duration_us,
+                            previous_recipe=target.visual_input.previous.get("recipe"),
+                            selection_seed=target.item_id,
                         )
                         merged_recipe = self._merge_seam_recipe(
                             target.visual_input.previous, seam_recipe

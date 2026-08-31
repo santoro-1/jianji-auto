@@ -203,6 +203,7 @@ def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
         remove_existing_effects=_as_bool(_value(config, "remove_existing_effects", default=False)),
         timeline_duration_us=requested_timeline_duration_us,
         template_timeline_duration_us=source_timeline_duration_us,
+        main_video_sequence=_dict_value(config.get("main_video_sequence")),
     )
 
     replace_result = run_content_replace_job(content_job)

@@ -23,7 +23,14 @@ apps/
 src/jyd_probe/                    共用核心代码
 src/jyd_probe/project_store.py    新版统一项目、素材版本、操作和外部批次关联
 src/jyd_probe/project_inputs.py   新版四列 Excel/CSV、历史两列兼容解析及输入图片校验
+src/jyd_probe/semantic_visual_folders.py 文件夹语义图库整理、SQLite 增量索引、图片/视频兼容缓存
+src/jyd_probe/semantic_food_categories.py 核心食物实体、动作/分量归并、混合菜多食材归属
+src/jyd_probe/semantic_food_matching.py 文件夹模式下的菜名精确匹配、食材组合及主食材分层选材
+src/jyd_probe/semantic_food_reclassification.py 现有文件夹索引的显式归类、逐文件移动和可恢复记录
 src/jyd_probe/project_audio.py    新版音色校验、数字人音频批次编排、状态同步和版本落盘
+src/jyd_probe/h3_audio_cleanup.py H3 原片逐段本地 ASR、等长片头静音、派生缓存和后台处理队列
+src/jyd_probe/h3_video_segments.py H3 不可变原片快照、有序版本清单与完整性校验
+src/jyd_probe/video_sequence_apply.py 账号模板主视频槽的原生独立片段替换
 src/jyd_probe/project_variants.py 新版变体配方冻结、最大差异组合、剪映批次和失败重试
 src/jyd_probe/project_results.py  新版成果批次目录、原始脚本归档和真实成果查询
 tests/test_new_frontend.py        新版路由、登录会话、退出和安全返回测试

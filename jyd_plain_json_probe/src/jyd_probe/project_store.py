@@ -39,6 +39,7 @@ PROJECT_ITEM_STATUSES = {
     "H3_QUEUED",
     "H3_RUNNING",
     "H3_FAILED",
+    "H3_REVIEW_REQUIRED",
     "COMPOSITION_QUEUED",
     "DIGITAL_HUMAN_RUNNING",
     "VIDEO_ENHANCING",
@@ -87,6 +88,7 @@ IMAGE_EDITABLE_ITEM_STATUSES = EDITABLE_ITEM_STATUSES
 FAILED_ITEM_STATUSES = {
     "AUDIO_FAILED",
     "H3_FAILED",
+    "H3_REVIEW_REQUIRED",
     "COMPOSITION_FAILED",
     "VARIANT_FAILED",
 }
@@ -94,6 +96,14 @@ FAILED_ITEM_STATUSES = {
 
 class ProjectRevisionConflict(ValueError):
     """The caller edited an older project revision."""
+
+
+def _invalidate_h3_result(settings: dict[str, Any], reason: str) -> dict[str, Any]:
+    result = dict(settings)
+    h3 = result.get("h3")
+    if isinstance(h3, dict) and h3.get("remote_batch_id"):
+        result["h3"] = {**h3, "invalidated_reason": reason, "materialization_error": {}}
+    return result
 
 
 def _now() -> str:
@@ -1605,6 +1615,8 @@ class ProjectStore:
             if settings is not None:
                 if not isinstance(settings, dict):
                     raise ValueError("脚本行设置必须是对象")
+                if script_changed:
+                    settings = _invalidate_h3_result(settings, "SCRIPT_CHANGED")
                 if settings != _object(item["settings_json"], {}):
                     updates.append("settings_json=?")
                     values.append(_json(settings))
@@ -1659,6 +1671,7 @@ class ProjectStore:
                         invalidated_settings = _invalidate_auto_music_selection(
                             _object(item["settings_json"], {}), "SCRIPT_CHANGED"
                         )
+                        invalidated_settings = _invalidate_h3_result(invalidated_settings, "SCRIPT_CHANGED")
                         updates.append("settings_json=?")
                         values.append(_json(invalidated_settings))
                 updates.append("updated_at=?")
@@ -2142,6 +2155,7 @@ class ProjectStore:
             settings = _invalidate_auto_music_selection(
                 _object(item["settings_json"], {}), "AUDIO_VERSION_CHANGED"
             )
+            settings = _invalidate_h3_result(settings, "AUDIO_VERSION_CHANGED")
             now = _now()
             connection.execute(
                 """
@@ -2204,9 +2218,9 @@ class ProjectStore:
         if cover_title is not None and not isinstance(cover_title, dict):
             raise ValueError("封面标题必须是对象")
         if automatic_bgm_volume is not None and not (
-            0.0 <= float(automatic_bgm_volume) <= 1.0
+            0.0 <= float(automatic_bgm_volume) <= 2.0
         ):
-            raise ValueError("自动 BGM 音量必须在 0 到 1 之间")
+            raise ValueError("自动 BGM 音量必须在 0 到 2 之间")
         if bgm_loudness is not None and not isinstance(bgm_loudness, dict):
             raise ValueError("BGM 响度快照必须是对象")
         if jianying_template is not None and not isinstance(jianying_template, dict):
@@ -3966,6 +3980,29 @@ class ProjectStore:
             self._refresh_project_status(connection, project_id, now=now)
         return True
 
+    def set_h3_materialization_error(
+        self, owner_user_id: str, project_id: str, item_id: str,
+        *, error: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            settings = _object(item["settings_json"], {})
+            h3 = settings.get("h3", {})
+            settings["h3"] = {**h3, "materialization_error": error or {}}
+            status = str(item["status"])
+            if error:
+                status = "H3_REVIEW_REQUIRED"
+            elif status == "H3_REVIEW_REQUIRED":
+                status = "BASE_VIDEO_READY" if item["current_base_video_asset_id"] else "H3_RUNNING"
+            now = _now()
+            connection.execute(
+                "UPDATE project_items SET settings_json=?, status=?, updated_at=? WHERE item_id=?",
+                (_json(settings), status, now, item_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        return self.get_project(owner_user_id, project_id)
+
     def set_h3_batch_snapshot(
         self,
         owner_user_id: str,
@@ -4092,9 +4129,21 @@ class ProjectStore:
                 # untouched. Never inherit the project-level remote status here.
                 if remote is None:
                     continue
+                item_settings = _object(item["settings_json"], {})
+                item_h3 = item_settings.get("h3") or {}
+                item_batch_id = str(item_h3.get("remote_batch_id") or "")
+                if (
+                    (existing and item_batch_id and item_batch_id != remote_batch_id)
+                    or (item_batch_id == remote_batch_id and item_h3.get("invalidated_reason"))
+                ):
+                    continue
                 remote_item_status = str(remote.get("status") or remote_status).upper()
+                if remote_item_status != "SUCCESS" or item_batch_id != remote_batch_id:
+                    item_h3 = {**item_h3, "materialization_error": {}}
                 current_item_status = str(item["status"])
-                if current_item_status in H3_DOWNSTREAM_ITEM_STATUSES:
+                if item_h3.get("materialization_error"):
+                    item_status = "H3_REVIEW_REQUIRED"
+                elif current_item_status in H3_DOWNSTREAM_ITEM_STATUSES:
                     item_status = current_item_status
                 elif item["current_base_video_asset_id"]:
                     subtitles = _object(item["subtitles_json"], _default_subtitles())
@@ -4125,12 +4174,6 @@ class ProjectStore:
                     item_status = "H3_RUNNING"
                 else:
                     item_status = str(item["status"])
-                item_settings = _object(item["settings_json"], {})
-                item_h3 = (
-                    item_settings.get("h3")
-                    if isinstance(item_settings.get("h3"), dict)
-                    else {}
-                )
                 item_settings["h3"] = {
                     **item_h3,
                     "remote_item_id": remote.get("item_id"),
@@ -6315,6 +6358,11 @@ class ProjectStore:
                 for asset in assets
                 if asset["asset_type"] == "original_video_segment"
             ]
+            if current_base_video and current_base_video.get("source_type") == "h3":
+                # Downloads and draft planning consume the exact current H3
+                # manifest. Older/regenerating versions remain in asset_history.
+                bound_ids = set(current_base_video.get("metadata", {}).get("source_segment_asset_ids") or [])
+                original_segments = [asset for asset in original_segments if asset["asset_id"] in bound_ids]
             subtitles = _object(row["subtitles_json"], _default_subtitles())
             item_settings = _object(row["settings_json"], {})
             item_payload = {
@@ -6463,6 +6511,7 @@ class ProjectStore:
             "start_composition": audio_ready and not base_video_ready and not active,
             "retry_composition": status == "COMPOSITION_FAILED" and not base_video_ready,
             "backfill_seedvr2": bool(latest_segments_by_index)
+            and (outputs["base_video"] or {}).get("source_type") != "h3"
             and not seedvr2_ready
             and not active,
             "start_postprocess": base_video_ready and not composition_ready and not active,

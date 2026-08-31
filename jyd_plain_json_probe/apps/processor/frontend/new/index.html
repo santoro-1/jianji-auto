@@ -502,7 +502,6 @@
         </div>
     </div>
 
-    <!-- H3 source-segment review modal: five cards per desktop row, vertical wrap only. -->
     <div id="h3-segment-preview-modal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300 px-3 sm:px-4" role="dialog" aria-modal="true" aria-labelledby="h3-segment-preview-title">
         <div class="glass-panel-heavy flex w-full max-w-[1500px] max-h-[92vh] flex-col overflow-hidden rounded-2xl border border-white/10 shadow-2xl transform scale-95 transition-all duration-300">
             <div class="flex items-start justify-between gap-4 border-b border-white/5 px-5 py-4">
@@ -1141,6 +1140,8 @@
         let h3StatusPollTimer = null;
         const h3FailureToastSignatures = new Map();
         let isGeneratingH3 = false;
+        let h3PreparationStatus = '';
+        let h3PreparationError = '';
         let ltxEngineState = { items: [], active: false };
         let ltxStatusPollTimer = null;
         let isGeneratingLtx = false;
@@ -1225,8 +1226,12 @@
         const previewBgmAudios = [new Audio(), new Audio()];
         const previewBgmAudio = previewBgmAudios[0];
         const PREVIEW_BGM_CROSSFADE_SECONDS = 0.2;
-        let previewBgmBaseVolume = 0.18;
+        let previewBgmBaseVolume = 0.3162;
         let previewBgmAnimationFrame = null;
+        let previewBgmAudioContext = null;
+        let previewBgmAudioSources = [];
+        let previewBgmGainNodes = [];
+        let previewBgmMasterCompressor = null;
         previewBgmAudios.forEach((audio) => {
             audio.preload = 'metadata';
             audio.loop = false;
@@ -2209,6 +2214,7 @@
 
         function h3ItemIsActive(item, { includeQuote = false } = {}) {
             const h3 = item?.settings?.h3 || item?.h3Settings || {};
+            if (h3.invalidated_reason || h3.materialization_error?.requires_input_change) return false;
             const itemStatus = String(h3.remote_status || '').toUpperCase();
             const localStatus = String(item?.status || item?.compositionStatus || '').toUpperCase();
             if (includeQuote && (itemStatus === 'AWAITING_COST_CONFIRMATION' || localStatus === 'H3_COST_PENDING')) return true;
@@ -2238,6 +2244,9 @@
                 const actions = item?.allowed_actions || {};
                 return Boolean(item?.settings?.h3?.remote_batch_id)
                     && h3OutputFileAvailable(item?.outputs?.base_video)
+                    && item?.outputs?.audio?.metadata?.head_cleanup_version === 'jyd.h3-head-silence.v1'
+                    && h3VideoSequenceReady(item)
+                    && (item?.settings?.h3?.segments || []).every((segment) => segment?.local_audio_cleanup?.status === 'READY')
                     && Boolean(actions.start_postprocess);
             });
         }
@@ -2246,19 +2255,40 @@
             return Boolean(asset) && asset.file_exists !== false;
         }
 
-        function h3NeedsLocalMaterialization(project = activeProject) {
+        function h3VideoSequenceReady(item) {
+            const meta = item?.outputs?.base_video?.metadata || {};
+            const ids = meta.source_segment_asset_ids || [];
+            const assets = item?.outputs?.original_video_segments || [];
+            return meta.video_sequence_version === 'jyd.h3-video-sequence.v1'
+                && ids.length > 0 && ids.length === meta.segment_count
+                && ids.every((id) => assets.some((asset) => asset.asset_id === id && h3OutputFileAvailable(asset)));
+        }
+
+        function h3NeedsLocalMaterialization(
+            project = activeProject,
+            { includeDissolveUpgrade = true } = {}
+        ) {
             return (project?.items || []).some((item) => {
                 const h3 = item?.settings?.h3 || {};
+                if (h3.invalidated_reason) return false;
                 const remoteStatus = String(h3.remote_status || '').toUpperCase();
-                const hasUncachedSuccessfulSegment = (h3.segments || []).some((segment) =>
+                const hasUndownloadedSuccessfulSegment = (h3.segments || []).some((segment) =>
                     String(segment?.status || '').toUpperCase() === 'SUCCESS'
-                    && segment?.local_preview_ready !== true
+                    && segment?.local_preview_is_current !== true
                 );
-                return Boolean(h3.remote_batch_id)
-                    && (hasUncachedSuccessfulSegment
-                        || (remoteStatus === 'SUCCESS'
+                const needsDissolveUpgrade = includeDissolveUpgrade
+                    && (h3.segments || []).length > 1
+                    && Number(item?.outputs?.base_video?.metadata?.visual_dissolve_seconds || 0) !== 0.5;
+                const cleanupFailed = (h3.segments || []).some((segment) => segment?.local_audio_cleanup?.status === 'FAILED');
+                const needsHeadCleanup = !cleanupFailed && remoteStatus === 'SUCCESS'
+                    && item?.outputs?.audio?.metadata?.head_cleanup_version !== 'jyd.h3-head-silence.v1';
+                const needsAssembly = !h3.materialization_error?.requires_input_change
+                    && item?.outputs?.composition_video?.source_type !== 'user_upload'
+                    && !cleanupFailed
+                    && (needsHeadCleanup || needsDissolveUpgrade || (remoteStatus === 'SUCCESS' && !h3VideoSequenceReady(item)) || (remoteStatus === 'SUCCESS'
                             && (!h3OutputFileAvailable(item?.outputs?.audio)
                                 || !h3OutputFileAvailable(item?.outputs?.base_video))));
+                return Boolean(h3.remote_batch_id) && (hasUndownloadedSuccessfulSegment || needsAssembly);
             });
         }
 
@@ -2275,10 +2305,19 @@
         }
 
         async function confirmPreparedH3Batch(prepared) {
+            h3PreparationStatus = '分段与费用已经计算完成，等待确认';
+            refreshAudioStageActions();
+            const fee = prepared?.h3_batch?.fee_snapshot || {};
+            const segmentCount = Number(fee.segment_count || 0);
+            const paidCallCount = Number(fee.estimated_paid_calls || 0);
+            const reusableCount = Number(fee.reusable_result_count || 0);
+            const quoteMessage = segmentCount > 0
+                ? `共 ${segmentCount} 个分段，预计 ${paidCallCount} 次付费调用${reusableCount ? `，另有 ${reusableCount} 个结果可复用` : ''}。确认后立即开始生成。`
+                : '分段与费用已经计算完成，确认后立即开始生成。';
             const confirmedByUser = await new Promise((resolve) => {
                 openConfirmModal({
                     title: '是否确认生成？',
-                    message: '',
+                    message: quoteMessage,
                     confirmText: '是',
                     cancelText: '否',
                     onConfirm: () => resolve(true),
@@ -2292,6 +2331,8 @@
             let confirmed;
             const batchId = String(prepared?.h3_batch?.batch_id || '');
             try {
+                h3PreparationStatus = '正在提交生成任务';
+                refreshAudioStageActions();
                 confirmed = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/confirm`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2315,6 +2356,8 @@
                 if (!confirmed) throw error;
             }
             syncProjectInputs(confirmed.project);
+            h3PreparationStatus = '';
+            h3PreparationError = '';
             showToast('多参考任务已启动', '完成后会自动合并、提取生成音频并进入字幕/BGM 后期。', 'success');
             scheduleH3StatusPoll(1000);
             return true;
@@ -2349,6 +2392,8 @@
             if (!activeProject?.project_id || isGeneratingH3) return;
             const projectId = activeProject.project_id;
             isGeneratingH3 = true;
+            h3PreparationStatus = '正在读取可用执行账号';
+            h3PreparationError = '';
             refreshAudioStageActions();
             try {
                 const requestedTargets = Array.isArray(explicitTargets) ? explicitTargets : h3TargetItems();
@@ -2366,6 +2411,8 @@
                 const accounts = await workspaceApi('/api/new/h3/accounts');
                 const selected = await selectH3Accounts(accounts);
                 if (!selected) return;
+                h3PreparationStatus = `正在上传 ${targets.length} 条素材并计算分段，请勿重复点击`;
+                refreshAudioStageActions();
                 const prepared = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/prepare`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2375,10 +2422,12 @@
                 await confirmPreparedH3Batch(prepared);
             } catch (error) {
                 if (activeProject?.project_id !== projectId) return;
-                showToast('启动失败', publicGenerationMessage(error.message), 'warning');
+                h3PreparationError = publicGenerationMessage(error.message);
+                showToast('计算分段失败', h3PreparationError, 'warning');
             } finally {
                 if (activeProject?.project_id === projectId) {
                     isGeneratingH3 = false;
+                    h3PreparationStatus = '';
                     refreshAudioStageActions();
                 }
             }
@@ -2534,6 +2583,9 @@
                     segment?.local_preview_ready === true,
                     segment?.local_preview_is_current === true,
                     segment?.local_preview_error || '',
+                    segment?.local_audio_cleanup?.key || '',
+                    segment?.local_audio_cleanup?.status || '',
+                    segment?.local_audio_cleanup?.error || '',
                     segment?.can_retry === true,
                     segment?.can_regenerate === true,
                     segment?.error_code || '',
@@ -2579,20 +2631,28 @@
                 const canRetry = segment.can_retry === true;
                 const canRegenerate = segment.can_regenerate === true;
                 const canAct = !isActive && (canRetry || canRegenerate);
+                const error = String(segment.local_preview_error || segment.error_message || segment.error_code || '').trim();
+                const canRedownload = statusInfo.status === 'SUCCESS'
+                    && segment.local_preview_is_current !== true
+                    && Boolean(error)
+                    && Boolean(String(segment.segment_id || '').trim());
                 const card = document.createElement('article');
                 card.className = `min-w-0 overflow-hidden rounded-xl border ${cardClass}`;
-                const baseSourceSegmentIds = Array.isArray(script.baseVideo?.metadata?.source_segment_ids)
-                    ? script.baseVideo.metadata.source_segment_ids
-                    : [];
-                const baseMatchesSegment = String(baseSourceSegmentIds[segmentNumber - 1] || '') === String(segment.segment_id || '');
-                const localPreviewReady = segment.local_preview_ready === true || baseMatchesSegment;
+                const localPreviewReady = segment.local_preview_ready === true;
+                const cleanup = segment.local_audio_cleanup || null;
+                const cleanupReady = !cleanup || cleanup.status === 'READY';
+                const cleanupLabel = !cleanup ? '' : cleanup.status === 'READY' ? '片头声音已清理'
+                    : cleanup.status === 'FAILED' ? '本地清理失败（不会自动重新生成）'
+                    : cleanup.status === 'RETRY_WAIT' ? '等待本地 ASR 重试'
+                    : '正在本地清理片头声音';
                 if (statusInfo.status === 'SUCCESS' && localPreviewReady && segment.local_preview_is_current !== false) {
                     downloadableCount += 1;
                 }
-                const previewUrl = localPreviewReady
-                    ? `/api/new/projects/${encodeURIComponent(activeProject.project_id)}/items/${encodeURIComponent(script.id)}/h3-segments/${segmentNumber}/preview?asset_id=${encodeURIComponent(script.baseVideo?.asset_id || 'current')}`
+                const segmentId = String(segment.segment_id || '');
+                const previewVersion = String(cleanup?.key || segment.normalized_video_sha256 || segment.completed_at || segmentId);
+                const previewUrl = localPreviewReady && cleanupReady && segmentId
+                    ? `/api/new/projects/${encodeURIComponent(activeProject.project_id)}/items/${encodeURIComponent(script.id)}/h3-segments/${segmentNumber}/preview?segment_id=${encodeURIComponent(segmentId)}&v=${encodeURIComponent(previewVersion)}`
                     : '';
-                const error = String(segment.local_preview_error || segment.error_message || segment.error_code || '').trim();
                 const scriptText = String(segment.script_text || '').trim();
                 card.innerHTML = `
                     <div class="relative aspect-[9/16] w-full overflow-hidden bg-black">
@@ -2604,10 +2664,43 @@
                     </div>
                     <div class="space-y-2 p-3">
                         <p class="line-clamp-2 min-h-[2.25rem] text-[10px] leading-[1.125rem] text-gray-300" title="${escapeHtml(scriptText)}">${escapeHtml(scriptText || '暂无分段台词')}</p>
+                        ${cleanupLabel ? `<p class="text-[9px] text-cyan-300">${escapeHtml(cleanupLabel)}</p>` : ''}
+                        ${cleanup?.error ? `<p class="line-clamp-2 text-[9px] text-amber-300" title="${escapeHtml(cleanup.error)}">${escapeHtml(cleanup.error)}</p>` : ''}
                         ${error ? `<p class="line-clamp-2 text-[9px] leading-4 text-rose-300" title="${escapeHtml(error)}">${escapeHtml(error)}</p>` : ''}
                         ${previewUrl && segment.local_preview_is_current === false ? '<p class="text-[9px] text-amber-300">新版本处理中，当前播放的是上一版本</p>' : ''}
                         ${isActive && previewUrl && segment.local_preview_is_current !== false ? '<p class="text-[9px] text-amber-300">正在重新生成，当前播放的是上一版本</p>' : ''}
                     </div>`;
+                if (canRedownload) {
+                    const redownload = document.createElement('button');
+                    redownload.type = 'button';
+                    redownload.className = 'mx-3 mb-2 w-[calc(100%_-_1.5rem)] rounded-lg border border-cyan-400/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300 hover:text-white transition-colors';
+                    redownload.innerHTML = '<i class="fa-solid fa-download mr-1.5"></i>重新下载';
+                    redownload.addEventListener('click', async () => {
+                        redownload.disabled = true;
+                        redownload.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>正在下载';
+                        await h3RedownloadSegment(String(segment.segment_id || ''));
+                        renderH3SegmentPreviewModal({ force: true });
+                    });
+                    card.appendChild(redownload);
+                }
+                if (cleanup?.status === 'FAILED' || cleanup?.status === 'RETRY_WAIT') {
+                    const retryCleanup = document.createElement('button');
+                    retryCleanup.type = 'button';
+                    retryCleanup.className = 'mx-3 mb-2 w-[calc(100%_-_1.5rem)] rounded-lg border border-cyan-400/35 px-3 py-2 text-[10px] text-cyan-200';
+                    retryCleanup.textContent = '重试本地声音清理（不收费）';
+                    retryCleanup.addEventListener('click', async () => {
+                        retryCleanup.disabled = true;
+                        try {
+                            await workspaceApi(`/api/new/projects/${encodeURIComponent(activeProject.project_id)}/h3/segments/${encodeURIComponent(segmentId)}/audio-cleanup/retry`, { method: 'POST', body: '{}' });
+                            showToast('已安排本地声音清理', '仅处理已下载的原片，不会重新调用 H3。', 'info');
+                            scheduleH3StatusPoll(1000);
+                        } catch (error) {
+                            showToast('本地清理重试失败', publicGenerationMessage(error.message), 'warning');
+                            retryCleanup.disabled = false;
+                        }
+                    });
+                    card.appendChild(retryCleanup);
+                }
                 const action = document.createElement('button');
                 action.type = 'button';
                 action.disabled = !canAct;
@@ -2652,6 +2745,34 @@
                 : '全部 H3 原始片段下载完成后才可打包';
         }
 
+        async function h3RedownloadSegment(segmentId) {
+            const projectId = activeProject?.project_id;
+            if (!projectId || !segmentId) return false;
+            try {
+                const result = await workspaceApi(`/api/new/projects/${projectId}/h3/status`);
+                if (activeProject?.project_id !== projectId) return false;
+                syncProjectInputs(result.project);
+                const currentSegment = (result.project?.items || []).flatMap((item) =>
+                    Array.isArray(item?.settings?.h3?.segments) ? item.settings.h3.segments : []
+                ).find((segment) => String(segment?.segment_id || '') === segmentId);
+                if (currentSegment?.local_preview_is_current === true) {
+                    showToast('片段已重新下载', '当前版本已经保存到本机，不会产生新的生成费用。', 'success');
+                    return true;
+                }
+                showToast(
+                    '片段仍未下载完成',
+                    publicGenerationMessage(currentSegment?.local_preview_error || '工作台会继续自动下载当前结果。'),
+                    'warning'
+                );
+                scheduleH3StatusPoll(10000);
+                return false;
+            } catch (error) {
+                showToast('重新下载失败', publicGenerationMessage(error.message), 'warning');
+                scheduleH3StatusPoll(10000);
+                return false;
+            }
+        }
+
         function refreshOpenH3SegmentPreviewModal() {
             const modal = document.getElementById('h3-segment-preview-modal');
             if (!modal || modal.classList.contains('pointer-events-none')) return;
@@ -2676,14 +2797,9 @@
             const segments = Array.isArray(script?.h3Settings?.segments)
                 ? script.h3Settings.segments
                 : [];
-            const baseSourceSegmentIds = Array.isArray(script?.baseVideo?.metadata?.source_segment_ids)
-                ? script.baseVideo.metadata.source_segment_ids
-                : [];
-            const ready = segments.length > 0 && segments.every((segment, arrayIndex) => {
-                const segmentNumber = Number(segment.index ?? arrayIndex) + 1;
-                const baseMatchesSegment = String(baseSourceSegmentIds[segmentNumber - 1] || '') === String(segment.segment_id || '');
+            const ready = segments.length > 0 && segments.every((segment) => {
                 return String(segment.status || '').toUpperCase() === 'SUCCESS'
-                    && (segment.local_preview_ready === true || baseMatchesSegment)
+                    && segment.local_preview_ready === true
                     && segment.local_preview_is_current !== false;
             });
             if (!ready) {
@@ -2844,7 +2960,8 @@
 
         function projectNeedsH3Sync(project) {
             return project?.settings?.generation_mode === 'minimax_h3_ref2va'
-                && (h3StateIsActive(project) || h3NeedsLocalMaterialization(project));
+                && (h3StateIsActive(project)
+                    || h3NeedsLocalMaterialization(project, { includeDissolveUpgrade: false }));
         }
 
         function projectNeedsPostprocessSync(project) {
@@ -3081,6 +3198,8 @@
             isGeneratingComposition = false;
             isGeneratingPostprocess = false;
             isGeneratingH3 = false;
+            h3PreparationStatus = '';
+            h3PreparationError = '';
             isGeneratingLtx = false;
             isStartingPostprocess = false;
             isStartingSinglePostprocess = false;
@@ -4035,7 +4154,7 @@
                     ? 'loading'
                     : (script.compositionVideo || browserPreviewReady
                         ? 'ready'
-                        : (['H3_FAILED', 'COMPOSITION_FAILED'].includes(script.compositionStatus) ? 'failed' : 'wait'));
+                        : (['H3_FAILED', 'H3_REVIEW_REQUIRED', 'COMPOSITION_FAILED'].includes(script.compositionStatus) ? 'failed' : 'wait'));
                 tr.setAttribute('data-video-status', videoStatus);
                 if (script.compositionVideo) {
                     tr.setAttribute('data-preview-mode', 'exported');
@@ -4293,8 +4412,9 @@
                             </div>
                             <div class="row-video-status-failed hidden flex-col items-center gap-1.5 text-rose-400 text-[9px]">
                                 <i class="fa-solid fa-triangle-exclamation text-sm"></i>
-                                <span>${canBackfillSeedvr2 ? '数字人已完成，高清未完成' : '成片生成失败'}</span>
-                                <button onclick="requestRegenerateRowVideo(this)" class="text-[9px] text-rose-300 hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重试失败阶段</button>
+                                <span>${script.h3Settings?.materialization_error?.code ? '片段已生成，需处理' : (canBackfillSeedvr2 ? '数字人已完成，高清未完成' : '成片生成失败')}</span>
+                                ${script.h3Settings?.materialization_error?.message ? `<span class="max-w-40 whitespace-normal" title="${escapeHtml(script.h3Settings.materialization_error.message)}">${escapeHtml(script.h3Settings.materialization_error.message)}</span>` : ''}
+                                ${script.h3Settings?.materialization_error?.code ? '' : '<button onclick="requestRegenerateRowVideo(this)" class="text-[9px] text-rose-300 hover:text-white transition-colors"><i class="fa-solid fa-rotate mr-1"></i>重试失败阶段</button>'}
                                 ${backfillSeedvr2ButtonHtml}
                             </div>
                             <div class="row-video-status-ready hidden flex-col items-center gap-1.5">
@@ -5200,7 +5320,7 @@
             const canCompose = canStartH3 || canCompose4B;
             btnCompose.disabled = !canCompose;
             if (h3Mode && isGeneratingH3) {
-                btnCompose.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>正在计算生成费用...</span>';
+                btnCompose.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i><span>${escapeHtml(h3PreparationStatus || '正在计算分段与费用')}</span>`;
             } else if (h3Mode && canStartH3) {
                 btnCompose.innerHTML = '<i class="fa-solid fa-film"></i><span>生成视频</span>';
             } else if (h3Mode && h3Active) {
@@ -5212,9 +5332,11 @@
             } else {
                 btnCompose.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>生成完整成片</span>';
             }
-            stageHint.textContent = h3Active
-                ? '已有分段正在云端运行；仍可选择其他空闲脚本继续挂生成任务'
-                : '多参考会自动使用每行已分配图片作为人物图，无需额外勾选';
+            stageHint.textContent = h3PreparationError
+                ? `上次计算分段失败：${h3PreparationError}`
+                : (h3PreparationStatus || (h3Active
+                    ? '已有分段正在云端运行；仍可选择其他空闲脚本继续挂生成任务'
+                    : '多参考会自动使用每行已分配图片作为人物图，无需额外勾选'));
             btnCompose.className = canCompose
                 ? "w-full md:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent hover:brightness-110 text-white font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/25 cursor-pointer transition-all active:scale-[0.98]"
                 : "w-full md:w-auto px-8 py-3 rounded-xl bg-slate-800 border border-slate-700/60 text-slate-500 cursor-not-allowed font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all";
@@ -7295,15 +7417,76 @@
             });
         }
 
+        async function ensurePreviewBgmAudioGraph() {
+            if (!previewBgmAudioContext) {
+                const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextConstructor) return false;
+                try {
+                    previewBgmAudioContext = new AudioContextConstructor();
+                    previewBgmMasterCompressor = previewBgmAudioContext.createDynamicsCompressor();
+                    previewBgmMasterCompressor.threshold.value = -3;
+                    previewBgmMasterCompressor.knee.value = 0;
+                    previewBgmMasterCompressor.ratio.value = 20;
+                    previewBgmMasterCompressor.attack.value = 0.003;
+                    previewBgmMasterCompressor.release.value = 0.1;
+                    previewBgmMasterCompressor.connect(previewBgmAudioContext.destination);
+                    previewBgmAudioSources = previewBgmAudios.map((audio, index) => {
+                        const source = previewBgmAudioContext.createMediaElementSource(audio);
+                        const gainNode = previewBgmAudioContext.createGain();
+                        gainNode.gain.value = 0;
+                        source.connect(gainNode);
+                        gainNode.connect(previewBgmMasterCompressor);
+                        previewBgmGainNodes[index] = gainNode;
+                        audio.volume = 1;
+                        return source;
+                    });
+                } catch (_) {
+                    previewBgmAudioContext = null;
+                    previewBgmAudioSources = [];
+                    previewBgmGainNodes = [];
+                    previewBgmMasterCompressor = null;
+                    return false;
+                }
+            }
+            if (previewBgmAudioContext.state === 'suspended') {
+                try { await previewBgmAudioContext.resume(); } catch (_) {}
+            }
+            return previewBgmGainNodes.length === previewBgmAudios.length;
+        }
+
+        function setPreviewBgmSlotGain(slot, value) {
+            const gain = Math.max(0, Math.min(2, Number(value) || 0));
+            const node = previewBgmGainNodes[slot];
+            if (node) {
+                node.gain.value = gain;
+                previewBgmAudios[slot].volume = 1;
+            } else {
+                previewBgmAudios[slot].volume = Math.min(1, gain);
+            }
+        }
+
+        function previewBgmFadeInSeconds(videoDuration) {
+            const savedFadeInUs = Number(
+                activePreviewScript()?.postprocessSettings?.bgm_loudness?.fade_in_us
+            );
+            if (Number.isFinite(savedFadeInUs) && savedFadeInUs >= 0) {
+                return Math.min(1.5, savedFadeInUs / 1_000_000);
+            }
+            return Math.min(1.5, Math.max(0, Number(videoDuration) || 0) * 0.1);
+        }
+
         function stopPreviewBgm() {
             if (previewBgmAnimationFrame !== null) {
                 cancelAnimationFrame(previewBgmAnimationFrame);
                 previewBgmAnimationFrame = null;
             }
-            previewBgmAudios.forEach((audio) => audio.pause());
+            previewBgmAudios.forEach((audio, slot) => {
+                audio.pause();
+                setPreviewBgmSlotGain(slot, 0);
+            });
         }
 
-        function buildBacktimedPreviewBgmPlan(videoDuration, audioDuration) {
+        function buildBacktimedPreviewBgmPlan(videoDuration, audioDuration, initialFadeIn = 0) {
             if (!(videoDuration > 0) || !(audioDuration > 0)) return [];
             const crossfade = Math.min(PREVIEW_BGM_CROSSFADE_SECONDS, audioDuration / 4);
             const stride = Math.max(0.001, audioDuration - crossfade);
@@ -7323,7 +7506,9 @@
             return plan.map((entry, index) => ({
                 ...entry,
                 slot: index % previewBgmAudios.length,
-                fadeIn: index > 0 ? Math.min(crossfade, entry.duration / 2) : 0,
+                fadeIn: index > 0
+                    ? Math.min(crossfade, entry.duration / 2)
+                    : Math.min(Math.max(0, initialFadeIn), entry.duration),
                 fadeOut: index < plan.length - 1
                     ? Math.min(crossfade, entry.duration / 2)
                     : 0,
@@ -7345,7 +7530,11 @@
             if (!isBrowserCompositionPreview() || !previewBgmAudio.src) return;
             const video = document.getElementById('video-preview-local');
             const videoTime = video.currentTime || 0;
-            const plan = buildBacktimedPreviewBgmPlan(video.duration, previewBgmAudio.duration);
+            const plan = buildBacktimedPreviewBgmPlan(
+                video.duration,
+                previewBgmAudio.duration,
+                previewBgmFadeInSeconds(video.duration)
+            );
             previewBgmAudios.forEach((audio, slot) => {
                 const entry = plan.find((candidate) => {
                     const end = candidate.targetStart + candidate.duration;
@@ -7354,6 +7543,7 @@
                         && videoTime < end;
                 });
                 if (!entry) {
+                    setPreviewBgmSlotGain(slot, 0);
                     audio.pause();
                     return;
                 }
@@ -7370,7 +7560,7 @@
                 if (entry.fadeOut > 0 && remaining < entry.fadeOut) {
                     gain = Math.min(gain, remaining / entry.fadeOut);
                 }
-                audio.volume = Math.max(0, Math.min(1, previewBgmBaseVolume * gain));
+                setPreviewBgmSlotGain(slot, previewBgmBaseVolume * gain);
                 if (!video.paused && !video.ended && audio.paused) {
                     void audio.play().catch(() => {});
                 }
@@ -7387,6 +7577,7 @@
 
         async function playPreviewBgm() {
             if (!isBrowserCompositionPreview() || !previewBgmAudio.src) return;
+            await ensurePreviewBgmAudioGraph();
             syncPreviewBgm(true);
             if (previewBgmAnimationFrame === null) {
                 previewBgmAnimationFrame = requestAnimationFrame(animatePreviewBgm);
@@ -7458,10 +7649,10 @@
             const nextBgmUrl = bgm?.previewUrl || '';
             const savedBgmVolume = Number(script?.postprocessSettings?.bgm_volume);
             previewBgmBaseVolume = Number.isFinite(savedBgmVolume)
-                ? Math.max(0, Math.min(1, savedBgmVolume))
-                : 0.18;
-            previewBgmAudios.forEach((audio) => {
-                audio.volume = previewBgmBaseVolume;
+                ? Math.max(0, Math.min(2, savedBgmVolume))
+                : 0.3162;
+            previewBgmAudios.forEach((audio, slot) => {
+                setPreviewBgmSlotGain(slot, previewBgmBaseVolume);
             });
             if (nextBgmUrl) {
                 const absoluteUrl = new URL(nextBgmUrl, window.location.origin).href;

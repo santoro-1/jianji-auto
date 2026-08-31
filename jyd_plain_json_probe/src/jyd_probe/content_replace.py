@@ -486,6 +486,7 @@ class ContentReplaceJob:
     first_video_target_duration_us: int = 0
     timeline_duration_us: int = 0
     template_timeline_duration_us: int = 0
+    main_video_sequence: dict[str, Any] = field(default_factory=dict)
 
     named_video_replacements: list[NamedVideoReplacement] = field(default_factory=list)
     video_segment_replacements: list[VideoSegmentReplacement] = field(default_factory=list)
@@ -533,6 +534,7 @@ def _has_any_change(job: ContentReplaceJob) -> bool:
         or job.timeline_duration_us
         or job.named_video_replacements
         or job.video_segment_replacements
+        or job.main_video_sequence
         or job.nested_video_replacements
         or job.text_replacements
         or job.text_additions
@@ -2046,6 +2048,10 @@ def _apply_json_changes(draft: Any, data: dict[str, Any], job: ContentReplaceJob
                 item.track_index for item in job.subtitle_range_replacements
             },
         )
+
+    if job.main_video_sequence:
+        from .video_sequence_apply import apply_main_video_sequence
+        changed += apply_main_video_sequence(draft, data, job.main_video_sequence)
 
     if changed:
         log(f"JSON 级共执行 {changed} 项修改")

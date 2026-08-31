@@ -1,5 +1,45 @@
 # Web API
 
+## 2026-08-31 H3 片头本地清理
+
+- H3 状态响应在每段增加 `local_audio_cleanup`：`status` 为 `PENDING`、`PROCESSING`、
+  `RETRY_WAIT`、`FAILED` 或 `READY`，包含 `version`、`key`；就绪时包含
+  `muted_until_seconds` / `restored_at_seconds`，失败时包含 `error`。
+- `local_preview_ready` / `local_preview_is_current` 继续表示原始下载缓存状态，不能据此
+  宣称声音清理完成。页面仅在清理就绪后播放清理版。`/h3-segments/{number}/preview`
+  返回清理版 MP4；清理未就绪返回 404 提示。`/h3-segments/download` 始终打包原片，
+  不要求 ASR 成功，不得把下载路径解析默认改成清理版。
+- `POST /api/new/projects/{project_id}/h3/segments/{segment_id}/audio-cleanup/retry`
+  使用当前登录和项目归属校验，仅重置该当前原片的本地清理失败预算并入队。
+  返回 `{"cleanup": {...}}`。不存在/跨用户项目返回 404，过期片段或原片未就绪返回 409。
+  该接口不调用云端提交、重新生成、收费确认或云端账号数据库写入。
+- 清理后的 H3 audio/base/master metadata 包含 `head_cleanup_version`、
+  `head_cleanup_keys`、`head_cleanup_reports`；媒体签名包含清理 key，以免旧缓存覆盖新声音。
+
+算法及缓存约束见 `DEVELOPER_GUIDE.md` 的 H3 本地片头声音清理章节。
+
+## 2026-08-31 文件夹语义素材来源
+
+`GET /api/new/semantic-visuals/catalog` 在文件夹模式额外返回 `source_mode="folders"`，
+仍使用原 catalog v3 的概念、图片和视频结构。预览/视频内容接口不变，读取索引指向的
+兼容缓存。目录按需增量扫描，刷新间隔约 5 秒；损坏文件不会令整库请求失败，扫描故障保留
+上一份有效索引，不回退旧 JSON。未加入任何前端说明文字或新付费请求。
+
+`assets[].content_sha256` 用于同条视频跨目录去重；`source_missing` 表示原文件已移除，
+不参与新选择，但对应历史资源继续保留。recipe 的可选 `selection_seed` 维持随机选择稳定。
+
+## 2026-08-31 状态回填与声音重试
+
+- `GET /api/new/projects/{project_id}/h3/status` 对本地逐行媒体处理错误返回正常项目响应，
+  不再因一行失败丢失整个批次状态。失败行状态为 `H3_REVIEW_REQUIRED`，
+  `items[].settings.h3.materialization_error` 包含 `code`、`message`、
+  `requires_input_change`、`segment_signature`、`script_sha256`。云端 `remote_status`
+  仍反映真实生成结果；成功行仍能继续后处理。鉴权/云端请求整体失败仍按原 HTTP 错误返回。
+- `requires_input_change=true` 表示当前脚本与片段不一致；同一输入/片段版本不再自动合成，
+  不自动重生成 H3。暂时性本地媒体错误仍可通过后续状态同步恢复。
+- 声音重试先比较脚本、音色和合成设置：只有同源仅调速使用旧任务 retry；其他变化按当前
+  行创建新声音批次，保留历史文件。H3 费用预览在声音审核、素材上传及 ASR 前检查稿音一致。
+
 ## 新版页面入口与登录（模块 1）
 
 ```text
@@ -533,9 +573,11 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 在原始 cue 时间范围内拆成连续字幕；原始 cues 不修改。缺字、字体损坏或无法满足安全
 宽度/最短显示时长时返回 `409`，并把该行字幕标记为 `REVIEW_REQUIRED`，不会静默提交
 溢出字幕。BGM 可不选；选择时使用音乐库 identity，并适配视频时长。服务端用 FFmpeg 测量
-人声和曲目的综合响度：普通音乐以低于人声 11 dB 为目标自动计算 `bgm_volume`，限制在
-`0.08..0.25`、失败回退 `0.18`；强人声音乐以低于人声 15 dB 为目标，限制在
-`0.05..0.16`、失败回退 `0.1136`。该字段是服务端冻结结果，不接受客户端手工音量。
+人声和实际 BGM 节目响度：服务端先按成片时长、末尾对齐、反向循环、交叉衔接和渐入构造
+真实播放时间线。普通音乐以低于人声 11 dB、强人声音乐以低于人声 15 dB 为目标；增益允许
+在 `-30..+6 dB` 内变化，同时限制节目真峰值不高于 `-6 dBTP`，并保持短时响度差普通 7 dB、
+强人声 10 dB。分析失败回退线性音量 `0.3162/0.1995`。`bgm_volume` 和 `bgm_loudness` 是
+服务端冻结结果，不接受客户端手工音量；浏览器以 Web Audio 支持最大 2.0 的同一增益。
 
 `postprocess/generate` 会先登记 `PREVIEW_READY` 配方，再向本地剪映队列提交
 `skip_export=true` 的草稿生成任务；草稿结构完整后才进入 `COMPOSITION_READY`。浏览器仍直接

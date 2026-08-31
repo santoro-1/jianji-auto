@@ -595,6 +595,10 @@ class FunASRCaptionAligner:
                 (chunk, self._transcribe(chunk.path)) for chunk in chunks
             )
 
+    def recognize_tokens(self, audio_path: str | Path) -> list[RecognizedToken]:
+        """Return observed word timestamps, never subtitle-interpolated ranges."""
+        return _recognized_tokens(self._transcribe(Path(audio_path)))
+
     def align(
         self,
         audio_path: str | Path,

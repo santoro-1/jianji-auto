@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from .draft_factory import probe_video_duration_us
+from .h3_video_segments import bound_h3_segments
 
 
 WORKBENCH_DISSOLVE_DURATION_US = 250_000
@@ -42,7 +43,9 @@ def _latest_segments_by_index(
             invalid.append(asset)
             continue
         current = latest.get(video_index)
-        if current is None or _segment_revision_key(asset) > _segment_revision_key(current):
+        if current is None or _segment_revision_key(asset) > _segment_revision_key(
+            current
+        ):
             latest[video_index] = asset
     return [*invalid, *latest.values()]
 
@@ -68,7 +71,9 @@ def _base_video_source(item: dict[str, Any]) -> dict[str, Any]:
     outputs = item.get("outputs", {})
     base = outputs.get("base_video")
     if not isinstance(base, dict) or not base.get("managed_path"):
-        raise ValueError(f"任务 {item.get('row_key') or item.get('item_id')} 缺少基础视频")
+        raise ValueError(
+            f"任务 {item.get('row_key') or item.get('item_id')} 缺少基础视频"
+        )
     return {
         "type": "video",
         "media_path": str(Path(str(base["managed_path"])).resolve()),
@@ -79,7 +84,9 @@ def _actual_segment_duration_us(asset: dict[str, Any]) -> int:
     """Return the playable duration of the exact stored segment file."""
 
     metadata = asset.get("metadata")
-    recorded = metadata.get("actual_duration_us") if isinstance(metadata, dict) else None
+    recorded = (
+        metadata.get("actual_duration_us") if isinstance(metadata, dict) else None
+    )
     if type(recorded) is int and recorded > 0:
         return recorded
     return probe_video_duration_us(str(asset["managed_path"]))
@@ -123,7 +130,11 @@ def _segment_timeline(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
         duration_us = actual_duration_us
         speech_duration_us = _speech_segment_duration_us(asset)
         generation_tail_us = _generation_tail_us(asset)
-        if speech_duration_us > 0 and generation_tail_us > 0:
+        if (
+            asset.get("source_type") != "h3"
+            and speech_duration_us > 0
+            and generation_tail_us > 0
+        ):
             expected_duration_us = speech_duration_us
             if position == len(segments) - 1:
                 expected_duration_us += generation_tail_us
@@ -186,6 +197,8 @@ def _legacy_sequence_needs_normalized_base(
 
     if not segments or not timeline:
         return False
+    if base.get("source_type") == "h3":
+        return False
     if all(_generation_tail_us(asset) > 0 for asset in segments):
         return False
     metadata = base.get("metadata")
@@ -237,6 +250,23 @@ def project_segment_boundaries(item: dict[str, Any]) -> list[dict[str, Any]]:
     base = outputs.get("base_video")
     if not isinstance(base, dict):
         return []
+    if base.get("source_type") == "h3":
+        try:
+            timeline = _segment_timeline(bound_h3_segments(item))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return []
+        return [
+            {
+                "boundary_us": entry["start_us"],
+                "segment_index": _segment_index(entry["asset"]),
+                "segment_start_us": entry["start_us"],
+                "segment_end_us": entry["end_us"],
+                "script_text": entry["asset"]
+                .get("metadata", {})
+                .get("script_text", ""),
+            }
+            for entry in timeline[1:]
+        ]
     try:
         expected = int(base.get("metadata", {}).get("segment_count") or 0)
     except (TypeError, ValueError):
@@ -258,9 +288,9 @@ def project_segment_boundaries(item: dict[str, Any]) -> list[dict[str, Any]]:
         ),
         key=_segment_index,
     )
-    if len(segments) != expected or [_segment_index(asset) for asset in segments] != list(
-        range(1, expected + 1)
-    ):
+    if len(segments) != expected or [
+        _segment_index(asset) for asset in segments
+    ] != list(range(1, expected + 1)):
         return []
     try:
         timeline = _segment_timeline(segments)
@@ -294,6 +324,32 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
     base = outputs.get("base_video")
     normalized_source = _base_video_source(item)
     assert isinstance(base, dict)
+    if base.get("source_type") == "h3":
+        # H3 keeps its generated picture clock, not MiniMax input durations.
+        segments = bound_h3_segments(item)
+        sequence = [
+            {
+                "media_path": str(Path(asset["managed_path"]).resolve()),
+                "target_duration_us": asset["metadata"]["actual_duration_us"],
+                "video_index": _segment_index(asset),
+                "volume": 0.0,
+            }
+            for asset in segments
+        ]
+        dissolve_us = max(
+            0,
+            round(
+                float(base.get("metadata", {}).get("visual_dissolve_seconds") or 0)
+                * 1_000_000
+            ),
+        )
+        for first, second in zip(sequence, sequence[1:]):
+            first["transition_after_us"] = min(
+                dissolve_us,
+                first["target_duration_us"] // 2,
+                second["target_duration_us"] // 2,
+            )
+        return {"type": "video_sequence", "items": sequence}
 
     try:
         expected = int(base.get("metadata", {}).get("segment_count") or 0)
@@ -316,9 +372,9 @@ def build_project_video_source(item: dict[str, Any]) -> dict[str, Any]:
     )
     if expected <= 1:
         return normalized_source
-    if len(segments) != expected or [_segment_index(asset) for asset in segments] != list(
-        range(1, expected + 1)
-    ):
+    if len(segments) != expected or [
+        _segment_index(asset) for asset in segments
+    ] != list(range(1, expected + 1)):
         raise ValueError(
             f"任务 {item.get('row_key') or item.get('item_id')} 的原始分段不完整："
             f"应有 {expected} 段，当前可用 {len(segments)} 段"

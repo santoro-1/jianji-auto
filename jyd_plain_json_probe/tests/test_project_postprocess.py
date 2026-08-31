@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from jyd_probe.bgm_loudness import BGM_FALLBACK_VOLUME  # noqa: E402
 from jyd_probe.project_store import ProjectStore  # noqa: E402
 from jyd_probe.caption_alignment import (  # noqa: E402
     CaptionAlignmentError,
@@ -1254,10 +1255,10 @@ class ProjectPostprocessApiTest(unittest.TestCase):
                 ][1]
                 self.assertEqual(recovery_bgm["media_path"], str(bgm_media_path))
                 self.assertEqual(recovery_bgm["library_identity"], bgm["identity"])
-                self.assertEqual(job["audios"][1]["volume"], 0.18)
+                self.assertEqual(job["audios"][1]["volume"], BGM_FALLBACK_VOLUME)
                 self.assertTrue(job["audios"][1]["align_to_end"])
                 self.assertEqual(job["audios"][1]["crossfade_us"], 200_000)
-                self.assertEqual(job["audios"][1]["fade_in_us"], 5_000_000)
+                self.assertEqual(job["audios"][1]["fade_in_us"], 400_000)
                 self.assertEqual(job["source"]["fade_out_us"], 0)
                 self.assertEqual(
                     [(text["text"], text["transform_y"], text["size"], text["color"]) for text in job["texts"]],

@@ -4,6 +4,7 @@ import copy
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
+import logging
 from pathlib import Path
 import threading
 from typing import Any, Callable
@@ -11,8 +12,22 @@ import uuid
 
 from .auth_center import AuthCenterClient
 from .caption_alignment import CaptionAlignmentError, alignment_matches
-from .project_h3_media import H3MediaAssets, prepare_h3_media
-from .project_store import ProjectStore
+from .h3_audio_cleanup import H3_AUDIO_CLEANUP_VERSION, read_cleanup, request_cleanup
+from .h3_video_segments import (
+    H3_VIDEO_SEQUENCE_VERSION, freeze_segment, h3_video_sequence_ready,
+)
+from .project_h3_media import (
+    H3MediaAssets,
+    H3MediaError,
+    H3_VISUAL_DISSOLVE_SECONDS,
+    prepare_h3_media,
+    build_segment_cues,
+    _probe_duration,
+)
+from .project_store import ACTIVE_ITEM_STATUSES, ProjectStore
+
+
+logger = logging.getLogger("jyd_probe.workbench")
 
 
 H3_MODE = "minimax_h3_ref2va"
@@ -90,6 +105,8 @@ def current_h3_segment_preview_path(
     item_id: str,
     segment_number: int,
     storage_root: Path,
+    expected_segment_id: str | None = None,
+    original: bool = False,
 ) -> Path:
     """Resolve one current, already-materialized H3 source segment for review."""
 
@@ -130,6 +147,9 @@ def current_h3_segment_preview_path(
         if isinstance(current_segment, dict)
         else ""
     )
+    clean_expected_segment_id = str(expected_segment_id or "").strip()
+    if clean_expected_segment_id and segment_id != clean_expected_segment_id:
+        raise FileNotFoundError("H3 分段版本已更新，请刷新后重试")
     if owner_user_id and remote_batch_id and remote_item_id and segment_id:
         cache_path, _ = _h3_segment_cache_files(
             root,
@@ -146,6 +166,12 @@ def current_h3_segment_preview_path(
         except ValueError as exc:
             raise FileNotFoundError("H3 分段文件不存在") from exc
         if cache_path.is_file() and cache_path.stat().st_size > 0:
+            if not original:
+                cleaned = read_cleanup(cache_path, str(current_segment.get("script_text") or ""))
+                if cleaned is not None:
+                    return cleaned.preview_path
+                if current_segment.get("local_audio_cleanup"):
+                    raise FileNotFoundError("H3 片段正在本地清理声音，原始素材仍可下载")
             return cache_path
 
     # Compatibility for H3 assets produced before incremental segment caching.
@@ -208,6 +234,7 @@ class ProjectH3Coordinator:
         caption_aligner: Any = None,
         require_precise_alignment: bool = False,
         media_preparer: Callable[..., H3MediaAssets] = prepare_h3_media,
+        head_cleanup_enabled: bool = False,
     ):
         self.store = store
         self.client = client
@@ -221,6 +248,7 @@ class ProjectH3Coordinator:
         self.caption_aligner = caption_aligner
         self.require_precise_alignment = bool(require_precise_alignment)
         self.media_preparer = media_preparer
+        self.head_cleanup_enabled = bool(head_cleanup_enabled)
         self._segment_download_locks: dict[str, threading.Lock] = {}
         self._segment_download_locks_guard = threading.Lock()
 
@@ -306,8 +334,9 @@ class ProjectH3Coordinator:
                 return False
         return True
 
-    @classmethod
-    def _h3_item_needs_materialization(cls, item: dict[str, Any]) -> bool:
+    def _h3_item_needs_materialization(self, item: dict[str, Any]) -> bool:
+        if (item.get("outputs", {}).get("composition_video") or {}).get("source_type") == "user_upload":
+            return False
         h3 = (
             item.get("settings", {}).get("h3", {})
             if isinstance(item.get("settings"), dict)
@@ -315,8 +344,12 @@ class ProjectH3Coordinator:
         )
         return (
             bool(str(h3.get("remote_batch_id") or "").strip())
+            and not h3.get("invalidated_reason")
+            and not h3.get("materialization_error", {}).get("requires_input_change")
             and str(h3.get("remote_status") or "").upper() == "SUCCESS"
-            and not cls._local_h3_files_ready(item)
+            and (not self._local_h3_files_ready(item)
+                 or not h3_video_sequence_ready(item)
+                 or (self.head_cleanup_enabled and item.get("outputs", {}).get("audio", {}).get("metadata", {}).get("head_cleanup_version") != H3_AUDIO_CLEANUP_VERSION))
         )
 
     @staticmethod
@@ -371,17 +404,20 @@ class ProjectH3Coordinator:
             audio.get("metadata") if isinstance(audio.get("metadata"), dict) else {}
         )
         expected_sha = str(metadata.get("script_sha256") or "").strip().lower()
-        candidates = [value for value in (cue_script, table_script) if value]
+        candidates = [value for value in (table_script, cue_script) if value]
+        bound_script = ""
         if expected_sha:
             for candidate in candidates:
                 if hashlib.sha256(candidate.encode("utf-8")).hexdigest() == expected_sha:
-                    return candidate
+                    bound_script = candidate
+                    break
+        elif candidates:
+            bound_script = cue_script or table_script
+        if not bound_script or "".join(bound_script.split()) != "".join(table_script.split()):
             raise ValueError(
                 f"第 {item.get('row_key')} 行当前脚本与已生成声音不一致，请重新生成声音"
             )
-        if candidates:
-            return candidates[0]
-        raise ValueError(f"第 {item.get('row_key')} 行声音缺少原稿")
+        return bound_script
 
     @staticmethod
     def _sha256_file(path: Path) -> str:
@@ -595,6 +631,7 @@ class ProjectH3Coordinator:
         pending_audio_item_ids: list[str] = []
         for item in target_items:
             audio = self._latest_minimax_audio(item) or {}
+            self._audio_bound_script(item, audio)
             metadata = (
                 audio.get("metadata")
                 if isinstance(audio.get("metadata"), dict)
@@ -640,7 +677,6 @@ class ProjectH3Coordinator:
             )
 
         cloud_image_by_source: dict[str, str] = {}
-        cloud_images: list[str] = []
         row_cloud_images: dict[str, str] = {}
         for item in target_items:
             image = item.get("inputs", {}).get("image")
@@ -666,7 +702,6 @@ class ProjectH3Coordinator:
                 if not asset_id:
                     raise ValueError("数字人网站没有返回 H3 人物图素材编号")
                 cloud_image_by_source[source_key] = asset_id
-                cloud_images.append(asset_id)
             row_cloud_images[str(item["item_id"])] = asset_id
 
         rows: list[dict[str, Any]] = []
@@ -736,7 +771,7 @@ class ProjectH3Coordinator:
             {
                 "name": str(project.get("name") or "JYD H3 批次"),
                 "request_key": clean_key,
-                "reference_image_asset_ids": cloud_images,
+                "reference_image_asset_ids": [],
                 "selected_account_ids": selected_account_ids,
                 "defaults": {
                     "continuity_mode": defaults.get(
@@ -1308,7 +1343,7 @@ class ProjectH3Coordinator:
                         pending.append((item, remote_item, segment))
 
         if not pending:
-            return cached_snapshot
+            return self._annotate_head_cleanup(owner_user_id, project_id, project, cached_snapshot)
         worker_count = min(self.max_segment_download_workers, len(pending))
         with ThreadPoolExecutor(
             max_workers=worker_count,
@@ -1335,7 +1370,49 @@ class ProjectH3Coordinator:
                 else:
                     segment["local_preview_ready"] = True
                     segment["local_preview_is_current"] = True
-        return cached_snapshot
+        return self._annotate_head_cleanup(owner_user_id, project_id, project, cached_snapshot)
+
+    def _annotate_head_cleanup(
+        self, owner_user_id: str, project_id: str,
+        project: dict[str, Any], snapshot: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not self.head_cleanup_enabled:
+            return snapshot
+        by_row = {str(item.get("row_key")): item for item in project.get("items", [])}
+        for remote in snapshot.get("items", []):
+            item = by_row.get(str(remote.get("row_id")))
+            if item is None:
+                continue
+            remote_item = {"batch_id": snapshot.get("batch_id"), **remote}
+            for segment in remote.get("segments", []):
+                if segment.get("local_preview_is_current") is not True:
+                    continue
+                source = self._cached_segment_path(owner_user_id, project_id, str(item["item_id"]), remote_item, segment, require_current=True)
+                if source is not None:
+                    try:
+                        segment["local_audio_cleanup"] = request_cleanup(source, str(segment.get("script_text") or ""), self.caption_aligner)
+                    except (OSError, ValueError, RuntimeError) as exc:
+                        segment["local_audio_cleanup"] = {
+                            "status": "FAILED", "version": H3_AUDIO_CLEANUP_VERSION,
+                            "error": str(exc)[:500],
+                        }
+        return snapshot
+
+    def retry_local_head_cleanup(self, owner_user_id: str, project_id: str, segment_id: str) -> dict[str, Any]:
+        """Local-only retry; never calls H3 generation or paid retry endpoints."""
+        if not self.head_cleanup_enabled:
+            raise ValueError("本地片头清理未开启")
+        project = self.store.get_project(owner_user_id, project_id)
+        segment = self._require_project_segment(project, segment_id)
+        for item in project.get("items", []):
+            h3 = item.get("settings", {}).get("h3", {})
+            if segment not in h3.get("segments", []):
+                continue
+            source = self._cached_segment_path(owner_user_id, project_id, str(item["item_id"]),
+                {"batch_id": h3.get("remote_batch_id"), "item_id": h3.get("remote_item_id")}, segment, require_current=True)
+            if source is not None:
+                return request_cleanup(source, str(segment.get("script_text") or ""), self.caption_aligner, force_retry=True)
+        raise ValueError("当前原片尚未下载完成，不能清理旧版本")
 
     def _materialize_ready_items(
         self,
@@ -1357,6 +1434,13 @@ class ProjectH3Coordinator:
             remote_item = remote_by_row.get(str(item.get("row_key") or ""))
             if not isinstance(remote_item, dict):
                 continue
+            item_h3 = item.get("settings", {}).get("h3", {})
+            if (
+                item_h3.get("invalidated_reason")
+                or item_h3.get("remote_batch_id") != snapshot.get("batch_id")
+                or item_h3.get("remote_item_id") != remote_item.get("item_id")
+            ):
+                continue
             remote_item = {
                 "batch_id": snapshot.get("batch_id"),
                 **remote_item,
@@ -1364,14 +1448,46 @@ class ProjectH3Coordinator:
             segments = self._ready_segments(remote_item)
             if segments is None:
                 continue
-            self._materialize_item(
-                owner_user_id,
-                project_id,
-                token,
-                item=item,
-                remote_item=remote_item,
-                segments=segments,
+            failure_key = {
+                "segment_signature": self._segment_signature(segments),
+                "script_sha256": hashlib.sha256(
+                    str(item.get("script_text") or "").encode("utf-8")
+                ).hexdigest(),
+            }
+            previous_error = item_h3.get("materialization_error") or {}
+            if previous_error.get("requires_input_change") and all(
+                previous_error.get(key) == value for key, value in failure_key.items()
+            ):
+                continue
+            segment_script = "".join(str(value.get("script_text") or "") for value in segments)
+            script_matches = "".join(segment_script.split()) == "".join(
+                str(item.get("script_text") or "").split()
             )
+            try:
+                if not script_matches:
+                    raise H3MediaError("当前脚本与已生成片段不一致，请确认脚本和声音版本")
+                self._materialize_item(
+                    owner_user_id, project_id, token,
+                    item=item, remote_item=remote_item, segments=segments,
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                logger.exception(
+                    "H3 local materialization failed: project=%s item=%s", project_id, item["item_id"]
+                )
+                self.store.set_h3_materialization_error(
+                    owner_user_id, project_id, str(item["item_id"]),
+                    error={
+                        **failure_key,
+                        "code": "H3_SCRIPT_MISMATCH" if not script_matches else "H3_LOCAL_MEDIA_FAILED",
+                        "message": str(exc)[:500],
+                        "requires_input_change": not script_matches,
+                    },
+                )
+            else:
+                if previous_error:
+                    self.store.set_h3_materialization_error(
+                        owner_user_id, project_id, str(item["item_id"]), error=None,
+                    )
             project = self.store.get_project(owner_user_id, project_id)
         return project
 
@@ -1389,6 +1505,10 @@ class ProjectH3Coordinator:
         script_text = str(item.get("script_text") or "")
         script_sha256 = hashlib.sha256(script_text.encode("utf-8")).hexdigest()
         script_length = len(script_text)
+        build_segment_cues(
+            [str(value.get("script_text") or "") for value in segments],
+            [1.0] * len(segments), script_text=script_text,
+        )
         item_id = str(item["item_id"])
         segment_paths: list[Path] = []
         for segment in segments:
@@ -1405,6 +1525,16 @@ class ProjectH3Coordinator:
                 # segment is still downloading or will be retried on next poll.
                 return
             segment_paths.append(cached)
+        cleanup_assets = []
+        if self.head_cleanup_enabled:
+            for path, segment in zip(segment_paths, segments, strict=True):
+                cleaned = read_cleanup(path, str(segment.get("script_text") or ""))
+                if cleaned is None:
+                    if segment.get("local_audio_cleanup", {}).get("status") == "FAILED":
+                        raise H3MediaError("H3 片头清理失败，请在片段检查中重试本地清理，不需要重新生成")
+                    return
+                cleanup_assets.append(cleaned)
+            signature = hashlib.sha256((signature + ":" + ":".join(value.key for value in cleanup_assets)).encode("utf-8")).hexdigest()
         outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
         current_audio = outputs.get("audio") if isinstance(outputs.get("audio"), dict) else {}
         current_base = (
@@ -1420,11 +1550,24 @@ class ProjectH3Coordinator:
             and current_base_path.is_file()
             and current_base_path.stat().st_size > 0
         )
+        expected_dissolve_seconds = (
+            H3_VISUAL_DISSOLVE_SECONDS if len(segments) > 1 else 0.0
+        )
+        try:
+            current_dissolve_seconds = float(
+                current_base.get("metadata", {}).get("visual_dissolve_seconds")
+            )
+        except (TypeError, ValueError):
+            current_dissolve_seconds = -1.0
         if (
             current_audio.get("metadata", {}).get("h3_segment_signature") == signature
             and current_base.get("metadata", {}).get("h3_segment_signature") == signature
+            and abs(current_dissolve_seconds - expected_dissolve_seconds) < 0.000001
             and current_files_ready
         ):
+            if (item.get("status") in ACTIVE_ITEM_STATUSES
+                    or (outputs.get("composition_video") or {}).get("source_type") == "user_upload"):
+                return
             segment_script = "".join(str(value.get("script_text") or "") for value in segments)
             if "".join(segment_script.split()) == "".join(script_text.split()):
                 self.store.repair_legacy_h3_script_binding(
@@ -1432,6 +1575,40 @@ class ProjectH3Coordinator:
                     project_id,
                     str(item["item_id"]),
                     segment_signature=signature,
+                )
+            if not h3_video_sequence_ready(item):
+                # Upgrade only the picture manifest. Keep the cleaned audio,
+                # ASR alignment and existing user draft files untouched.
+                metadata = self._register_video_segments(
+                    owner_user_id, project_id, item, remote_item, segments,
+                    segment_paths, signature,
+                    [_probe_duration(path) for path in segment_paths],
+                )
+                refreshed = self.store.get_project(owner_user_id, project_id)
+                current_item = next(
+                    value for value in refreshed["items"] if value["item_id"] == item_id
+                )
+                base = self.store.add_asset(
+                    owner_user_id=owner_user_id,
+                    project_id=project_id,
+                    item_id=item_id,
+                    asset_type="base_video",
+                    source_type="h3",
+                    status="READY",
+                    filename=str(current_base.get("filename") or "H3静音底片.mp4"),
+                    managed_path=str(current_base_path),
+                    metadata={
+                        **current_item["outputs"]["base_video"].get("metadata", {}),
+                        **metadata,
+                    },
+                    make_current=True,
+                )
+                subtitles = dict(current_item.get("subtitles") or {})
+                subtitles["bound_video_asset_id"] = base["asset_id"]
+                if subtitles.get("status") == "PREVIEW_READY":
+                    subtitles["status"] = "READY"
+                self.store.set_item_subtitles(
+                    owner_user_id, project_id, item_id, subtitles
                 )
             return
         assert self.storage_root is not None
@@ -1444,17 +1621,42 @@ class ProjectH3Coordinator:
             / "h3"
             / signature
         )
+        frozen_paths = [
+            freeze_segment(path, target_dir / "segments") for path in segment_paths
+        ]
+        if cleanup_assets and any(
+            path.parent.name != clean.raw_sha256
+            for path, clean in zip(frozen_paths, cleanup_assets, strict=True)
+        ):
+            raise H3MediaError("H3 分段在声音清理后发生变化，请重试本地处理")
         assets = self.media_preparer(
-            segment_paths=segment_paths,
+            segment_paths=frozen_paths,
             segment_texts=[str(value["script_text"]) for value in segments],
             script_text=script_text,
             target_dir=target_dir,
+            **(
+                {
+                    "segment_audio_paths": [
+                        value.audio_path for value in cleanup_assets
+                    ],
+                    "segment_audio_offsets_seconds": [
+                        float(value.report["audio_offset_seconds"])
+                        for value in cleanup_assets
+                    ],
+                }
+                if cleanup_assets
+                else {}
+            ),
         )
         duration_us = sum(
             max(1, round(float(value) * 1_000_000))
             for value in assets.segment_durations_seconds
         )
         common_metadata = {
+            **self._register_video_segments(
+                owner_user_id, project_id, item, remote_item, segments,
+                frozen_paths, signature, list(assets.segment_durations_seconds),
+            ),
             "h3_segment_signature": signature,
             "remote_batch_id": remote_item.get("batch_id"),
             "remote_item_id": remote_item.get("item_id"),
@@ -1463,6 +1665,12 @@ class ProjectH3Coordinator:
             "script_sha256": script_sha256,
             "script_length": script_length,
             "duration_us": duration_us,
+            "visual_transition": "dissolve" if assets.visual_dissolve_seconds > 0 else "none",
+            "visual_dissolve_seconds": assets.visual_dissolve_seconds,
+            "visual_transition_preserves_timeline": True,
+            **({"head_cleanup_version": H3_AUDIO_CLEANUP_VERSION,
+                "head_cleanup_keys": [value.key for value in cleanup_assets],
+                "head_cleanup_reports": [value.report for value in cleanup_assets]} if cleanup_assets else {}),
         }
         self.store.add_asset(
             owner_user_id=owner_user_id,
@@ -1471,7 +1679,7 @@ class ProjectH3Coordinator:
             asset_type="h3_master_av",
             source_type="h3",
             status="READY",
-            filename=f"{item.get('row_key')}-H3原生成片.mp4",
+            filename=f"{item.get('row_key')}-H3声音清理母版.mp4" if cleanup_assets else f"{item.get('row_key')}-H3原生成片.mp4",
             managed_path=str(assets.master_av_path),
             metadata=common_metadata,
         )
@@ -1558,3 +1766,43 @@ class ProjectH3Coordinator:
             item_id,
             subtitles,
         )
+
+    def _register_video_segments(
+        self, owner_user_id: str, project_id: str, item: dict[str, Any],
+        remote_item: dict[str, Any], segments: list[dict[str, Any]],
+        paths: list[Path], signature: str, durations: list[float],
+    ) -> dict[str, Any]:
+        assert self.storage_root is not None
+        root = self.storage_root / "projects" / str(owner_user_id) / project_id / str(item["item_id"]) / "h3" / signature / "segments"
+        existing = (item.get("asset_history") or {}).get("original_video_segment", [])
+        ids = []
+        for index, (segment, path, duration) in enumerate(zip(segments, paths, durations, strict=True), start=1):
+            frozen = freeze_segment(path, root)
+            duration_us = round(duration * 1_000_000)
+            if duration_us <= 0:
+                raise H3MediaError("H3 原始分段时长无效")
+            asset = next((value for value in reversed(existing)
+                          if value.get("source_type") == "h3"
+                          and value.get("status") == "READY"
+                          and Path(str(value.get("managed_path") or "")) == frozen
+                          and value.get("metadata", {}).get("h3_segment_signature") == signature
+                          and value.get("metadata", {}).get("actual_duration_us") == duration_us
+                          and value.get("external_ref", {}).get("segment_id") == segment["segment_id"]
+                          and value.get("external_ref", {}).get("batch_id") == remote_item.get("batch_id")
+                          and value.get("external_ref", {}).get("remote_item_id") == remote_item.get("item_id")
+                          and value.get("external_ref", {}).get("video_index") == index), None)
+            if asset is None:
+                asset = self.store.add_asset(
+                    owner_user_id=owner_user_id, project_id=project_id, item_id=str(item["item_id"]),
+                    asset_type="original_video_segment", source_type="h3", status="READY",
+                    filename=f"{item.get('row_key')}-H3第{index:03d}段.mp4", managed_path=str(frozen),
+                    external_ref={"batch_id": remote_item.get("batch_id"), "remote_item_id": remote_item.get("item_id"),
+                                  "segment_id": segment["segment_id"], "video_index": index},
+                    metadata={"h3_segment_signature": signature, "actual_duration_us": duration_us,
+                              "script_text": str(segment.get("script_text") or ""),
+                              "source_sha256": frozen.parent.name,
+                              "video_sequence_version": H3_VIDEO_SEQUENCE_VERSION},
+                )
+            ids.append(asset["asset_id"])
+        return {"video_sequence_version": H3_VIDEO_SEQUENCE_VERSION,
+                "segment_count": len(ids), "source_segment_asset_ids": ids}

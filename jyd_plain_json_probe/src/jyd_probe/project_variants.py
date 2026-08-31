@@ -7,7 +7,12 @@ from pathlib import Path
 from typing import Any, Iterable
 import uuid
 
-from .bgm_loudness import BGM_FALLBACK_VOLUME, automatic_bgm_mix
+from .bgm_loudness import (
+    BGM_FALLBACK_VOLUME,
+    automatic_bgm_mix,
+    recommended_bgm_fade_in_us,
+)
+from .project_music import item_video_duration_us
 from .project_results import ProjectResultLibrary
 from .project_store import ProjectStore
 from .project_video_source import build_project_speech_audio, build_project_video_source
@@ -901,17 +906,37 @@ class ProjectVariantCoordinator:
             }
         if bgm_identity:
             saved_bgm_volume = postprocess.get("bgm_volume")
+            bgm_loudness = dict(postprocess.get("bgm_loudness") or {})
             if saved_bgm_volume is None:
                 audio = outputs.get("audio")
                 bgm = self.bgm_assets.get(bgm_identity) or {}
                 voice_path = str(audio.get("managed_path") or "") if isinstance(audio, dict) else ""
                 bgm_path = str(bgm.get("absolute_path") or "")
+                video_duration_us = item_video_duration_us(item)
+                fade_in_us = recommended_bgm_fade_in_us(video_duration_us)
                 bgm_mix = (
-                    automatic_bgm_mix(voice_path, bgm_path)
+                    automatic_bgm_mix(
+                        voice_path,
+                        bgm_path,
+                        video_duration_us=video_duration_us,
+                        crossfade_us=BGM_CROSSFADE_US,
+                        fade_in_us=fade_in_us,
+                    )
                     if voice_path and bgm_path
-                    else {"volume": BGM_FALLBACK_VOLUME}
+                    else {
+                        "volume": BGM_FALLBACK_VOLUME,
+                        "fade_in_us": fade_in_us,
+                    }
                 )
                 saved_bgm_volume = bgm_mix["volume"]
+                if not bgm_loudness:
+                    bgm_loudness = bgm_mix
+            saved_fade_in_us = bgm_loudness.get("fade_in_us")
+            fade_in_us = (
+                max(0, min(BGM_FADE_IN_US, int(saved_fade_in_us)))
+                if saved_fade_in_us is not None
+                else recommended_bgm_fade_in_us(item_video_duration_us(item))
+            )
             job["audios"].append(
                 {
                     "type": "bgm",
@@ -921,7 +946,7 @@ class ProjectVariantCoordinator:
                     "fit_to_video": True,
                     "align_to_end": True,
                     "crossfade_us": BGM_CROSSFADE_US,
-                    "fade_in_us": BGM_FADE_IN_US,
+                    "fade_in_us": fade_in_us,
                     "volume": float(saved_bgm_volume or BGM_FALLBACK_VOLUME),
                 }
             )

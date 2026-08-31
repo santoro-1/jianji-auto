@@ -18,8 +18,10 @@ from .bgm_loudness import (
     BGM_FALLBACK_VOLUME,
     BGM_TARGET_GAP_DB,
     BGM_STRONG_VOCAL_EXTRA_GAP_DB,
+    BGM_VOLUME_ALGORITHM,
     automatic_bgm_mix,
     fallback_bgm_volume,
+    recommended_bgm_fade_in_us,
 )
 from .caption_alignment import (
     CaptionAlignmentError,
@@ -85,7 +87,7 @@ TEXT_SHADOW_DISTANCE = 5.0
 TEXT_SHADOW_ANGLE = -45.0
 TEXT_SHADOW_SMOOTHING = 0.45000001788139343
 BGM_CROSSFADE_US = 200_000
-BGM_FADE_IN_US = 5_000_000
+BGM_FADE_IN_US = 1_500_000
 VIDEO_FADE_OUT_US = 0
 FIXED_VIDEO_TITLE_TEXT = "世界冠军带你自律"
 FIXED_VIDEO_TITLE_TRANSFORM_Y = 1535 / 1920
@@ -2351,20 +2353,28 @@ class ProjectPostprocessCoordinator:
         bgm = self.bgm_assets.get(bgm_identity)
         voice_path = str(audio.get("managed_path") or "") if isinstance(audio, dict) else ""
         bgm_path = str(bgm.get("absolute_path") or "") if isinstance(bgm, dict) else ""
+        video_duration_us = item_video_duration_us(item)
+        fade_in_us = recommended_bgm_fade_in_us(video_duration_us)
         if not voice_path or not bgm_path:
             return {
-                "algorithm": "speech-relative-lufs.v1",
+                "algorithm": BGM_VOLUME_ALGORITHM,
                 "volume": fallback_bgm_volume(strong_vocals=strong_vocals),
                 "target_gap_db": BGM_TARGET_GAP_DB
                 + (BGM_STRONG_VOCAL_EXTRA_GAP_DB if strong_vocals else 0.0),
+                "crossfade_us": BGM_CROSSFADE_US,
+                "fade_in_us": fade_in_us,
                 "strong_vocals": strong_vocals,
                 "fallback": True,
+                "constraints_hit": ["analysis_fallback"],
                 "reason": "人声或 BGM 文件路径不可用",
             }
         return automatic_bgm_mix(
             voice_path,
             bgm_path,
             strong_vocals=strong_vocals,
+            video_duration_us=video_duration_us,
+            crossfade_us=BGM_CROSSFADE_US,
+            fade_in_us=fade_in_us,
         )
 
     def _apply_standard_visual_content(
@@ -2467,6 +2477,14 @@ class ProjectPostprocessCoordinator:
             output["mp4_path"] = str(output_mp4)
         source = build_project_video_source(item)
         source["fade_out_us"] = VIDEO_FADE_OUT_US
+        video_duration_us = item_video_duration_us(item)
+        bgm_loudness = dict(settings.get("bgm_loudness") or {})
+        saved_fade_in_us = bgm_loudness.get("fade_in_us")
+        bgm_fade_in_us = (
+            max(0, min(BGM_FADE_IN_US, int(saved_fade_in_us)))
+            if saved_fade_in_us is not None
+            else recommended_bgm_fade_in_us(video_duration_us)
+        )
         job: dict[str, Any] = {
             "schema": "jyd.render_job.v1",
             "source": source,
@@ -2507,7 +2525,7 @@ class ProjectPostprocessCoordinator:
                             "fit_to_video": True,
                             "align_to_end": True,
                             "crossfade_us": BGM_CROSSFADE_US,
-                            "fade_in_us": BGM_FADE_IN_US,
+                            "fade_in_us": bgm_fade_in_us,
                             "volume": float(
                                 settings.get("bgm_volume") or BGM_FALLBACK_VOLUME
                             ),
@@ -2519,7 +2537,6 @@ class ProjectPostprocessCoordinator:
             ],
             "export": {"resolution": "1080P", "framerate": "30fps"},
         }
-        video_duration_us = item_video_duration_us(item)
         template = settings.get("jianying_template")
         if isinstance(template, dict) and template.get("template_id"):
             if video_duration_us <= 0:
@@ -2540,7 +2557,13 @@ class ProjectPostprocessCoordinator:
             }
             job["remove_existing_audio"] = True
             job["timeline_duration_us"] = video_duration_us
-            if main_video:
+            if base_video.get("source_type") == "h3" and source.get("type") == "video_sequence":
+                job["main_video_sequence"] = {
+                    "items": source["items"],
+                    "track_index": int(main_video.get("typed_track_index", 0)) if main_video else -1,
+                    "segment_index": int(main_video.get("segment_index", 0)),
+                }
+            elif main_video:
                 job["video_replacements"] = [
                     {
                         "type": "video-segment",

@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import shutil
 import sys
+import subprocess
 import unittest
 import uuid
 from unittest.mock import patch
@@ -19,6 +20,49 @@ from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
 class NewFrontendTest(unittest.TestCase):
+    def test_h3_blocked_row_does_not_keep_batch_polling_or_block_ready_row(self) -> None:
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js is required for frontend behavior tests")
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        helpers = page[page.index("        function h3ItemIsActive("):page.index("        function h3FailureToastSignature(")]
+        script = """
+            const assert = require('node:assert/strict');
+            const H3_ACTIVE_ITEM_STATUSES = new Set(['RUNNING', 'PENDING']);
+            const H3_RUNNING_REMOTE_STATUSES = new Set(['ACTIVE', 'RUNNING']);
+            function h3BatchRecords(project) { return []; }
+        """ + helpers + """
+            const blocked = {status:'H3_REVIEW_REQUIRED', settings:{h3:{remote_batch_id:'bad', remote_status:'SUCCESS', materialization_error:{requires_input_change:true}, segments:[{status:'SUCCESS',local_preview_is_current:true}]}}, outputs:{}};
+            const ready = {status:'BASE_VIDEO_READY', settings:{h3:{remote_batch_id:'good',remote_status:'SUCCESS',segments:[{status:'SUCCESS',local_preview_is_current:true}]}}, outputs:{audio:{file_exists:true},base_video:{file_exists:true}},allowed_actions:{start_postprocess:true}};
+            const project = {items:[blocked,ready]};
+            ready.outputs.audio.metadata = {head_cleanup_version:'jyd.h3-head-silence.v1'};
+            ready.outputs.base_video.metadata = {video_sequence_version:'jyd.h3-video-sequence.v1', segment_count:1, source_segment_asset_ids:['clip-1']};
+            ready.outputs.original_video_segments = [{asset_id:'clip-1', file_exists:true}];
+            ready.settings.h3.segments[0].local_audio_cleanup = {status:'READY'};
+            assert.equal(h3StateIsActive(project),false);
+            assert.equal(h3NeedsLocalMaterialization(project),false);
+            assert.equal(h3HasPendingPostprocess(project),true);
+            ready.outputs.original_video_segments[0].file_exists=false;
+            assert.equal(h3NeedsLocalMaterialization(project),true);
+            assert.equal(h3HasPendingPostprocess(project),false);
+            ready.outputs.original_video_segments[0].file_exists=true;
+            ready.outputs.audio.metadata.head_cleanup_version = 'old';
+            ready.settings.h3.segments[0].local_audio_cleanup.status = 'PROCESSING';
+            assert.equal(h3NeedsLocalMaterialization(project),true);
+            assert.equal(h3HasPendingPostprocess(project),false);
+            ready.settings.h3.segments[0].local_audio_cleanup.status = 'FAILED';
+            assert.equal(h3NeedsLocalMaterialization(project),false);
+            assert.equal(h3HasPendingPostprocess(project),false);
+            ready.outputs.audio.metadata.head_cleanup_version = 'jyd.h3-head-silence.v1';
+            ready.settings.h3.segments[0].local_audio_cleanup.status = 'READY';
+            blocked.settings.h3.segments[0].local_preview_is_current=false;
+            assert.equal(h3NeedsLocalMaterialization(project),true);
+            blocked.settings.h3.invalidated_reason='AUDIO_VERSION_CHANGED';
+            assert.equal(h3NeedsLocalMaterialization(project),false);
+        """
+        result = subprocess.run([node, "-e", script], capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_h3_row_override_markup_uses_existing_escape_helper(self) -> None:
         page = (PROJECT_ROOT / "apps" / "processor" / "frontend" / "new" / "index.html").read_text(
             encoding="utf-8"
@@ -37,6 +81,7 @@ class NewFrontendTest(unittest.TestCase):
         page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
 
         self.assertIn("title: '是否确认生成？'", page)
+        self.assertIn("共 ${segmentCount} 个分段，预计 ${paidCallCount} 次付费调用", page)
         self.assertIn("confirmText: '是'", page)
         self.assertIn("cancelText: '否'", page)
         self.assertNotIn("系统将自动切为", page)
@@ -48,6 +93,9 @@ class NewFrontendTest(unittest.TestCase):
         self.assertNotIn('id="btn-review-h3-audio"', page)
         self.assertNotIn("function reviewH3TargetAudio", page)
         self.assertIn("await startGlobalH3Generation([script])", page)
+        self.assertIn("正在上传 ${targets.length} 条素材并计算分段，请勿重复点击", page)
+        self.assertIn("上次计算分段失败：${h3PreparationError}", page)
+        self.assertIn("showToast('计算分段失败', h3PreparationError, 'warning')", page)
         self.assertIn(
             "h3EligibleTargets.every(item => latestMinimaxAudio(item) && item.image && item.h3ReferenceVideo)",
             page,
@@ -208,10 +256,15 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("if (h3StateIsActive(result.project))", page)
         self.assertIn("function h3FailedSegments(project = activeProject)", page)
         self.assertIn("function h3HasPendingPostprocess(project = activeProject)", page)
-        self.assertIn("function h3NeedsLocalMaterialization(project = activeProject)", page)
-        self.assertIn("const hasUncachedSuccessfulSegment", page)
-        self.assertIn("segment?.local_preview_ready !== true", page)
-        self.assertIn("hasUncachedSuccessfulSegment", page)
+        self.assertIn("function h3NeedsLocalMaterialization(", page)
+        self.assertIn("project = activeProject,", page)
+        self.assertIn("const hasUndownloadedSuccessfulSegment", page)
+        self.assertIn("segment?.local_preview_is_current !== true", page)
+        self.assertIn("hasUndownloadedSuccessfulSegment", page)
+        self.assertIn("const needsDissolveUpgrade", page)
+        self.assertIn("{ includeDissolveUpgrade = true } = {}", page)
+        self.assertIn("h3NeedsLocalMaterialization(project, { includeDissolveUpgrade: false })", page)
+        self.assertIn("visual_dissolve_seconds || 0) !== 0.5", page)
         self.assertIn("remoteStatus === 'SUCCESS'", page)
         self.assertIn("function h3OutputFileAvailable(asset)", page)
         self.assertIn("asset.file_exists !== false", page)
@@ -223,6 +276,9 @@ class NewFrontendTest(unittest.TestCase):
         )
         self.assertIn("h3NeedsLocalMaterialization(existing.project)", page)
         self.assertIn("云端 H3 已完成，正在重新下载并合并已有结果，不会重复提交或付费", page)
+        self.assertIn("function h3RedownloadSegment(segmentId)", page)
+        self.assertIn("当前版本已经保存到本机，不会产生新的生成费用", page)
+        self.assertIn("工作台会继续自动下载当前结果", page)
         self.assertIn("成功行已保留并继续生成预览", page)
         self.assertIn("const h3FailureToastSignatures = new Map()", page)
         self.assertIn("function h3FailureToastSignature(failedSegments)", page)
@@ -756,8 +812,12 @@ class NewFrontendTest(unittest.TestCase):
 
         self.assertIn("buildBacktimedPreviewBgmPlan", workspace)
         self.assertIn("PREVIEW_BGM_CROSSFADE_SECONDS = 0.2", workspace)
-        self.assertIn("previewBgmBaseVolume = 0.18", workspace)
+        self.assertIn("previewBgmBaseVolume = 0.3162", workspace)
         self.assertIn("script?.postprocessSettings?.bgm_volume", workspace)
+        self.assertIn("postprocessSettings?.bgm_loudness?.fade_in_us", workspace)
+        self.assertIn("createMediaElementSource", workspace)
+        self.assertIn("createDynamicsCompressor", workspace)
+        self.assertIn("Math.min(2, savedBgmVolume)", workspace)
         self.assertIn("/postprocess/export", workspace)
         self.assertIn("重新导出带封面 MP4", workspace)
         self.assertIn("封面/设置已更新 · 旧成片已过期", workspace)
@@ -964,8 +1024,10 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("preload=\"metadata\"", workspace)
         self.assertIn("重试这段", workspace)
         self.assertIn("/h3-segments/${segmentNumber}/preview", workspace)
+        self.assertIn("segment_id=${encodeURIComponent(segmentId)}", workspace)
+        self.assertIn("v=${encodeURIComponent(previewVersion)}", workspace)
         self.assertIn("segment.local_preview_ready === true", workspace)
-        self.assertIn("baseMatchesSegment", workspace)
+        self.assertNotIn("baseMatchesSegment", workspace)
         self.assertNotIn('id="btn-generate-variants"', workspace)
         self.assertNotIn('id="btn-variant-settings"', workspace)
 
