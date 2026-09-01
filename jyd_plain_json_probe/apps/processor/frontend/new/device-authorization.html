@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>设备授权 · 公域闪剪工作台</title>
+  <link rel="stylesheet" href="/app-static/new/device-authorization.css">
+  <script src="/app-static/new/device-authorization.js" defer></script>
+  <script src="/app-static/new/device-h3-recovery.js" defer></script>
+</head>
+<body>
+  <main>
+    <nav><a href="/app/new">← 返回工作台</a><span>公域闪剪 · 处理机管理</span></nav>
+    <header><p class="eyebrow">DEVICE AUTHORIZATION</p><h1>设备授权</h1><p>首次批准一次，正常更新无需重复激活。</p></header>
+    <section class="card" aria-labelledby="status-title">
+      <div class="status-heading"><span id="status-dot" class="dot"></span><div><h2 id="status-title">正在读取授权状态</h2><p id="status-description" aria-live="polite">正在连接当前处理机，请稍候。</p></div></div>
+      <dl><div><dt>当前账号</dt><dd id="account">—</dd></div><div><dt>处理机编号</dt><dd id="device-id">—</dd></div><div><dt>密钥保护</dt><dd id="protection">—</dd></div><div><dt>本次凭据有效至</dt><dd id="expires">—</dd></div></dl>
+      <p class="note">授权绑定的是运行工作台服务的电脑。通过远程桌面或浏览器连接 250 时，申请的是 250 的授权，不是你手边的电脑。</p>
+      <p id="error" class="error" role="alert" hidden></p>
+      <div class="actions"><button id="refresh" type="button">重新校验授权</button><a id="login" href="/app/new/login" hidden>重新登录账号</a><a id="continue" class="primary" href="/app/new" hidden>返回工作台</a></div>
+    </section>
+    <section id="application" class="card" hidden>
+      <h2>申请这台处理机的使用权限</h2><p>提交后由管理员在网站后台批准，不需要自己生成或保管密钥。首次初始化可能在实际处理机上弹出 Windows 权限确认；正常更新不会反复提权。</p>
+      <form id="apply-form"><label for="label">设备备注（可选）</label><input id="label" name="label" maxlength="80" placeholder="例如：250 处理机 / 剪辑室电脑" autocomplete="off">
+        <label class="check"><input id="confirm" type="checkbox" required><span>我确认要为当前处理机申请设备授权。</span></label>
+        <button id="apply" class="primary" type="submit" disabled>申请设备授权</button>
+        <details class="note" id="software-option"><summary>需要软件保护兼容模式？</summary><p>仅在管理员允许时使用，保护强度低于 TPM。不会因 TPM 故障自动切换；已有设备应先修复原密钥。初始化后仍需管理员批准设备。</p><label class="check"><input id="software-confirm" type="checkbox"><span>我确认申请软件兼容保护，接受较弱的保护等级。</span></label><button id="apply-software" type="button" disabled>申请软件兼容授权</button></details>
+      </form>
+    </section>
+    <section id="key-repair" class="card" hidden>
+      <h2>修复原设备密钥的访问权限</h2><p>仅为运行工作台的 Windows 用户补充原密钥使用权限，不创建或替换密钥，不批准网站设备授权。请在实际处理机上完成 Windows 管理员确认。</p>
+      <form id="repair-form"><label class="check"><input id="repair-confirm" type="checkbox"><span>我确认仅修复当前处理机原密钥的访问权限，不重新激活。</span></label><button id="repair" type="submit" disabled>修复原密钥访问权限</button></form>
+    </section>
+    <section id="waiting-jobs" class="card" hidden>
+      <h2>等待授权的本地任务</h2><p>仅显示当前账号的任务。继续前会重新校验本机授权，保留原任务，不重新生成云端视频。</p>
+      <div id="waiting-list"></div><p id="waiting-error" class="error" role="alert" hidden></p>
+    </section>
+    <section class="help"><h2>什么时候不需要重新申请？</h2><p>覆盖更新程序、移动安装目录、重启电脑、清除浏览器缓存或重新登录，都应沿用原设备授权。</p><p>如果重装系统或更换硬件导致密钥丢失，请联系管理员办理恢复或换机。不要反复申请，也不要复制别人的授权文件。</p></section>
+    <section id="h3-waiting" class="card">
+      <h2>等待授权的 H3 云端任务</h2><p>这里只恢复当前账号已确认的原批次。尚未提交的分段继续按原计划计费；已有远程任务或提交结果不明的任务不会重发。</p>
+      <p id="h3-waiting-status" aria-live="polite">正在查询…</p><div id="h3-waiting-list"></div>
+      <div class="actions"><button id="h3-waiting-refresh" type="button">刷新云端等待任务</button><button id="h3-waiting-more" type="button" hidden>继续查询后续批次</button></div>
+      <p id="h3-waiting-error" class="error" role="alert" hidden></p>
+      <section id="h3-recovery-review" class="note" hidden>
+        <h2 id="h3-recovery-title">确认继续原片段</h2><div id="h3-recovery-segments"></div>
+        <label class="check"><input id="h3-recovery-confirm" type="checkbox">我确认在本机授权下继续上述原分段，接受原计划中尚未提交分段的生成费用。</label>
+        <div class="actions"><button id="h3-recovery-submit" type="button" class="primary" disabled>确认授权并继续</button><button id="h3-recovery-cancel" type="button">暂不继续</button></div>
+      </section>
+    </section>
+    <footer>设备授权与账号登录分别管理。申请或刷新授权不会自动恢复任务；本地任务与 H3 云端任务分别明确确认后继续。</footer>
+  </main>
+</body>
+</html>

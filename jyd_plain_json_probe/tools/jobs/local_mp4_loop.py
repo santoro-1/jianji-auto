@@ -26,6 +26,10 @@ from jyd_probe.content_replace import (  # noqa: E402
 )
 from jyd_probe.draft_crypto import prepare_plain_draft_dir  # noqa: E402
 from jyd_probe.draft_factory import create_plain_draft_from_video  # noqa: E402
+from jyd_probe.device_command_authorization import add_command_authorization_arguments, command_authorization
+from jyd_probe.device_local_execution import authorized_local_unit, protected_local_work
+from jyd_probe.device_auth_protocol import DeviceAuthorizationError
+from jyd_probe.ui_automation_thread import initialize_ui_automation_in_current_thread
 
 
 def _load_export_api() -> tuple[type, type, type]:
@@ -144,6 +148,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--jy-draftc-debug", action="store_true", help="给 jy-draftc.exe 传 --debug")
     parser.add_argument("--dump-nested-drafts", action="store_true", help="打印嵌套模板结构，第一次找下标时使用")
     parser.add_argument("--dump-effects", action="store_true", help="打印特效结构")
+    add_command_authorization_arguments(parser)
     return parser
 
 
@@ -164,11 +169,14 @@ def _value(data: dict, *keys: str, default=None):
 
 
 def apply_job_config(args: argparse.Namespace) -> argparse.Namespace:
+    if getattr(args, "_job_config_loaded", False):
+        return args
     if not args.job:
         args.job_video = None
         args.job_texts = None
         args.job_audios = None
         args.job_effects = None
+        args._job_config_loaded = True
         return args
 
     data = _load_job_file(args.job)
@@ -232,6 +240,7 @@ def apply_job_config(args: argparse.Namespace) -> argparse.Namespace:
     args.job_texts = data.get("texts")
     args.job_audios = data.get("audios", data.get("audio"))
     args.job_effects = data.get("effects", data.get("effect"))
+    args._job_config_loaded = True
     return args
 
 
@@ -620,6 +629,7 @@ def build_job(args: argparse.Namespace) -> ContentReplaceJob:
     )
 
 
+@protected_local_work({"local:render"})
 def export_mp4(args: argparse.Namespace, draft_name: str) -> Path:
     args = apply_job_config(args)
     if not args.output_mp4:
@@ -633,14 +643,15 @@ def export_mp4(args: argparse.Namespace, draft_name: str) -> Path:
     resolution = _enum_by_value(resolution_type, args.resolution, "分辨率")
     framerate = _enum_by_value(framerate_type, args.framerate, "帧率")
 
-    controller = controller_type()
-    controller.export_draft(
-        draft_name,
-        str(output_mp4),
-        resolution=resolution,
-        framerate=framerate,
-        timeout=args.export_timeout,
-    )
+    with initialize_ui_automation_in_current_thread():
+        controller = controller_type()
+        controller.export_draft(
+            draft_name,
+            str(output_mp4),
+            resolution=resolution,
+            framerate=framerate,
+            timeout=args.export_timeout,
+        )
     return output_mp4
 
 
@@ -649,16 +660,23 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        result = run_content_replace_job(build_job(args))
-        print(f"草稿已生成: {result.output_dir}")
-
-        if args.skip_export:
-            print("已跳过 MP4 导出。")
-            return 0
-
-        output_mp4 = export_mp4(args, result.output_name)
-        print(f"MP4 已导出: {output_mp4}")
-        return 0
+        # Read the job once before deciding scopes; never re-read a changed JSON
+        # between authorization and the export step.
+        args = apply_job_config(args)
+        scopes = {"local:draft"} if args.skip_export else {"local:draft", "local:render"}
+        with command_authorization(args):
+            with authorized_local_unit(scopes):
+                result = run_content_replace_job(build_job(args))
+                print(f"草稿已生成: {result.output_dir}")
+                if args.skip_export:
+                    print("已跳过 MP4 导出。")
+                    return 0
+                output_mp4 = export_mp4(args, result.output_name)
+                print(f"MP4 已导出: {output_mp4}")
+                return 0
+    except DeviceAuthorizationError as exc:
+        print(f"本地任务未完成（{exc.code}），请核对原设备授权", file=sys.stderr)
+        return 1
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

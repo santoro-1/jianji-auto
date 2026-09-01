@@ -11,8 +11,13 @@ from typing import Any, Callable
 import uuid
 
 from .auth_center import AuthCenterClient
+from .h3_quote_recovery import (
+    H3QuoteConflict, describe_quote, input_binding, serialized_quote_action,
+)
+from .logging_config import log_event
 from .caption_alignment import CaptionAlignmentError, alignment_matches
 from .h3_audio_cleanup import H3_AUDIO_CLEANUP_VERSION, read_cleanup, request_cleanup
+from .h3_cache_paths import compact_digest, item_h3_root
 from .h3_video_segments import (
     H3_VIDEO_SEQUENCE_VERSION, freeze_segment, h3_video_sequence_ready,
 )
@@ -80,23 +85,19 @@ def _h3_segment_cache_files(
     remote_batch_id: str,
     remote_item_id: str,
     segment_id: str,
+    legacy: bool = False,
 ) -> tuple[Path, Path]:
     key = _h3_segment_cache_key(
         remote_batch_id=remote_batch_id,
         remote_item_id=remote_item_id,
         segment_id=segment_id,
     )
-    directory = (
-        Path(storage_root).resolve()
-        / "projects"
-        / str(owner_user_id)
-        / str(project_id)
-        / str(item_id)
-        / "h3"
-        / "segment-cache"
-        / key
-    )
-    return directory / "current.mp4", directory / "current.json"
+    root = item_h3_root(storage_root, owner_user_id, project_id, item_id)
+    if legacy:
+        directory = root / "segment-cache" / key
+        return directory / "current.mp4", directory / "current.json"
+    directory = root / ("s-" + compact_digest(key))
+    return directory / "raw.mp4", directory / "raw.json"
 
 
 def current_h3_segment_preview_path(
@@ -151,8 +152,7 @@ def current_h3_segment_preview_path(
     if clean_expected_segment_id and segment_id != clean_expected_segment_id:
         raise FileNotFoundError("H3 分段版本已更新，请刷新后重试")
     if owner_user_id and remote_batch_id and remote_item_id and segment_id:
-        cache_path, _ = _h3_segment_cache_files(
-            root,
+        cache_args = dict(
             owner_user_id=owner_user_id,
             project_id=str(project.get("project_id") or ""),
             item_id=item_id,
@@ -160,6 +160,9 @@ def current_h3_segment_preview_path(
             remote_item_id=remote_item_id,
             segment_id=segment_id,
         )
+        cache_path, _ = _h3_segment_cache_files(root, **cache_args)
+        if not cache_path.is_file() or cache_path.stat().st_size <= 0:
+            cache_path, _ = _h3_segment_cache_files(root, **cache_args, legacy=True)
         cache_path = cache_path.resolve()
         try:
             cache_path.relative_to(root)
@@ -563,6 +566,69 @@ class ProjectH3Coordinator:
             "reviewed_item_ids": reviewed,
         }
 
+    @serialized_quote_action
+    def inspect_quotes(self, owner_user_id, project_id, token, *, item_ids=None):
+        project = self.store.get_project(owner_user_id, project_id)
+        selected = {item["item_id"] for item in self._target_items(project, item_ids)}
+        records = self._batch_records(self._h3_settings(project))
+        known = {record["batch_id"] for record in records}
+        for item in project.get("items", []):
+            state = item.get("settings", {}).get("h3", {})
+            batch_id = state.get("remote_batch_id")
+            if batch_id and batch_id not in known:
+                records.append({"batch_id": batch_id, "status": state.get("remote_status")})
+                known.add(batch_id)
+        descriptions, snapshots = [], []
+        for record in records:
+            if record.get("status") in {"SUCCESS", "FAILED", "PARTIAL_FAILED", "CANCELLED"}:
+                continue
+            bound = (record.get("quote_binding") or {}).get("items") or []
+            related_ids = {value["item_id"] for value in bound} if bound else {
+                item["item_id"] for item in project.get("items", [])
+                if item.get("row_key") in (record.get("row_ids") or [])
+                or item.get("settings", {}).get("h3", {}).get("remote_batch_id") == record["batch_id"]
+            }
+            # Other rows' batches must not block this selection when their query fails.
+            if related_ids and not selected.intersection(related_ids):
+                continue
+            try:
+                snapshot = self.client.get_h3_batch(token, record["batch_id"])
+            except Exception:
+                log_event(logger, "h3.quote_sync_failed", "旧费用预览状态查询失败，禁止新建或确认",
+                          project_id=project_id, batch_id=record["batch_id"])
+                raise
+            info = describe_quote(project, record, snapshot, selected, self._latest_minimax_audio)
+            project = self.store.set_h3_batch_snapshot(owner_user_id, project_id,
+                prepare_key=str(record.get("prepare_key") or ""), snapshot=snapshot)
+            if selected.intersection(info["item_ids"]) and info["status"] in H3_OPEN_BATCH_STATUSES:
+                descriptions.append(info)
+                snapshots.append(snapshot)
+                log_event(logger, "h3.quote_checked", "已核对旧批次与本次选择及素材版本",
+                          project_id=project_id, batch_id=record["batch_id"], status=info["status"],
+                          input_matches=info["input_matches"], same_selection=info["same_selection"],
+                          row_ids=info["row_ids"])
+        return {"project": project, "batches": descriptions, "h3_batches": snapshots}
+
+    @serialized_quote_action
+    def cancel_quote(self, owner_user_id, project_id, token, *, batch_id, request_key, quote_token):
+        project = self.store.get_project(owner_user_id, project_id)
+        record = self._batch_record(self._h3_settings(project), batch_id=batch_id)
+        item_owned = any(item.get("settings", {}).get("h3", {}).get("remote_batch_id") == batch_id
+                         for item in project.get("items", []))
+        if record is None and not item_owned:
+            raise ValueError("费用预览不属于当前项目")
+        record = record or {}
+        # Cloud atomically arbitrates cancel vs confirm. Never clear local state first.
+        snapshot = self.client.cancel_h3_quote(token, batch_id, request_key=request_key, quote_token=quote_token)
+        if snapshot.get("status") != "CANCELLED":
+            raise ValueError("云端未确认撤销，原任务已保留")
+        project = self.store.set_h3_batch_snapshot(owner_user_id, project_id,
+            prepare_key=str(record.get("prepare_key") or ""), snapshot=snapshot)
+        log_event(logger, "h3.quote_cancelled", "未提交的费用预览已由云端确认撤销",
+                  project_id=project_id, batch_id=batch_id)
+        return {"project": project, "h3_batch": snapshot}
+
+    @serialized_quote_action
     def prepare(
         self,
         owner_user_id: str,
@@ -593,6 +659,10 @@ class ProjectH3Coordinator:
             snapshot = self.client.get_h3_batch(
                 token, str(existing_batch["batch_id"])
             )
+            info = describe_quote(project, existing_batch, snapshot,
+                                  [item["item_id"] for item in target_items], self._latest_minimax_audio)
+            if snapshot.get("status") == "AWAITING_COST_CONFIRMATION" and not info["can_resume"]:
+                raise H3QuoteConflict("原费用预览与当前输入不一致，请先处理旧预览", [info])
             project = self.store.set_h3_batch_snapshot(
                 owner_user_id,
                 project_id,
@@ -600,6 +670,16 @@ class ProjectH3Coordinator:
                 snapshot=snapshot,
             )
             return {"project": project, "h3_batch": snapshot}
+
+        checked = self.inspect_quotes(owner_user_id, project_id, token, item_ids=item_ids)
+        if checked["batches"]:
+            if len(checked["batches"]) == 1 and checked["batches"][0]["can_resume"]:
+                log_event(logger, "h3.quote_resumed", "复用已有费用预览，不创建新批次",
+                          project_id=project_id, batch_id=checked["batches"][0]["batch_id"])
+                return {"project": checked["project"], "h3_batch": checked["h3_batches"][0]}
+            raise H3QuoteConflict("所选行已有未结束的任务或费用预览，请先处理旧批次", checked["batches"])
+        project = checked["project"]
+        target_items = self._target_items(project, item_ids)
 
         blocked_rows: list[str] = []
         for item in target_items:
@@ -676,6 +756,7 @@ class ProjectH3Coordinator:
                 ),
             )
 
+        quote_binding = input_binding(project, target_items, self._latest_minimax_audio)
         cloud_image_by_source: dict[str, str] = {}
         row_cloud_images: dict[str, str] = {}
         for item in target_items:
@@ -807,9 +888,14 @@ class ProjectH3Coordinator:
             project_id,
             prepare_key=clean_key,
             snapshot=snapshot,
+            quote_binding=quote_binding,
         )
+        log_event(logger, "h3.quote_created", "费用预览与输入版本已冻结，尚未付费提交",
+                  project_id=project_id, batch_id=batch_id, binding_sha256=quote_binding["sha256"],
+                  item_ids=[item["item_id"] for item in target_items])
         return {"project": project, "h3_batch": snapshot}
 
+    @serialized_quote_action
     def confirm(
         self,
         owner_user_id: str,
@@ -826,13 +912,29 @@ class ProjectH3Coordinator:
         record = self._batch_record(h3, batch_id=clean_batch_id)
         if record is None:
             raise ValueError("H3 费用预览不属于当前项目或已失效")
+        current = self.client.get_h3_batch(token, clean_batch_id)
+        if current.get("confirmed_at") or current.get("status") in {"ACTIVE", "QUEUED", "RUNNING", "SUCCESS"}:
+            project = self.store.set_h3_batch_snapshot(owner_user_id, project_id,
+                prepare_key=str(record.get("prepare_key") or ""), snapshot=current)
+            return {"project": project, "h3_batch": current}
+        selected = [value["item_id"] for value in (record.get("quote_binding") or {}).get("items", [])]
+        info = describe_quote(project, record, current, selected, self._latest_minimax_audio)
+        if not info["can_resume"]:
+            log_event(logger, "h3.quote_confirmation_blocked", "输入变化或报价不可用，已阻止费用确认",
+                      project_id=project_id, batch_id=clean_batch_id, status=info["status"])
+            raise H3QuoteConflict("旧费用预览不可确认：" + (info["input_change_reason"] or info["status"]), [info])
         snapshot = self.client.confirm_h3_batch(token, clean_batch_id)
         project = self.store.set_h3_batch_snapshot(
             owner_user_id,
             project_id,
             prepare_key=str(record.get("prepare_key") or ""),
             snapshot=snapshot,
+            # Explicit confirmation has just revalidated the entire immutable binding.
+            # Allows a changed-then-restored configuration to resume the same quote.
+            quote_binding=record["quote_binding"],
         )
+        log_event(logger, "h3.quote_confirmed", "费用确认已接收，继续原批次",
+                  project_id=project_id, batch_id=clean_batch_id, status=snapshot.get("status"))
         return {"project": project, "h3_batch": snapshot}
 
     @staticmethod
@@ -1161,6 +1263,8 @@ class ProjectH3Coordinator:
         item_id: str,
         remote_item: dict[str, Any],
         segment: dict[str, Any],
+        *,
+        legacy: bool = False,
     ) -> tuple[Path, Path]:
         assert self.storage_root is not None
         return _h3_segment_cache_files(
@@ -1171,6 +1275,7 @@ class ProjectH3Coordinator:
             remote_batch_id=str(remote_item.get("batch_id") or ""),
             remote_item_id=str(remote_item.get("item_id") or ""),
             segment_id=str(segment.get("segment_id") or ""),
+            legacy=legacy,
         )
 
     @staticmethod
@@ -1191,17 +1296,21 @@ class ProjectH3Coordinator:
         *,
         require_current: bool,
     ) -> Path | None:
-        video_path, metadata_path = self._segment_cache_files(
-            owner_user_id, project_id, item_id, remote_item, segment
-        )
-        if not video_path.is_file() or video_path.stat().st_size <= 0:
+        for legacy in (False, True):
+            video_path, metadata_path = self._segment_cache_files(
+                owner_user_id, project_id, item_id, remote_item, segment, legacy=legacy
+            )
+            if not video_path.is_file() or video_path.stat().st_size <= 0:
+                continue
+            if not require_current:
+                return video_path
+            metadata = self._read_segment_cache_metadata(metadata_path)
+            if metadata.get("result_signature") == self._segment_result_signature(segment):
+                return video_path
+            # Once a nonempty short cache exists it is the authoritative current
+            # slot. Do not materialize an old fallback while preview serves new.
             return None
-        if not require_current:
-            return video_path
-        metadata = self._read_segment_cache_metadata(metadata_path)
-        if metadata.get("result_signature") != self._segment_result_signature(segment):
-            return None
-        return video_path
+        return None
 
     def _segment_download_lock(self, video_path: Path) -> threading.Lock:
         key = str(video_path.resolve())
@@ -1612,17 +1721,10 @@ class ProjectH3Coordinator:
                 )
             return
         assert self.storage_root is not None
-        target_dir = (
-            self.storage_root
-            / "projects"
-            / str(owner_user_id)
-            / project_id
-            / item_id
-            / "h3"
-            / signature
-        )
+        h3_root = item_h3_root(self.storage_root, owner_user_id, project_id, item_id)
+        target_dir = h3_root / ("m-" + compact_digest(signature))
         frozen_paths = [
-            freeze_segment(path, target_dir / "segments") for path in segment_paths
+            freeze_segment(path, h3_root / "f") for path in segment_paths
         ]
         if cleanup_assets and any(
             path.parent.name != clean.raw_sha256
@@ -1773,7 +1875,7 @@ class ProjectH3Coordinator:
         paths: list[Path], signature: str, durations: list[float],
     ) -> dict[str, Any]:
         assert self.storage_root is not None
-        root = self.storage_root / "projects" / str(owner_user_id) / project_id / str(item["item_id"]) / "h3" / signature / "segments"
+        root = item_h3_root(self.storage_root, owner_user_id, project_id, str(item["item_id"])) / "f"
         existing = (item.get("asset_history") or {}).get("original_video_segment", [])
         ids = []
         for index, (segment, path, duration) in enumerate(zip(segments, paths, durations, strict=True), start=1):

@@ -347,10 +347,12 @@
                 在弹出的目录选择器中选择具体草稿文件夹，通常位于<br>
                 <code class="text-indigo-200">%LOCALAPPDATA%\JianyingPro\User Data\Projects\com.lveditor.draft\草稿名</code>
             </div>
-            <div class="mt-4 flex flex-col sm:flex-row gap-3">
-                <input id="jianying-template-name" maxlength="80" placeholder="模板名称，例如：上传1" class="flex-1 bg-slate-900/60 border border-slate-700/60 rounded-xl px-4 py-2.5 text-sm text-gray-200 border-glow">
+            <div class="mt-4 grid sm:grid-cols-[1fr_120px_auto] gap-3">
+                <input id="jianying-template-name" maxlength="80" placeholder="模板名称，例如：上传1" class="bg-slate-900/60 border border-slate-700/60 rounded-xl px-4 py-2.5 text-sm text-gray-200 border-glow">
+                <label><span class="sr-only">模板封面长度（帧）</span><input id="jianying-template-cover-frame-count" type="number" min="1" max="30" value="3" title="模板封面长度（帧）" class="w-full bg-slate-900/60 border border-slate-700/60 rounded-xl px-3 py-2.5 text-sm text-gray-200 border-glow"></label>
                 <button id="jianying-template-upload" type="button" onclick="window.JYDTemplates.upload()" class="px-5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-brand-primary to-brand-secondary text-white shadow-lg whitespace-nowrap"><i class="fa-solid fa-folder-open mr-2"></i>上传草稿目录</button>
             </div>
+            <p class="mt-1 text-[9px] text-gray-500">封面帧数默认 3；模板开头排版保留，人物照片替换为当前项目上传图。</p>
             <p id="jianying-template-progress" class="mt-2 min-h-[18px] text-[10px] text-gray-500"></p>
             <div id="jianying-template-list" class="mt-4 space-y-2"></div>
             <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-4">
@@ -693,6 +695,7 @@
                             <p class="current-user-name text-[9px] text-gray-400 mt-0.5">当前账号</p>
                         </div>
                         <a href="#" onclick="showToast('账户设置', '账户资料请在数字人网站的账号中心管理。'); toggleUserDropdown(event);" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-user-gear text-brand-accent"></i>账户设置</a>
+                        <a href="/app/new/device-authorization" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-gray-300 hover:text-white hover:bg-white/5 transition-all"><i class="fa-solid fa-shield-halved text-brand-accent"></i>设备授权</a>
                         <a href="/app/new/login" onclick="handleLogout(event)" class="flex items-center gap-2 px-3.5 py-2 text-[10px] text-red-400 hover:bg-red-500/10 transition-all border-t border-white/5"><i class="fa-solid fa-right-from-bracket"></i>退出登录</a>
                     </div>
                 </div>
@@ -1625,7 +1628,14 @@
             const response = await fetch(path, { credentials: 'same-origin', ...options });
             const result = await response.json().catch(() => ({}));
             if (!response.ok) {
-                throw new Error(publicGenerationMessage(result.detail || `请求失败（HTTP ${response.status}）`));
+                const detail = result.detail;
+                const error = new Error(publicGenerationMessage(detail?.message || detail || `请求失败（HTTP ${response.status}）`));
+                error.detail = detail;
+                error.code = result.code || response.headers.get('X-Workbench-Device-Error') || '';
+                if (result.device_authorization_required || error.code.startsWith('DEVICE_') || error.code === 'AUTH_REFRESH_REQUIRED') {
+                    error.message += '（请打开右上角账号菜单 → 设备授权；无需重新注册账号）';
+                }
+                throw error;
             }
             return result;
         }
@@ -2125,6 +2135,17 @@
             return selected.length ? selected : filteredProjectItems();
         }
 
+        function h3HasQuoteForSelection(targets) {
+            return h3BatchRecords(activeProject).some(batch =>
+                String(batch.status || '').toUpperCase() === 'AWAITING_COST_CONFIRMATION'
+                && targets.some(item =>
+                    (batch.quote_binding?.items || []).some(bound => bound.item_id === item.id)
+                    || (batch.row_ids || []).includes(item.rowKey)
+                    || (item.h3Settings || item.settings?.h3 || {}).remote_batch_id === batch.batch_id
+                )
+            );
+        }
+
         function latestMinimaxAudio(item) {
             if (['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item?.voiceStatus)) return null;
             const history = Array.isArray(item?.assetHistory?.audio) ? item.assetHistory.audio : [];
@@ -2217,7 +2238,7 @@
             if (h3.invalidated_reason || h3.materialization_error?.requires_input_change) return false;
             const itemStatus = String(h3.remote_status || '').toUpperCase();
             const localStatus = String(item?.status || item?.compositionStatus || '').toUpperCase();
-            if (includeQuote && (itemStatus === 'AWAITING_COST_CONFIRMATION' || localStatus === 'H3_COST_PENDING')) return true;
+            if (itemStatus === 'AWAITING_COST_CONFIRMATION' || localStatus === 'H3_COST_PENDING') return includeQuote;
             if (H3_ACTIVE_ITEM_STATUSES.has(itemStatus) || ['H3_QUEUED', 'H3_RUNNING'].includes(localStatus)) return true;
             return (h3.segments || []).some((segment) =>
                 H3_ACTIVE_ITEM_STATUSES.has(String(segment?.status || '').toUpperCase())
@@ -2305,6 +2326,7 @@
         }
 
         async function confirmPreparedH3Batch(prepared) {
+            const quoteProjectId = prepared?.project?.project_id || activeProject?.project_id;
             h3PreparationStatus = '分段与费用已经计算完成，等待确认';
             refreshAudioStageActions();
             const fee = prepared?.h3_batch?.fee_snapshot || {};
@@ -2328,6 +2350,7 @@
                 showToast('费用预览已保留', '下次点击生成视频会继续当前预览，不会重新计算或产生费用。', 'info');
                 return false;
             }
+            if (activeProject?.project_id !== quoteProjectId) throw new Error('项目已切换，未提交原费用预览');
             let confirmed;
             const batchId = String(prepared?.h3_batch?.batch_id || '');
             try {
@@ -2340,7 +2363,8 @@
                 });
             } catch (error) {
                 try {
-                    const recovered = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/status`);
+                    const recovered = await workspaceApi(`/api/new/projects/${quoteProjectId}/h3/status`);
+                    if (activeProject?.project_id !== quoteProjectId) throw error;
                     syncProjectInputs(recovered.project);
                     const recoveredBatch = (recovered.h3_batches || []).find((value) =>
                         String(value?.batch_id || '') === batchId
@@ -2355,6 +2379,7 @@
                 }
                 if (!confirmed) throw error;
             }
+            if (activeProject?.project_id !== quoteProjectId) return true;
             syncProjectInputs(confirmed.project);
             h3PreparationStatus = '';
             h3PreparationError = '';
@@ -2364,27 +2389,54 @@
         }
 
         async function resumeExistingH3Batch(targets) {
-            const targetRows = (targets || []).map((item) => String(item.row_key || '')).filter(Boolean).sort();
-            if (!targetRows.length) return false;
-            const existing = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/status`);
-            syncProjectInputs(existing.project);
-            const snapshots = Array.isArray(existing.h3_batches) ? existing.h3_batches : [];
-            const pending = snapshots.find((batch) => {
-                if (String(batch?.status || '').toUpperCase() !== 'AWAITING_COST_CONFIRMATION') return false;
-                const rows = (batch?.items || []).map((item) => String(item?.row_id || '')).filter(Boolean).sort();
-                return rows.length === targetRows.length && rows.every((row, index) => row === targetRows[index]);
+            const projectId = activeProject.project_id;
+            const itemIds = (targets || []).map(item => String(item.id || item.item_id || '')).filter(Boolean);
+            if (!itemIds.length) throw new Error('没有可核对的脚本行');
+            const existing = await workspaceApi(`/api/new/projects/${projectId}/h3/quotes/inspect`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item_ids: itemIds })
             });
-            if (pending) {
-                await confirmPreparedH3Batch({ project: existing.project, h3_batch: pending });
-                return true;
+            if (activeProject?.project_id !== projectId) throw new Error('项目已切换，已停止处理旧预览');
+            syncProjectInputs(existing.project);
+            for (const quote of existing.batches || []) {
+                if (quote.can_resume) {
+                    const snapshot = existing.h3_batches.find(batch => batch.batch_id === quote.batch_id);
+                    await confirmPreparedH3Batch({ project: existing.project, h3_batch: snapshot });
+                    return true;
+                }
+                if (quote.status !== 'AWAITING_COST_CONFIRMATION') {
+                    showToast('原任务仍在生成', `第 ${quote.row_ids.join('、')} 行已有关联任务，已保留原任务。`, 'info');
+                    scheduleH3StatusPoll(1000);
+                    return true;
+                }
+                const reason = quote.input_matches ? '本次选中的行与旧费用预览范围不同。' : quote.input_change_reason;
+                if (!quote.can_cancel_quote) {
+                    showToast('旧费用预览需要处理', `${reason} 旧预览涉及第 ${quote.row_ids.join('、')} 行；云端尚不支持安全撤销，请先更新云端。`, 'warning');
+                    return true;
+                }
+                const cancel = await new Promise(resolve => openConfirmModal({
+                    title: '是否撤销旧费用预览？',
+                    message: `${reason} 旧预览包含第 ${quote.row_ids.join('、')} 行，共 ${quote.fee_snapshot?.segment_count || 0} 段。撤销会释放这些行；随后只为本次选中行重新计算，仍需再次确认费用才会生成。`,
+                    confirmText: '撤销旧预览并重算', cancelText: '保留旧预览',
+                    onConfirm: () => resolve(true), onCancel: () => resolve(false)
+                }));
+                if (!cancel) return true;
+                if (activeProject?.project_id !== projectId) throw new Error('项目已切换，未撤销原预览');
+                const cancelled = await workspaceApi(`/api/new/projects/${projectId}/h3/quotes/${quote.batch_id}/cancel`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cancel_quote_confirmed: true, quote_token: quote.quote_token,
+                        request_key: globalThis.crypto?.randomUUID?.() || `cancel-quote-${Date.now()}` })
+                });
+                if (activeProject?.project_id !== projectId) throw new Error('项目已切换，未启动新任务');
+                syncProjectInputs(cancelled.project);
             }
             if (h3NeedsLocalMaterialization(existing.project)) {
                 showToast('正在恢复本地画面', '云端 H3 已完成，正在重新下载并合并已有结果，不会重复提交或付费。', 'info');
-                scheduleH3StatusPoll(10000);
-            }
-            if (h3HasPendingPostprocess(existing.project)) {
                 scheduleH3StatusPoll(1000);
+                const selectedProject = { ...existing.project, items: (existing.project.items || []).filter(item => itemIds.includes(item.item_id)) };
+                if (h3NeedsLocalMaterialization(selectedProject)) return true;
             }
+            if (h3HasPendingPostprocess(existing.project)) scheduleH3StatusPoll(1000);
             return false;
         }
 
@@ -2396,7 +2448,14 @@
             h3PreparationError = '';
             refreshAudioStageActions();
             try {
-                const requestedTargets = Array.isArray(explicitTargets) ? explicitTargets : h3TargetItems();
+                let requestedTargets = Array.isArray(explicitTargets) ? explicitTargets : h3TargetItems();
+                const savedProject = await saveH3Settings(false);
+                if (activeProject?.project_id !== projectId) return;
+                syncProjectInputs(savedProject);
+                if (await resumeExistingH3Batch(requestedTargets)) return;
+                if (activeProject?.project_id !== projectId) return;
+                const requestedIds = new Set(requestedTargets.map(item => item.id));
+                requestedTargets = uploadedScripts.filter(item => requestedIds.has(item.id));
                 const targets = requestedTargets.filter((item) => !item.baseVideo && !h3ItemIsActive(item));
                 const occupiedCount = requestedTargets.filter((item) => !item.baseVideo && h3ItemIsActive(item)).length;
                 const missingAudio = targets.filter(item => !latestMinimaxAudio(item));
@@ -2406,23 +2465,27 @@
                     showToast('多参考输入还不完整', `${!targets.length ? (occupiedCount ? '选中的脚本都已有生成中的任务；' : '没有可生成的脚本；') : ''}${missingAudio.length ? `${missingAudio.length} 条没有 MiniMax 完整音频；` : ''}${missingImage.length ? `${missingImage.length} 条没有分配人物图；` : ''}${missingReference.length ? `${missingReference.length} 条没有参考视频。` : ''}`, 'warning');
                     return;
                 }
-                if (await resumeExistingH3Batch(targets)) return;
-                syncProjectInputs(await saveH3Settings(false));
                 const accounts = await workspaceApi('/api/new/h3/accounts');
+                if (activeProject?.project_id !== projectId) return;
                 const selected = await selectH3Accounts(accounts);
-                if (!selected) return;
+                if (!selected || activeProject?.project_id !== projectId) return;
                 h3PreparationStatus = `正在上传 ${targets.length} 条素材并计算分段，请勿重复点击`;
                 refreshAudioStageActions();
-                const prepared = await workspaceApi(`/api/new/projects/${activeProject.project_id}/h3/prepare`, {
+                const prepared = await workspaceApi(`/api/new/projects/${projectId}/h3/prepare`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ selected_account_ids: selected, item_ids: targets.map(item => item.id), idempotency_key: globalThis.crypto?.randomUUID?.() || `h3-${Date.now()}` })
                 });
+                if (activeProject?.project_id !== projectId) return;
                 syncProjectInputs(prepared.project);
                 await confirmPreparedH3Batch(prepared);
             } catch (error) {
                 if (activeProject?.project_id !== projectId) return;
                 h3PreparationError = publicGenerationMessage(error.message);
+                if (error.detail?.code === 'H3_QUOTE_CONFLICT') {
+                    const rows = (error.detail.batches || []).flatMap(batch => batch.row_ids || []).join('、');
+                    h3PreparationError += `（旧批次涉及第 ${rows} 行；请重新点击生成以处理旧预览）`;
+                }
                 showToast('计算分段失败', h3PreparationError, 'warning');
             } finally {
                 if (activeProject?.project_id === projectId) {
@@ -2952,10 +3015,15 @@
             );
         }
 
+        function projectHasUnknownAudioSubmission(project) {
+            return (project?.items || []).some((item) => item.audio_submission?.status === 'UNKNOWN');
+        }
+
         function projectNeedsAudioSync(project) {
             return (project?.items || []).some((item) =>
                 ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.status)
-            ) || projectHasActiveOperation(project, new Set(['AUDIO_GENERATE']));
+            ) || projectHasActiveOperation(project, new Set(['AUDIO_GENERATE']))
+                || projectHasUnknownAudioSubmission(project);
         }
 
         function projectNeedsH3Sync(project) {
@@ -3300,6 +3368,7 @@
                 postprocessSettings: item.settings?.postprocess || {},
                 variantSettings: item.settings?.variants || {},
                 voiceStatus: audioGenerationActive ? item.status : (sharedMinimaxAudio ? 'AUDIO_READY' : item.status),
+                audioSubmission: item.audio_submission || null,
                 compositionStatus: item.status,
                 audio: sharedMinimaxAudio,
                 authoritativeAudio: h3OutputFileAvailable(item.outputs?.audio) ? item.outputs.audio : null,
@@ -3365,7 +3434,7 @@
                         : (saved.bgm_identity
                             || rowPostprocessConfigs[item.id]?.resolvedBgmIdentity
                             || ''),
-                    fontIdentity: defaultPostprocessFontIdentity || 'resource_id:7086699209738424840',
+                    fontIdentity: defaultPostprocessFontIdentity || fontPresets[0]?.identity || '',
                     textColor: '#ffffff',
                     layoutProfile: saved.layout_profile
                         || rowPostprocessConfigs[item.id]?.layoutProfile
@@ -4322,6 +4391,7 @@
                     </td>
                     <td class="px-4 py-4">
                         <!-- Play state controller container -->
+                        ${script.audioSubmission?.status === 'UNKNOWN' ? `<div class="mb-2 max-w-48 whitespace-normal text-[10px] text-amber-300" title="${escapeHtml(script.audioSubmission.message || '')}"><i class="fa-solid fa-triangle-exclamation mr-1"></i>声音提交待核对 · 不会自动重提<br>自动查回原任务；未查到时请联系管理员。</div>` : ''}
                         <div class="row-audio-player-container flex items-center gap-2">
                             <!-- Status 1: Wait to clone -->
                             <div class="row-audio-status-wait flex items-center gap-1.5 text-gray-500 font-medium text-[11px]">
@@ -4445,7 +4515,7 @@
                     </td>
                     <td class="table-actions-column px-3 py-3 text-center">
                         <div class="flex flex-col items-stretch justify-center gap-1.5">
-                            <button ${itemActive ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${audioCanReuse ? '重新调用 MiniMax 生成当前行的新声音版本' : '只生成当前行声音'}" class="audio-page-only ${singleActionClass} ${itemActive ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
+                            <button ${itemActive || script.audioSubmission?.status === 'UNKNOWN' ? 'disabled' : ''} onclick="runSingleAudio(this)" title="${script.audioSubmission?.status === 'UNKNOWN' ? '上次声音提交待核对，暂不能重新生成' : (audioCanReuse ? '重新调用 MiniMax 生成当前行的新声音版本' : '只生成当前行声音')}" class="audio-page-only ${singleActionClass} ${itemActive || script.audioSubmission?.status === 'UNKNOWN' ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-primary/30 text-brand-accent hover:text-white hover:border-brand-primary'}">
                                 <i class="fa-solid fa-wave-square mr-1"></i>${audioCanReuse ? '重新生成声音' : (audioWasGenerated ? '重生成声音' : '生成声音')}
                             </button>
                             <button ${itemActive || (!videoCanReuse && !script.audio) ? 'disabled' : ''} onclick="runSingleVideo(this)" title="${videoCanReuse ? '当前成片未失效，点击直接复用，不会重新调用 RunningHub' : '只生成当前行完整成片'}" class="generation-page-only ${singleActionClass} ${itemActive || (!videoCanReuse && !script.audio) ? 'border-slate-900 text-gray-600 cursor-not-allowed' : 'border-brand-secondary/30 text-fuchsia-300 hover:text-white hover:border-brand-secondary'}">
@@ -4895,7 +4965,10 @@
             });
             list.innerHTML = [...cards, ...suggestions].join('') || '<div class="rounded-xl border border-slate-700/60 p-5 text-center text-sm text-gray-500">尚无候选。请先点击表格中的“统一分析”。</div>';
             document.getElementById('semantic-visual-summary').textContent = `任务 ${script.rowKey} · ${script.visualAnalysis?.analysis_status || 'NOT_REQUESTED'} · 当前 ${semanticVisualDraft.length} 项素材`;
-            document.getElementById('semantic-visual-library-summary').innerHTML = `<span class="font-semibold text-indigo-200"><i class="fa-solid fa-boxes-stacked mr-1"></i>本地语义素材库</span><span>${semanticVisualCatalog?.assets?.length || 0} 项素材</span><span class="text-slate-700">·</span><span>${semanticVisualCatalog?.concepts?.length || 0} 个概念</span><span class="ml-auto text-gray-500">新增或删除素材后需重启工作台</span>`;
+            const semanticLibraryHint = semanticVisualCatalog?.source_mode === 'folders'
+                ? '文件夹素材约 5 秒自动识别，无需重启'
+                : 'JSON 素材变更后需重启工作台';
+            document.getElementById('semantic-visual-library-summary').innerHTML = `<span class="font-semibold text-indigo-200"><i class="fa-solid fa-boxes-stacked mr-1"></i>本地语义素材库</span><span>${semanticVisualCatalog?.assets?.length || 0} 项素材</span><span class="text-slate-700">·</span><span>${semanticVisualCatalog?.concepts?.length || 0} 个概念</span><span class="ml-auto text-gray-500">${semanticLibraryHint}</span>`;
         }
 
         function updateSemanticVisualField(index, field, value) {
@@ -5039,12 +5112,37 @@
             }
         }
 
+        async function refreshAudioAfterSubmissionError(projectId) {
+            if (activeProject?.project_id !== projectId) return;
+            try {
+                let project;
+                try {
+                    project = await workspaceApi(`/api/new/projects/${projectId}/audio/status`);
+                } catch (_) {
+                    // A download/status failure must not hide the persisted submission state.
+                    project = await workspaceApi(`/api/new/projects/${projectId}`);
+                }
+                if (activeProject?.project_id === projectId) syncProjectInputs(project);
+            } catch (_) {
+                if (activeProject?.project_id !== projectId) return;
+                syncProjectInputs(activeProject);
+                clearTimeout(audioStatusPollTimer);
+                // Retry reads only, even if the browser's old snapshot has no active operation.
+                audioStatusPollTimer = setTimeout(() => refreshAudioAfterSubmissionError(projectId), 5000);
+            }
+        }
+
         // Individual Retry button click -> regenerates sound clone for specific row
         async function retryCloningAudio(buttonEl) {
             const row = buttonEl.closest('tr');
             const rowId = row.getAttribute('data-id');
             const script = uploadedScripts.find((item) => item.id === rowId);
             if (!script || !activeProject) return;
+            const projectId = activeProject.project_id;
+            if (script.audioSubmission?.status === 'UNKNOWN') {
+                showToast('声音提交待核对', '正在查回原任务，请勿重复生成。', 'warning');
+                return;
+            }
             if (!['AUDIO_READY', 'AUDIO_FAILED'].includes(script.voiceStatus)) {
                 showToast('请使用批量生成', '尚未创建声音批次的脚本，请点击下方“生成声音预览”。', 'warning');
                 return;
@@ -5053,7 +5151,7 @@
             row.setAttribute('data-voice-status', 'loading');
             toggleRowAudioStatusUI(row, 'loading');
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/items/${rowId}/audio/retry`, {
+                const project = await workspaceApi(`/api/new/projects/${projectId}/items/${rowId}/audio/retry`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         cost_confirmed: true,
@@ -5064,7 +5162,11 @@
                 syncProjectInputs(project);
                 scheduleAudioStatusPoll();
                 showToast('声音重新生成已提交', '旧音频版本会保留，新版本完成后自动成为当前音频。', 'success');
-            } catch (error) { showToast('声音重试失败', error.message, 'warning'); syncProjectInputs(activeProject); }
+            } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
+                showToast('声音重试失败', error.message, 'warning');
+                await refreshAudioAfterSubmissionError(projectId);
+            }
         }
 
         async function runSingleAudio(buttonEl) {
@@ -5076,6 +5178,7 @@
             }
             const script = uploadedScripts.find(item => item.id === rowId);
             if (!script || !activeProject) return;
+            const projectId = activeProject.project_id;
             if (script.audio) {
                 await retryCloningAudio(buttonEl);
                 return;
@@ -5097,7 +5200,7 @@
             toggleRowAudioStatusUI(row, 'loading');
             startContentAnalysisForChangedScripts(activeProject.project_id, [row]);
             try {
-                const project = await workspaceApi(`/api/new/projects/${activeProject.project_id}/audio/generate`, {
+                const project = await workspaceApi(`/api/new/projects/${projectId}/audio/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -5114,8 +5217,9 @@
                 scheduleAudioStatusPoll();
                 showToast('本条声音任务已提交', `只处理任务 ${script.rowKey}；其他行会继续复用现有声音。`, 'success');
             } catch (error) {
+                if (activeProject?.project_id !== projectId) return;
                 showToast('本条声音生成失败', error.message, 'warning');
-                syncProjectInputs(activeProject);
+                await refreshAudioAfterSubmissionError(projectId);
             }
         }
 
@@ -5155,6 +5259,10 @@
             const rowId = row?.getAttribute('data-id') || '';
             const script = uploadedScripts.find(item => item.id === rowId);
             if (!script || !activeProject) return;
+            if (h3HasQuoteForSelection([script])) {
+                await startGlobalH3Generation([script]);
+                return;
+            }
             if (row.getAttribute('data-video-status') === 'ready') {
                 showToast('已复用当前视频', `任务 ${script.rowKey} 的上游素材和成片配置没有变化，不会重新调用 RunningHub。`, 'success');
                 return;
@@ -5316,7 +5424,7 @@
             )
                 && fontPresets.length > 0
                 && !isGeneratingPostprocess;
-            const canStartH3 = h3Mode && h3InputsReady && !isGeneratingH3;
+            const canStartH3 = h3Mode && (h3InputsReady || h3HasQuoteForSelection(h3Targets)) && !isGeneratingH3;
             const canCompose = canStartH3 || canCompose4B;
             btnCompose.disabled = !canCompose;
             if (h3Mode && isGeneratingH3) {
@@ -5497,7 +5605,7 @@
             } catch (error) {
                 if (activeProject?.project_id !== projectId) return;
                 showToast('选中声音生成失败', error.message, 'warning');
-                syncProjectInputs(activeProject);
+                await refreshAudioAfterSubmissionError(projectId);
             } finally {
                 if (activeProject?.project_id === projectId) {
                     isGeneratingAllVoicePreviews = false;
@@ -5512,6 +5620,10 @@
             const projectId = activeProject.project_id;
             items = await waitForSelectedScriptSaves(items);
             if (activeProject?.project_id !== projectId) return;
+            if (h3HasQuoteForSelection(items)) {
+                await startGlobalH3Generation(items);
+                return;
+            }
             const rowsById = new Map(
                 Array.from(document.querySelectorAll('.table-data-row')).map((row) => [row.getAttribute('data-id'), row])
             );
@@ -5603,7 +5715,7 @@
             } catch (error) {
                 if (activeProject?.project_id !== projectId) return;
                 showToast('声音生成提交失败', error.message, 'warning');
-                syncProjectInputs(activeProject);
+                await refreshAudioAfterSubmissionError(projectId);
             } finally {
                 if (activeProject?.project_id === projectId) {
                     isGeneratingAllVoicePreviews = false;
@@ -5614,7 +5726,7 @@
 
         function scheduleAudioStatusPoll() {
             clearTimeout(audioStatusPollTimer);
-            const active = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
+            const active = projectNeedsAudioSync(activeProject);
             if (!active || !activeProject) return;
             const projectId = activeProject.project_id;
             audioStatusPollTimer = setTimeout(async () => {
@@ -5626,7 +5738,11 @@
                     const isActive = uploadedScripts.some((item) => ['AUDIO_QUEUED', 'AUDIO_RUNNING'].includes(item.voiceStatus));
                     if (wasActive && !isActive) {
                         const failed = uploadedScripts.filter((item) => item.voiceStatus === 'AUDIO_FAILED').length;
-                        showToast(failed ? '声音生成部分失败' : '声音预览已生成', failed ? `${failed} 条声音失败，可逐行重试。` : '全部真实音频已准备完成，可以试听或下载。', failed ? 'warning' : 'success');
+                        if (projectHasUnknownAudioSubmission(project)) {
+                            showToast('声音提交待核对', '正在查回原云端任务；原素材已保留，不会自动重新计费。', 'warning');
+                        } else {
+                            showToast(failed ? '声音生成部分失败' : '声音预览已生成', failed ? `${failed} 条声音失败，可逐行重试。` : '全部真实音频已准备完成，可以试听或下载。', failed ? 'warning' : 'success');
+                        }
                     }
                     scheduleAudioStatusPoll();
                 } catch (error) {
@@ -5634,7 +5750,7 @@
                     showToast('声音状态更新失败', error.message, 'warning');
                     audioStatusPollTimer = setTimeout(scheduleAudioStatusPoll, 5000);
                 }
-            }, 3000);
+            }, projectHasUnknownAudioSubmission(activeProject) ? 10000 : 3000);
         }
 
         // Set row voice DOM visibility
@@ -7983,7 +8099,7 @@
         }
 
         async function startGlobalFinalVideoGeneration() {
-            if (h3TargetItems().some(item => !item.baseVideo)) {
+            if (h3HasQuoteForSelection(h3TargetItems()) || h3TargetItems().some(item => !item.baseVideo)) {
                 await startGlobalH3Generation();
                 return;
             }
@@ -8504,11 +8620,12 @@
             api: workspaceApi,
             getProject: () => activeProject,
             getScript: activePreviewScript,
+            getCoverImageUrl: () => activePreviewCoverImage()?.url || '',
             isBrowserPreview: isBrowserCompositionPreview,
             refreshCaptionLayout: updatePreviewCaptionLayout
         };
     </script>
-    <script src="/app-static/new/template-browser-preview.js?v=20260828-6"></script>
+    <script src="/app-static/new/template-browser-preview.js?v=20260901-1"></script>
     <script src="/app-static/new/template-manager.js"></script>
 </body>
 </html>

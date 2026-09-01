@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 import json
+import hashlib
 from pathlib import Path
 import re
 import uuid
@@ -9,6 +10,8 @@ import zipfile
 from typing import Any
 
 from .logging_config import redact_text
+from .h3_quote_recovery import QUOTE_RECOVERY_VERSION
+from .runtime_paths import project_root, is_frozen
 
 
 DIAGNOSTIC_SCHEMA = "jyd.project-diagnostics.v1"
@@ -67,6 +70,11 @@ def _safe_project_summary(project: dict[str, Any]) -> dict[str, Any]:
     links = project.get("links") if isinstance(project.get("links"), list) else []
     return {
         "schema": DIAGNOSTIC_SCHEMA,
+        "runtime": {
+            "quote_recovery_version": QUOTE_RECOVERY_VERSION,
+            "frozen": is_frozen(),
+            "frontend_sha256": _frontend_sha256(),
+        },
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "project": {
             "project_id": project.get("project_id"),
@@ -180,6 +188,15 @@ def _safe_h3_state(value: object) -> dict[str, Any]:
         "remote_status": h3.get("remote_status"),
         "last_synced_at": h3.get("last_synced_at"),
         "invalidated_reason": h3.get("invalidated_reason"),
+        "batches": [
+            {"batch_id": batch.get("batch_id"), "status": batch.get("status"),
+             "row_ids": batch.get("row_ids"), "last_synced_at": batch.get("last_synced_at"),
+             "confirmed_at": batch.get("confirmed_at"),
+             "binding_version": (batch.get("quote_binding") or {}).get("schema"),
+             "binding_sha256": (batch.get("quote_binding") or {}).get("sha256"),
+             "can_cancel_quote": (batch.get("quote_recovery") or {}).get("can_cancel_quote")}
+            for batch in h3.get("batches", []) if isinstance(batch, dict)
+        ],
         "segments": [
             {
                 "segment_id": segment.get("segment_id"),
@@ -198,6 +215,13 @@ def _safe_h3_state(value: object) -> dict[str, Any]:
             if isinstance(segment, dict)
         ],
     }
+
+
+def _frontend_sha256() -> str | None:
+    try:
+        return hashlib.sha256((project_root() / "apps/processor/frontend/new/index.html").read_bytes()).hexdigest()
+    except OSError:
+        return None
 
 
 def _matching_project_logs(project: dict[str, Any], logs_root: Path) -> str:

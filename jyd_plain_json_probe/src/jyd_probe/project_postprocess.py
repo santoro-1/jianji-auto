@@ -2547,6 +2547,20 @@ class ProjectPostprocessCoordinator:
             profile_data = dict(template.get("profile") or {})
             main_video = dict(profile_data.get("main_video") or {})
             caption_track = dict(profile_data.get("caption_track") or {})
+            native_cover = dict(profile_data.get("cover") or {})
+            cover_slot = dict(native_cover.get("portrait_slot") or {})
+            cover_duration_us = (
+                min(1_000_000, max(0, int(native_cover.get("duration_us", 0) or 0)))
+                if native_cover.get("enabled") and cover_slot
+                else 0
+            )
+            cover_image_path = ""
+            if cover_duration_us:
+                cover_image = resolve_project_cover_image(item)
+                cover_image_path = str((cover_image or {}).get("managed_path") or "").strip()
+                if not cover_image_path or not Path(cover_image_path).expanduser().is_file():
+                    raise ValueError("当前项目人物原图不存在，无法替换模板封面人物照片")
+                cover_image_path = str(Path(cover_image_path).expanduser().resolve())
             base_video = dict(item.get("outputs", {}).get("base_video") or {})
             base_video_path = str(base_video.get("managed_path") or "").strip()
             if not base_video_path or not Path(base_video_path).is_file():
@@ -2556,15 +2570,31 @@ class ProjectPostprocessCoordinator:
                 "template_draft_dir": str(draft_dir.resolve()),
             }
             job["remove_existing_audio"] = True
-            job["timeline_duration_us"] = video_duration_us
+            job["timeline_duration_us"] = cover_duration_us + video_duration_us
+            if cover_duration_us:
+                for audio in job["audios"]:
+                    audio["target_start_us"] = cover_duration_us
+                job["video_replacements"] = [
+                    {
+                        "type": "video-segment",
+                        "track_index": int(cover_slot.get("typed_track_index", 0)),
+                        "segment_index": int(cover_slot.get("segment_index", 0)),
+                        "media_path": cover_image_path,
+                        "source_start_us": 0,
+                        "source_duration_us": 0,
+                        "target_start_us": 0,
+                        "target_duration_us": cover_duration_us,
+                    }
+                ]
             if base_video.get("source_type") == "h3" and source.get("type") == "video_sequence":
                 job["main_video_sequence"] = {
                     "items": source["items"],
                     "track_index": int(main_video.get("typed_track_index", 0)) if main_video else -1,
                     "segment_index": int(main_video.get("segment_index", 0)),
+                    "target_start_us": cover_duration_us,
                 }
             elif main_video:
-                job["video_replacements"] = [
+                job.setdefault("video_replacements", []).append(
                     {
                         "type": "video-segment",
                         "track_index": int(main_video.get("typed_track_index", 0)),
@@ -2572,10 +2602,10 @@ class ProjectPostprocessCoordinator:
                         "media_path": str(Path(base_video_path).resolve()),
                         "source_start_us": 0,
                         "source_duration_us": video_duration_us,
-                        "target_start_us": 0,
+                        "target_start_us": cover_duration_us,
                         "target_duration_us": video_duration_us,
                     }
-                ]
+                )
             else:
                 # A user template is also valid when it only contains captions,
                 # flower text, stickers or effects.  Add the current project
@@ -2586,7 +2616,7 @@ class ProjectPostprocessCoordinator:
                         "enabled": True,
                         "media_type": "video",
                         "video_path": str(Path(base_video_path).resolve()),
-                        "start_us": 0,
+                        "start_us": cover_duration_us,
                         "duration_us": video_duration_us,
                         "source_start_us": 0,
                         "source_duration_us": video_duration_us,
@@ -2601,9 +2631,14 @@ class ProjectPostprocessCoordinator:
                         "layer_order": -100,
                     }
                 ]
-            replace_end_us = max(
+            template_body_duration_us = max(
+                0,
+                int(profile_data.get("draft_duration_us", 0) or 0)
+                - cover_duration_us,
+            )
+            replace_end_us = cover_duration_us + max(
                 video_duration_us,
-                int(profile_data.get("draft_duration_us", 0) or 0),
+                template_body_duration_us,
             )
             try:
                 caption_tracks = detect_caption_tracks(
@@ -2622,7 +2657,7 @@ class ProjectPostprocessCoordinator:
                 {
                     "track_index": int(track.get("typed_track_index", 0)),
                     "base_segment_index": int(track.get("base_segment_index", 0)),
-                    "start_us": 0,
+                    "start_us": cover_duration_us,
                     "end_us": replace_end_us,
                     "subtitles": (
                         [dict(cue) for cue in subtitles["render_cues"]]

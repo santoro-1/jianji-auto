@@ -8,6 +8,7 @@ import argparse
 import json
 import math
 from typing import Any
+from .device_local_execution import protected_local_work
 
 from .cli import (
     add_audio_track_segment,
@@ -43,6 +44,7 @@ from .sticker_apply import add_fullscreen_sticker_to_data
 from .image_apply import add_image_overlay_to_data
 from .video_overlay_apply import add_video_overlay_to_data
 from .draft_compat import normalize_draft_for_legacy_editor
+from .draft_media_paths import localize_long_media_paths
 from .visual_variant import VisualVariant, apply_visual_variant_to_data
 from .cover_apply import (
     COVER_TRACK_PREFIX,
@@ -2263,6 +2265,7 @@ def _remove_unreferenced_replaced_video_materials(
     return removed
 
 
+@protected_local_work({"local:draft"})
 def run_content_replace_job(job: ContentReplaceJob) -> ContentReplaceResult:
     draft = import_pyjianyingdraft()
 
@@ -2362,6 +2365,12 @@ def run_content_replace_job(job: ContentReplaceJob) -> ContentReplaceResult:
         + cover_path_changes
         + _apply_json_changes(draft, saved_data, job)
     )
+    # Run after template sequences/overlays are inserted so every output route
+    # gets the same protection, including immutable H3 segments in deep caches.
+    media_path_changes = localize_long_media_paths(saved_data, output_dir)
+    json_changes += media_path_changes
+    if media_path_changes:
+        log(f"已将 {media_path_changes} 个长路径素材引用改为草稿内短路径副本")
     final_compatibility = normalize_draft_for_legacy_editor(saved_data)
     if final_compatibility.changed:
         log(

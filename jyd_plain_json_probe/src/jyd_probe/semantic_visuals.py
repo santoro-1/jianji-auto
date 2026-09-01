@@ -246,7 +246,7 @@ def _load_semantic_visual_catalog_v1(root: str | Path) -> SemanticVisualCatalog:
     catalog_root = Path(root).expanduser().resolve()
     manifest_path = catalog_root / "catalog.json"
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SemanticVisualCatalogError("semantic visual catalog is unreadable") from exc
     if not isinstance(payload, dict) or payload.get("schema") != CATALOG_SCHEMA_V1:
@@ -1199,7 +1199,7 @@ def load_semantic_visual_catalog(
         raise SemanticVisualCatalogError("未知的语义素材来源模式")
     manifest_path = catalog_root / "catalog.json"
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise SemanticVisualCatalogError("semantic visual catalog is unreadable") from exc
     if not isinstance(payload, dict) or payload.get("schema") not in CATALOG_SCHEMAS:

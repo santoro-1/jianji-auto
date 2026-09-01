@@ -132,9 +132,16 @@ def test_public_asr_adapter_never_interpolates(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="FFmpeg not installed")
-def test_real_media_cleanup_cache_preview_and_master_use_same_pcm(tmp_path):
+@pytest.mark.parametrize("layout", ["standalone", "legacy", "short"])
+def test_real_media_cleanup_cache_preview_and_master_use_same_pcm(tmp_path, layout):
+    if layout == "legacy":
+        tmp_path = tmp_path / "h3" / "segment-cache" / ("d" * 64)
+    elif layout == "short":
+        from jyd_probe.h3_cache_paths import compact_digest
+        tmp_path = tmp_path / "h3" / ("s-" + compact_digest("d" * 64))
+    tmp_path.mkdir(parents=True, exist_ok=True)
     raw_wav = tmp_path / "synth.wav"
-    raw = tmp_path / "current.mp4"
+    raw = tmp_path / ("raw.mp4" if layout == "short" else "current.mp4")
     cleanup._write_pcm(raw_wav, waveform(32000, 2, 0.4), 32000)
     _run(
         [

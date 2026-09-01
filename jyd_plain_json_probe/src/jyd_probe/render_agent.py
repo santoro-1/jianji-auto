@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from copy import deepcopy
 import json
 import logging
@@ -13,52 +14,21 @@ import threading
 import time
 import traceback
 from typing import Any, Callable
-from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import Request, urlopen
+
+from .device_agent_transport import AgentApiClient
+from .device_agent_client import AgentRequestAuthorizer
+from .device_local_execution import requires_device_authorization
+from .device_command_authorization import add_command_authorization_arguments, command_authorization, account_authorization, CommandAccountClient
+from .device_auth_protocol import bundled_trust, DeviceAuthorizationError
 
 from .render_job import run_render_job
 from .logging_config import configure_file_logging, log_event
 from .ui_automation_thread import initialize_ui_automation_in_current_thread
 
 
-AGENT_VERSION = "1.0.0"
+AGENT_VERSION = "1.2.0"
 logger = logging.getLogger("jyd_probe.agent")
-
-
-class AgentApiClient:
-    def __init__(self, server_url: str, token: str, timeout: int = 30):
-        self.server_url = server_url.strip().rstrip("/")
-        self.token = token.strip()
-        self.timeout = max(5, int(timeout))
-        if not self.server_url.startswith(("http://", "https://")):
-            raise ValueError("server_url 必须以 http:// 或 https:// 开头")
-        if not self.token:
-            raise ValueError("缺少处理机令牌，请设置 --token 或 JYD_AGENT_TOKEN")
-
-    def post(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        body = json.dumps(payload or {}, ensure_ascii=False).encode("utf-8")
-        request = Request(
-            f"{self.server_url}{path}",
-            data=body,
-            method="POST",
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Content-Type": "application/json; charset=utf-8",
-            },
-        )
-        try:
-            with urlopen(request, timeout=self.timeout) as response:
-                raw = response.read()
-        except HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"中央服务拒绝请求（HTTP {exc.code}）: {detail}") from exc
-        except URLError as exc:
-            raise ConnectionError(f"无法连接中央服务 {self.server_url}: {exc}") from exc
-        result = json.loads(raw.decode("utf-8")) if raw else {}
-        if not isinstance(result, dict):
-            raise RuntimeError("中央服务返回了无法识别的数据")
-        return result
 
 
 class RenderAgent:
@@ -72,6 +42,7 @@ class RenderAgent:
         poll_seconds: int = 3,
         heartbeat_seconds: int = 20,
         log_callback: Callable[[str], None] | None = None,
+        journal_root: Path | None = None,
     ) -> None:
         self.client = client
         self.agent_id = _safe_agent_id(agent_id)
@@ -82,6 +53,7 @@ class RenderAgent:
         self.poll_seconds = max(1, int(poll_seconds))
         self.heartbeat_seconds = max(5, int(heartbeat_seconds))
         self.log_callback = log_callback
+        self.journal_root = journal_root
 
     def _log(self, message: str) -> None:
         logger.info(message)
@@ -113,6 +85,15 @@ class RenderAgent:
         stop_event: threading.Event | None = None,
     ) -> int:
         stop_event = stop_event or threading.Event()
+        if getattr(self.client, "authorizer", None) is not None:
+            from .device_agent_journal import AgentJournal
+            from .device_agent_runtime import AuthorizedAgentRunner
+            with initialize_ui_automation_in_current_thread():
+                runner = AuthorizedAgentRunner(self, self.client.authorizer.session,
+                                               AgentJournal(self.journal_root or _agent_config_root()), run_render_job)
+                return runner.run(once=once, stop_event=stop_event)
+        if requires_device_authorization():
+            raise DeviceAuthorizationError("DEVICE_AGENT_PROTOCOL_REQUIRED", "执行机缺少本机授权会话", status_code=409)
         with initialize_ui_automation_in_current_thread():
             self.register()
             self._log(f"已连接中央服务：{self.name}（{self.agent_id}）")
@@ -259,6 +240,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--heartbeat-seconds", type=int, default=20)
     parser.add_argument("--once", action="store_true", help="只领取并执行一个任务")
     parser.add_argument("--gui", action="store_true", help="打开处理机启动界面")
+    recovery = parser.add_mutually_exclusive_group()
+    recovery.add_argument("--recover-list", action="store_true", help="登录后列出本机当前账号的未确认执行回执，不运行任务")
+    recovery.add_argument("--recover-job", help="查看并核实指定原任务，不重新渲染")
+    recovery.add_argument("--recover-reports", action="store_true", help="只补报已经持久保存的原结果，不领取任务")
+    parser.add_argument("--recovery-action", choices=("inspect", "accept-output", "close", "sync"), default="inspect", help="指定任务的核实结论；变更必须在交互终端再次确认")
+    parser.add_argument("--device-auth-server-url", default=os.environ.get("JYD_AUTH_SERVER_URL", ""), help="受信任的网站授权服务地址，不是中央队列地址")
+    add_command_authorization_arguments(parser)
     return parser
 
 
@@ -267,18 +255,34 @@ def main(argv: list[str] | None = None) -> int:
         _agent_config_root() / "logs",
         "agent.log",
     )
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.recovery_action != "inspect" and not args.recover_job:
+        parser.error("--recovery-action 只能与 --recover-job 一起使用；未启动任务")
+    if args.gui and (args.recover_list or args.recover_job or args.recover_reports):
+        parser.error("命令行核实参数不能与 --gui 混用；未启动任务")
     if args.gui or (argv is None and len(sys.argv) == 1):
         return launch_agent_gui()
-    agent = RenderAgent(
-        AgentApiClient(args.server_url, args.token),
-        agent_id=args.agent_id,
-        name=args.name,
-        draft_root=args.draft_root,
-        poll_seconds=args.poll_seconds,
-        heartbeat_seconds=args.heartbeat_seconds,
-    )
-    return agent.run_forever(once=args.once)
+    try:
+        with command_authorization(args, server_url=args.device_auth_server_url) as session:
+            agent_id = _account_agent_id(args.agent_id, session)
+            client = AgentApiClient(args.server_url, args.token, agent_id=agent_id,
+                                    authorizer=AgentRequestAuthorizer(session) if session else None)
+            agent = RenderAgent(client, agent_id=agent_id, name=args.name, draft_root=args.draft_root,
+                                poll_seconds=args.poll_seconds, heartbeat_seconds=args.heartbeat_seconds)
+            if args.recover_list or args.recover_job or args.recover_reports:
+                from .device_agent_recovery_cli import run_recovery_command
+                return run_recovery_command(args, agent, session, _agent_config_root())
+            return agent.run_forever(once=args.once)
+    except Exception as exc:
+        if sys.stderr is not None:
+            print(f"处理机未启动（{getattr(exc, 'code', type(exc).__name__)}），请核对账号、原设备授权和连接设置", file=sys.stderr)
+        return 1
+
+
+def _account_agent_id(agent_id, session):
+    value = _safe_agent_id(agent_id)
+    return value[:70] + "-u" + str(session.user_id) if session is not None else value
 
 
 def _agent_config_root() -> Path:
@@ -320,14 +324,18 @@ def launch_agent_gui() -> int:
     config = _load_agent_gui_config()
     root = tk.Tk()
     root.title("剪映处理机启动器")
-    root.geometry("640x590")
-    root.minsize(600, 540)
+    root.geometry("700x750")
+    root.minsize(640, 680)
 
     server_var = tk.StringVar(value=str(config.get("server_url") or ""))
     token_var = tk.StringVar(value=str(config.get("token") or os.environ.get("JYD_AGENT_TOKEN", "")))
     draft_var = tk.StringVar(value=str(config.get("draft_root") or _detect_gui_draft_root()))
     machine_var = tk.StringVar(value=str(config.get("machine") or "一号处理机"))
     status_var = tk.StringVar(value="尚未启动")
+    authorization_required = requires_device_authorization()
+    authority_var = tk.StringVar(value=str(config.get("device_auth_server_url") or os.environ.get("JYD_AUTH_SERVER_URL", "")))
+    username_var = tk.StringVar(value=str(config.get("device_user") or ""))
+    password_var = tk.StringVar(value="")
     stop_event = threading.Event()
     agent_thread: threading.Thread | None = None
 
@@ -367,6 +375,14 @@ def launch_agent_gui() -> int:
             draft_var.set(selected)
 
     ttk.Button(settings_frame, text="选择…", command=browse_draft_root).grid(row=2, column=2, pady=6)
+    if authorization_required:
+        ttk.Label(settings_frame, text="网站授权地址").grid(row=3, column=0, sticky="w", pady=6)
+        ttk.Entry(settings_frame, textvariable=authority_var).grid(row=3, column=1, columnspan=2, sticky="ew", padx=(12, 0), pady=6)
+        ttk.Label(settings_frame, text="网站账号").grid(row=4, column=0, sticky="w", pady=6)
+        ttk.Entry(settings_frame, textvariable=username_var).grid(row=4, column=1, columnspan=2, sticky="ew", padx=(12, 0), pady=6)
+        ttk.Label(settings_frame, text="网站密码").grid(row=5, column=0, sticky="w", pady=6)
+        ttk.Entry(settings_frame, textvariable=password_var, show="●").grid(row=5, column=1, columnspan=2, sticky="ew", padx=(12, 0), pady=6)
+        ttk.Label(settings_frame, text="网站密码不保存。首次设备审批在本机工作台完成；日常登录不是重新激活。", wraplength=570).grid(row=6, column=0, columnspan=3, sticky="w", pady=6)
 
     log_box = tk.Text(shell, height=9, state="disabled", wrap="word", font=("Microsoft YaHei UI", 9))
     log_box.pack(fill="both", expand=True, pady=(16, 0))
@@ -394,44 +410,71 @@ def launch_agent_gui() -> int:
             "machine": selected_machine,
             "agent_id": machine_map.get(selected_machine, "processor-01"),
             "name": selected_machine,
+            "device_auth_server_url": authority_var.get().strip(),
+            "device_user": username_var.get().strip(),
         }
         (_agent_config_root() / "config.json").write_text(
             json.dumps(values, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
         return values
 
-    def run_agent_in_background(values: dict[str, str]) -> None:
+    def run_agent_in_background(values: dict[str, str], password_box: list[str]) -> None:
         nonlocal agent_thread
+        password = password_box.pop()  # Thread arguments do not retain it for the whole run.
         try:
-            agent = RenderAgent(
-                AgentApiClient(values["server_url"], values["token"]),
-                agent_id=values["agent_id"],
-                name=values["name"],
-                draft_root=values["draft_root"],
-                log_callback=append_log,
-            )
-            agent.run_forever(stop_event=stop_event)
+            context = nullcontext(None)
+            if authorization_required:
+                trust = bundled_trust(values["device_auth_server_url"])
+                account = CommandAccountClient(trust).login(values["device_user"], password)
+                context = account_authorization(account, trust)
+            password = None
+            with context as session:
+                agent_id = _account_agent_id(values["agent_id"], session)
+                agent = RenderAgent(
+                    AgentApiClient(values["server_url"], values["token"], agent_id=agent_id,
+                                   authorizer=AgentRequestAuthorizer(session) if session else None),
+                    agent_id=agent_id, name=values["name"], draft_root=values["draft_root"], log_callback=append_log,
+                )
+                if values.get("operation") == "recovery":
+                    from .device_agent_journal import AgentJournal
+                    from .device_agent_recovery import AgentRecoveryController
+                    from .device_agent_recovery_gui import run_recovery_dialog
+                    if session is None:
+                        raise DeviceAuthorizationError("DEVICE_AGENT_CONTEXT_REQUIRED", "核实需要原账号会话", status_code=409)
+                    run_recovery_dialog(root, AgentRecoveryController(agent, session, AgentJournal(_agent_config_root())), stop_event, append_log)
+                else:
+                    agent.run_forever(stop_event=stop_event)
         except Exception as exc:
-            append_log(f"启动失败：{exc}")
-            root.after(0, lambda: start_button.configure(state="normal"))
+            append_log(f"启动未完成（{getattr(exc, 'code', type(exc).__name__)}），请核对网站账号、原设备授权和连接设置")
         finally:
+            password = None
             agent_thread = None
+            try:
+                root.after(0, lambda: start_button.configure(state="normal"))
+            except (RuntimeError, tk.TclError):
+                pass  # The user may already have closed the idle window.
 
-    def start_agent() -> None:
+    def start_agent(operation="run") -> None:
         nonlocal agent_thread
         if agent_thread is not None and agent_thread.is_alive():
             messagebox.showinfo("处理机已启动", "当前处理机 Agent 已经在运行。")
             return
         values = save_config()
-        if not values["server_url"] or not values["token"] or not values["draft_root"]:
+        if not values["server_url"] or not values["token"] or (operation == "run" and not values["draft_root"]):
             messagebox.showerror("配置不完整", "请填写工作台地址、接入密码和剪映草稿目录。")
             return
+        if authorization_required and (not values["device_user"] or not values["device_auth_server_url"] or not password_var.get()):
+            messagebox.showerror("请登录网站账号", "请填写受信任的网站授权地址、账号与本次密码；密码不会保存。")
+            return
+        password = password_var.get()
+        values["operation"] = operation  # Runtime-only; not saved in config.
+        password_var.set("")
         stop_event.clear()
         start_button.configure(state="disabled")
         append_log(f"正在启动 {values['name']}……")
         agent_thread = threading.Thread(
             target=run_agent_in_background,
-            args=(values,),
+            args=(values, [password]),
             name="render-agent-gui",
             daemon=True,
         )
@@ -446,10 +489,17 @@ def launch_agent_gui() -> int:
     stop_button.pack(side="right")
     start_button = ttk.Button(button_frame, text="保存并启动", command=start_agent)
     start_button.pack(side="right", padx=(0, 10))
+    if authorization_required:
+        ttk.Button(shell, text="核实中断任务（不重新渲染）", command=lambda: start_agent("recovery")).pack(anchor="e", pady=(8, 0))
 
     def close_window() -> None:
         stop_event.set()
-        root.destroy()
+        password_var.set("")
+        if agent_thread is not None and agent_thread.is_alive():
+            status_var.set("正在完成当前执行单元和原结果回报，结束后关闭；不会领取新任务。")
+            root.after(250, close_window)
+        else:
+            root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", close_window)
     root.mainloop()

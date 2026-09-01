@@ -8,6 +8,8 @@ import json
 import logging
 import os
 from pathlib import Path
+import shutil
+import time
 from typing import Any
 from urllib.parse import quote, urlencode, urlsplit
 import uuid
@@ -33,7 +35,16 @@ from .logging_config import log_event
 
 
 DEFAULT_RENDER_SERVER_URL = "http://127.0.0.1:8010"
+DEFAULT_TEMPORARY_RETENTION_HOURS = 24
 logger = logging.getLogger("jyd_probe.collector")
+
+
+def _positive_int(value: Any, fallback: int) -> int:
+    try:
+        parsed = int(str(value or "").strip())
+    except (TypeError, ValueError):
+        return fallback
+    return parsed if parsed > 0 else fallback
 
 
 @dataclass
@@ -47,6 +58,7 @@ class LocalCollectorSettings:
     render_server_url: str = DEFAULT_RENDER_SERVER_URL
     access_token: str = "operator123"
     draft_root_mode: str = "auto"
+    temporary_retention_hours: int = DEFAULT_TEMPORARY_RETENTION_HOURS
 
     @classmethod
     def defaults(cls) -> "LocalCollectorSettings":
@@ -84,6 +96,10 @@ class LocalCollectorSettings:
             access_token=os.environ.get("JYD_ACCESS_TOKEN", "operator123").strip()
             or "operator123",
             draft_root_mode="manual" if configured_root else "auto",
+            temporary_retention_hours=_positive_int(
+                os.environ.get("JYD_COLLECTOR_TEMP_RETENTION_HOURS", ""),
+                DEFAULT_TEMPORARY_RETENTION_HOURS,
+            ),
         )
 
 
@@ -95,6 +111,7 @@ class LocalCollectorService:
         if self.settings.personal_library_root is None:
             self.settings.personal_library_root = self.settings.state_root / "personal_libraries"
         self.settings.personal_library_root.mkdir(parents=True, exist_ok=True)
+        cleanup = self._cleanup_stale_temporary_artifacts()
         self._load_saved_config()
         log_event(
             logger,
@@ -102,6 +119,8 @@ class LocalCollectorService:
             "草稿采集器已初始化",
             component="collector",
             draft_root_mode=self.settings.draft_root_mode,
+            cleaned_temporary_files=cleanup["files"],
+            cleaned_decrypted_directories=cleanup["directories"],
         )
 
     def get_config(self) -> dict[str, Any]:
@@ -115,6 +134,7 @@ class LocalCollectorService:
             "personal_library_root": str(self.settings.personal_library_root),
             "render_server_url": self.settings.render_server_url,
             "access_token_configured": bool(self.settings.access_token),
+            "temporary_retention_hours": self.settings.temporary_retention_hours,
         }
 
     def set_draft_root(self, value: str | Path) -> dict[str, Any]:
@@ -430,17 +450,22 @@ class LocalCollectorService:
             if not successful_kinds:
                 raise RuntimeError("所选素材均未能提取，无法上传")
             package = self._build_personal_asset_package(root, successful_kinds)
-            response["upload"] = self._post_personal_asset_package(
-                self._normalize_server_url(server_url or self.settings.render_server_url),
-                package["path"],
-                checksum=package["checksum_sha256"],
-                access_token=self.settings.access_token,
-            )
-            response["package"] = {
-                "filename": package["path"].name,
-                "size": package["path"].stat().st_size,
+            package_path = Path(package["path"])
+            package_result = {
+                "filename": package_path.name,
+                "size": package_path.stat().st_size,
                 "checksum_sha256": package["checksum_sha256"],
             }
+            try:
+                response["upload"] = self._post_personal_asset_package(
+                    self._normalize_server_url(server_url or self.settings.render_server_url),
+                    package_path,
+                    checksum=package["checksum_sha256"],
+                    access_token=self.settings.access_token,
+                )
+                response["package"] = package_result
+            finally:
+                self._remove_package_artifacts(package_path)
         log_event(
             logger,
             "collector.assets_collected",
@@ -463,27 +488,34 @@ class LocalCollectorService:
             "text_templates": "text_template_library",
         }
         package_path = self._packages_root / f"personal_assets_{uuid.uuid4().hex}.zip"
-        with zipfile.ZipFile(package_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.writestr(
-                "personal_assets_manifest.json",
-                json.dumps(
-                    {
-                        "schema": "jyd.personal_asset_transfer.v1",
-                        "created_at": datetime.now().isoformat(timespec="seconds"),
-                        "kinds": kinds,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ) + "\n",
-            )
-            for kind in kinds:
-                directory_name = directory_by_kind[kind]
-                source = root / directory_name
-                if not source.is_dir():
-                    continue
-                for path in source.rglob("*"):
-                    if path.is_file():
-                        archive.write(path, (Path(directory_name) / path.relative_to(source)).as_posix())
+        try:
+            with zipfile.ZipFile(package_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr(
+                    "personal_assets_manifest.json",
+                    json.dumps(
+                        {
+                            "schema": "jyd.personal_asset_transfer.v1",
+                            "created_at": datetime.now().isoformat(timespec="seconds"),
+                            "kinds": kinds,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ) + "\n",
+                )
+                for kind in kinds:
+                    directory_name = directory_by_kind[kind]
+                    source = root / directory_name
+                    if not source.is_dir():
+                        continue
+                    for path in source.rglob("*"):
+                        if path.is_file():
+                            archive.write(
+                                path,
+                                (Path(directory_name) / path.relative_to(source)).as_posix(),
+                            )
+        except BaseException:
+            self._remove_package_artifacts(package_path)
+            raise
         digest = hashlib.sha256()
         with package_path.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
@@ -578,32 +610,117 @@ class LocalCollectorService:
         if plan.get("mode") == "template_center" and not template_import_ticket.strip():
             raise ValueError("模板中心上传缺少当前账号的一次性上传凭证")
         destination = self._packages_root / f"{plan_id}.zip"
-        package = build_transfer_package(plan, destination)
-        base_url = self._normalize_server_url(server_url or self.settings.render_server_url)
-        response = self._post_package(
-            base_url,
-            destination,
-            checksum=str(package["checksum_sha256"]),
-            template_name=template_name,
-            template_lifecycle=template_lifecycle,
-            access_token=self.settings.access_token,
-            template_import_ticket=template_import_ticket,
-        )
-        result = {
-            "plan_id": plan_id,
-            "server_url": base_url,
-            "package": {key: value for key, value in package.items() if key != "manifest"},
-            "server_result": response,
-        }
-        self._write_json(self._uploads_root / f"{plan_id}.json", result)
-        log_event(
-            logger,
-            "collector.upload_completed",
-            "草稿包上传完成",
-            component="collector",
-            plan_id=plan_id,
-        )
-        return result
+        upload_completed = False
+        try:
+            package = build_transfer_package(plan, destination)
+            base_url = self._normalize_server_url(server_url or self.settings.render_server_url)
+            response = self._post_package(
+                base_url,
+                destination,
+                checksum=str(package["checksum_sha256"]),
+                template_name=template_name,
+                template_lifecycle=template_lifecycle,
+                access_token=self.settings.access_token,
+                template_import_ticket=template_import_ticket,
+            )
+            upload_completed = True
+            result = {
+                "plan_id": plan_id,
+                "server_url": base_url,
+                "package": {key: value for key, value in package.items() if key != "manifest"},
+                "server_result": response,
+            }
+            self._write_json(self._uploads_root / f"{plan_id}.json", result)
+            log_event(
+                logger,
+                "collector.upload_completed",
+                "草稿包上传完成",
+                component="collector",
+                plan_id=plan_id,
+            )
+            return result
+        finally:
+            self._remove_package_artifacts(destination)
+            if upload_completed:
+                self._remove_managed_decrypted_copy(plan)
+
+    def _remove_package_artifacts(self, package_path: str | Path) -> int:
+        package = Path(package_path).expanduser().resolve()
+        packages_root = self._packages_root.resolve()
+        candidates = (package, package.with_suffix(f"{package.suffix}.tmp"))
+        removed = 0
+        for candidate in candidates:
+            if candidate.parent != packages_root:
+                logger.warning("拒绝清理采集器临时包目录之外的文件: %s", candidate)
+                continue
+            try:
+                if candidate.is_file() or candidate.is_symlink():
+                    candidate.unlink()
+                    removed += 1
+            except OSError as exc:
+                logger.warning("清理采集器临时包失败: %s (%s)", candidate, exc)
+        return removed
+
+    def _remove_managed_decrypted_copy(self, plan: dict[str, Any]) -> bool:
+        draft = plan.get("draft", {})
+        if not isinstance(draft, dict) or not draft.get("was_decrypted"):
+            return False
+        analyzed_value = str(draft.get("analyzed_draft_dir") or "").strip()
+        source_value = str(draft.get("source_draft_dir") or "").strip()
+        if not analyzed_value:
+            return False
+        analyzed = Path(analyzed_value).expanduser().resolve()
+        source = Path(source_value).expanduser().resolve() if source_value else None
+        decrypt_root = self.settings.decrypt_work_root.resolve()
+        if analyzed.parent != decrypt_root or analyzed == source:
+            logger.warning("拒绝清理采集器管理范围之外的解密副本: %s", analyzed)
+            return False
+        try:
+            if analyzed.is_symlink() or analyzed.is_file():
+                analyzed.unlink()
+            elif analyzed.is_dir():
+                shutil.rmtree(analyzed)
+            else:
+                return False
+        except OSError as exc:
+            logger.warning("清理解密草稿副本失败: %s (%s)", analyzed, exc)
+            return False
+        return True
+
+    def _cleanup_stale_temporary_artifacts(self) -> dict[str, int]:
+        cutoff = time.time() - max(1, self.settings.temporary_retention_hours) * 3600
+        removed_files = 0
+        removed_directories = 0
+
+        for candidate in self._packages_root.iterdir():
+            try:
+                if candidate.stat().st_mtime >= cutoff:
+                    continue
+                if candidate.is_file() or candidate.is_symlink():
+                    candidate.unlink()
+                    removed_files += 1
+            except OSError as exc:
+                logger.warning("清理过期采集器临时包失败: %s (%s)", candidate, exc)
+
+        decrypt_root = self.settings.decrypt_work_root.resolve()
+        for candidate in decrypt_root.iterdir():
+            try:
+                if candidate.stat().st_mtime >= cutoff:
+                    continue
+                resolved = candidate.resolve()
+                if resolved.parent != decrypt_root:
+                    logger.warning("拒绝清理采集器解密目录之外的路径: %s", candidate)
+                    continue
+                if candidate.is_symlink() or candidate.is_file():
+                    candidate.unlink()
+                    removed_files += 1
+                elif candidate.is_dir():
+                    shutil.rmtree(candidate)
+                    removed_directories += 1
+            except OSError as exc:
+                logger.warning("清理过期解密草稿副本失败: %s (%s)", candidate, exc)
+
+        return {"files": removed_files, "directories": removed_directories}
 
     @property
     def _config_path(self) -> Path:

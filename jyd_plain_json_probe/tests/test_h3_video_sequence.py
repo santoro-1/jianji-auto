@@ -2,6 +2,7 @@ import copy
 from dataclasses import replace
 import json
 from pathlib import Path
+import shutil
 import wave
 
 import pytest
@@ -239,6 +240,64 @@ def test_postprocess_template_receives_sequence_not_merged_video(
     assert job["audios"][0]["media_path"] == item["outputs"]["audio"]["managed_path"]
 
 
+def test_postprocess_template_native_cover_offsets_h3_sequence(tmp_path, monkeypatch):
+    from jyd_probe import project_postprocess as pp
+
+    _, project, _, _, _ = three_segments(tmp_path, monkeypatch)
+    item = project["items"][0]
+    item["subtitles"]["status"] = "PREVIEW_READY"
+    portrait = tmp_path / "portrait.jpg"
+    portrait.write_bytes(b"portrait")
+    item.setdefault("inputs", {})["image"] = {"managed_path": str(portrait)}
+    item["outputs"]["base_video"].setdefault("metadata", {}).pop("input_image_sha256", None)
+    item["outputs"]["base_video"]["metadata"].pop("input_image_asset_id", None)
+    item["outputs"]["base_video"].setdefault("external_ref", {}).pop("image_sha256", None)
+    template = tmp_path / "template-cover"
+    template.mkdir()
+    (template / "draft_content.json").write_text('{"tracks": []}', encoding="utf-8")
+    item["settings"]["postprocess"] = {
+        "jianying_template": {
+            "template_id": "template-cover",
+            "draft_dir": str(template),
+            "profile": {
+                "draft_duration_us": 4_100_000,
+                "cover": {
+                    "enabled": True,
+                    "duration_us": 100_000,
+                    "portrait_slot": {"typed_track_index": 0, "segment_index": 0},
+                },
+                "main_video": {"typed_track_index": 0, "segment_index": 1},
+            },
+        }
+    }
+    monkeypatch.setattr(
+        pp,
+        "layout_font",
+        lambda *args: {
+            "path": str(tmp_path / "font.ttf"),
+            "resource_id": "font",
+            "name": "font",
+        },
+    )
+    monkeypatch.setattr(
+        pp,
+        "detect_caption_tracks",
+        lambda *args, **kwargs: [{"track_id": "captions", "typed_track_index": 0}],
+    )
+    coordinator = object.__new__(pp.ProjectPostprocessCoordinator)
+    coordinator.fonts = []
+    coordinator.bgm_assets = {}
+    coordinator.draft_root = tmp_path / "output"
+
+    job = coordinator._build_draft_job(item, draft_name="h3-native-cover", skip_export=True)
+
+    body_duration_us = sum(part["target_duration_us"] for part in job["main_video_sequence"]["items"])
+    assert job["main_video_sequence"]["target_start_us"] == 100_000
+    assert job["timeline_duration_us"] == body_duration_us + 100_000
+    assert job["audios"][0]["target_start_us"] == 100_000
+    assert job["video_replacements"][0]["media_path"] == str(portrait.resolve())
+
+
 @pytest.fixture
 def real_clips(tmp_path):
     import cv2
@@ -306,12 +365,23 @@ def test_legacy_upgrade_preserves_active_work_and_user_upload(
 
 
 @pytest.mark.parametrize("template_mode", [False, True, "no-placeholder"])
+@pytest.mark.parametrize("long_paths", [False, True])
 def test_real_render_draft_keeps_three_clips_and_one_audio(
-    tmp_path, real_clips, template_mode
+    tmp_path, real_clips, template_mode, long_paths
 ):
     from jyd_probe.cli import load_plain_draft_json, save_plain_draft_json
     from jyd_probe.draft_factory import create_plain_draft_from_video
     from jyd_probe.render_job import run_render_job
+
+    if long_paths:
+        from test_draft_media_paths import long_media
+
+        long_clips = []
+        for index, source in enumerate(real_clips):
+            target = long_media(tmp_path, f"clip-{index}", suffix=".avi")
+            shutil.copyfile(source, target)
+            long_clips.append(target)
+        real_clips = long_clips
 
     speech = tmp_path / "clean-authority.wav"
     with wave.open(str(speech), "wb") as audio:
@@ -319,6 +389,10 @@ def test_real_render_draft_keeps_three_clips_and_one_audio(
         audio.setsampwidth(2)
         audio.setframerate(16000)
         audio.writeframes(b"\x00\x00" * 48_000)
+    if long_paths:
+        target = long_media(tmp_path, "audio", suffix=".wav")
+        shutil.copyfile(speech, target)
+        speech = target
     items = [
         {
             "media_path": str(p),
@@ -375,9 +449,21 @@ def test_real_render_draft_keeps_three_clips_and_one_audio(
     assert all(s["speed"] == 1.0 and s["volume"] == 0 for s in main["segments"])
     assert data["duration"] == 3_000_000
     videos = {m["id"]: m for m in data["materials"]["videos"]}
-    assert [
+    output_paths = [
         Path(videos[s["material_id"]]["path"]) for s in main["segments"]
-    ] == real_clips
+    ]
+    if long_paths:
+        assert len(set(output_paths)) == 3
+        for source_path, target_path in zip(real_clips, output_paths):
+            assert target_path.parent == result.output_draft_dir / "jyd_media"
+            assert len(str(target_path)) <= 240
+            assert target_path.read_bytes() == source_path.read_bytes()
+        assert Path(data["materials"]["audios"][0]["path"]).parent == (
+            result.output_draft_dir / "jyd_media"
+        )
+        assert Path(data["materials"]["audios"][0]["path"]).read_bytes() == speech.read_bytes()
+    else:
+        assert output_paths == real_clips
     assert len(data["materials"]["transitions"]) == 2
     tracks = [t for t in data["tracks"] if t["type"] == "audio"]
     assert len(tracks) == 1 and len(tracks[0]["segments"]) == 1

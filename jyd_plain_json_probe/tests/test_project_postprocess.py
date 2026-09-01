@@ -319,6 +319,65 @@ class ProjectPostprocessApiTest(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
 
+    def test_missing_layout_font_uses_available_default_and_accepts_stale_client(self) -> None:
+        user = {"user_id": "font-fallback-user", "username": "tester", "enabled": True}
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id=user["user_id"],
+            owner_username=user["username"],
+            name="缺失默认字体回退",
+            items=[{"row_key": "1", "script_text": "测试背景音乐保存。"}],
+        )
+        item = project["items"][0]
+        fallback_path = self.root / "DouyinSansBold_7244518590332801592.otf"
+        fallback_path.write_bytes(b"font" * 512)
+        fallback_font = {
+            "identity": "resource_id:7244518590332801592",
+            "name": "DouyinSansBold",
+            "resource_id": "7244518590332801592",
+            "path": str(fallback_path),
+            "available": True,
+        }
+
+        with patch(
+            "jyd_probe.auth_center.AuthCenterClient.login",
+            return_value={"access_token": "token", "user": user},
+        ), patch(
+            "jyd_probe.auth_center.AuthCenterClient.verify", return_value=user
+        ), patch(
+            "jyd_probe.web_api._list_font_library", return_value=[fallback_font]
+        ), patch(
+            "jyd_probe.web_api._list_system_fonts", return_value=[]
+        ):
+            with TestClient(create_app(self.settings)) as client:
+                login = client.post(
+                    "/api/auth/login",
+                    json={"username": "tester", "password": "pass123"},
+                )
+                self.assertEqual(login.status_code, 200, login.text)
+                options = client.get("/api/new/postprocess/options")
+                self.assertEqual(options.status_code, 200, options.text)
+                self.assertEqual(
+                    options.json()["default_font_identity"],
+                    fallback_font["identity"],
+                )
+
+                changed = client.patch(
+                    f"/api/new/projects/{project['project_id']}/items/{item['item_id']}/postprocess-settings",
+                    json={
+                        "font_identity": "resource_id:7086699209738424840",
+                        "bgm_identity": "",
+                        "bgm_selection_mode": "manual",
+                        "text_color": "#FFFFFF",
+                    },
+                )
+                self.assertEqual(changed.status_code, 200, changed.text)
+                saved_item = changed.json()["items"][0]
+                self.assertEqual(
+                    saved_item["settings"]["postprocess"]["font_identity"],
+                    fallback_font["identity"],
+                )
+
     def test_h3_handoff_4b_aligns_generated_audio_with_segment_windows(self) -> None:
         user_id = "h3-postprocess-user"
         script = "第一句。第二句。"

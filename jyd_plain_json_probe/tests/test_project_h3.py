@@ -549,7 +549,7 @@ def test_h3_sync_prefers_runninghub_direct_delivery(tmp_path: Path) -> None:
     segment = synchronized["items"][0]["settings"]["h3"]["segments"][0]
     assert segment["local_preview_ready"] is True
     cache_root = tmp_path / "storage" / "projects" / "user-1" / project_id
-    metadata = next(cache_root.rglob("current.json"))
+    metadata = next(cache_root.rglob("raw.json"))
     cached = json.loads(metadata.read_text(encoding="utf-8"))
     assert cached["result_signature"] == signature
     assert cached["local_video_sha256"]
@@ -1178,15 +1178,12 @@ def test_h3_project_contract_reuses_existing_audio_and_original_project(
         ("image", "identity.png"),
         ("video", "reference.mp4"),
     ]
-    with pytest.raises(ValueError, match="未结束"):
-        coordinator.prepare(
-            "user-1",
-            project_id,
-            "token",
-            idempotency_key="quote-duplicate",
-            selected_account_ids=[7],
-            item_ids=[item_id],
-        )
+    resumed = coordinator.prepare(
+        "user-1", project_id, "token", idempotency_key="quote-duplicate",
+        selected_account_ids=[7], item_ids=[item_id],
+    )
+    assert resumed["h3_batch"]["batch_id"] == prepared["h3_batch"]["batch_id"]
+    assert len(client.uploads) == 2
     confirmed = coordinator.confirm("user-1", project_id, "token")
     assert confirmed["project"]["project_id"] == project_id
     assert confirmed["project"]["settings"]["h3"]["remote_batch_id"] == "h3-batch-1"

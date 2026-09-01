@@ -1,5 +1,72 @@
 # Web API
 
+## 2026-09-01 独立 Agent 实际 HTTP 合同（当前，开发中）
+
+共用中央接入密码与执行机设备授权是两层检查。受保护构建中，除挑战请求外，以下 POST 必须同时具有原 `Authorization: Bearer ...`、`X-Workbench-Agent-Permit` 和按模式要求的 `X-Workbench-Agent-Proof`。空信任根源码的旧测试兼容不适用于冻结 EXE；缺新协议返回 `DEVICE_AGENT_PROTOCOL_REQUIRED`，不能修改普通配置放行。
+
+| POST 路径 | 用途与主要载荷 |
+| --- | --- |
+| `/api/agents/device-authorization/challenge` | 只接收 `agent_id/path/payload`，取得绑定中央真实源地址和完整请求内容的新挑战；不是业务授权 |
+| `/api/agents/register` | `execute`；验证网站账号/实际密钥并登记 Agent，客户端不能自报授权关系 |
+| `/api/agents/{agent_id}/heartbeat` | `execute`；空闲在线更新，不替代任务回报 |
+| `/api/agents/{agent_id}/claim` | `execute`；正文仅 `{}`，不能指定别人的账号、权限或任务 |
+| `/api/agents/{agent_id}/jobs/{job_id}/start` | `execute`；正文仅 32 位小写十六进制 `execution_id`，原子确认原任务启动，同一编号幂等 |
+| `/api/agents/{agent_id}/jobs/{job_id}/heartbeat` | `report`；原执行编号和进度，仅维护原已分配任务 |
+| `/api/agents/{agent_id}/jobs/{job_id}/complete` | `report`；原 `execution_id` 与 `result` 对象，相同结果重复回报只返回原回执 |
+| `/api/agents/{agent_id}/jobs/{job_id}/fail` | `report`；原 `execution_id` 与有限错误摘要，迟到失败不得覆盖成功 |
+
+中央新挑战交给可信云端 `/api/workbench/device-auth/agent-permit` 取得用途隔离的单次许可，再由实际执行机持钥证明绑定；网站登录令牌和设备云端访问令牌不转交中央。请求不接受查询参数或重定向，修改正文/路径后原证明无效，已消费挑战不能重放；OFF/OBSERVE 的无密钥兼容仍须合法签名模式，不等于普通密码即可授权。
+
+登记归属、领取、启动及回报均在事务内核对原账号与密钥。撤销设备后，合法账号可凭原密钥取得仅用于原结果回报的许可；不含执行范围，不能领取/启动新任务。完成结果写入后，状态文件或清理失败不改变数据库成功状态。`DEVICE_AGENT_EXECUTION_UNCERTAIN` 等冲突需保留原回执，不得删库重新领取。
+
+接口成功与设备错误响应禁止缓存。一个中央应用使用一个防重放 Gate；多进程中央部署未验收，不能自行增加多 Worker 后声称具备同等防重放保证。当前测试使用隔离中央/网站与模拟设备，不是实机验收；发布公钥、整包保护、人工核实恢复及其余入口仍未完成。详细合同见 [主文档第 22、23 节](../../../数字人/runninghub_mvp/工作台设备授权与免重复激活开发文档.md)。以下为历史阶段。
+
+## 2026-09-01 命令行与 Agent 边界（历史阶段，开发中）
+
+- 单任务命令行复用网站原 `/api/auth/center/login`、`verify` 和设备策略/凭据接口，本阶段没有新增 Web 路由或允许浏览器传入设备凭据的接口。
+- 正式处理机 `--render-job`、渲染脚本及 probe 建草稿接入原设备会话；用户重新登录不重新登记机器。普通 JSON 里的 `device_id/scopes/mode` 不能替代进程内持钥授权。
+- 独立 Agent 的注册/心跳/领取/结果上报仍是旧共用接入密码合同；启用授权的构建仍暂拒绝其领取，合法目标机授权、账号筛选和防重放接力未完成，不得放开旧口令作为设备认证。当前不可作为整包防复制完成版分发。
+
+## 2026-09-01 软件初始化申请（历史阶段，开发中）
+
+- `POST /api/new/device-authorization/apply-software`：接受 `label`、`client_version` 和 `confirm_initialize:true`、`confirm_software:true`；两个确认都必须为严格布尔值。必须使用现有网站账号、同源及 `X-Device-Authorization-Action: 1`，拒绝 SID、提供程序、批准标志、许可字符串和任意额外字段。
+- 先读取原设备密钥；已有密钥只复用。确实未初始化时向账号中心请求专用软件许可，管理员未允许则不启动 UAC/建钥。签名许可只在后端内存与受限本机管道传递，浏览器只收到安全状态摘要。初始化成功仍进入正常登记/管理员审批，不自动启动业务任务。
+- 原 `repair-key-access` 接口参数不变，现通过固定定位记录修复原 TPM 或软件密钥权限；缺失/冲突/损坏不自动换钥。`KEY_IDENTITY_*` 保持独立设备错误，不误退出账号。
+- 两项 UI 确认缺一不可，软件确认在每次请求后清空；页面读取和更新不自动调用 `apply-software`。相关回归 `291 passed`，浏览器模拟交互与桌面截图通过；实际密钥/UAC、跨机、发布保护仍未验收，暂不发包。
+
+## 2026-09-01 设备初始化、访问修复和 H3 补授权（开发中）
+
+- 新增 `POST /api/new/device-authorization/repair-key-access`，仅接受 `confirm_repair:true`。网站登录、同源和 `X-Device-Authorization-Action: 1` 必须同时满足；额外的 SID、进程 ID、命令、密钥名、软件批准字段拒绝。仅修复已有 TPM 密钥访问权限并校验原授权，不 register、不启动队列。
+- `/apply` 保持原严格参数。正式 EXE 在密钥确实缺失且用户明确申请时发起 UAC；已有钥匙只复用。`KEY_SETUP_IN_PROGRESS` 对应 `KEY_INITIALIZING`，观察仍活跃的辅助进程而不重开；取消为独立错误，不误退出账号。GET/refresh 不提权、不自动登记。
+- H3 本地恢复 API：`GET /api/new/device-authorization/h3-waiting`（可传 `after_id`）、`POST /api/new/device-authorization/h3/{batch_id}/prepare`、`POST /api/new/device-authorization/h3/{batch_id}/resume`。resume 严格接收 `resume_confirmed:true`、`review_token` 和 `request_key`，仍要求同源、专用头和云端持钥校验；不允许正文注入其他设备身份。
+- 云端恢复保留原批次/任务/费用计划，只更新合规未提交分段的授权关联；同键返回原回执，查看状态变化需重新确认。后台刷新独立于浏览器运行，只刷新既有会话，不自动恢复这些任务。
+- 所有设备响应继续不缓存；Windows 访问修复不能代替云端批准。当前发布信任根仍为空，软件兼容、其他入口和实机/整包验收仍未完成，暂不要打包或启用强制模式。以下为较早阶段合同与测试记录。
+
+## 2026-08-31 设备授权接口与 H3 请求（开发中）
+
+- `GET /api/new/device-authorization`：当前网站账号在实际处理机上的授权状态。无本机密钥时返回 `UNREGISTERED`，GET 不创建密钥。
+- `POST /api/new/device-authorization/apply`：JSON 为 `confirm_initialize:true`、可选 `label/client_version`（各最多 80 字符）。仅明确申请可初始化设备密钥，仍需云端管理员批准；禁止额外的密钥、设备 ID、软件批准或信任根字段。
+- `POST /api/new/device-authorization/refresh`：联网校验原设备并刷新会话，仅返回状态摘要，不返回设备访问令牌或本地租约。
+- POST 要求当前工作台同源 `Origin` 和 `X-Device-Authorization-Action: 1`；三个接口都沿用网站普通用户身份，本地技术管理员不能代批。响应 `Cache-Control: no-store`；授权失败区分 `code/state/detail`，不是统一重激活。
+- `DEVICE_TRUST_NOT_CONFIGURED` 表示发布公钥尚未编译配置，不允许从普通服务器地址配置或远端响应动态信任公钥。当前源码的发布信任根为空。
+- `GET /app/new/device-authorization` 为独立授权页面，入口在账号菜单。页面只有明确确认才调用申请 POST；可见状态下按 15 秒待审/5 分钟有效轮询，需要时调用刷新，不把状态 JSON 当作执行权限。
+- 授权 API 的设备凭据 HTTP 401 有 `code/state`，前端不得等同于账号未登录；`LOGIN_REQUIRED` 才要求重新登录。授权到期、需升级和密钥故障单独显示。网络异常时，仅会话已有原有效凭据可返回 `OFFLINE_GRACE`；不延长有效期，不退回重新申请。
+- H3 业务代理通过 `AuthCenterClient.device_header_provider` 使用当前网站账号、本处理机的 v2 凭据和 DPoP；绑定请求移除正文 `access_token`。无可用设备凭据时，发送前最多使用一次原账号请求，由云端按读/新业务区分；请求已发出后不降级重发。强制模式下旧账号令牌仍不能启动新业务。
+- H3 设备错误响应保留 `code`、`device_authorization_required:true` 与 `X-Workbench-Device-Error`。设备层 401 映射为本地业务 HTTP 409，避免通用登录处理误退出账号；其他归属/账号校验仍保留。设备证明不跟随重定向或发送给第三方下载地址。
+- `GET /api/new/device-authorization/waiting-jobs`：仅列当前网站账号最多 100 条本地授权等待任务，返回安全摘要而非载荷/路径。无账号归属的历史任务尚不支持该恢复通路。
+- `POST /api/jobs/{job_id}/resume-authorization`：要求同源及专用请求头、原所属账号和新的有效本机授权；恢复原任务 ID，不新建付费任务。不属于当前账号返回 404；已不等待返回 409。授权页只有用户明确点击才调用，刷新/登录不自动恢复。
+- 本地建草稿/导出核心和内嵌队列已加检查：入队前验证、执行前复核、失效保持等待，已启动单元安全收尾。状态关联不是可复制的许可，不接受浏览器/JSON 注入设备身份或授权器。
+- JYD 会话向 RH `POST /api/workbench/device-auth/local-policy` 取得最长 300 秒的签名 OFF/OBSERVE/ENFORCE；绑定当前账号凭据摘要和新 nonce，只信编译公钥，不创建设备。网络失败仅可继续严格检查原有效租约，不当作 OFF 放行。
+- UAC/ACL 实机验证、其他私有/CLI/FFmpeg 入口、独立 Agent、后台调度与发布公钥/包保护仍未完成。受保护环境暂时拒绝旧 Agent 领取，`DEVICE_AGENT_PROTOCOL_REQUIRED` 是待实现的合法接入提示，不是成品授权功能。信任根为空，当前不要打包分发或启用生产整包强制保护。
+
+## 2026-08-31 H3 费用预览恢复
+
+- `POST /api/new/projects/{project_id}/h3/quotes/inspect`：请求 `item_ids` 数组，值为稳定项目行 ID。沿用登录和项目归属校验；查询云端并同步本地状态，不创建生成任务。响应含 `project`、`h3_batches` 快照以及 `batches` 判定（`batch_id/status/row_ids/item_ids/same_selection/input_matches/input_change_reason/can_resume/can_cancel_quote/quote_token/fee_snapshot`）。只处理与本次选择相关的未结束批次。
+- `POST /api/new/projects/{project_id}/h3/quotes/{batch_id}/cancel`：请求 `cancel_quote_confirmed:true`、`request_key`、原快照的 `quote_token`。只撤销整个云端未提交费用预览；云端成功后返回 `project/h3_batch` 并释放本地占用。失败保留原关联，不自动改为分段取消或再次付费提交。
+- 原 `h3/prepare` 与 `h3/confirm` 在旧预览输入变化/范围冲突时返回 HTTP 409，`detail={code:"H3_QUOTE_CONFLICT",message,batches}`。完全相同的未提交预览可复用，不新增批次。无绑定凭据的历史预览按不可确认处理。
+- 数字人云端新增 `POST /api/workbench/h3-batches/{batch_id}/quote/cancel`，请求还需 `access_token`；凭据和归属校验失败/状态冲突沿用服务错误 HTTP 400，未明确确认返回 409。快照新增 `quote_recovery={schema:"runninghub.h3-quote-recovery.v1",can_cancel_quote,quote_token}`。必须先更新云端才具备此撤销能力。
+- 诊断摘要 `runtime` 新增 `quote_recovery_version/frozen/frontend_sha256`；项目 `h3.batches` 增加安全状态及版本摘要，不导出 `quote_token`。
+
 ## 2026-08-31 H3 片头本地清理
 
 - H3 状态响应在每段增加 `local_audio_cleanup`：`status` 为 `PENDING`、`PROCESSING`、
@@ -15,6 +82,9 @@
   该接口不调用云端提交、重新生成、收费确认或云端账号数据库写入。
 - 清理后的 H3 audio/base/master metadata 包含 `head_cleanup_version`、
   `head_cleanup_keys`、`head_cleanup_reports`；媒体签名包含清理 key，以免旧缓存覆盖新声音。
+- 缓存改为项目内平级短目录，完整 key 与上述响应字段不变。错误记录无法落盘时仍由进程内
+  状态返回 `RETRY_WAIT`/`FAILED` 并执行三次上限；线程提交失败或损坏失败记录返回 `FAILED`，
+  不因错误记录写入失败而无限返回 `PROCESSING`。旧原片无需重新生成，旧有效清理缓存可零 ASR 复制复用。
 
 算法及缓存约束见 `DEVELOPER_GUIDE.md` 的 H3 本地片头声音清理章节。
 
@@ -37,8 +107,18 @@
   仍反映真实生成结果；成功行仍能继续后处理。鉴权/云端请求整体失败仍按原 HTTP 错误返回。
 - `requires_input_change=true` 表示当前脚本与片段不一致；同一输入/片段版本不再自动合成，
   不自动重生成 H3。暂时性本地媒体错误仍可通过后续状态同步恢复。
-- 声音重试先比较脚本、音色和合成设置：只有同源仅调速使用旧任务 retry；其他变化按当前
-  行创建新声音批次，保留历史文件。H3 费用预览在声音审核、素材上传及 ASR 前检查稿音一致。
+- 显式声音重生成（包括仅调速）统一按当前行创建幂等新批次，保留历史任务与文件，
+  不再调用旧任务 retry。H3 费用预览在声音审核、素材上传及 ASR 前检查稿音一致。
+- 程序退出留下的 v1 声音操作在下次 `audio/status` 或生成请求时恢复：未认领 `PENDING`
+  收尾为 `AUDIO_NOT_SUBMITTED`；已认领 `STARTING` 转为 `AUDIO_SUBMISSION_UNKNOWN` 后只读查回原回执。
+  待核对行返回 `audio_submission: {status: "UNKNOWN", operation_id, message}`，否则该字段为 `null`。
+  `allowed_actions.generate_audio` 和 `retry_audio` 在待核对期间为 false，页面显示警告并每 10 秒继续查询。
+- 工作台服务端使用短期令牌调用新增云端 `POST /api/workbench/audio-batches/lookup`，请求仅含
+  `access_token` 与原 `request_key`。响应 schema 为 `runninghub.workbench-audio-lookup.v1`；
+  无结果为 `found: false`，有结果增加 `request_key`、标准 `batch` 及按云端行 ID 索引的 `input_bindings`。
+  bindings 包含 `script_sha256`、`voice_asset_id` 及 `speech_settings` 的 model/speed/volume/pitch/languageBoost/outputFormat。
+  查回必须核对原项目操作与回执，不能因查询无结果、旧服务器404或断网而重新创建付费任务。
+  该查询不创建任务，按登录用户及 `new_workbench` 声音批次隔离；应先升级云端再升级工作台，无数据库迁移。
 
 ## 新版页面入口与登录（模块 1）
 
@@ -313,8 +393,8 @@ save 接口成功并进入 `SAVED` 后，才会生成自定义音色卡。新卡
 分组创建数字人音频批次，保存批次/批次行关联和 `AUDIO_GENERATE` 操作。后端只处理
 `DRAFT` 或 `AUDIO_FAILED` 行，不重新生成已就绪音频。此阶段只提交脚本、音色和语音
 参数，不上传或校验项目图片；内部远程幂等键使用固定长度哈希。
-单行 `audio/retry` 同时提交当前 `voice_settings`；数字人后端在创建下一版 attempt 前更新
-任务语速，因此不会继续沿用旧版本的 `speed`。
+单行 `audio/retry` 同时提交当前 `voice_settings`，新批次冻结当前语速，不修改已经绑定 H3 的旧任务。
+云端接受前保留原音视频与字幕；接受回执及素材切换在同一事务中完成。提交结果不明时只查原请求，不自动重提。
 
 请求可选传 `item_ids: ["项目脚本行 ID"]` 只处理指定行。显式单条请求采用智能复用：
 指定行仍有当前 `audio` 时直接返回项目，不创建 MiniMax 批次；脚本或音色修改后当前指针
@@ -361,7 +441,7 @@ GET /api/new/projects/{project_id}/items/{item_id}/h3-segments/download
 ```
 
 `segment_number` 从 1 开始。H3 状态轮询发现某段 `SUCCESS` 后立即把该段下载到项目受管的
-`h3/segment-cache`，最多并发三路；接口读取当前批次、当前远端 item 和当前 `segment_id` 对应的
+`h3/s-<缓存标识>/raw.mp4`（兼容旧 `h3/segment-cache`），最多并发三路；接口读取当前批次、当前远端 item 和当前 `segment_id` 对应的
 本地缓存，不等待同一行全部成功，也不依赖 `base_video` 已经合并完成。云端返回的
 `video_delivery` 优先决定传输方式：`runninghub_direct` 由工作台直接从 HTTPS 地址下载，不携带数字人
 网站 Bearer Token；历史 `auth_center` 结果继续从数字人网站下载。直达结果使用服务端

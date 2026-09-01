@@ -49,7 +49,8 @@ def apply_main_video_sequence(
     }
     new_segments = []
     new_materials: dict[str, list] = {"videos": [], "speeds": [], "transitions": []}
-    cursor = 0
+    target_start_us = max(0, int(config.get("target_start_us", 0) or 0))
+    cursor = target_start_us
     for index, item in enumerate(items):
         path = Path(item["media_path"]).resolve()
         if not path.is_file():
@@ -116,7 +117,11 @@ def apply_main_video_sequence(
         # tracks (and any non-overlapping clips) retain their native content.
         others = [s for i, s in enumerate(track["segments"]) if i != segment_index]
         if any(
-            int(s.get("target_timerange", {}).get("start", 0)) < cursor for s in others
+            int(s.get("target_timerange", {}).get("start", 0)) < cursor
+            and int(s.get("target_timerange", {}).get("start", 0))
+            + int(s.get("target_timerange", {}).get("duration", 0))
+            > target_start_us
+            for s in others
         ):
             raise ValueError("模板主视频轨存在其他重叠片段，不能安全替换为独立分段")
         track["segments"][segment_index : segment_index + 1] = new_segments

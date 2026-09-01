@@ -28,6 +28,10 @@ STORAGE_PATH_PREFIX = "storage://"
 logger = logging.getLogger("jyd_probe.workbench")
 MAX_PROJECT_ITEMS = 500
 ANALYSIS_PENDING_TIMEOUT_SECONDS = 15 * 60
+# The supported deployment is one central API process per SQLite database.
+# Every coordinator instance shares these live request scopes; no token is saved.
+_AUDIO_SUBMISSION_LOCK = threading.RLock()
+_ACTIVE_AUDIO_SUBMISSIONS: dict[tuple[str, str, str], int] = {}
 
 PROJECT_ITEM_STATUSES = {
     "DRAFT",
@@ -3470,6 +3474,12 @@ class ProjectStore:
             settings["h3"] = {
                 "schema": "jyd.project-h3.v1",
                 **next_contract,
+                "batches": previous.get("batches") or ([{
+                    "batch_id": previous["remote_batch_id"],
+                    "status": previous.get("remote_status"),
+                    "prepare_key": previous.get("prepare_key"),
+                    "fee_snapshot": previous.get("fee_snapshot"),
+                }] if previous.get("remote_batch_id") else []),
                 "config_version": int(previous.get("config_version") or 0) + 1,
                 "remote_batch_id": None,
                 "remote_status": None,
@@ -4010,6 +4020,7 @@ class ProjectStore:
         *,
         prepare_key: str,
         snapshot: dict[str, Any],
+        quote_binding: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not isinstance(snapshot, dict):
             raise ValueError("H3 批次快照格式错误")
@@ -4065,6 +4076,11 @@ class ProjectStore:
                 or ""
             )
             now = _now()
+            if remote_status == "AWAITING_COST_CONFIRMATION" and str(existing.get("status") or "") in {
+                "ACTIVE", "QUEUED", "RUNNING", "SUCCESS", "FAILED", "PARTIAL_FAILED", "CANCELLED"
+            }:
+                # A delayed poll must never resurrect an already confirmed/cancelled quote.
+                return self.get_project(owner_user_id, project_id)
             batch_record = {
                 **existing,
                 "batch_id": remote_batch_id,
@@ -4073,7 +4089,11 @@ class ProjectStore:
                 "fee_snapshot": snapshot.get("fee_snapshot"),
                 "row_ids": list(remote_items),
                 "last_synced_at": now,
+                "confirmed_at": snapshot.get("confirmed_at"),
+                "quote_recovery": snapshot.get("quote_recovery"),
             }
+            if quote_binding is not None:
+                batch_record["quote_binding"] = quote_binding
             batches = [
                 value
                 for value in batches
@@ -4123,8 +4143,14 @@ class ProjectStore:
                 "SELECT * FROM project_items WHERE project_id=? ORDER BY position",
                 (project_id,),
             ).fetchall()
+            binding_rows = {
+                str(value["item_id"]): str(value["row_id"])
+                for value in (batch_record.get("quote_binding") or {}).get("items", [])
+            }
             for item in rows:
-                remote = remote_items.get(str(item["row_key"]))
+                if binding_rows and str(item["item_id"]) not in binding_rows:
+                    continue
+                remote = remote_items.get(binding_rows.get(str(item["item_id"]), str(item["row_key"])))
                 # A partial H3 batch deliberately leaves unselected project rows
                 # untouched. Never inherit the project-level remote status here.
                 if remote is None:
@@ -4134,14 +4160,17 @@ class ProjectStore:
                 item_batch_id = str(item_h3.get("remote_batch_id") or "")
                 if (
                     (existing and item_batch_id and item_batch_id != remote_batch_id)
-                    or (item_batch_id == remote_batch_id and item_h3.get("invalidated_reason"))
+                    or (item_batch_id == remote_batch_id and item_h3.get("invalidated_reason")
+                        and remote_status != "CANCELLED" and quote_binding is None)
                 ):
                     continue
                 remote_item_status = str(remote.get("status") or remote_status).upper()
                 if remote_item_status != "SUCCESS" or item_batch_id != remote_batch_id:
                     item_h3 = {**item_h3, "materialization_error": {}}
                 current_item_status = str(item["status"])
-                if item_h3.get("materialization_error"):
+                if current_item_status in {"AUDIO_QUEUED", "AUDIO_RUNNING"}:
+                    item_status = current_item_status
+                elif item_h3.get("materialization_error"):
                     item_status = "H3_REVIEW_REQUIRED"
                 elif current_item_status in H3_DOWNSTREAM_ITEM_STATUSES:
                     item_status = current_item_status
@@ -4166,6 +4195,8 @@ class ProjectStore:
                         item_status = "COMPOSITION_READY"
                     else:
                         item_status = "BASE_VIDEO_READY"
+                elif remote_status == "CANCELLED" and current_item_status == "H3_COST_PENDING":
+                    item_status = "AUDIO_READY" if item["current_audio_asset_id"] else "DRAFT"
                 elif remote_status == "AWAITING_COST_CONFIRMATION":
                     item_status = "H3_COST_PENDING"
                 elif remote_item_status in {"FAILED", "PARTIAL_FAILED"}:
@@ -4533,6 +4564,7 @@ class ProjectStore:
         item_id: str | None = None,
         payload: dict[str, Any] | None = None,
         correlation_id: str | None = None,
+        preserve_audio_until_accepted: bool = False,
     ) -> dict[str, Any]:
         clean_type = str(operation_type or "").strip().upper()
         clean_key = str(idempotency_key or "").strip()
@@ -4552,7 +4584,36 @@ class ProjectStore:
                 (project_id, item_id or "", clean_type, clean_key),
             ).fetchone()
             if existing is not None:
+                if preserve_audio_until_accepted:
+                    raise ValueError("该声音请求已存在，请刷新查看状态")
                 return self._operation_payload(existing)
+            if preserve_audio_until_accepted:
+                if clean_type != "AUDIO_GENERATE" or not item_id:
+                    raise ValueError("仅声音操作可以延迟切换素材关联")
+                item = self._owned_item(connection, project_id, item_id)
+                if item["status"] in ACTIVE_ITEM_STATUSES:
+                    raise ValueError("当前脚本行正在生成，不能创建新的声音任务")
+                if (payload or {}).get("expected_audio_asset_id") != item["current_audio_asset_id"]:
+                    raise ValueError("声音版本已改变，请刷新后再确认重新生成")
+                if (payload or {}).get("script_sha256") != hashlib.sha256(
+                    str(item["script_text"]).encode("utf-8")
+                ).hexdigest():
+                    raise ValueError("脚本在提交前已改变，请重新确认声音生成")
+                unresolved = connection.execute(
+                    """
+                    SELECT 1 FROM project_operations
+                    WHERE project_id=? AND item_id=? AND operation_type='AUDIO_GENERATE'
+                      AND error_code='AUDIO_SUBMISSION_UNKNOWN'
+                    """,
+                    (project_id, item_id),
+                ).fetchone()
+                if unresolved:
+                    raise ValueError("上次声音提交结果尚未确认，请先核对云端任务，避免重复计费")
+                payload = {
+                    **(payload or {}),
+                    "submission_contract": "jyd.audio-submission.v1",
+                    "previous_item_status": item["status"],
+                }
             operation_id = uuid.uuid4().hex
             clean_correlation_id = str(correlation_id or "").strip()
             if clean_correlation_id and (
@@ -4619,6 +4680,202 @@ class ProjectStore:
             correlation_id=clean_correlation_id,
         )
         return operation_payload
+
+    @contextmanager
+    def audio_submission_scope(self, project_id: str, request_key: str) -> Iterator[None]:
+        key = (str(self.path), project_id, request_key.strip())
+        with _AUDIO_SUBMISSION_LOCK:
+            _ACTIVE_AUDIO_SUBMISSIONS[key] = _ACTIVE_AUDIO_SUBMISSIONS.get(key, 0) + 1
+        try:
+            yield
+        finally:
+            with _AUDIO_SUBMISSION_LOCK:
+                remaining = _ACTIVE_AUDIO_SUBMISSIONS[key] - 1
+                if remaining:
+                    _ACTIVE_AUDIO_SUBMISSIONS[key] = remaining
+                else:
+                    del _ACTIVE_AUDIO_SUBMISSIONS[key]
+
+    def recover_interrupted_audio_submissions(self, owner_user_id: str, project_id: str) -> None:
+        """Retire orphaned local starts without ever replaying a paid command."""
+        now = _now()
+        # Keep scope entry and orphan classification mutually exclusive. A live
+        # request may be polled by a different coordinator in another thread.
+        with _AUDIO_SUBMISSION_LOCK, self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            rows = connection.execute(
+                """SELECT * FROM project_operations AS op
+                WHERE project_id=? AND operation_type='AUDIO_GENERATE'
+                  AND status IN ('PENDING', 'STARTING')
+                  AND rowid=(SELECT MAX(newer.rowid) FROM project_operations AS newer
+                    WHERE newer.project_id=op.project_id AND newer.item_id=op.item_id
+                      AND newer.operation_type='AUDIO_GENERATE')""", (project_id,),
+            ).fetchall()
+            changed = False
+            for operation in rows:
+                payload = _object(operation["payload_json"], {})
+                key = (str(self.path), project_id, operation["idempotency_key"])
+                if (payload.get("submission_contract") != "jyd.audio-submission.v1"
+                        or key in _ACTIVE_AUDIO_SUBMISSIONS):
+                    continue
+                item = self._owned_item(connection, project_id, operation["item_id"])
+                unknown = operation["status"] == "STARTING"
+                code = "AUDIO_SUBMISSION_UNKNOWN" if unknown else "AUDIO_NOT_SUBMITTED"
+                message = (
+                    "声音提交时程序已退出，正在核对原云端任务；原音视频已保留，请勿重复生成"
+                    if unknown else "声音尚未提交云端时程序已退出，可重新确认生成；原音视频已保留"
+                )
+                previous = payload.get("previous_item_status")
+                restored = (previous if previous in PROJECT_ITEM_STATUSES
+                            and previous not in ACTIVE_ITEM_STATUSES else "AUDIO_FAILED")
+                if not any(item[column] for column in (
+                    "current_audio_asset_id", "current_base_video_asset_id", "current_video_asset_id"
+                )):
+                    restored = "AUDIO_FAILED"
+                connection.execute(
+                    """UPDATE project_operations SET status='FAILED', error_code=?,
+                        error_message=?, finished_at=?, updated_at=? WHERE operation_id=?""",
+                    (code, message, now, now, operation["operation_id"]),
+                )
+                if item["status"] in {"AUDIO_QUEUED", "AUDIO_RUNNING"}:
+                    connection.execute(
+                        "UPDATE project_items SET status=?, updated_at=? WHERE item_id=?",
+                        (restored, now, item["item_id"]),
+                    )
+                changed = True
+            if changed:
+                connection.execute(
+                    "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                    (now, project_id),
+                )
+                self._refresh_project_status(connection, project_id, now=now)
+
+    def claim_audio_submissions(
+        self, owner_user_id: str, project_id: str, operation_ids: list[str]
+    ) -> bool:
+        """Claim a whole voice group, so duplicate HTTP requests cannot split it."""
+
+        if not operation_ids:
+            return False
+        now = _now()
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            rows = [connection.execute(
+                "SELECT * FROM project_operations WHERE operation_id=? AND project_id=?",
+                (operation_id, project_id),
+            ).fetchone() for operation_id in operation_ids]
+            if any(row is None or row["operation_type"] != "AUDIO_GENERATE"
+                   or row["status"] != "PENDING" for row in rows):
+                return False
+            connection.executemany(
+                """
+                UPDATE project_operations SET status='STARTING',
+                    attempt_count=attempt_count+1, started_at=?, updated_at=?
+                WHERE operation_id=?
+                """,
+                [(now, now, operation_id) for operation_id in operation_ids],
+            )
+        return True
+
+    def accept_audio_submission(
+        self, owner_user_id: str, project_id: str, item_id: str,
+        *, operation_id: str, result: dict[str, Any], recovering: bool = False,
+    ) -> bool:
+        """Atomically switch bindings only after the cloud accepts this exact command."""
+
+        now = _now()
+        with self._transaction() as connection:
+            self._owned_project(connection, owner_user_id, project_id)
+            item = self._owned_item(connection, project_id, item_id)
+            operation = connection.execute(
+                """
+                SELECT * FROM project_operations
+                WHERE project_id=? AND item_id=? AND operation_type='AUDIO_GENERATE'
+                ORDER BY rowid DESC LIMIT 1
+                """, (project_id, item_id),
+            ).fetchone()
+            if operation is None or operation["operation_id"] != operation_id:
+                raise ValueError("声音操作已改变，不能切换素材关联")
+            previous_result = _object(operation["result_json"], {})
+            if (operation["status"] in {"RUNNING", "SUCCEEDED"}
+                    and all(previous_result.get(key) == result.get(key) for key in ("batch_id", "item_id"))):
+                return False
+            recoverable = (recovering and operation["status"] == "FAILED"
+                           and operation["error_code"] == "AUDIO_SUBMISSION_UNKNOWN")
+            if operation["status"] != "STARTING" and not recoverable:
+                raise ValueError("声音操作已改变，不能切换素材关联")
+            payload = _object(operation["payload_json"], {})
+            if payload.get("script_sha256") != hashlib.sha256(
+                str(item["script_text"]).encode("utf-8")
+            ).hexdigest():
+                raise ValueError("当前脚本与已提交声音任务不一致")
+            if payload.get("expected_audio_asset_id") != item["current_audio_asset_id"]:
+                raise ValueError("当前声音版本已改变，不能恢复旧声音提交")
+            batch_id, remote_item_id = str(result.get("batch_id") or ""), str(result.get("item_id") or "")
+            if not batch_id or not remote_item_id:
+                raise ValueError("云端声音记录不完整")
+            # Link receipts and the current audio switch share a transaction.
+            # A restart can never leave a new link pointing at the old operation.
+            metadata = {
+                "voice_asset_id": payload["voice_asset_id"],
+                "correlation_id": operation["correlation_id"],
+            }
+            for relation, external_id, local_item_id, link_metadata in (
+                ("digital_human_audio_batch", batch_id, None, metadata),
+                ("digital_human_audio_item", remote_item_id, item_id, {
+                    **metadata, "batch_id": batch_id,
+                    "script_sha256": payload["script_sha256"],
+                    "script_length": payload["script_length"],
+                    "speech_settings": payload["speech_settings"],
+                    "resolution": payload["resolution"],
+                }),
+            ):
+                existing = connection.execute(
+                    """SELECT * FROM project_links WHERE project_id=? AND system='runninghub'
+                        AND relation=? AND external_id=?""", (project_id, relation, external_id),
+                ).fetchone()
+                if existing is not None:
+                    if existing["item_id"] != local_item_id:
+                        raise ValueError("云端声音记录已绑定其他脚本行")
+                    saved_metadata = _object(existing["metadata_json"], {})
+                    if any(saved_metadata.get(key) != value for key, value in link_metadata.items()):
+                        raise ValueError("云端声音关联与原提交记录不一致")
+                else:
+                    connection.execute(
+                        """INSERT INTO project_links(link_id, project_id, item_id, system, relation,
+                            external_id, metadata_json, created_at) VALUES(?, ?, ?, 'runninghub', ?, ?, ?, ?)""",
+                        (uuid.uuid4().hex, project_id, local_item_id, relation, external_id, _json(link_metadata), now),
+                    )
+            settings = _invalidate_auto_music_selection(
+                _object(item["settings_json"], {}), "AUDIO_VERSION_CHANGED"
+            )
+            settings = _invalidate_h3_result(settings, "AUDIO_VERSION_CHANGED")
+            settings["voice_asset_id"] = payload["voice_asset_id"]
+            connection.execute(
+                """
+                UPDATE project_items SET settings_json=?, current_audio_asset_id=NULL,
+                    current_base_video_asset_id=NULL, current_video_asset_id=NULL,
+                    subtitles_json=?, status='AUDIO_QUEUED', updated_at=? WHERE item_id=?
+                """, (_json(settings), _json(_default_subtitles()), now, item_id),
+            )
+            connection.execute(
+                """
+                UPDATE project_operations SET status='RUNNING', result_json=?,
+                    error_code=NULL, error_message=NULL, finished_at=NULL, updated_at=? WHERE operation_id=?
+                """, (_json(result), now, operation_id),
+            )
+            connection.execute(
+                "UPDATE projects SET revision=revision+1, updated_at=? WHERE project_id=?",
+                (now, project_id),
+            )
+            self._refresh_project_status(connection, project_id, now=now)
+        log_event(
+            logger, "workbench.operation_status_changed", "云端已接收声音操作",
+            component="workbench", user_id=owner_user_id, project_id=project_id,
+            item_id=item_id, operation_id=operation_id, operation_type="AUDIO_GENERATE",
+            status="RUNNING", correlation_id=operation["correlation_id"],
+        )
+        return True
 
     def claim_pending_operation(
         self,
@@ -6417,6 +6674,18 @@ class ProjectStore:
                 "updated_at": row["updated_at"],
             }
             item_payload["allowed_actions"] = self._item_actions(item_payload)
+            latest_audio = next((op for op in reversed(operation_rows)
+                                 if op["item_id"] == row["item_id"]
+                                 and op["operation_type"] == "AUDIO_GENERATE"), None)
+            item_payload["audio_submission"] = None
+            if (latest_audio is not None and latest_audio["status"] == "FAILED"
+                    and latest_audio["error_code"] == "AUDIO_SUBMISSION_UNKNOWN"):
+                item_payload["audio_submission"] = {
+                    "status": "UNKNOWN", "operation_id": latest_audio["operation_id"],
+                    "message": latest_audio["error_message"],
+                }
+                item_payload["allowed_actions"]["generate_audio"] = False
+                item_payload["allowed_actions"]["retry_audio"] = False
             items.append(item_payload)
 
         payload = {

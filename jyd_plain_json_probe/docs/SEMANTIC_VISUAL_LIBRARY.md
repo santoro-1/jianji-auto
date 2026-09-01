@@ -1,5 +1,24 @@
 # 语义视觉素材库维护
 
+## 2026-09-01 正式工作台默认开启文件夹图库
+
+从本次修改后重新构建的工作台开始，正式 EXE 和 `start_processor.ps1` 默认使用
+`folders` 模式。首次启动会自动建立：
+
+```text
+<安装目录>/data/libraries/semantic_visual_library/素材/
+```
+
+使用者只需按“`素材/大类/小类/图片`”或“`素材/大类/小类/视频`”放入文件；最多约
+5 秒自动识别，无需重启。空目录和单个损坏或尚未复制完成的文件不会阻止工作台其他功能。
+250 的投放路径为 `F:\cxd\PV\digital-human\data\libraries\semantic_visual_library\素材`，
+188 的投放路径为 `E:\cxd\PublicVideo-x64\data\libraries\semantic_visual_library\素材`。
+
+切换不会删除、移动或自动迁移原 `catalog.json`、旧素材和冻结配方。若某台旧电脑仍需读取
+JSON 素材，在 `data/processor_config.json` 中加入
+`"semantic_visual_source_mode": "json"` 后重启；需要沿用旧素材时应先按下文显式迁移。
+2026-08-31 已生成的旧更新包不包含此默认值，必须用本次修改后重新构建的包更新才会生效。
+
 ## 2026-08-31 本地测试：分类文件夹图库
 
 `start_test_processor.ps1` 默认使用 `folders` 模式，语义库单独指向

@@ -1,9 +1,13 @@
 from pathlib import Path
+import argparse
 import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from jyd_probe.device_command_authorization import add_command_authorization_arguments, command_authorization
+from jyd_probe.device_local_execution import protected_local_work
 
 from jyd_probe.content_replace import (  # noqa: E402
     AudioAddition,
@@ -252,6 +256,24 @@ def build_job() -> ContentReplaceJob:
     )
 
 
-if __name__ == "__main__":
+@protected_local_work({"local:draft"})
+def _run_job():
     result = run_content_replace_job(build_job())
     print(f"输出草稿: {result.output_dir}")
+    return 0
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="按示例配置创建剪映草稿")
+    add_command_authorization_arguments(parser)
+    args = parser.parse_args(argv)
+    try:
+        with command_authorization(args):
+            return _run_job()
+    except Exception as exc:
+        print(f"草稿未完成（{getattr(exc, 'code', type(exc).__name__)}）", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

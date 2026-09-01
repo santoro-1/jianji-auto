@@ -119,6 +119,7 @@
     if (localState.busy) return;
     const draft = selectedDraft();
     const name = byId("collector-template-name").value.trim();
+    const coverFrameCount = Number(byId("collector-cover-frame-count").value || 3);
     if (!draft) return message("请先选择一个剪映草稿。", true);
     if (!name) return message("请填写模板名称。", true);
 
@@ -159,7 +160,7 @@
       const ticket = await api("/api/new/jianying-template-import-tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, cover_frame_count: coverFrameCount }),
       });
 
       const size = Number(plan.summary?.upload_size_bytes || 0);

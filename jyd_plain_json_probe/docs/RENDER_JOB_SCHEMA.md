@@ -2,6 +2,12 @@
 
 当前稳定版本：`jyd.render_job.v1`
 
+设备授权开发中：schema 未变，授权不是本文件的输入字段。正式受保护运行环境中的 `run_render_job` 和实际导出要求内部网站账号/本机授权上下文，复制 job JSON 或填写 `device_id/scopes` 不能授权。`skip_export` 只建草稿需 `local:draft`，实际导出与 `existing-draft` 需要 draft/render 两项权限。
+
+内嵌队列只在状态中保存非秘密账号/设备关联；执行前重新检查，失效等待，已启动单元安全收尾。当前源码开发环境保留未配信任根的旧调试路径；冻结 EXE 不能如此绕过。正式处理机单任务和下述渲染脚本已接入命令行授权；独立 Agent/其他脚本、发布公钥和整包验收尚未完成，下面调试示例不等于受保护成品支持免登录执行，暂不要打包分发。
+
+授权接入后的单任务入口接受 `--device-user 用户名`（随后隐藏输入密码），或 `--device-token-stdin`（从非交互标准输入读取一行已有网站令牌）。二者互斥；不提供明文密码/令牌参数，不写入此 JSON。命令通过 `command_authorization` 建立原账号与本机原密钥会话，真正执行仍由核心验证权限。首次批准与密钥访问修复仍在本机工作台页面显式完成；普通更新/命令重启不重新激活。
+
 后端入口：
 
 ```python
@@ -80,6 +86,14 @@ D:\Myanaconda\python.exe .\tools\jobs\run_render_job.py --job .\examples\render_
 仍使用既有绝对时间轴。可选 `transition_after_us` 为当前真实视频片段与下一真实视频
 片段直接添加剪映原生“叠化”，单位微秒；工作台多片段固定请求 250000 微秒，仅在任一真实
 片段本身不足 250000 微秒时按安全时长缩短。转场不会额外生成时间线片段。
+
+新建输出草稿在所有片段和模板替换完成后，统一检查本地视频/图片、音频素材的绝对路径。
+超过 240 个 Windows UTF-16 单位的路径会复制到该草稿的
+`jyd_media/<完整 SHA-256>.<扩展名>`，校验内容后再更新引用，避免深层 H3 缓存路径在剪映中
+显示“暂无访问权限”。同名不同内容不会覆盖；不改原文件、时间轴、音量或转场。短路径保持
+原引用。若草稿目录/名称本身太长，导致副本仍超限，则明确提示缩短目录/名称，不交付失效引用。
+这项处理覆盖普通、账号模板和变体的新建草稿；`existing_draft` 不自动改写历史草稿。
+更新后需使用已有片段重新生成后期草稿，不需要重新运行 H3。
 
 新版项目工作流的浏览器预览仍播放 4A 标准化的单个 `base_video`；4B 按需导出和模块 6 则
 提交 RunningHub 原始片段组成的 `video_sequence`。有 `generation_tail_seconds` 的数字人
@@ -552,3 +566,27 @@ Render Job 的 `captions.font_id` 与 `captions.font_path` 契约没有变化；
 项目语音条目使用 `fit_to_video=true`，渲染时以封面插入前的正文主视频时长裁切 MiniMax
 文件可能带有的编码尾巴；`duration_us=0` 的固定人名板等固定贴层也会在同一入口解析成该
 明确时长，因此不会由多出的几十毫秒语音尾部继续撑长草稿。
+# 账号剪映模板的原生封面
+
+账号模板分析结果的 `profile.cover` 可声明模板开头的短封面及人物图槽：
+
+```json
+{
+  "enabled": true,
+  "frame_count": 3,
+  "fps": 30,
+  "duration_us": 100000,
+  "portrait_slot": {
+    "typed_track_index": 0,
+    "segment_index": 0,
+    "segment_id": "cover-segment",
+    "material_id": "cover-photo"
+  }
+}
+```
+
+生成时不使用固定 `cover` 配方叠加第二套样式，而是用项目基础视频冻结绑定的上传人物图替换
+`portrait_slot`。正文主视频、字幕、语音和 BGM 的起点统一加上 `duration_us`，最终时间线长度为
+`duration_us + 正文视频时长`；H3 独立片段序列同样从该偏移开始。模板内未被替换的封面花字、贴纸、
+Logo、装饰图片、遮罩、颜色、位置和特效继续保留。`profile.cover` 缺失或 `enabled=false` 时保持旧模板
+生成行为。

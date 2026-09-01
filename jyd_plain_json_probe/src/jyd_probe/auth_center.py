@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from .logging_config import log_event
 
@@ -62,6 +62,35 @@ class AuthCenterError(RuntimeError):
         if status_code >= 500:
             return "DIGITAL_HUMAN_SERVER_UNAVAILABLE"
         return "DIGITAL_HUMAN_REQUEST_REJECTED"
+
+    @property
+    def response_headers(self) -> dict[str, str]:
+        return {}
+
+
+class AuthCenterDeviceError(AuthCenterError):
+    """Device permission is not a lost website login; never auto-resubmit."""
+
+    def __init__(self, message: str, *, error_code: str, status_code: int = 403):
+        self.upstream_status_code = status_code
+        super().__init__(message, error_code=error_code,
+                         status_code=409 if status_code == 401 else status_code,
+                         retryable=False)
+
+    @property
+    def response_headers(self) -> dict[str, str]:
+        return {"X-Workbench-Device-Error": self.error_code}
+
+
+class _NoDeviceCredentialRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # A proof names exactly one method/URI. Do not forward it, or retry a
+        # paid POST at the redirect target, even if the redirect is same-origin.
+        return None
+
+
+def _device_urlopen(request, *, timeout):
+    return build_opener(_NoDeviceCredentialRedirect()).open(request, timeout=timeout)
 
 
 class AuthCenterConnectionError(AuthCenterError):
@@ -175,6 +204,24 @@ class AuthCenterClient:
             raise ValueError("数字人网站地址不能包含查询参数或锚点")
         self.base_url = normalized
         self.timeout_seconds = max(1.0, float(timeout_seconds))
+        self.device_header_provider = None
+
+    def _h3_device_headers(self, token: str, *, method: str, path: str) -> dict[str, str]:
+        from .device_business_transport import is_h3_contract_path
+
+        if not is_h3_contract_path(method, path) or self.device_header_provider is None:
+            return {}
+        provider = self.device_header_provider
+        if getattr(provider, "origin", self.base_url) != self.base_url:
+            raise AuthCenterDeviceError("设备授权服务地址与业务服务不一致", error_code="DEVICE_TRUST_MISMATCH")
+        headers = provider(token, method=method, path=path)
+        if headers is None:
+            # No business request has been sent yet. The original account is
+            # used once; ONLY the cloud decides OFF/OBSERVE/ENFORCE permission.
+            return {}
+        if set(headers) != {"Authorization", "DPoP"} or not headers["Authorization"].startswith("DPoP "):
+            raise AuthCenterDeviceError("设备请求凭据格式无效", error_code="INVALID_DEVICE_PROOF")
+        return headers
 
     def login(self, username: str, password: str) -> dict[str, Any]:
         data = self._post(
@@ -575,7 +622,7 @@ class AuthCenterClient:
     def prepare_h3_batch(self, token: str, payload: dict[str, Any]) -> dict[str, Any]:
         return self._post(
             "/api/workbench/h3-batches/prepare",
-            {"access_token": token, **payload},
+            {**payload, "access_token": token},
             timeout_seconds=360.0,
         )
 
@@ -591,6 +638,28 @@ class AuthCenterClient:
             f"/api/workbench/h3-batches/{batch_id}",
             {"access_token": token},
         )
+
+    def cancel_h3_quote(self, token: str, batch_id: str, *, request_key: str, quote_token: str) -> dict[str, Any]:
+        return self._post(f"/api/workbench/h3-batches/{batch_id}/quote/cancel", {
+            "access_token": token, "cancel_quote_confirmed": True,
+            "request_key": request_key, "quote_token": quote_token,
+        })
+
+    def list_h3_authorization_waiting(self, token: str, *, after_id: str = "") -> dict[str, Any]:
+        return self._post("/api/workbench/h3-authorization-waiting", {
+            "access_token": token, "after_id": after_id,
+        })
+
+    def prepare_h3_authorization_recovery(self, token: str, batch_id: str) -> dict[str, Any]:
+        return self._post(f"/api/workbench/h3-batches/{batch_id}/authorization/prepare", {"access_token": token})
+
+    def resume_h3_authorization_recovery(self, token: str, batch_id: str, *, request_key: str,
+                                         review_token: str, resume_confirmed: bool) -> dict[str, Any]:
+        return self._post(f"/api/workbench/h3-batches/{batch_id}/authorization/resume", {
+            "access_token": token, "resume_confirmed": resume_confirmed,
+            "request_key": request_key, "review_token": review_token,
+        })
+
 
     def prepare_h3_segment_regeneration(
         self, token: str, segment_id: str
@@ -665,6 +734,12 @@ class AuthCenterClient:
         return self._post(
             f"/api/workbench/audio-batches/{batch_id}",
             {"access_token": token},
+        )
+
+    def lookup_workbench_audio_batch(self, token: str, request_key: str) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/audio-batches/lookup",
+            {"access_token": token, "request_key": request_key},
         )
 
     def retry_workbench_audio(
@@ -837,10 +912,11 @@ class AuthCenterClient:
         timeout_seconds: float,
         failure_message: str,
     ) -> int:
+        device_headers = self._h3_device_headers(token, method="GET", path=path)
         request = Request(
             f"{self.base_url}{path}",
             method="GET",
-            headers={"Authorization": f"Bearer {token}", "Accept": "*/*"},
+            headers={"Authorization": f"Bearer {token}", "Accept": "*/*", **device_headers},
         )
         return self._download_request(
             request,
@@ -864,7 +940,8 @@ class AuthCenterClient:
         target.parent.mkdir(parents=True, exist_ok=True)
         size = 0
         try:
-            with urlopen(
+            opener = _device_urlopen if request.has_header("Dpop") else urlopen
+            with opener(
                 request, timeout=max(self.timeout_seconds, timeout_seconds)
             ) as response:
                 content_length = str(
@@ -892,10 +969,7 @@ class AuthCenterClient:
         except HTTPError as exc:
             raw = exc.read()
             target.unlink(missing_ok=True)
-            raise AuthCenterError(
-                self._detail(raw) or f"{remote_label}拒绝下载（HTTP {exc.code}）",
-                status_code=int(exc.code),
-            ) from exc
+            raise self._response_error(raw, int(exc.code), f"{remote_label}拒绝下载（HTTP {exc.code}）") from exc
         except (URLError, OSError, TimeoutError) as exc:
             target.unlink(missing_ok=True)
             raise AuthCenterConnectionError(
@@ -963,12 +1037,15 @@ class AuthCenterClient:
         *,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
+        device_headers = self._h3_device_headers(str(payload.get("access_token") or ""), method="POST", path=path)
+        if device_headers:
+            payload = {key: value for key, value in payload.items() if key != "access_token"}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         request = Request(
             f"{self.base_url}{path}",
             data=body,
             method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers={"Content-Type": "application/json", "Accept": "application/json", **device_headers},
         )
         return self._read_json_response(
             request,
@@ -983,19 +1060,19 @@ class AuthCenterClient:
         self, request: Request, *, timeout_seconds: float
     ) -> dict[str, Any]:
         try:
-            with urlopen(request, timeout=timeout_seconds) as response:
+            opener = _device_urlopen if request.has_header("Dpop") else urlopen
+            with opener(request, timeout=timeout_seconds) as response:
                 raw = response.read()
                 status = int(getattr(response, "status", 200))
         except HTTPError as exc:
             raw = exc.read()
-            message = self._detail(raw) or f"数字人网站拒绝请求（HTTP {exc.code}）"
-            raise AuthCenterError(message, status_code=int(exc.code)) from exc
+            raise self._response_error(raw, int(exc.code), f"数字人网站拒绝请求（HTTP {exc.code}）") from exc
         except (URLError, OSError, TimeoutError) as exc:
             raise AuthCenterConnectionError(
                 f"无法连接数字人网站 {self.base_url}，请确认数字人网站已经启动"
             ) from exc
         if status < 200 or status >= 300:
-            raise AuthCenterError(self._detail(raw) or f"数字人网站返回 HTTP {status}", status_code=status)
+            raise self._response_error(raw, status, f"数字人网站返回 HTTP {status}")
         try:
             data = json.loads(raw.decode("utf-8")) if raw else {}
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -1013,6 +1090,19 @@ class AuthCenterClient:
                 retryable=True,
             )
         return data
+
+    @classmethod
+    def _response_error(cls, raw: bytes, status: int, fallback: str) -> AuthCenterError:
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            data = {}
+        code = data.get("code") if isinstance(data, dict) else None
+        if isinstance(code, str) and len(code) <= 64 and code.replace("_", "").isascii() and code.replace("_", "").isalnum() and (
+            code.startswith(("DEVICE_", "INVALID_DEVICE_")) or code in {"AUTH_REFRESH_REQUIRED", "CLIENT_UPGRADE_REQUIRED", "AMBIGUOUS_ACCOUNT_TOKEN"}
+        ):
+            return AuthCenterDeviceError(cls._detail(raw) or "请检查当前处理机的设备授权", error_code=code, status_code=status)
+        return AuthCenterError(cls._detail(raw) or fallback, status_code=status)
 
     @staticmethod
     def _detail(raw: bytes) -> str:

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
+import time
+from types import SimpleNamespace
 import unittest
 import uuid
 from unittest.mock import patch
@@ -43,6 +46,30 @@ class LocalCollectorServiceTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.temp, ignore_errors=True)
+
+    def _create_managed_decrypted_plan(
+        self, service: LocalCollectorService
+    ) -> tuple[Path, Path, dict[str, object]]:
+        source_dir = self.draft_root / f"source_{uuid.uuid4().hex}"
+        source_dir.mkdir()
+        (source_dir / "draft_content.json").write_text("{}", encoding="utf-8")
+        decrypted_dir = self.settings.decrypt_work_root / f"draft_decrypted_{uuid.uuid4().hex}"
+        shutil.copytree(source_dir, decrypted_dir)
+        report_id = uuid.uuid4().hex
+        report = {
+            "report_id": report_id,
+            "draft": {
+                "name": source_dir.name,
+                "source_draft_dir": str(source_dir.resolve()),
+                "analyzed_draft_dir": str(decrypted_dir.resolve()),
+                "was_decrypted": True,
+                "main_video": {},
+            },
+            "dependencies": [],
+        }
+        service._write_json(service._reports_root / f"{report_id}.json", report)
+        plan = service.create_upload_plan(report_id, {}, mode="template_center")
+        return source_dir, decrypted_dir, plan
 
     def test_default_server_is_the_local_standalone_processor(self) -> None:
         self.assertEqual(DEFAULT_RENDER_SERVER_URL, "http://127.0.0.1:8010")
@@ -151,6 +178,68 @@ class LocalCollectorServiceTest(unittest.TestCase):
             )
         self.assertEqual(uploaded["server_result"]["template"]["name"], "账号模板")
         self.assertEqual(posted.call_args.kwargs["template_import_ticket"], "one-time-ticket")
+        self.assertFalse(Path(uploaded["package"]["path"]).exists())
+
+    def test_successful_upload_removes_managed_decrypted_copy_but_keeps_source(self) -> None:
+        service = LocalCollectorService(self.settings)
+        source_dir, decrypted_dir, plan = self._create_managed_decrypted_plan(service)
+
+        with patch.object(service, "_post_package", return_value={"ok": True}):
+            uploaded = service.upload_plan(
+                str(plan["plan_id"]),
+                template_name="账号模板",
+                template_import_ticket="one-time-ticket",
+            )
+
+        self.assertTrue(source_dir.is_dir())
+        self.assertTrue((source_dir / "draft_content.json").is_file())
+        self.assertFalse(decrypted_dir.exists())
+        self.assertFalse(Path(uploaded["package"]["path"]).exists())
+
+    def test_failed_upload_removes_package_but_keeps_decrypted_copy_for_retry(self) -> None:
+        service = LocalCollectorService(self.settings)
+        source_dir, decrypted_dir, plan = self._create_managed_decrypted_plan(service)
+        package_path = self.state_root / "packages" / f"{plan['plan_id']}.zip"
+
+        with patch.object(service, "_post_package", side_effect=RuntimeError("upload failed")):
+            with self.assertRaisesRegex(RuntimeError, "upload failed"):
+                service.upload_plan(
+                    str(plan["plan_id"]),
+                    template_name="账号模板",
+                    template_import_ticket="one-time-ticket",
+                )
+
+        self.assertTrue(source_dir.is_dir())
+        self.assertTrue(decrypted_dir.is_dir())
+        self.assertFalse(package_path.exists())
+        self.assertFalse(package_path.with_suffix(".zip.tmp").exists())
+
+    def test_startup_removes_only_expired_collector_temporary_artifacts(self) -> None:
+        packages_root = self.state_root / "packages"
+        decrypted_root = self.settings.decrypt_work_root
+        packages_root.mkdir(parents=True)
+        decrypted_root.mkdir(parents=True)
+        expired_package = packages_root / "expired.zip"
+        recent_package = packages_root / "recent.zip"
+        expired_decrypted = decrypted_root / "expired_decrypted"
+        recent_decrypted = decrypted_root / "recent_decrypted"
+        expired_package.write_bytes(b"old")
+        recent_package.write_bytes(b"new")
+        expired_decrypted.mkdir()
+        recent_decrypted.mkdir()
+        (expired_decrypted / "draft_content.json").write_text("{}", encoding="utf-8")
+        (recent_decrypted / "draft_content.json").write_text("{}", encoding="utf-8")
+        expired_at = time.time() - 2 * 3600
+        os.utime(expired_package, (expired_at, expired_at))
+        os.utime(expired_decrypted, (expired_at, expired_at))
+        self.settings.temporary_retention_hours = 1
+
+        LocalCollectorService(self.settings)
+
+        self.assertFalse(expired_package.exists())
+        self.assertFalse(expired_decrypted.exists())
+        self.assertTrue(recent_package.is_file())
+        self.assertTrue(recent_decrypted.is_dir())
 
     def test_persists_root_and_rejects_draft_outside_configured_root(self) -> None:
         alternative_root = self.temp / "alternative"
@@ -235,6 +324,30 @@ class LocalCollectorServiceTest(unittest.TestCase):
 
         self.assertTrue(result["ok"])
         connection.putheader.assert_any_call("X-JYD-Access-Token", "operator123")
+
+    def test_personal_asset_upload_removes_temporary_package(self) -> None:
+        draft_dir = self.draft_root / "个人素材上传"
+        draft_dir.mkdir()
+        (draft_dir / "draft_content.json").write_text(
+            json.dumps({"tracks": [], "materials": {}}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        service = LocalCollectorService(self.settings)
+
+        collected = SimpleNamespace(as_dict=lambda: {"collected_count": 1})
+        with patch(
+            "jyd_probe.local_collector.export_audio_library", return_value=collected
+        ), patch.object(
+            service, "_post_personal_asset_package", return_value={"ok": True}
+        ):
+            result = service.collect_personal_assets(
+                draft_dir,
+                kinds=["audio"],
+                upload=True,
+            )
+
+        self.assertTrue(result["upload"]["ok"])
+        self.assertEqual(list((self.state_root / "packages").iterdir()), [])
 
     def test_native_pickers_return_paths_without_copying_files(self) -> None:
         source = self.temp / "本机视频.mp4"

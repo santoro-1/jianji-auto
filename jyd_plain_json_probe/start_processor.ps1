@@ -7,6 +7,8 @@ param(
     [string]$LtxWorkbenchUrl = "http://127.0.0.1:8791",
     [ValidateSet("embedded", "agent")]
     [string]$ExecutionMode = "embedded",
+    [ValidateSet("folders", "json")]
+    [string]$SemanticVisualSource = "folders",
     [ValidateSet("standalone", "shared")]
     [string]$ProcessingMode = "standalone"
 )
@@ -26,6 +28,8 @@ $env:JYD_EFFECT_LIBRARY_ROOT = Join-Path $LibrariesRoot "effect_library"
 $env:JYD_FONT_LIBRARY_ROOT = Join-Path $LibrariesRoot "font_library"
 $env:JYD_STICKER_LIBRARY_ROOT = Join-Path $LibrariesRoot "sticker_library"
 $env:JYD_CORNER_STICKER_LIBRARY_ROOT = Join-Path $LibrariesRoot "corner_sticker_library"
+$env:JYD_SEMANTIC_VISUAL_LIBRARY_ROOT = Join-Path $LibrariesRoot "semantic_visual_library"
+$env:JYD_SEMANTIC_VISUAL_SOURCE_MODE = $SemanticVisualSource
 $env:JYD_TEXT_EFFECT_LIBRARY_ROOT = Join-Path $LibrariesRoot "text_effect_library"
 $env:JYD_TEXT_STYLE_LIBRARY_ROOT = Join-Path $LibrariesRoot "text_style_library"
 $env:JYD_TEXT_TEMPLATE_LIBRARY_ROOT = Join-Path $LibrariesRoot "text_template_library"
@@ -53,6 +57,11 @@ if ($DraftRoot) {
     Remove-Item Env:JYD_WEB_DRAFT_ROOT -ErrorAction SilentlyContinue
 }
 $env:JYD_EXECUTION_MODE = $ExecutionMode
+if ($SemanticVisualSource -eq "folders") {
+    $SemanticVisualDropRoot = Join-Path $env:JYD_SEMANTIC_VISUAL_LIBRARY_ROOT "素材"
+    New-Item -ItemType Directory -Path $SemanticVisualDropRoot -Force | Out-Null
+    Write-Host ('[PRODUCTION] Semantic materials: {0}' -f $SemanticVisualDropRoot)
+}
 Write-Host ('[PRODUCTION] Website: http://127.0.0.1:{0}/app/new' -f $Port)
 Write-Host ('[PRODUCTION] Digital human server: {0}' -f $env:JYD_AUTH_SERVER_URL)
 Write-Host ('[PRODUCTION] Lip-sync workbench: {0}' -f $env:JYD_LTX_WORKBENCH_URL)

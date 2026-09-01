@@ -3,12 +3,16 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
+import argparse
 import sys
 from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
+from jyd_probe.device_command_authorization import add_command_authorization_arguments, command_authorization
+from jyd_probe.device_local_execution import protected_local_work
 
 from jyd_probe.cli import (  # noqa: E402
     add_effect_json_to_video,
@@ -657,7 +661,8 @@ def apply_effect_additions_after_swap(data: dict[str, Any]) -> int:
     return changed
 
 
-def main() -> None:
+@protected_local_work({"local:draft"})
+def _run_swap() -> None:
     result = run_content_replace_job(build_base_job())
 
     output_data = load_plain_draft_json(result.output_dir)
@@ -680,5 +685,18 @@ def main() -> None:
     log(f"新草稿完整目录: {result.output_dir}")
 
 
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="替换视频字幕并保存新草稿")
+    add_command_authorization_arguments(parser)
+    args = parser.parse_args(argv)
+    try:
+        with command_authorization(args):
+            _run_swap()
+        return 0
+    except Exception as exc:
+        print(f"草稿未完成（{getattr(exc, 'code', type(exc).__name__)}）", file=sys.stderr)
+        return 1
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

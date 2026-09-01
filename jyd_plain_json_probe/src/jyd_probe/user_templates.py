@@ -16,6 +16,8 @@ from .template_library import load_plain_draft_json
 
 
 USER_TEMPLATE_SCHEMA = "jyd.user-template.v1"
+DEFAULT_TEMPLATE_COVER_FRAME_COUNT = 3
+MAX_TEMPLATE_COVER_FRAME_COUNT = 30
 KNOWN_CAPTION_TRACK_NAMES = {
     "网页自动字幕",
     "minimax 单行字幕",
@@ -189,6 +191,168 @@ def _timerange(segment: dict[str, Any]) -> tuple[int, int]:
     return start, duration
 
 
+def normalize_template_cover_frame_count(value: Any) -> int:
+    try:
+        frame_count = int(value)
+    except (TypeError, ValueError):
+        frame_count = DEFAULT_TEMPLATE_COVER_FRAME_COUNT
+    if not 1 <= frame_count <= MAX_TEMPLATE_COVER_FRAME_COUNT:
+        raise ValueError(
+            f"模板封面帧数必须在 1 到 {MAX_TEMPLATE_COVER_FRAME_COUNT} 之间"
+        )
+    return frame_count
+
+
+def _video_materials(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    materials = data.get("materials", {})
+    values = materials.get("videos", []) if isinstance(materials, dict) else []
+    return {
+        str(item.get("id")): item
+        for item in values
+        if isinstance(item, dict) and item.get("id")
+    }
+
+
+def _is_photo_material(material: dict[str, Any]) -> bool:
+    material_type = str(material.get("type") or "").strip().casefold()
+    if material_type in {"photo", "image"}:
+        return True
+    suffix = Path(str(material.get("path") or "")).suffix.casefold()
+    return suffix in {".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".webp"}
+
+
+def detect_template_cover(
+    data: dict[str, Any], *, frame_count: Any = DEFAULT_TEMPLATE_COVER_FRAME_COUNT
+) -> dict[str, Any]:
+    """Detect a short opening portrait photo without consuming decorative assets."""
+
+    normalized_frames = normalize_template_cover_frame_count(frame_count)
+    fps = 30.0
+    duration_us = max(1, int(round(normalized_frames * 1_000_000 / fps)))
+    # The replaceable portrait is expected to be a very short, ordinary photo
+    # clip at the beginning of a video track. Stickers, flower text and effects
+    # use different material collections and remain untouched.
+    max_candidate_duration_us = max(500_000, duration_us * 3)
+    materials = _video_materials(data)
+    material_usage: dict[str, int] = {}
+    for track in data.get("tracks", []):
+        if not isinstance(track, dict) or track.get("type") != "video":
+            continue
+        for segment in track.get("segments", []):
+            if not isinstance(segment, dict):
+                continue
+            material_id = str(segment.get("material_id") or "")
+            if material_id:
+                material_usage[material_id] = material_usage.get(material_id, 0) + 1
+    candidates: list[dict[str, Any]] = []
+    typed_index = 0
+    for raw_index, track in enumerate(data.get("tracks", [])):
+        if not isinstance(track, dict) or track.get("type") != "video":
+            continue
+        for segment_index, segment in enumerate(track.get("segments", [])):
+            if not isinstance(segment, dict):
+                continue
+            start, segment_duration = _timerange(segment)
+            material_id = str(segment.get("material_id") or "")
+            material = materials.get(material_id, {})
+            if (
+                start != 0
+                or segment_duration <= 0
+                or segment_duration > max_candidate_duration_us
+                or not _is_photo_material(material)
+                or material_usage.get(material_id, 0) != 1
+            ):
+                continue
+            try:
+                width = max(0, int(float(material.get("width", 0) or 0)))
+                height = max(0, int(float(material.get("height", 0) or 0)))
+            except (TypeError, ValueError):
+                width = height = 0
+            candidates.append(
+                {
+                    "track_id": str(track.get("id") or ""),
+                    "raw_track_index": raw_index,
+                    "typed_track_index": typed_index,
+                    "segment_index": segment_index,
+                    "segment_id": str(segment.get("id") or ""),
+                    "material_id": material_id,
+                    "start_us": start,
+                    "duration_us": segment_duration,
+                    "_pixel_area": width * height,
+                }
+            )
+        typed_index += 1
+    slot = None
+    if candidates:
+        # Base video tracks come first in Jianying. Within the same track, prefer
+        # the largest source photo and the duration closest to the chosen cover.
+        slot = min(
+            candidates,
+            key=lambda item: (
+                item["typed_track_index"],
+                abs(item["duration_us"] - duration_us),
+                -item["_pixel_area"],
+                item["segment_index"],
+            ),
+        )
+        slot = {key: value for key, value in slot.items() if not key.startswith("_")}
+    return {
+        "enabled": slot is not None,
+        "frame_count": normalized_frames,
+        "fps": fps,
+        "duration_us": duration_us,
+        "portrait_slot": slot,
+    }
+
+
+def _discard_imported_cover_portrait(
+    root: Path, data: dict[str, Any], profile: dict[str, Any]
+) -> Path | None:
+    """Remove the collector's old portrait copy after freezing its slot metadata."""
+
+    slot = dict(dict(profile.get("cover") or {}).get("portrait_slot") or {})
+    material_id = str(slot.get("material_id") or "")
+    material = _video_materials(data).get(material_id)
+    if not material:
+        return None
+    raw_path = str(material.get("path") or "").strip()
+    if not raw_path:
+        return None
+    try:
+        path = Path(raw_path).expanduser().resolve()
+        path.relative_to(root.resolve())
+    except (OSError, ValueError):
+        return None
+    for other_id, other in _video_materials(data).items():
+        if other_id == material_id:
+            continue
+        try:
+            if Path(str(other.get("path") or "")).expanduser().resolve() == path:
+                return None
+        except (OSError, ValueError):
+            continue
+    if not path.is_file():
+        return None
+    path.unlink()
+    return path
+
+
+def _template_profile(data: dict[str, Any], *, frame_count: Any) -> dict[str, Any]:
+    cover = detect_template_cover(data, frame_count=frame_count)
+    portrait_slot = dict(cover.get("portrait_slot") or {})
+    caption_tracks = detect_caption_tracks(data)
+    return {
+        "draft_duration_us": int(data.get("duration", 0) or 0),
+        "caption_track": caption_tracks[0],
+        "caption_tracks": caption_tracks,
+        "cover": cover,
+        "main_video": detect_main_video(
+            data,
+            excluded_segment_ids={str(portrait_slot.get("segment_id") or "")},
+        ),
+    }
+
+
 def _caption_track_candidates(data: dict[str, Any]) -> list[dict[str, Any]]:
     texts = _text_materials(data)
     duration = max(1, int(data.get("duration", 0) or 0))
@@ -351,7 +515,10 @@ def detect_caption_track(data: dict[str, Any]) -> dict[str, Any]:
     return detect_caption_tracks(data)[0]
 
 
-def detect_main_video(data: dict[str, Any]) -> dict[str, Any] | None:
+def detect_main_video(
+    data: dict[str, Any], *, excluded_segment_ids: set[str] | None = None
+) -> dict[str, Any] | None:
+    excluded = {str(value) for value in (excluded_segment_ids or set()) if value}
     candidates: list[dict[str, Any]] = []
     typed_index = 0
     for raw_index, track in enumerate(data.get("tracks", [])):
@@ -359,6 +526,8 @@ def detect_main_video(data: dict[str, Any]) -> dict[str, Any] | None:
             continue
         for segment_index, segment in enumerate(track.get("segments", [])):
             if not isinstance(segment, dict):
+                continue
+            if str(segment.get("id") or "") in excluded:
                 continue
             start, duration = _timerange(segment)
             candidates.append(
@@ -376,10 +545,7 @@ def detect_main_video(data: dict[str, Any]) -> dict[str, Any] | None:
         typed_index += 1
     if not candidates:
         return None
-    return max(
-        candidates,
-        key=lambda item: (item["start_us"] == 0, item["duration_us"]),
-    )
+    return max(candidates, key=lambda item: (item["duration_us"], -item["start_us"]))
 
 
 def _rewrite_paths(value: Any, path_map: dict[str, str]) -> Any:
@@ -446,8 +612,15 @@ class UserTemplateStore:
         self.max_template_bytes = max(1, int(max_template_bytes))
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def create(self, owner_user_id: str, name: str) -> dict[str, Any]:
+    def create(
+        self,
+        owner_user_id: str,
+        name: str,
+        *,
+        cover_frame_count: Any = DEFAULT_TEMPLATE_COVER_FRAME_COUNT,
+    ) -> dict[str, Any]:
         clean_name = self.validate_new_name(owner_user_id, name)
+        normalized_cover_frames = normalize_template_cover_frame_count(cover_frame_count)
         template_id = uuid.uuid4().hex
         root = self._root(owner_user_id, template_id)
         root.mkdir(parents=True, exist_ok=False)
@@ -463,6 +636,7 @@ class UserTemplateStore:
             "profile": {},
             "missing_resources": [],
             "path_map": {},
+            "cover_frame_count": normalized_cover_frames,
         }
         self._save(root, meta)
         return self._public(meta)
@@ -481,10 +655,13 @@ class UserTemplateStore:
         owner_user_id: str,
         name: str,
         package_path: str | Path,
+        *,
+        cover_frame_count: Any = DEFAULT_TEMPLATE_COVER_FRAME_COUNT,
     ) -> dict[str, Any]:
         """Import a collector-built package as a permanent account template."""
 
         clean_name = self.validate_new_name(owner_user_id, name)
+        normalized_cover_frames = normalize_template_cover_frame_count(cover_frame_count)
         template_id = uuid.uuid4().hex
         root = self._root(owner_user_id, template_id)
         try:
@@ -498,13 +675,8 @@ class UserTemplateStore:
             )
             draft_dir = root / "draft"
             data = load_plain_draft_json(draft_dir)
-            caption_tracks = detect_caption_tracks(data)
-            profile = {
-                "draft_duration_us": int(data.get("duration", 0) or 0),
-                "caption_track": caption_tracks[0],
-                "caption_tracks": caption_tracks,
-                "main_video": detect_main_video(data),
-            }
+            profile = _template_profile(data, frame_count=normalized_cover_frames)
+            discarded_cover_path = _discard_imported_cover_portrait(root, data, profile)
             now = _now()
             cover_path = self._find_cover(root, {})
             manifest = transfer.get("manifest", {})
@@ -518,7 +690,13 @@ class UserTemplateStore:
                 "updated_at": now,
                 "profile": profile,
                 "missing_resources": [],
-                "path_map": dict(transfer.get("path_map") or {}),
+                "path_map": {
+                    key: value
+                    for key, value in dict(transfer.get("path_map") or {}).items()
+                    if discarded_cover_path is None
+                    or Path(str(value)).expanduser().resolve() != discarded_cover_path
+                },
+                "cover_frame_count": normalized_cover_frames,
                 "content_hash": hashlib.sha256(
                     (draft_dir / "draft_content.json").read_bytes()
                 ).hexdigest(),
@@ -662,6 +840,8 @@ class UserTemplateStore:
             data, preferred_track_id=stored_caption_track_id
         )
         caption_track_id = str(caption_tracks[0].get("track_id") or "")
+        cover = dict(profile.get("cover") or {})
+        cover_slot = dict(cover.get("portrait_slot") or {})
         return {
             "schema": "jyd.template-browser-preview.v1",
             "template_id": str(meta.get("template_id") or ""),
@@ -677,6 +857,12 @@ class UserTemplateStore:
             ],
             "main_video_segment_id": str(
                 dict(profile.get("main_video") or {}).get("segment_id") or ""
+            ),
+            "cover_portrait_segment_id": str(cover_slot.get("segment_id") or ""),
+            "cover_duration_us": (
+                max(0, int(cover.get("duration_us", 0) or 0))
+                if cover.get("enabled") and cover_slot
+                else 0
             ),
             "tracks": tracks,
             "materials": browser_materials,
@@ -737,14 +923,12 @@ class UserTemplateStore:
             shutil.rmtree(draft_dir)
         shutil.copytree(prepared.draft_dir, draft_dir)
         data = load_plain_draft_json(draft_dir)
-        main_video = detect_main_video(data)
-        caption_tracks = detect_caption_tracks(data)
-        profile = {
-            "draft_duration_us": int(data.get("duration", 0) or 0),
-            "caption_track": caption_tracks[0],
-            "caption_tracks": caption_tracks,
-            "main_video": main_video,
-        }
+        normalized_cover_frames = normalize_template_cover_frame_count(
+            meta.get("cover_frame_count", DEFAULT_TEMPLATE_COVER_FRAME_COUNT)
+        )
+        profile = _template_profile(data, frame_count=normalized_cover_frames)
+        main_video = dict(profile.get("main_video") or {})
+        cover_slot = dict(dict(profile.get("cover") or {}).get("portrait_slot") or {})
         report = analyze_draft_import(
             data,
             source_draft_dir=source_dir,
@@ -754,7 +938,10 @@ class UserTemplateStore:
         )
         path_map: dict[str, str] = {}
         missing: list[dict[str, Any]] = []
-        main_video_material_id = str((main_video or {}).get("material_id") or "")
+        replaced_video_material_ids = {
+            str(main_video.get("material_id") or ""),
+            str(cover_slot.get("material_id") or ""),
+        } - {""}
         for dependency in report.get("dependencies", []):
             if not isinstance(dependency, dict):
                 continue
@@ -772,9 +959,8 @@ class UserTemplateStore:
             if _is_builtin_font_dependency(dependency):
                 continue
             if (
-                kind == "video"
-                and main_video_material_id
-                and main_video_material_id in referenced_material_ids
+                kind in {"image", "video"}
+                and replaced_video_material_ids.intersection(referenced_material_ids)
             ):
                 continue
             original = str(dependency.get("original_path") or dependency.get("path") or "")
@@ -811,6 +997,7 @@ class UserTemplateStore:
                 "updated_at": _now(),
                 "was_decrypted": prepared.was_decrypted,
                 "profile": profile,
+                "cover_frame_count": normalized_cover_frames,
                 "missing_resources": missing,
                 "path_map": path_map,
                 "content_hash": content_hash,

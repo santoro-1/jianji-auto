@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Mapping
 import uuid
 
-from .auth_center import AuthCenterClient
+from .auth_center import AuthCenterClient, AuthCenterError
+from .audio_submission_recovery import audio_request_key, recover_audio_submissions
 from .project_export_naming import audio_export_filename
 from .project_store import ProjectStore
 from .logging_config import log_event
@@ -137,7 +138,42 @@ class ProjectAudioCoordinator:
         self.max_audio_bytes = int(max_audio_bytes)
         self.visual_catalog = visual_catalog
 
+    def _fail_unsubmitted(
+        self, owner_user_id: str, project_id: str,
+        items: list[dict[str, Any]], *, error_code: str, error_message: str,
+    ) -> None:
+        operations = {op["operation_id"]: op for op in
+                      self.store.get_project(owner_user_id, project_id)["operations"]}
+        for item in items:
+            operation_id = item["operation"]["operation_id"]
+            if operations.get(operation_id, {}).get("status") not in {"PENDING", "STARTING"}:
+                continue
+            self.store.transition_operation(
+                owner_user_id, project_id, item["item_id"],
+                operation_type="AUDIO_GENERATE", operation_id=operation_id,
+                status="FAILED",
+                item_status=(item["status"] if any(item.get("outputs", {}).values())
+                             else "AUDIO_FAILED"),
+                error_code=error_code, error_message=error_message,
+            )
+
     def start(
+        self, owner_user_id: str, project_id: str, token: str, *,
+        default_voice_asset_id: str, voice_assignments: dict[str, str] | None,
+        settings: dict[str, Any] | None, idempotency_key: str,
+        resolution: str = "1024", item_ids: list[str] | None = None,
+        force_regenerate: bool = False,
+    ) -> dict[str, Any]:
+        recover_audio_submissions(self.store, self.client, owner_user_id, project_id, token)
+        with self.store.audio_submission_scope(project_id, idempotency_key):
+            return self._start(
+                owner_user_id, project_id, token,
+                default_voice_asset_id=default_voice_asset_id, voice_assignments=voice_assignments,
+                settings=settings, idempotency_key=idempotency_key, resolution=resolution,
+                item_ids=item_ids, force_regenerate=force_regenerate,
+            )
+
+    def _start(
         self,
         owner_user_id: str,
         project_id: str,
@@ -154,6 +190,18 @@ class ProjectAudioCoordinator:
         project = self.store.get_project(owner_user_id, project_id)
         if not idempotency_key.strip():
             raise ValueError("声音生成请求缺少幂等键")
+
+        # Replaying a button request is a read, not another paid command. This
+        # check precedes the active-row guard and any asset invalidation.
+        existing = [op for op in project.get("operations", [])
+                    if op.get("operation_type") == "AUDIO_GENERATE"
+                    and op.get("idempotency_key") == idempotency_key.strip()
+                    and (item_ids is None or op.get("item_id") in item_ids)]
+        if existing:
+            failed = next((op for op in existing if op.get("status") == "FAILED"), None)
+            if failed:
+                raise ValueError(failed.get("error_message") or "该声音请求已失败，请核对后重新生成")
+            return self.sync(owner_user_id, project_id, token)
 
         requested_ids: list[str] | None = None
         if item_ids is not None:
@@ -174,6 +222,8 @@ class ProjectAudioCoordinator:
                 if not item.get("allowed_actions", {}).get("generate_audio")
             ]
             if blocked:
+                if blocked[0].get("audio_submission"):
+                    raise ValueError("上次声音提交结果尚未确认，请先核对云端任务，避免重复计费")
                 raise ValueError(f"任务 {blocked[0]['row_key']} 正在生成，暂时不能生成声音")
             # An explicit row request is a smart action: a still-current audio
             # asset is reused instead of creating another paid TTS version.
@@ -249,42 +299,49 @@ class ProjectAudioCoordinator:
                 raise ValueError(f"任务 {item['row_key']} 选择了不可用声音")
             resolved_items.append((item, voice_id))
 
-        for item, voice_id in resolved_items:
-            correlation_id = correlation_by_voice.setdefault(
-                voice_id, uuid.uuid4().hex
+        try:
+            for item, voice_id in resolved_items:
+                correlation_id = correlation_by_voice.setdefault(
+                    voice_id, uuid.uuid4().hex
+                )
+                script_hash = hashlib.sha256(
+                    str(item["script_text"]).encode("utf-8")
+                ).hexdigest()
+                operation = self.store.create_operation(
+                    owner_user_id=owner_user_id,
+                    project_id=project_id,
+                    item_id=item["item_id"],
+                    operation_type="AUDIO_GENERATE",
+                    idempotency_key=idempotency_key,
+                    payload={
+                        "voice_asset_id": voice_id,
+                        "speech_settings": speech,
+                        "resolution": digital_human_resolution,
+                        "script_sha256": script_hash,
+                        "script_length": len(str(item["script_text"])),
+                        "expected_audio_asset_id": (item.get("outputs", {}).get("audio") or {}).get("asset_id"),
+                    },
+                    correlation_id=correlation_id,
+                    preserve_audio_until_accepted=True,
+                )
+                grouped[voice_id].append({**item, "operation": operation})
+        except Exception:
+            self._fail_unsubmitted(
+                owner_user_id, project_id,
+                [item for group in grouped.values() for item in group],
+                error_code="AUDIO_NOT_SUBMITTED", error_message="声音预检未通过，本行未提交云端",
             )
-            script_hash = hashlib.sha256(
-                str(item["script_text"]).encode("utf-8")
-            ).hexdigest()
-            self.store.prepare_item_audio_generation(
-                owner_user_id, project_id, item["item_id"]
-            )
-            self.store.configure_item_voice(
-                owner_user_id,
-                project_id,
-                item["item_id"],
-                voice_asset_id=voice_id,
-            )
-            operation = self.store.create_operation(
-                owner_user_id=owner_user_id,
-                project_id=project_id,
-                item_id=item["item_id"],
-                operation_type="AUDIO_GENERATE",
-                idempotency_key=idempotency_key,
-                payload={
-                    "voice_asset_id": voice_id,
-                    "speech_settings": speech,
-                    "resolution": digital_human_resolution,
-                    "script_sha256": script_hash,
-                    "script_length": len(str(item["script_text"])),
-                },
-                correlation_id=correlation_id,
-            )
-            grouped[voice_id].append({**item, "operation": operation})
+            raise
 
         project = self.store.get_project(owner_user_id, project_id)
         for group_index, (voice_id, items) in enumerate(grouped.items(), start=1):
             correlation_id = str(items[0]["operation"]["correlation_id"])
+            if not self.store.claim_audio_submissions(
+                owner_user_id, project_id,
+                [item["operation"]["operation_id"] for item in items],
+            ):
+                continue
+            response_received = False
             try:
                 rows = [
                     {
@@ -293,9 +350,6 @@ class ProjectAudioCoordinator:
                     }
                     for item in items
                 ]
-                request_digest = hashlib.sha256(
-                    f"{idempotency_key}\0{voice_id}".encode("utf-8")
-                ).hexdigest()[:48]
                 remote = self.client.create_workbench_audio_batch(
                     token,
                     {
@@ -303,7 +357,7 @@ class ProjectAudioCoordinator:
                         # The digital backend stores this in a 64-character
                         # internal idempotency column.  It is not a RunningHub
                         # task id and does not couple TTS to video generation.
-                        "request_key": f"workbench-audio-{request_digest}",
+                        "request_key": audio_request_key(project_id, idempotency_key, voice_id),
                         "correlation_id": correlation_id,
                         "resolution": digital_human_resolution,
                         "rows": rows,
@@ -313,6 +367,7 @@ class ProjectAudioCoordinator:
                         },
                     },
                 )
+                response_received = True
                 batch_id = str(remote.get("batch_id") or "")
                 if not batch_id:
                     raise ValueError("数字人后端没有返回声音批次编号")
@@ -332,52 +387,26 @@ class ProjectAudioCoordinator:
                     correlation_id=correlation_id,
                     item_count=len(items),
                 )
-                self.store.add_link(
-                    owner_user_id=owner_user_id,
-                    project_id=project_id,
-                    system="runninghub",
-                    relation="digital_human_audio_batch",
-                    external_id=batch_id,
-                    metadata={
-                        "voice_asset_id": voice_id,
-                        "correlation_id": correlation_id,
-                    },
-                )
                 remote_by_row = {
                     str(row.get("row_key") or ""): row
                     for row in remote.get("items", [])
                     if isinstance(row, dict)
                 }
+                # Validate the entire response before switching any row.
+                for item in items:
+                    remote_item = remote_by_row.get(str(item["row_key"]))
+                    if not remote_item or not remote_item.get("item_id"):
+                        raise ValueError(f"数字人后端缺少任务 {item['row_key']} 的声音记录")
                 for item in items:
                     remote_item = remote_by_row.get(str(item["row_key"]))
                     if not remote_item or not remote_item.get("item_id"):
                         raise ValueError(f"数字人后端缺少任务 {item['row_key']} 的声音记录")
                     remote_item_id = str(remote_item["item_id"])
-                    self.store.add_link(
-                        owner_user_id=owner_user_id,
-                        project_id=project_id,
-                        item_id=item["item_id"],
-                        system="runninghub",
-                        relation="digital_human_audio_item",
-                        external_id=remote_item_id,
-                        metadata={
-                            "batch_id": batch_id,
-                            "correlation_id": correlation_id,
-                            "script_sha256": hashlib.sha256(
-                                str(item["script_text"]).encode("utf-8")
-                            ).hexdigest(),
-                            "script_length": len(str(item["script_text"])),
-                            "voice_asset_id": voice_id,
-                            "speech_settings": speech,
-                            "resolution": digital_human_resolution,
-                        },
-                    )
-                    self.store.transition_audio_operation(
+                    self.store.accept_audio_submission(
                         owner_user_id,
                         project_id,
                         item["item_id"],
-                        status="RUNNING",
-                        item_status="AUDIO_QUEUED",
+                        operation_id=item["operation"]["operation_id"],
                         result={
                             "batch_id": batch_id,
                             "item_id": remote_item_id,
@@ -385,6 +414,11 @@ class ProjectAudioCoordinator:
                         },
                     )
             except Exception as exc:
+                rejected = (not response_received and isinstance(exc, AuthCenterError)
+                            and 400 <= exc.status_code < 500 and exc.status_code != 408)
+                error_code = (exc.error_code if rejected else "AUDIO_SUBMISSION_UNKNOWN")
+                error_message = (str(exc) if rejected else
+                                 "声音提交结果尚未确认，请先核对云端任务，避免重复计费；原音视频已保留")
                 log_event(
                     logger,
                     "workbench.cloud_audio_batch_failed",
@@ -395,33 +429,49 @@ class ProjectAudioCoordinator:
                     project_id=project_id,
                     correlation_id=correlation_id,
                     error_type=type(exc).__name__,
+                    error_code=error_code,
+                    http_status=getattr(exc, "status_code", None),
                 )
-                for item in items:
-                    self.store.transition_audio_operation(
-                        owner_user_id,
-                        project_id,
-                        item["item_id"],
-                        status="FAILED",
-                        item_status="AUDIO_FAILED",
-                        error_code=type(exc).__name__,
-                        error_message=str(exc),
-                    )
+                self._fail_unsubmitted(
+                    owner_user_id, project_id, items,
+                    error_code=error_code, error_message=error_message,
+                )
+                self._fail_unsubmitted(
+                    owner_user_id, project_id,
+                    [item for other_voice, group in grouped.items() if other_voice != voice_id
+                     for item in group],
+                    error_code="AUDIO_NOT_SUBMITTED", error_message="前一组声音提交中断，本行未提交云端",
+                )
+                if not rejected:
+                    raise AuthCenterError(error_message, error_code=error_code, retryable=False) from exc
                 raise
         return self.sync(owner_user_id, project_id, token)
 
     def sync(
         self, owner_user_id: str, project_id: str, token: str
     ) -> dict[str, Any]:
+        recover_audio_submissions(self.store, self.client, owner_user_id, project_id, token)
         project = self.store.get_project(owner_user_id, project_id)
+        latest_operations = {
+            str(op.get("item_id")): op for op in project.get("operations", [])
+            if op.get("operation_type") == "AUDIO_GENERATE"
+        }
+        submitting_ids = {
+            item_id for item_id, op in latest_operations.items()
+            if op.get("payload", {}).get("submission_contract") == "jyd.audio-submission.v1"
+            and op.get("status") in {"PENDING", "STARTING"}
+        }
         active_item_ids = {
             str(item["item_id"])
             for item in project["items"]
             if item.get("status") in {"AUDIO_QUEUED", "AUDIO_RUNNING"}
+            and str(item["item_id"]) not in submitting_ids
         }
         caption_recovery_item_ids = {
             str(item["item_id"])
             for item in project["items"]
             if isinstance(item.get("outputs", {}).get("audio"), dict)
+            and str(item["item_id"]) not in submitting_ids
             and (
                 item.get("subtitles", {}).get("bound_audio_asset_id")
                 != item["outputs"]["audio"].get("asset_id")
@@ -447,6 +497,17 @@ class ProjectAudioCoordinator:
                     continue
                 local_item_id = str(link["item_id"])
                 provider_status = str(remote_item.get("status") or "")
+                operation = latest_operations.get(local_item_id, {})
+                result = operation.get("result", {})
+                exact_submission = (
+                    operation.get("payload", {}).get("submission_contract") == "jyd.audio-submission.v1"
+                    and result.get("batch_id") == batch_id
+                    and result.get("item_id") == remote_item_id
+                )
+                if (local_item_id in active_item_ids
+                        and operation.get("payload", {}).get("submission_contract")
+                        and not exact_submission):
+                    continue
                 if provider_status == "FAILED":
                     if local_item_id not in active_item_ids:
                         continue
@@ -461,7 +522,9 @@ class ProjectAudioCoordinator:
                         error_message=str(remote_item.get("error_message") or "声音生成失败"),
                     )
                     continue
-                if provider_status == "AWAITING_REVIEW" and remote_item.get("audio_ready"):
+                if (provider_status == "AWAITING_REVIEW" or (
+                    provider_status == "SUCCESS" and exact_submission
+                )) and remote_item.get("audio_ready"):
                     local_item = local_by_item[local_item_id]
                     bound_hash = str(link.get("metadata", {}).get("script_sha256") or "")
                     current_hash = hashlib.sha256(
@@ -651,7 +714,6 @@ class ProjectAudioCoordinator:
         project = self.store.get_project(owner_user_id, project_id)
         if not idempotency_key.strip():
             raise ValueError("声音生成请求缺少幂等键")
-        speech = _speech_settings(settings)
         matching_links = [
             link
             for link in project["links"]
@@ -676,61 +738,15 @@ class ProjectAudioCoordinator:
         previous_voice = str(metadata.get("voice_asset_id")
                              or batch_link.get("metadata", {}).get("voice_asset_id") or "")
         voice_id = str(item.get("settings", {}).get("voice_asset_id") or previous_voice)
-        previous_speech = metadata.get("speech_settings")
-        if not isinstance(previous_speech, dict):
-            previous_speech = next(
-                (op.get("payload", {}).get("speech_settings", {})
-                 for op in reversed(project.get("operations", []))
-                 if op.get("item_id") == item_id
-                 and op.get("operation_type") == "AUDIO_GENERATE"
-                 and op.get("payload", {}).get("script_sha256") == metadata.get("script_sha256")),
-                {},
-            )
-        script_hash = hashlib.sha256(str(item["script_text"]).encode("utf-8")).hexdigest()
-        if (
-            script_hash != metadata.get("script_sha256")
-            or voice_id != previous_voice
-            or any(previous_speech.get(key) != value for key, value in speech.items() if key != "speed")
-        ):
-            # Remote retry changes speed only; changed inputs need a new immutable task.
-            return self.start(
-                owner_user_id, project_id, token,
-                default_voice_asset_id=voice_id,
-                voice_assignments={item_id: voice_id},
-                settings=settings,
-                resolution=str(metadata.get("resolution") or "1024"),
-                idempotency_key=idempotency_key,
-                item_ids=[item_id], force_regenerate=True,
-            )
-        self.store.prepare_item_audio_generation(
-            owner_user_id, project_id, item_id
-        )
-        self.store.create_operation(
-            owner_user_id=owner_user_id,
-            project_id=project_id,
-            item_id=item_id,
-            operation_type="AUDIO_GENERATE",
+        # Every explicit regeneration uses the existing idempotent batch API.
+        # The legacy retry both rejects H3-approved SUCCESS and lacks a request
+        # key; mutating it also risks changing audio already bound to a video.
+        return self.start(
+            owner_user_id, project_id, token,
+            default_voice_asset_id=voice_id,
+            voice_assignments={item_id: voice_id},
+            settings=settings,
+            resolution=str(metadata.get("resolution") or "1024"),
             idempotency_key=idempotency_key,
-            payload={
-                "retry": True,
-                "remote_item_id": link["external_id"],
-                "speech_settings": speech,
-                "script_sha256": script_hash,
-                "voice_asset_id": voice_id,
-            },
+            item_ids=[item_id], force_regenerate=True,
         )
-        self.client.retry_workbench_audio(
-            token,
-            batch_id,
-            str(link["external_id"]),
-            speed=speech["speed"],
-        )
-        self.store.transition_audio_operation(
-            owner_user_id,
-            project_id,
-            item_id,
-            status="RUNNING",
-            item_status="AUDIO_QUEUED",
-            result={"batch_id": batch_id, "item_id": link["external_id"]},
-        )
-        return self.sync(owner_user_id, project_id, token)

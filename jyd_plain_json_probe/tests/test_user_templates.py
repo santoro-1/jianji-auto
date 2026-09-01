@@ -26,6 +26,8 @@ from jyd_probe.user_templates import (
     UserTemplateStore,
     detect_caption_track,
     detect_caption_tracks,
+    detect_main_video,
+    detect_template_cover,
 )
 from jyd_probe.web_api import WebApiSettings, create_app
 
@@ -81,6 +83,61 @@ def test_user_template_upload_analyze_and_owner_isolation(tmp_path):
     assert store.render_binding("user-a", created["template_id"])["name"] == "上传1"
     with pytest.raises(FileNotFoundError):
         store.get("user-b", created["template_id"])
+
+
+def test_template_cover_photo_is_separate_from_body_video(tmp_path):
+    draft = _draft()
+    draft["duration"] = 4_100_000
+    draft["materials"]["videos"] = [
+        {
+            "id": "cover-photo",
+            "type": "photo",
+            "path": str(tmp_path / "portrait.jpg"),
+            "width": 1080,
+            "height": 1920,
+        },
+        {"id": "body-video", "type": "video", "path": str(tmp_path / "body.mp4")},
+    ]
+    draft["tracks"][0]["segments"] = [
+        {
+            "id": "cover-segment",
+            "material_id": "cover-photo",
+            "target_timerange": {"start": 0, "duration": 100_000},
+        },
+        {
+            "id": "body-segment",
+            "material_id": "body-video",
+            "target_timerange": {"start": 100_000, "duration": 4_000_000},
+        },
+    ]
+
+    cover = detect_template_cover(draft, frame_count=3)
+    main_video = detect_main_video(
+        draft,
+        excluded_segment_ids={cover["portrait_slot"]["segment_id"]},
+    )
+
+    assert cover["enabled"] is True
+    assert cover["duration_us"] == 100_000
+    assert cover["portrait_slot"]["segment_id"] == "cover-segment"
+    assert main_video["segment_id"] == "body-segment"
+
+    store = UserTemplateStore(tmp_path / "templates", libraries_root=tmp_path / "libraries")
+    created = store.create("user-a", "带原生封面", cover_frame_count=3)
+    store.upload_draft_file(
+        "user-a",
+        created["template_id"],
+        "draft_content.json",
+        json.dumps(draft, ensure_ascii=False).encode("utf-8"),
+    )
+    analyzed = store.analyze("user-a", created["template_id"])
+
+    assert analyzed["status"] == "READY"
+    assert analyzed["profile"]["cover"]["portrait_slot"]["material_id"] == "cover-photo"
+    assert analyzed["profile"]["main_video"]["material_id"] == "body-video"
+    preview = store.browser_preview("user-a", created["template_id"])
+    assert preview["cover_portrait_segment_id"] == "cover-segment"
+    assert preview["cover_duration_us"] == 100_000
 
 
 def test_user_template_browser_preview_is_timeline_json_without_local_paths(tmp_path):
@@ -157,6 +214,7 @@ def test_user_template_browser_preview_is_timeline_json_without_local_paths(tmp_
     assert preview["schema"] == "jyd.template-browser-preview.v1"
     assert preview["caption_track_id"] == "caption-track"
     assert preview["caption_track_ids"] == ["caption-track", "caption-shadow-track"]
+    assert preview["cover_portrait_segment_id"] == ""
     assert "cleared_text_track_ids" not in preview
     assert preview["materials"]["texts"][0]["content"]["text"] == "网页标题"
     assert preview["materials"]["texts"][0]["content"]["styles"][0]["font"]["path"] == ""
@@ -278,6 +336,58 @@ def test_collector_package_import_is_permanent_and_owner_isolated(tmp_path):
     rewritten_sticker = Path(stored["materials"]["stickers"][0]["path"])
     assert rewritten_sticker.is_file()
     assert rewritten_sticker != sticker
+
+
+def test_collector_import_discards_only_replaceable_cover_portrait(tmp_path):
+    draft_dir = tmp_path / "collector-cover-draft"
+    draft_dir.mkdir()
+    portrait = tmp_path / "old-person.jpg"
+    portrait.write_bytes(b"old-person")
+    draft = _draft()
+    draft["duration"] = 4_100_000
+    draft["materials"]["videos"] = [
+        {"id": "cover-photo", "type": "photo", "path": str(portrait), "width": 1080, "height": 1920},
+        {"id": "body-video", "type": "video", "path": r"C:\missing\body.mp4"},
+    ]
+    draft["tracks"][0]["segments"] = [
+        {"id": "cover-segment", "material_id": "cover-photo", "target_timerange": {"start": 0, "duration": 100_000}},
+        {"id": "body-segment", "material_id": "body-video", "target_timerange": {"start": 100_000, "duration": 4_000_000}},
+    ]
+    (draft_dir / "draft_content.json").write_text(
+        json.dumps(draft, ensure_ascii=False), encoding="utf-8"
+    )
+    package_path = tmp_path / "cover-template-center.zip"
+    build_transfer_package(
+        {
+            "mode": "template_center",
+            "plan_id": "cover-template-plan",
+            "report_id": "cover-template-report",
+            "draft": {"name": "封面草稿", "analyzed_draft_dir": str(draft_dir)},
+            "policies": {"audio": "replace"},
+            "summary": {"ready_for_upload": True, "upload_count": 1},
+            "dependencies": [{
+                "kind": "image",
+                "path": str(portrait),
+                "original_path": str(portrait),
+                "decision": "upload",
+                "size_bytes": portrait.stat().st_size,
+                "references": [{"material_id": "cover-photo"}],
+            }],
+        },
+        package_path,
+    )
+    store = UserTemplateStore(tmp_path / "templates", libraries_root=tmp_path / "libraries")
+
+    imported = store.import_transfer_package("user-a", "过滤人物图模板", package_path)
+
+    binding = store.render_binding("user-a", imported["template_id"])
+    stored = json.loads(
+        (Path(binding["draft_dir"]) / "draft_content.json").read_text(encoding="utf-8")
+    )
+    stored_portrait = Path(stored["materials"]["videos"][0]["path"])
+    assert imported["profile"]["cover"]["enabled"] is True
+    assert imported["profile"]["main_video"]["segment_id"] == "body-segment"
+    assert not stored_portrait.exists()
 
 
 def test_collector_package_import_and_subtitle_replace_support_mixed_tracks(tmp_path):
@@ -762,6 +872,91 @@ def test_4b_template_job_preserves_new_template_and_replaces_dynamic_slots(tmp_p
     assert "cover" not in job
 
 
+def test_template_native_cover_uses_uploaded_portrait_and_offsets_body(tmp_path):
+    draft_dir = tmp_path / "template-cover-draft"
+    draft_dir.mkdir()
+    (draft_dir / "draft_content.json").write_text(
+        json.dumps({
+            "duration": 4_100_000,
+            "materials": {
+                "texts": [{"id": "caption", "content": json.dumps({"text": "旧字幕"}, ensure_ascii=False)}],
+            },
+            "tracks": [{
+                "id": "caption-track",
+                "type": "text",
+                "name": "自动字幕",
+                "segments": [{
+                    "id": "caption-segment",
+                    "material_id": "caption",
+                    "target_timerange": {"start": 100_000, "duration": 4_000_000},
+                }],
+            }],
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    video = tmp_path / "base.mp4"
+    audio = tmp_path / "voice.mp3"
+    portrait = tmp_path / "portrait.jpg"
+    font = tmp_path / "font.ttf"
+    for path in (video, audio, portrait, font):
+        path.write_bytes(b"test")
+    coordinator = ProjectPostprocessCoordinator.__new__(ProjectPostprocessCoordinator)
+    coordinator.draft_root = tmp_path / "draft-output"
+    coordinator.fonts = {"font": {"identity": "font", "path": str(font)}}
+    coordinator.bgm_assets = {}
+    coordinator.semantic_visual_library_root = tmp_path
+    coordinator.semantic_visual_catalog = None
+    item = {
+        "row_key": "1",
+        "outputs": {
+            "base_video": {"managed_path": str(video), "metadata": {"duration_us": 6_000_000}},
+            "audio": {"managed_path": str(audio)},
+        },
+        "inputs": {"image": {"managed_path": str(portrait)}},
+        "subtitles": {
+            "status": "PREVIEW_READY",
+            "render_cues": [{"start_us": 0, "duration_us": 1_000_000, "text": "新字幕"}],
+            "style": {"font_id": "font"},
+        },
+        "settings": {"postprocess": {
+            "font_identity": "font",
+            "jianying_template": {
+                "template_id": "template-cover",
+                "draft_dir": str(draft_dir),
+                "profile": {
+                    "draft_duration_us": 4_100_000,
+                    "cover": {
+                        "enabled": True,
+                        "frame_count": 3,
+                        "fps": 30,
+                        "duration_us": 100_000,
+                        "portrait_slot": {"typed_track_index": 0, "segment_index": 0},
+                    },
+                    "main_video": {"typed_track_index": 0, "segment_index": 1},
+                    "caption_track": {
+                        "track_id": "caption-track",
+                        "typed_track_index": 0,
+                        "base_segment_index": 0,
+                    },
+                },
+            },
+        }},
+    }
+
+    job = coordinator._build_draft_job(item, draft_name="原生封面成片", skip_export=True)
+
+    assert job["timeline_duration_us"] == 6_100_000
+    assert job["audios"][0]["target_start_us"] == 100_000
+    cover_replacement, body_replacement = job["video_replacements"]
+    assert cover_replacement["media_path"] == str(portrait.resolve())
+    assert cover_replacement["target_duration_us"] == 100_000
+    assert body_replacement["media_path"] == str(video.resolve())
+    assert body_replacement["target_start_us"] == 100_000
+    assert job["subtitle_range_replacements"][0]["start_us"] == 100_000
+    assert job["subtitle_range_replacements"][0]["subtitles"][0]["start_us"] == 0
+    assert "cover" not in job
+
+
 def test_template_job_adds_required_main_video_when_template_has_no_video_track(tmp_path):
     draft_dir = tmp_path / "template-draft"
     draft_dir.mkdir()
@@ -826,7 +1021,7 @@ def test_new_frontend_exposes_compact_template_modal():
     assert "缺少 ${template.missing_resources?.length || 0} 个花字资源" not in manager
     assert "RESOURCE_KIND_LABELS" in manager
     assert 'id="video-preview-template-canvas"' in page
-    assert 'src="/app-static/new/template-browser-preview.js?v=20260828-6"' in page
+    assert 'src="/app-static/new/template-browser-preview.js?v=20260901-1"' in page
     assert "/browser-preview" in browser_preview
     assert "function captionSource" in browser_preview
     assert "function captionTrackIds" in browser_preview
@@ -841,6 +1036,8 @@ def test_new_frontend_exposes_compact_template_modal():
     assert "refreshCaptionLayout: updatePreviewCaptionLayout" in page
     assert "effectKind" in browser_preview
     assert "萤火" in browser_preview
+    assert "cover_portrait_segment_id" in browser_preview
+    assert "getCoverImageUrl" in page
 
 
 def test_new_frontend_exposes_account_template_center():
@@ -908,7 +1105,7 @@ def test_template_api_binds_ready_template_to_current_account_project(tmp_path):
             assert client.post("/api/auth/login", json={"username": "tester", "password": "pass"}).status_code == 200
             ticket_response = client.post(
                 "/api/new/jianying-template-import-tickets",
-                json={"name": "采集器账号模板"},
+                json={"name": "采集器账号模板", "cover_frame_count": 7},
             )
             assert ticket_response.status_code == 201
             ticket = ticket_response.json()["ticket"]
@@ -924,6 +1121,7 @@ def test_template_api_binds_ready_template_to_current_account_project(tmp_path):
             )
             assert imported_response.status_code == 201, imported_response.text
             assert imported_response.json()["template"]["name"] == "采集器账号模板"
+            assert imported_response.json()["template"]["profile"]["cover"]["frame_count"] == 7
             assert client.post(
                 f"/api/new/jianying-template-imports/{ticket}",
                 content=package_bytes,

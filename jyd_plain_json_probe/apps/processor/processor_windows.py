@@ -63,13 +63,34 @@ def _resolved_network_config(config: dict[str, str]) -> tuple[str, str, str]:
     return configured_auth_url or cloud_digital_human_url, shared_processor_url, "false"
 
 
+def _semantic_visual_source_mode(config: dict[str, str]) -> str:
+    mode = config.get("semantic_visual_source_mode", "folders").strip().lower()
+    if mode not in {"folders", "json"}:
+        raise ValueError("semantic_visual_source_mode 只允许 folders 或 json")
+    return mode
+
+
 def _detect_draft_root(config: dict[str, str], data_root: Path) -> Path:
+    return _detect_draft_root_details(config, data_root).path
+
+
+def _detect_draft_root_details(config: dict[str, str], data_root: Path):
     configured = os.environ.get("JYD_WEB_DRAFT_ROOT", "").strip() or config.get("draft_root", "").strip()
     fallback = data_root / "drafts"
     fallback.mkdir(parents=True, exist_ok=True)
-    from jyd_probe.runtime_paths import detect_jianying_draft_root
+    from jyd_probe.runtime_paths import detect_jianying_draft_root_details
 
-    return detect_jianying_draft_root(configured, fallback=fallback)
+    return detect_jianying_draft_root_details(configured, fallback=fallback)
+
+
+def _draft_root_source_label(source: str) -> str:
+    return {
+        "configured": "手工配置",
+        "jianying_catalogue": "剪映本机索引",
+        "populated_scan": "现有草稿自动识别",
+        "default": "剪映默认目录",
+        "fallback": "安装目录临时兜底（未确认）",
+    }.get(source, source or "未知")
 
 
 def _configure_environment() -> tuple[Path, Path]:
@@ -106,7 +127,19 @@ def _configure_environment() -> tuple[Path, Path]:
     }
     for name, value in defaults.items():
         os.environ.setdefault(name, str(Path(value).resolve()))
-    os.environ.setdefault("JYD_WEB_DRAFT_ROOT", str(_detect_draft_root(config, data_root)))
+    os.environ.setdefault(
+        "JYD_SEMANTIC_VISUAL_SOURCE_MODE",
+        _semantic_visual_source_mode(config),
+    )
+    if os.environ["JYD_SEMANTIC_VISUAL_SOURCE_MODE"].strip().lower() == "folders":
+        semantic_visual_root = Path(os.environ["JYD_SEMANTIC_VISUAL_LIBRARY_ROOT"])
+        (semantic_visual_root / "素材").mkdir(parents=True, exist_ok=True)
+    draft_root_detection = _detect_draft_root_details(config, data_root)
+    os.environ.setdefault("JYD_WEB_DRAFT_ROOT", str(draft_root_detection.path))
+    os.environ["JYD_DRAFT_ROOT_SOURCE"] = draft_root_detection.source
+    os.environ["JYD_DRAFT_ROOT_CONFIRMED"] = (
+        "true" if draft_root_detection.confirmed else "false"
+    )
     os.environ.setdefault(
         "JYD_AUTH_SERVER_URL",
         auth_server_url,
@@ -362,7 +395,10 @@ def _write_shared_connection_files(
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from jyd_probe.device_command_authorization import add_command_authorization_arguments
+
     parser = argparse.ArgumentParser(description="启动剪映处理机服务")
+    add_command_authorization_arguments(parser)
     parser.add_argument("--host", default="")
     parser.add_argument("--port", type=int, default=8010)
     parser.add_argument("--no-browser", action="store_true")
@@ -382,6 +418,27 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments == ["--device-release-info"]:
+        # Read compiled PUBLIC configuration only: no config/logs, account,
+        # network, CNG key, UAC, ASR, collector or local service is started.
+        import hashlib
+        from jyd_probe.device_trust_roots import TRUSTED_ISSUERS
+
+        canonical = json.dumps(
+            TRUSTED_ISSUERS, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        )
+        print(json.dumps({
+            "schema": "publicvideo.device-release.v1",
+            "trust_sha256": hashlib.sha256(canonical.encode("ascii")).hexdigest(),
+            "issuer_count": len(TRUSTED_ISSUERS),
+        }))
+        return 0
+    from jyd_probe.device_identity_setup import dispatch_setup_helper
+
+    helper_result = dispatch_setup_helper(arguments)
+    if helper_result is not None:
+        return helper_result
     args = build_parser().parse_args(argv)
     startup_config = _load_processor_config(_application_root() / "data")
     deployment_mode = args.deployment_mode or startup_config.get("deployment_mode", "standalone")
@@ -414,8 +471,10 @@ def main(argv: list[str] | None = None) -> int:
                 propagate=False,
             )
             from jyd_probe.render_job import run_render_job_file
+            from jyd_probe.device_command_authorization import command_authorization
 
-            result = run_render_job_file(args.render_job)
+            with command_authorization(args):
+                result = run_render_job_file(args.render_job)
             print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
             return 0
         asr_process = _start_embedded_asr(app_root, data_root, startup_config)
@@ -456,12 +515,23 @@ def main(argv: list[str] | None = None) -> int:
             print("添加处理电脑说明: 公用工作台连接说明.txt")
         print(f"本机是否为账号中心: {os.environ['JYD_AUTH_AUTHORITY']}")
         print(f"剪映草稿目录: {os.environ['JYD_WEB_DRAFT_ROOT']}")
+        print(
+            "剪映草稿目录来源: "
+            f"{_draft_root_source_label(os.environ.get('JYD_DRAFT_ROOT_SOURCE', ''))}"
+        )
+        if os.environ.get("JYD_DRAFT_ROOT_CONFIRMED") != "true":
+            print("! 未读取到剪映真实草稿目录，当前路径不能作为正式导出位置。")
+            print("! 请先打开剪映并打开任意草稿后重启；仍无效时在 data\\processor_config.json 配置 draft_root。")
         print(f"精确字幕 ASR: {os.environ['JYD_ASR_BASE_URL']}")
         print("草稿采集工具: 已集成启动" if collector_started else "草稿采集工具: 已有程序在运行")
         print("=" * 68)
         _append_startup_log(
             data_root,
-            f"host={host} port={args.port} deployment={deployment_mode} lan_urls={lan_urls} rebase={rebase_stats}",
+            f"host={host} port={args.port} deployment={deployment_mode} lan_urls={lan_urls} "
+            f"draft_root={os.environ['JYD_WEB_DRAFT_ROOT']} "
+            f"draft_root_source={os.environ.get('JYD_DRAFT_ROOT_SOURCE', '')} "
+            f"draft_root_confirmed={os.environ.get('JYD_DRAFT_ROOT_CONFIRMED', '')} "
+            f"rebase={rebase_stats}",
         )
         if not args.no_browser:
             threading.Timer(1.0, lambda: webbrowser.open(local_url)).start()

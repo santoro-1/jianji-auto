@@ -683,6 +683,19 @@ def test_v2_catalog_loads_unified_image_and_reserved_video_assets(tmp_path: Path
     assert all("image_path" not in item for item in public["assets"])
 
 
+def test_v2_catalog_accepts_windows_powershell_utf8_bom(tmp_path: Path) -> None:
+    root = tmp_path / "catalog-v2-bom"
+    manifest = _write_v2_catalog(root)
+    raw = manifest.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")
+    manifest.write_bytes(b"\xef\xbb\xbf" + raw)
+
+    catalog = load_semantic_visual_catalog(root)
+
+    assert catalog.schema == CATALOG_SCHEMA_V2
+    assert catalog.library_id == "jyd.semantic-visual-library.test"
+
+
 def test_v2_catalog_rejects_path_escape_and_renderer_mismatch(tmp_path: Path) -> None:
     root = tmp_path / "catalog-v2"
     manifest = _write_v2_catalog(root)

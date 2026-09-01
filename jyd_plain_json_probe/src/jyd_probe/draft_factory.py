@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Iterable
+from .device_local_execution import protected_local_work
 
 from .cli import append_track_compat, import_pyjianyingdraft, log
 
@@ -52,6 +53,7 @@ def probe_video_duration_us(media_path: str | Path) -> int:
     return duration_us
 
 
+@protected_local_work({"local:draft"})
 def create_plain_draft_from_video(
     media_path: str | Path,
     output_root: str | Path,
@@ -136,6 +138,7 @@ def create_plain_draft_from_video(
     )
 
 
+@protected_local_work({"local:draft"})
 def create_plain_draft_from_videos(
     items: Iterable[VideoSequenceItem],
     output_root: str | Path,

@@ -20,6 +20,92 @@ from jyd_probe.web_api import WebApiSettings, create_app  # noqa: E402
 
 
 class NewFrontendTest(unittest.TestCase):
+    def test_postprocess_font_default_only_uses_available_options(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn(
+            "fontIdentity: defaultPostprocessFontIdentity || fontPresets[0]?.identity || ''",
+            page,
+        )
+        self.assertNotIn(
+            "defaultPostprocessFontIdentity || 'resource_id:7086699209738424840'",
+            page,
+        )
+
+    def test_template_upload_exposes_native_cover_frame_count(self) -> None:
+        page = (FRONTEND_ROOT / "templates.html").read_text(encoding="utf-8")
+        workbench = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        manager = (FRONTEND_ROOT / "template-manager.js").read_text(encoding="utf-8")
+        collector = (FRONTEND_ROOT / "template-collector.js").read_text(encoding="utf-8")
+        self.assertIn('id="upload-cover-frame-count"', page)
+        self.assertIn('id="collector-cover-frame-count"', page)
+        self.assertIn('id="jianying-template-cover-frame-count"', workbench)
+        self.assertIn("cover_frame_count: coverFrameCount", manager)
+        self.assertIn("cover_frame_count: coverFrameCount", collector)
+
+    def test_audio_submit_error_refreshes_persisted_state_without_reposting(self) -> None:
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js is required for frontend behavior tests")
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        helper = page[page.index("        async function refreshAudioAfterSubmissionError("):page.index("        // Individual Retry button")]
+        script = """
+            const assert = require('node:assert/strict');
+            let activeProject = {project_id:'p'}, audioStatusPollTimer;
+            let mode = 'ok', calls = [], synced = [], timers = [];
+            const unknown = {project_id:'p',items:[{audio_submission:{status:'UNKNOWN'}}]};
+            async function workspaceApi(path, options) {
+                assert.equal(options,undefined);
+                calls.push(path);
+                if (mode === 'offline' || (mode === 'fallback' && path.endsWith('/status'))) throw Error('offline');
+                if (mode === 'switch') activeProject = {project_id:'another'};
+                return unknown;
+            }
+            function syncProjectInputs(project) { synced.push(project); activeProject = project; }
+            function clearTimeout() {}
+            function setTimeout(fn, delay) { timers.push({fn,delay}); return 1; }
+        """ + helper + """
+            (async () => {
+                await refreshAudioAfterSubmissionError('p');
+                assert.deepEqual(calls,['/api/new/projects/p/audio/status']);
+                assert.equal(synced.at(-1),unknown);
+                mode = 'fallback'; calls = [];
+                await refreshAudioAfterSubmissionError('p');
+                assert.deepEqual(calls,['/api/new/projects/p/audio/status','/api/new/projects/p']);
+                mode = 'offline';
+                await refreshAudioAfterSubmissionError('p');
+                assert.equal(timers.at(-1).delay,5000);
+                mode = 'switch';
+                const count = synced.length;
+                await refreshAudioAfterSubmissionError('p');
+                assert.equal(synced.length,count);
+                calls = [];
+                await timers.at(-1).fn();
+                assert.equal(calls.length,0);
+            })().catch(error => { console.error(error); process.exitCode = 1; });
+        """
+        subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+        self.assertEqual(page.count("await refreshAudioAfterSubmissionError(projectId);"), 4)
+        self.assertIn("itemActive || script.audioSubmission?.status === 'UNKNOWN' ? 'disabled'", page)
+
+    def test_unknown_audio_submission_is_polled_without_active_spinner(self) -> None:
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js is required for frontend behavior tests")
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        helpers = page[page.index("        function projectHasActiveOperation("):page.index("        function projectNeedsH3Sync(")]
+        script = "const assert = require('node:assert/strict');\n" + helpers + """
+            const unknown = {items:[{status:'AUDIO_READY',audio_submission:{status:'UNKNOWN'}}],operations:[]};
+            const ready = {items:[{status:'AUDIO_READY',audio_submission:null}],operations:[]};
+            const running = {items:[{status:'AUDIO_QUEUED'}],operations:[]};
+            assert.equal(projectNeedsAudioSync(unknown),true);
+            assert.equal(projectHasUnknownAudioSubmission(unknown),true);
+            assert.equal(projectNeedsAudioSync(ready),false);
+            assert.equal(projectNeedsAudioSync(running),true);
+        """
+        subprocess.run([node, "-e", script], check=True, capture_output=True, text=True)
+        self.assertIn("声音提交待核对", page)
+        self.assertIn("projectHasUnknownAudioSubmission(activeProject) ? 10000 : 3000", page)
+
     def test_h3_blocked_row_does_not_keep_batch_polling_or_block_ready_row(self) -> None:
         node = shutil.which("node")
         if not node:
@@ -208,7 +294,7 @@ class NewFrontendTest(unittest.TestCase):
         self.assertIn("async function resumeExistingH3Batch(targets)", page)
         self.assertIn("费用预览已保留", page)
         self.assertNotIn("正在恢复上一次已冻结的费用预览", page)
-        self.assertIn("if (await resumeExistingH3Batch(targets)) return;", page)
+        self.assertIn("if (await resumeExistingH3Batch(requestedTargets)) return;", page)
         self.assertIn("const recoveredBatch = (recovered.h3_batches || []).find", page)
         self.assertIn("body: JSON.stringify({ cost_confirmed: true, batch_id: batchId })", page)
         self.assertIn("const targets = requestedTargets.filter((item) => !item.baseVideo && !h3ItemIsActive(item));", page)
@@ -222,8 +308,8 @@ class NewFrontendTest(unittest.TestCase):
         )
         self.assertIn("scheduleH3StatusPoll();", page)
         self.assertLess(
-            page.index("if (await resumeExistingH3Batch(targets)) return;"),
-            page.index("syncProjectInputs(await saveH3Settings(false));"),
+            page.index("const savedProject = await saveH3Settings(false);", page.index("async function startGlobalH3Generation")),
+            page.index("if (await resumeExistingH3Batch(requestedTargets)) return;"),
         )
 
     def test_audio_regeneration_keeps_polling_instead_of_reusing_history(self) -> None:

@@ -6,6 +6,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 class UpdatePackageContractTest(unittest.TestCase):
+    def test_authorization_dependencies_are_checked_before_compilation(self) -> None:
+        script = (PROJECT_ROOT / "scripts" / "build" / "build_processor.ps1").read_text(encoding="utf-8")
+        self.assertLess(script.index("import jwt, cryptography"), script.index('$PyInstallerArguments ='))
+        self.assertIn("Device authorization dependencies are missing", script)
+
     def test_update_build_excludes_all_data(self) -> None:
         script = (
             PROJECT_ROOT / "scripts" / "build" / "build_processor.ps1"
@@ -22,7 +27,9 @@ class UpdatePackageContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("包内不会出现 `data` 目录", instructions)
-        self.assertIn("只包含重新构建的 Processor 程序", instructions)
+        self.assertIn("已经安装好的工作台", instructions)
+        self.assertIn("重新构建的 Processor 程序", instructions)
+        self.assertIn("完整 `_internal` 依赖", instructions)
         self.assertIn("独立素材包", instructions)
 
 

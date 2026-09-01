@@ -65,6 +65,10 @@ if (-not $Python) {
 if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
     throw "Build Python was not found: $Python`nRun scripts\setup_build_environment.ps1 first, or pass -Python explicitly."
 }
+& $Python -c "import jwt, cryptography; from cryptography.hazmat.primitives.asymmetric import ec; from jwt.algorithms import ECAlgorithm; assert ECAlgorithm; print('Device authorization build dependencies: OK')"
+if ($LASTEXITCODE -ne 0) {
+    throw 'Device authorization dependencies are missing; run scripts\setup_build_environment.ps1 before building. No release was created.'
+}
 
 $DraftcRoot = Join-Path $ProjectRoot "vendor\jy-draftc"
 $Draftc = Join-Path $DraftcRoot "jy-draftc.exe"

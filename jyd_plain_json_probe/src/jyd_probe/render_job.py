@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 import time
 from typing import Any, Mapping
+from .device_local_execution import protected_local_work, render_operation_scopes
 
 from .content_replace import (
     AudioAddition,
@@ -94,6 +95,7 @@ def run_render_job_file(job_path: str | Path) -> RenderJobResult:
     return run_render_job(load_render_job_config(job_path))
 
 
+@protected_local_work(render_operation_scopes)
 def run_render_job(data: Mapping[str, Any]) -> RenderJobResult:
     config = dict(data)
     source = _dict_value(config.get("source"))
@@ -1434,6 +1436,7 @@ def _optional_volume(config: Mapping[str, Any]) -> float | None:
     return value
 
 
+@protected_local_work({"local:render"})
 def _export_mp4(
     draft_name: str,
     output_mp4: Path,

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 import hashlib
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -19,10 +20,12 @@ import wave
 import numpy as np
 
 from .caption_alignment import RecognizedToken, _TOKEN_RE, _key
+from .h3_cache_paths import cleanup_directory
 from .project_h3_media import H3MediaError, _run
 
 
 H3_AUDIO_CLEANUP_VERSION = "jyd.h3-head-silence.v1"
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -97,13 +100,19 @@ def _cache_directory(
 ) -> tuple[Path, str, str]:
     digest = source_sha256(source)
     key = cleanup_key(digest, script, config)
-    return source.parent / "head-cleanup" / key, key, digest
+    return cleanup_directory(source, key), key, digest
 
 
 def read_cleanup(
     source: Path, script: str, config: HeadCleanupConfig = DEFAULT_CONFIG
 ) -> CleanedSegment | None:
     directory, key, digest = _cache_directory(source, script, config)
+    return _read_cleanup_directory(directory, key, digest, config)
+
+
+def _read_cleanup_directory(
+    directory: Path, key: str, digest: str, config: HeadCleanupConfig
+) -> CleanedSegment | None:
     try:
         report = json.loads((directory / "report.json").read_text(encoding="utf-8"))
         if not isinstance(report, dict) or not all(
@@ -248,9 +257,26 @@ def clean_segment(
     existing = read_cleanup(source, script, config)
     if existing is not None:
         return existing
+    directory, key, digest = _cache_directory(source, script, config)
+    legacy = _read_cleanup_directory(source.parent / "head-cleanup" / key, key, digest, config)
+    if legacy is not None:
+        # Reuse validated old work without ASR/encoding. Publish the report last;
+        # keep the old files intact for existing assets and historical drafts.
+        directory.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="build-", dir=directory) as temporary:
+            work = Path(temporary)
+            for name in ("clean.wav", "preview.mp4", "report.json"):
+                shutil.copyfile(legacy.directory / name, work / name)
+            if _read_cleanup_directory(work, key, digest, config) is None:
+                raise H3MediaError("H3 旧清理缓存复制校验失败，原文件已保留")
+            for name in ("clean.wav", "preview.mp4", "report.json"):
+                os.replace(work / name, directory / name)
+        result = read_cleanup(source, script, config)
+        if result is None:
+            raise H3MediaError("H3 旧清理缓存版本已变化，请重试本地处理")
+        return result
     if aligner is None or not callable(getattr(aligner, "recognize_tokens", None)):
         raise H3MediaError("H3 片头清理需要本地 ASR 字词时间戳服务")
-    directory, key, digest = _cache_directory(source, script, config)
     directory.mkdir(parents=True, exist_ok=True)
     # Take an immutable snapshot: a concurrent paid regeneration can replace
     # current.mp4 while this local worker is still running on the old version.
@@ -379,6 +405,68 @@ _EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="h3-head-cleanu
 _LOCK = threading.Lock()
 _PENDING: set[str] = set()
 _MAX_PENDING = 16
+_MAX_ATTEMPTS = 3
+# A failed disk write must not erase the retry budget. Keep the last failure in
+# memory until successful cleanup/manual retry, even if the whole disk is full.
+_FAILURES: dict[str, dict[str, Any]] = {}
+
+
+def _read_failure(path: Path) -> dict[str, Any]:
+    try:
+        failure = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except OSError:
+        # The worker will report an inaccessible output directory; don't let a
+        # read error bypass the in-memory budget maintained by _record_failure.
+        return {}
+    except (ValueError, TypeError):
+        failure = None
+    try:
+        if not isinstance(failure, dict):
+            raise ValueError("not an object")
+        attempts = int(failure.get("attempts") or 0)
+        retry_at = float(failure.get("retry_at") or 0)
+        if attempts < 0 or not math.isfinite(retry_at):
+            raise ValueError("invalid retry state")
+        return {**failure, "attempts": attempts, "retry_at": retry_at}
+    except (ValueError, TypeError, OverflowError):
+        return {"attempts": _MAX_ATTEMPTS, "retry_at": 0,
+                "error": "H3 本地清理失败记录损坏，请手动重试本地清理"}
+
+
+def _record_failure(
+    identity: str, directory: Path, key: str, attempts: int, exc: Exception
+) -> None:
+    failure = {
+        "key": key,
+        "attempts": attempts,
+        "retry_at": time.time() + 60,
+        "error": str(exc)[:500] or type(exc).__name__,
+    }
+    # Publish BEFORE trying to write to the directory that may have just failed.
+    with _LOCK:
+        _FAILURES[identity] = failure
+    temporary_failure = None
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=directory, suffix=".json", delete=False
+        ) as stream:
+            temporary_failure = Path(stream.name)
+            json.dump(failure, stream, ensure_ascii=False)
+        os.replace(temporary_failure, directory / "failure.json")
+    except Exception:
+        # A Future exception alone is invisible to status polling. Retain the
+        # in-memory failure and also put this event in the normal rotating log.
+        logger.warning("H3 cleanup failure record could not be saved (key=%s)", key,
+                       exc_info=True)
+    finally:
+        if temporary_failure is not None:
+            try:
+                temporary_failure.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def request_cleanup(
@@ -388,6 +476,8 @@ def request_cleanup(
     ready = read_cleanup(source, script)
     state: dict[str, Any] = {"key": key, "version": H3_AUDIO_CLEANUP_VERSION}
     if ready is not None:
+        with _LOCK:
+            _FAILURES.pop(str(directory.resolve()), None)
         return {
             **state,
             "status": "READY",
@@ -399,12 +489,11 @@ def request_cleanup(
     with _LOCK:
         if identity in _PENDING:
             return {**state, "status": "PROCESSING"}
-        try:
-            failure = json.loads(failure_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError, TypeError):
-            failure = {}
+        failure = _FAILURES.get(identity)
+        if failure is None:
+            failure = _read_failure(failure_path)
         attempts = 0 if force_retry else int(failure.get("attempts") or 0)
-        if not force_retry and attempts >= 3:
+        if not force_retry and attempts >= _MAX_ATTEMPTS:
             return {
                 **state,
                 "status": "FAILED",
@@ -418,36 +507,31 @@ def request_cleanup(
             }
         if len(_PENDING) >= _MAX_PENDING:
             return {**state, "status": "PENDING"}
+        if force_retry:
+            _FAILURES.pop(identity, None)
         _PENDING.add(identity)
 
     def work() -> None:
         try:
             clean_segment(source, script, aligner)
-            failure_path.unlink(missing_ok=True)
+            with _LOCK:
+                _FAILURES.pop(identity, None)
+            try:
+                failure_path.unlink(missing_ok=True)
+            except OSError:
+                # A usable READY cache wins over an obsolete failure file.
+                logger.warning("H3 cleanup obsolete failure record retained (key=%s)", key)
         except Exception as exc:
-            directory.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(
-                mode="w", encoding="utf-8", dir=directory, suffix=".json", delete=False
-            ) as stream:
-                json.dump(
-                    {
-                        "attempts": attempts + 1,
-                        "retry_at": time.time() + 60,
-                        "error": str(exc)[:500],
-                    },
-                    stream,
-                    ensure_ascii=False,
-                )
-                temporary_failure = Path(stream.name)
-            os.replace(temporary_failure, failure_path)
+            _record_failure(identity, directory, key, attempts + 1, exc)
         finally:
             with _LOCK:
                 _PENDING.discard(identity)
 
     try:
         _EXECUTOR.submit(work)
-    except RuntimeError:
+    except Exception as exc:
+        _record_failure(identity, directory, key, _MAX_ATTEMPTS, exc)
         with _LOCK:
             _PENDING.discard(identity)
-        return {**state, "status": "PENDING"}
+        return {**state, "status": "FAILED", "error": "H3 本地清理线程启动失败，请重启程序后重试"}
     return {**state, "status": "PROCESSING"}

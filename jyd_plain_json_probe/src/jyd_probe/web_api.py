@@ -13,6 +13,10 @@ import mimetypes
 import os
 from pathlib import Path, PurePosixPath
 import queue as queue_module
+from .device_local_execution import current_local_authorizer, current_local_decision, render_operation_scopes
+from .device_local_queue import device_guarded_queue_job, sync_authorization_status
+from .device_auth_protocol import DeviceAuthorizationError
+from .device_identity_windows import DeviceIdentityError
 import re
 import secrets
 import shutil
@@ -54,7 +58,7 @@ from .music_matching import MusicProfileMatcher
 from .logging_config import log_event
 from .h3_handoff import H3HandoffError, import_h3_handoff
 from .project_store import ProjectRevisionConflict, ProjectStore
-from .user_templates import UserTemplateStore
+from .user_templates import UserTemplateStore, normalize_template_cover_frame_count
 from .project_audio import ProjectAudioCoordinator
 from .project_content_analysis import ProjectContentAnalysisCoordinator
 from .project_composition import (
@@ -62,6 +66,7 @@ from .project_composition import (
     ProjectCompositionStartDispatcher,
 )
 from .project_h3 import ProjectH3Coordinator, current_h3_segment_preview_path
+from .h3_quote_recovery import H3QuoteConflict
 from .project_ltx import (
     LtxWorkbenchClient,
     LtxWorkbenchError,
@@ -224,6 +229,7 @@ class RenderJobQueue:
         )
         self._queue: queue_module.Queue[str] = queue_module.Queue()
         self._pending: list[str] = []
+        self._device_authorizers = {}
         self._lock = threading.Lock()
         self._mark_interrupted_jobs()
         self._import_legacy_records()
@@ -243,6 +249,7 @@ class RenderJobQueue:
                 self._queue.put(job_id)
 
     def submit(self, payload: dict[str, Any]) -> dict[str, Any]:
+        decision = current_local_decision(render_operation_scopes(payload))
         self._ensure_queue_capacity(1)
         job_id = uuid.uuid4().hex
         job = _prepare_render_job_payload(self.settings, self.audio_catalog, payload, job_id)
@@ -264,6 +271,9 @@ class RenderJobQueue:
             "queue_position": queue_position,
             "queue_size": queue_position,
         }
+        if decision is not None:
+            status["device_authorization"] = decision.snapshot()
+            self._device_authorizers[job_id] = current_local_authorizer()
         _write_json(job_dir / "status.json", status)
         self.store.add_job(job_id, job, status)
         if self.execution_mode == "embedded":
@@ -279,6 +289,8 @@ class RenderJobQueue:
     ) -> dict[str, Any]:
         if not payloads or len(payloads) != len(variants):
             raise ValueError("批量任务参数为空或组合信息不匹配")
+        scopes = set().union(*(render_operation_scopes(payload) for payload in payloads))
+        decision = current_local_decision(scopes)
         self._ensure_queue_capacity(len(payloads))
 
         batch_id = uuid.uuid4().hex
@@ -340,6 +352,9 @@ class RenderJobQueue:
                     "queue_position": len(self._pending),
                     "queue_size": len(self._pending),
                 }
+                if decision is not None:
+                    status["device_authorization"] = decision.snapshot()
+                    self._device_authorizers[job_id] = current_local_authorizer()
                 _write_json(job_dir / "status.json", status)
                 self.store.add_job(job_id, job, status)
 
@@ -741,6 +756,7 @@ class RenderJobQueue:
                 finally:
                     self._queue.task_done()
 
+    @device_guarded_queue_job
     def _run_job(self, job_id: str, *, already_claimed: bool = False) -> None:
         with self._lock:
             if job_id in self._pending:
@@ -763,6 +779,9 @@ class RenderJobQueue:
                 "started_at": _now(),
             }
         job_payload = _read_json(job_dir / "job.json")
+        latest_device_status = self.store.get_status(job_id) if hasattr(self, "store") else previous
+        if (latest_device_status or {}).get("device_authorization"):
+            running_status["device_authorization"] = latest_device_status["device_authorization"]
         _write_json(status_path, running_status)
         observability = job_payload.get("observability", {})
         if not isinstance(observability, dict):
@@ -899,25 +918,35 @@ class RenderJobQueue:
                 pass
         return self.store.list_agents()
 
-    def claim_agent_job(self, agent_id: str) -> dict[str, Any] | None:
+    def claim_agent_job(self, agent_id: str, *, authorization=None) -> dict[str, Any] | None:
+        from .device_local_execution import requires_device_authorization
+        if requires_device_authorization() and authorization is None:
+            raise DeviceAuthorizationError("DEVICE_AGENT_PROTOCOL_REQUIRED",
+                                           "独立处理机需要本机持钥授权，旧接入密码不能替代", status_code=409)
         if self.execution_mode != "agent":
             raise HTTPException(
                 status_code=409,
                 detail="中央服务当前使用内置处理模式；请设置 JYD_EXECUTION_MODE=agent",
             )
         claimed = self.store.claim_job(
-            agent_id, lease_seconds=self.settings.agent_lease_seconds
+            agent_id, lease_seconds=self.settings.agent_lease_seconds, authorization=authorization
         )
         if claimed is not None:
-            _write_json(
+            sync_authorization_status(
                 _job_dir(self.settings, str(claimed["job_id"])) / "status.json",
                 claimed["status"],
             )
         return claimed
 
     def heartbeat_agent_job(
-        self, agent_id: str, job_id: str, payload: dict[str, Any]
+        self, agent_id: str, job_id: str, payload: dict[str, Any], *, authorization=None
     ) -> dict[str, Any]:
+        if authorization is not None:
+            from .device_agent_operations import report_job
+            status, _ = report_job(self.store, agent_id, job_id, payload.get("execution_id"), authorization,
+                                   action="heartbeat", payload=payload, lease_seconds=self.settings.agent_lease_seconds)
+            sync_authorization_status(_job_dir(self.settings, job_id) / "status.json", status)
+            return status
         status = self.store.heartbeat_job(
             agent_id,
             job_id,
@@ -934,7 +963,33 @@ class RenderJobQueue:
         *,
         result: dict[str, Any] | None = None,
         error: str = "",
+        authorization=None,
+        execution_id=None,
+        recovery=None,
     ) -> dict[str, Any]:
+        if authorization is not None:
+            from .device_agent_operations import report_job
+            status, changed = report_job(
+                self.store, agent_id, job_id, execution_id, authorization,
+                action="complete" if result is not None else "fail", payload={"result": result, "error": error},
+                retention={"expires_at": _expiry_after(self.settings.completed_output_retention_hours if result is not None else self.settings.failed_output_retention_hours),
+                           "draft_expires_at": _expiry_after(self.settings.draft_retention_hours),
+                           "metadata_expires_at": _expiry_after(self.settings.metadata_retention_days * 24)},
+                recovery=recovery,
+            )
+            sync_authorization_status(_job_dir(self.settings, job_id) / "status.json", status)
+            if changed:
+                # Reporting is already committed. Housekeeping must never turn
+                # a saved successful result into an HTTP failure/re-render.
+                try:
+                    job_path = _job_dir(self.settings, job_id) / "job.json"
+                    if job_path.is_file():
+                        _extend_job_media_expiration(self.settings, _read_json(job_path))
+                    if status.get("batch_id") and recovery is None:
+                        self._cleanup_batch_once_templates(str(status["batch_id"]))
+                except Exception:
+                    logging.getLogger("jyd_probe.agent").warning("处理机结果已保存，后续清理暂未完成")
+            return status
         status = self.store.finish_job(agent_id, job_id, result=result, error=error)
         status.update(
             {
@@ -982,6 +1037,9 @@ class RenderJobQueue:
             except Exception:
                 continue
             if status.get("status") not in {"pending", "running"}:
+                continue
+            if status.get("agent_device_authorization"):
+                # A mode switch/restart cannot prove the original Agent stopped.
                 continue
             status["status"] = "failed"
             status["finished_at"] = _now()
@@ -2013,6 +2071,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def new_generation_frontend() -> FileResponse:
         return new_frontend_file("index.html")
 
+    @app.get("/app/new/device-authorization")
+    def device_authorization_frontend() -> FileResponse:
+        return new_frontend_file("device-authorization.html")
+
     @app.get("/app/new/gallery")
     def new_gallery_frontend() -> FileResponse:
         return new_frontend_file("gallery.html")
@@ -2146,6 +2208,57 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "is_admin": user.get("is_admin") is True,
         }
 
+    # Device identity belongs to this processor, never to a browser or handoff source.
+    # Registration endpoints alone are not the business admission gate.
+    from .device_authorization_routes import install_device_authorization_routes
+
+    install_device_authorization_routes(
+        app,
+        base_url=settings.auth_server_url,
+        cookie_name=settings.site_cookie_name,
+        current_user=current_project_user,
+    )
+    if auth_center is not None:
+        from .device_business_transport import DeviceBusinessProofs
+        auth_center.device_header_provider = DeviceBusinessProofs(
+            app.state.device_sessions, account_resolver=verify_site_token
+        )
+    from .device_local_web import install_local_execution
+    install_local_execution(app, registry=app.state.device_sessions,
+                            current_user=current_project_user, cookie_name=settings.site_cookie_name)
+
+    @app.get("/api/new/device-authorization/waiting-jobs")
+    def list_device_waiting_jobs(request: Request):
+        user = current_project_user(request)
+        return JSONResponse({"jobs": render_queue.store.device_waiting_jobs(int(user["user_id"]))},
+                            headers={"Cache-Control": "no-store"})
+
+    @app.post("/api/jobs/{job_id}/resume-authorization")
+    def resume_local_job_authorization(job_id: str, request: Request):
+        from .device_authorization_routes import _same_origin_action
+        _same_origin_action(request)
+        user = current_project_user(request)
+        try:
+            previous = render_queue.store.get_status(job_id)
+            if previous is None:
+                raise HTTPException(status_code=404, detail="任务不存在")
+            if (previous.get("device_authorization") or {}).get("user_id") != int(user["user_id"]):
+                raise HTTPException(status_code=404, detail="任务不存在")
+            job = render_queue.store.get_job_payload(job_id)
+            decision = current_local_decision(render_operation_scopes(job))
+            if decision is None:
+                raise HTTPException(status_code=409, detail="请使用配置正式授权的工作台恢复任务")
+            status = render_queue.store.resume_device_authorization(job_id, int(user["user_id"]), decision.snapshot())
+            render_queue._device_authorizers[job_id] = current_local_authorizer()
+            sync_authorization_status(_job_dir(settings, job_id) / "status.json", status)
+            if render_queue.execution_mode == "embedded":
+                render_queue._queue.put(job_id)
+            return status
+        except (KeyError, PermissionError) as exc:
+            raise HTTPException(status_code=404, detail="任务不存在") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.post("/api/new/jianying-template-import-tickets", status_code=201)
     def issue_jianying_template_import_ticket(
         request: Request, payload: dict[str, Any] = Body(...)
@@ -2155,6 +2268,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             name = user_template_store.validate_new_name(
                 user["user_id"], str(payload.get("name") or "")
             )
+            cover_frame_count = normalize_template_cover_frame_count(
+                payload.get("cover_frame_count")
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         ticket = template_import_tickets.issue(
@@ -2163,6 +2279,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     "schema": "jyd.template-import-ticket.v1",
                     "user_id": user["user_id"],
                     "name": name,
+                    "cover_frame_count": cover_frame_count,
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -2236,6 +2353,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 str(import_claim["user_id"]),
                 str(import_claim.get("name") or ""),
                 package_path,
+                cover_frame_count=import_claim.get("cover_frame_count"),
             )
             return {
                 "status": "completed",
@@ -2315,7 +2433,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         user = current_project_user(request)
         try:
-            return user_template_store.create(user["user_id"], str(payload.get("name") or ""))
+            return user_template_store.create(
+                user["user_id"],
+                str(payload.get("name") or ""),
+                cover_frame_count=payload.get("cover_frame_count"),
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -3317,6 +3439,18 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             max_video_bytes=settings.max_video_upload_bytes,
         )
 
+    def h3_auth_error_response(exc: AuthCenterError):
+        if exc.response_headers:
+            return JSONResponse(
+                {"detail": str(exc), "code": exc.error_code, "device_authorization_required": True},
+                status_code=exc.status_code, headers=exc.response_headers,
+            )
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    from .device_h3_recovery_routes import install_h3_recovery_routes
+    install_h3_recovery_routes(app, current_user=current_project_user,
+                               client_access=digital_human_access)
+
     def project_h3_coordinator(client: AuthCenterClient) -> ProjectH3Coordinator:
         caption_aligner = (
             FunASRCaptionAligner(
@@ -3343,7 +3477,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         try:
             return project_h3_coordinator(client).accounts(token)
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
 
     @app.post("/api/new/projects/{project_id}/h3/segments/{segment_id}/audio-cleanup/retry")
     def retry_new_h3_audio_cleanup(project_id: str, segment_id: str, request: Request) -> dict[str, Any]:
@@ -3637,8 +3771,41 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/h3/quotes/inspect")
+    def inspect_new_project_h3_quotes(project_id: str, request: Request, payload: dict[str, Any] = Body(...)):
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        item_ids = payload.get("item_ids")
+        if not isinstance(item_ids, list):
+            raise HTTPException(status_code=422, detail="item_ids 必须是数组")
+        try:
+            return project_h3_coordinator(client).inspect_quotes(user["user_id"], project_id, token, item_ids=item_ids)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            return h3_auth_error_response(exc)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/new/projects/{project_id}/h3/quotes/{batch_id}/cancel")
+    def cancel_new_project_h3_quote(project_id: str, batch_id: str, request: Request, payload: dict[str, Any] = Body(...)):
+        user = current_project_user(request)
+        client, token = digital_human_access(request)
+        if payload.get("cancel_quote_confirmed") is not True:
+            raise HTTPException(status_code=409, detail="请明确确认撤销整个费用预览")
+        try:
+            return project_h3_coordinator(client).cancel_quote(user["user_id"], project_id, token,
+                batch_id=batch_id, request_key=str(payload.get("request_key") or ""),
+                quote_token=str(payload.get("quote_token") or ""))
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AuthCenterError as exc:
+            return h3_auth_error_response(exc)
+        except (OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/new/projects/{project_id}/h3/prepare", status_code=201)
@@ -3666,10 +3833,12 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 selected_account_ids=selected,
                 item_ids=item_ids,
             )
+        except H3QuoteConflict as exc:
+            raise HTTPException(status_code=409, detail=exc.detail) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3690,10 +3859,12 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 token,
                 batch_id=str(payload.get("batch_id") or ""),
             )
+        except H3QuoteConflict as exc:
+            raise HTTPException(status_code=409, detail=exc.detail) from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3710,7 +3881,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except (OSError, RuntimeError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3729,7 +3900,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3758,7 +3929,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3777,7 +3948,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3805,7 +3976,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3831,7 +4002,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except AuthCenterError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            return h3_auth_error_response(exc)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -3873,6 +4044,20 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             and not item.get("deleted", False)
         ]
         return available_fonts, available_bgm
+
+    def default_project_font_identity(fonts: list[dict[str, Any]]) -> str:
+        available_identities = {
+            str(item.get("identity") or "")
+            for item in fonts
+            if str(item.get("identity") or "")
+        }
+        for identity in (
+            LAYOUT_PROFILE_FONT_IDENTITY,
+            default_subtitle_font_identity,
+        ):
+            if identity in available_identities:
+                return identity
+        return str(fonts[0].get("identity") or "") if fonts else ""
 
     def project_postprocess_coordinator() -> ProjectPostprocessCoordinator:
         fonts, bgm_assets = project_postprocess_resources()
@@ -4904,7 +5089,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         default_caption = default_profile["caption"]
         return {
             "schema": "jyd.project-postprocess-options.v1",
-            "default_font_identity": LAYOUT_PROFILE_FONT_IDENTITY,
+            "default_font_identity": default_project_font_identity(fonts),
             "caption": {
                 "max_width_ratio": default_caption["max_width_ratio"],
                 "max_lines": 1,
@@ -5033,7 +5218,14 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         available_fonts = {str(item.get("identity") or "") for item in fonts}
         available_bgm = {str(item.get("identity") or "") for item in bgm_assets}
         if font_identity not in available_fonts:
-            raise HTTPException(status_code=422, detail="字幕字体不可用")
+            fallback_font_identity = default_project_font_identity(fonts)
+            if (
+                font_identity in {"", LAYOUT_PROFILE_FONT_IDENTITY}
+                and fallback_font_identity
+            ):
+                font_identity = fallback_font_identity
+            else:
+                raise HTTPException(status_code=422, detail="字幕字体不可用")
         if bgm_identity and bgm_identity not in available_bgm:
             raise HTTPException(status_code=422, detail="BGM 素材不可用")
         if bgm_selection_mode not in {"auto", "manual"}:
@@ -5739,7 +5931,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         )
 
     @app.post("/api/auth/logout")
-    def site_logout() -> JSONResponse:
+    def site_logout(request: Request) -> JSONResponse:
+        app.state.device_sessions.forget(request.cookies.get(settings.site_cookie_name, ""))
         response = JSONResponse({"ok": True})
         site_auth.clear_session_cookie(response)
         admin_auth.clear_session_cookie(response)
@@ -6074,76 +6267,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def list_render_agents() -> list[dict[str, Any]]:
         return render_queue.list_agents()
 
-    @app.post("/api/agents/register")
-    def register_render_agent(request: Request, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-        require_agent_token(request)
-        agent_id = str(_required(payload, "agent_id"))
-        try:
-            return render_queue.register_agent(agent_id, payload)
-        except (ValueError, KeyError) as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    @app.post("/api/agents/{agent_id}/heartbeat")
-    def heartbeat_render_agent(
-        agent_id: str, request: Request, payload: dict[str, Any] = Body(default={})
-    ) -> dict[str, Any]:
-        require_agent_token(request)
-        try:
-            return render_queue.heartbeat_agent(agent_id, payload)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    @app.post("/api/agents/{agent_id}/claim")
-    def claim_render_job(agent_id: str, request: Request) -> dict[str, Any]:
-        require_agent_token(request)
-        try:
-            return {"job": render_queue.claim_agent_job(agent_id)}
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-    @app.post("/api/agents/{agent_id}/jobs/{job_id}/heartbeat")
-    def heartbeat_render_job(
-        agent_id: str,
-        job_id: str,
-        request: Request,
-        payload: dict[str, Any] = Body(default={}),
-    ) -> dict[str, Any]:
-        require_agent_token(request)
-        try:
-            return render_queue.heartbeat_agent_job(agent_id, job_id, payload)
-        except KeyError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    @app.post("/api/agents/{agent_id}/jobs/{job_id}/complete")
-    def complete_render_job(
-        agent_id: str,
-        job_id: str,
-        request: Request,
-        payload: dict[str, Any] = Body(...),
-    ) -> dict[str, Any]:
-        require_agent_token(request)
-        result = payload.get("result")
-        if not isinstance(result, dict):
-            raise HTTPException(status_code=400, detail="result 必须是对象")
-        try:
-            return render_queue.finish_agent_job(agent_id, job_id, result=result)
-        except KeyError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    @app.post("/api/agents/{agent_id}/jobs/{job_id}/fail")
-    def fail_render_job(
-        agent_id: str,
-        job_id: str,
-        request: Request,
-        payload: dict[str, Any] = Body(default={}),
-    ) -> dict[str, Any]:
-        require_agent_token(request)
-        try:
-            return render_queue.finish_agent_job(
-                agent_id, job_id, error=str(payload.get("error") or "处理机报告任务失败")
-            )
-        except KeyError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+    from .device_agent_routes import install_device_agent_routes
+    install_device_agent_routes(app, queue=render_queue, settings=settings, require_agent_token=require_agent_token)
 
     @app.get("/api/storage")
     def get_storage_status() -> dict[str, Any]:
@@ -6874,7 +6999,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def render(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
         try:
             return render_queue.submit(payload)
-        except HTTPException:
+        except (HTTPException, DeviceAuthorizationError, DeviceIdentityError):
             raise
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -6884,7 +7009,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         try:
             jobs, variants = _expand_batch_payload(payload)
             return render_queue.submit_batch(jobs, variants)
-        except HTTPException:
+        except (HTTPException, DeviceAuthorizationError, DeviceIdentityError):
             raise
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -6919,7 +7044,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                 variants,
                 temporary_template_ids=[str(item) for item in temporary_ids],
             )
-        except HTTPException:
+        except (HTTPException, DeviceAuthorizationError, DeviceIdentityError):
             raise
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

@@ -14,6 +14,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from apps.processor.processor_windows import (  # noqa: E402
     _load_processor_config,
     _resolved_network_config,
+    _semantic_visual_source_mode,
     _workspace_path,
     _write_shared_connection_files,
     build_parser,
@@ -21,6 +22,26 @@ from apps.processor.processor_windows import (  # noqa: E402
 
 
 class ProcessorLauncherTest(unittest.TestCase):
+    def test_release_diagnostic_is_read_only_and_uses_compiled_roots(self) -> None:
+        from contextlib import redirect_stdout
+        import hashlib
+        import io
+        from unittest.mock import patch
+        from apps.processor import processor_windows
+        from jyd_probe.device_trust_roots import TRUSTED_ISSUERS
+
+        output = io.StringIO()
+        with patch.object(processor_windows, "_application_root", side_effect=AssertionError("no runtime state")), patch.object(
+            processor_windows, "build_parser", side_effect=AssertionError("no ordinary startup")
+        ), redirect_stdout(output):
+            self.assertEqual(processor_windows.main(["--device-release-info"]), 0)
+        canonical = json.dumps(TRUSTED_ISSUERS, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        self.assertEqual(json.loads(output.getvalue()), {
+            "schema": "publicvideo.device-release.v1",
+            "trust_sha256": hashlib.sha256(canonical.encode("ascii")).hexdigest(),
+            "issuer_count": len(TRUSTED_ISSUERS),
+        })
+
     def test_standalone_launcher_opens_the_new_workspace_on_port_8010(self) -> None:
         default_args = build_parser().parse_args([])
         self.assertEqual(default_args.port, 8010)
@@ -42,6 +63,12 @@ class ProcessorLauncherTest(unittest.TestCase):
             '"JYD_SEMANTIC_VISUAL_LIBRARY_ROOT": libraries_root / "semantic_visual_library"',
             launcher,
         )
+        self.assertIn('"JYD_SEMANTIC_VISUAL_SOURCE_MODE"', launcher)
+        self.assertIn('[string]$SemanticVisualSource = "folders"', source_launcher)
+        self.assertIn(
+            '$env:JYD_SEMANTIC_VISUAL_SOURCE_MODE = $SemanticVisualSource',
+            source_launcher,
+        )
         self.assertIn('$env:JYD_ALLOW_LOCAL_FILE_ACCESS = "true"', source_launcher)
         self.assertIn("_start_embedded_collector()", launcher)
         processor_spec = (PROJECT_ROOT / "apps" / "processor" / "processor_windows.spec").read_text(
@@ -49,6 +76,15 @@ class ProcessorLauncherTest(unittest.TestCase):
         )
         self.assertIn('apps" / "collector" / "frontend', processor_spec)
         self.assertIn('"tkinter.filedialog"', processor_spec)
+
+    def test_folder_library_is_the_formal_default_with_json_rollback(self) -> None:
+        self.assertEqual(_semantic_visual_source_mode({}), "folders")
+        self.assertEqual(
+            _semantic_visual_source_mode({"semantic_visual_source_mode": "json"}),
+            "json",
+        )
+        with self.assertRaisesRegex(ValueError, "folders 或 json"):
+            _semantic_visual_source_mode({"semantic_visual_source_mode": "invalid"})
 
     def test_source_launchers_keep_production_and_test_workbenches_paired(self) -> None:
         production = (PROJECT_ROOT / "start_processor.ps1").read_text(encoding="utf-8")

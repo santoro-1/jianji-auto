@@ -247,6 +247,7 @@
                 summary,
                 caption,
                 captionTracks,
+                coverImageUrl: String(api?.getCoverImageUrl?.() || ''),
                 fontFamily: ''
             };
             active.fontFamily = await loadCaptionFont(caption, templateId);
@@ -406,12 +407,12 @@
         return image;
     }
 
-    function drawAsset(ctx, rect, segment, material, alpha) {
+    function drawAsset(ctx, rect, segment, material, alpha, fullFrame = false) {
         const image = imageFor(material.browser_asset_url);
         if (!image?.complete || !image.naturalWidth) return;
         const transform = segment.clip?.transform || {};
         const scale = transform.scale || {};
-        const width = rect.width * Math.max(0.05, number(scale.x, 0.32));
+        const width = rect.width * Math.max(0.05, number(scale.x, fullFrame ? 1 : 0.32));
         const height = width * image.naturalHeight / image.naturalWidth * Math.max(0.05, number(scale.y, 1));
         const x = rect.x + rect.width * (0.5 + number(transform.x) / 2) - width / 2;
         const y = rect.y + rect.height * (0.5 - number(transform.y) / 2) - height / 2;
@@ -464,6 +465,11 @@
             const alpha = segmentAlpha(segment, templateTimeUs);
             if (track.type === 'effect') drawEffect(ctx, rect, segment, material, number(video.currentTime));
             else if (track.type === 'text') drawText(ctx, rect, segment, material, alpha);
+            else if (
+                track.type === 'video'
+                && String(segment.id || '') === String(active.manifest.cover_portrait_segment_id || '')
+                && active.coverImageUrl
+            ) drawAsset(ctx, rect, segment, { ...material, browser_asset_url: active.coverImageUrl }, 1, true);
             else if (material.browser_asset_url && track.type !== 'video') drawAsset(ctx, rect, segment, material, alpha);
         });
         ctx.restore();

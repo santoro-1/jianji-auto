@@ -2,10 +2,20 @@ from __future__ import annotations
 
 import os
 import json
+from dataclasses import dataclass
 from pathlib import Path
 import shutil
 import sys
 from typing import Iterable
+
+
+@dataclass(frozen=True)
+class JianyingDraftRootDetection:
+    """How the active Jianying draft directory was resolved."""
+
+    path: Path
+    source: str
+    confirmed: bool
 
 
 def is_frozen() -> bool:
@@ -45,22 +55,55 @@ def detect_jianying_draft_root(
     explicit configured path still wins because it represents a user override.
     """
 
+    return detect_jianying_draft_root_details(configured, fallback=fallback).path
+
+
+def detect_jianying_draft_root_details(
+    configured: str | Path | None = None,
+    *,
+    fallback: str | Path | None = None,
+) -> JianyingDraftRootDetection:
+    """Resolve the draft root and retain whether it came from Jianying itself.
+
+    A root recorded in ``root_meta_info.json`` is authoritative even when it is
+    currently empty.  Older logic only accepted a root containing at least one
+    plain ``draft_content.json`` and could therefore silently fall back to the
+    deployment's ``data/drafts`` directory on a new or freshly cleaned PC.
+    """
+
     if configured is not None and str(configured).strip():
-        return Path(configured).expanduser().resolve()
+        path = Path(configured).expanduser().resolve()
+        return JianyingDraftRootDetection(
+            path=path,
+            source="configured",
+            confirmed=path.is_dir(),
+        )
 
     indexed = _jianying_catalogue_roots()
     populated = _best_populated_draft_root(indexed)
     if populated is not None:
-        return populated
+        return JianyingDraftRootDetection(populated, "jianying_catalogue", True)
+
+    # Jianying's own catalogue remains the strongest source of truth when the
+    # selected folder has no drafts yet.  Prefer the first existing root because
+    # _jianying_catalogue_roots() orders entries by Jianying's activity time.
+    indexed_existing = _first_existing_directory(indexed)
+    if indexed_existing is not None:
+        return JianyingDraftRootDetection(indexed_existing, "jianying_catalogue", True)
+
     candidates = jianying_draft_root_candidates()
     populated = _best_populated_draft_root(candidates)
     if populated is not None:
-        return populated
+        return JianyingDraftRootDetection(populated, "populated_scan", True)
 
     if fallback is not None:
-        return Path(fallback).expanduser().resolve()
+        return JianyingDraftRootDetection(
+            Path(fallback).expanduser().resolve(),
+            "fallback",
+            False,
+        )
     home = Path.home()
-    return (
+    default = (
         home
         / "AppData"
         / "Local"
@@ -69,6 +112,7 @@ def detect_jianying_draft_root(
         / "Projects"
         / "com.lveditor.draft"
     ).resolve()
+    return JianyingDraftRootDetection(default, "default", default.is_dir())
 
 
 def jianying_draft_root_candidates() -> list[Path]:
@@ -111,21 +155,14 @@ def jianying_draft_root_candidates() -> list[Path]:
 
 
 def _jianying_catalogue_roots() -> list[Path]:
-    home = Path.home()
-    default_root = (
-        home
-        / "AppData"
-        / "Local"
-        / "JianyingPro"
-        / "User Data"
-        / "Projects"
-        / "com.lveditor.draft"
-    )
-    catalogue_path = default_root / "root_meta_info.json"
     candidates: list[Path] = []
-    if catalogue_path.is_file():
+    for catalogue_path in _jianying_catalogue_paths():
+        if not catalogue_path.is_file():
+            continue
         try:
-            catalogue = json.loads(catalogue_path.read_text(encoding="utf-8"))
+            # utf-8-sig accepts both ordinary UTF-8 and the BOM emitted by some
+            # Windows-side file writers.
+            catalogue = json.loads(catalogue_path.read_text(encoding="utf-8-sig"))
             stores = catalogue.get("all_draft_store", []) if isinstance(catalogue, dict) else []
             indexed: dict[str, tuple[Path, int]] = {}
             for item in stores if isinstance(stores, list) else []:
@@ -153,6 +190,33 @@ def _jianying_catalogue_roots() -> list[Path]:
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             pass
     return _unique_paths(candidates)
+
+
+def _jianying_catalogue_paths() -> list[Path]:
+    relative = (
+        Path("JianyingPro")
+        / "User Data"
+        / "Projects"
+        / "com.lveditor.draft"
+        / "root_meta_info.json"
+    )
+    bases: list[Path] = []
+    local_app_data = os.environ.get("LOCALAPPDATA", "").strip()
+    if local_app_data:
+        bases.append(Path(local_app_data))
+    bases.append(Path.home() / "AppData" / "Local")
+    return _unique_paths(base / relative for base in bases)
+
+
+def _first_existing_directory(candidates: Iterable[Path]) -> Path | None:
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+            if resolved.is_dir():
+                return resolved
+        except OSError:
+            continue
+    return None
 
 
 def _best_populated_draft_root(candidates: Iterable[Path]) -> Path | None:

@@ -105,7 +105,7 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
             patch(
                 "jyd_probe.auth_center.AuthCenterClient.get_h3_batch",
                 return_value=active_snapshot,
-            ),
+            ) as get_h3,
         ):
             app = create_app(settings)
             with TestClient(app) as client:
@@ -231,6 +231,26 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 assert untouched["status"] == untouched_status
                 assert untouched["settings"].get("h3", {}).get("remote_item_id") is None
                 assert untouched["settings"].get("h3", {}).get("remote_status") is None
+
+                get_h3.return_value = prepared_snapshot
+                quotes = client.post(f"/api/new/projects/{project_id}/h3/quotes/inspect",
+                                     json={"item_ids": [item_id]})
+                assert quotes.status_code == 200, quotes.text
+                assert quotes.json()["batches"][0]["can_resume"]
+                invalid = client.post(f"/api/new/projects/{project_id}/h3/quotes/inspect",
+                                      json={"item_ids": ["another-project-item"]})
+                assert invalid.status_code in {404, 409}
+                not_cancelled = client.post(f"/api/new/projects/{project_id}/h3/quotes/remote-h3-batch/cancel",
+                                           json={"cancel_quote_confirmed": False})
+                assert not_cancelled.status_code == 409
+                original_audio = audio_path.read_bytes()
+                audio_path.write_bytes(b"changed audio since quote")
+                mismatch = client.post(f"/api/new/projects/{project_id}/h3/confirm",
+                    json={"cost_confirmed": True, "batch_id": "remote-h3-batch"})
+                assert mismatch.status_code == 409, mismatch.text
+                assert mismatch.json()["detail"]["code"] == "H3_QUOTE_CONFLICT"
+                audio_path.write_bytes(original_audio)
+                get_h3.return_value = active_snapshot
 
                 rejected = client.post(
                     f"/api/new/projects/{project_id}/h3/confirm",

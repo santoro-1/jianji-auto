@@ -188,6 +188,7 @@
     async function upload() {
         if (state.busy) return;
         const name = node('jianying-template-name').value.trim();
+        const coverFrameCount = Number(node('jianying-template-cover-frame-count').value || 3);
         if (!name) { progress('请先填写模板名称。', true); return; }
         let created = null;
         try {
@@ -195,10 +196,10 @@
             if (!files.length) return;
             setBusy(true);
             created = await api('/api/new/jianying-templates', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, cover_frame_count: coverFrameCount })
             });
             await uploadFiles(created.template_id, 'draft-files', files);
-            progress('正在自动识别主视频和语音字幕轨…');
+            progress('正在自动识别封面人物图槽、主视频和语音字幕轨…');
             const analyzed = await api(`/api/new/jianying-templates/${created.template_id}/analyze`, { method: 'POST' });
             node('jianying-template-name').value = '';
             await load();

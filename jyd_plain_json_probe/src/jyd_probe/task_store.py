@@ -180,6 +180,29 @@ class SQLiteTaskStore:
     ) -> None:
         normalized = dict(status)
         current = str(normalized.get("status") or "failed")
+        if normalized.get("agent_device_authorization"):
+            # A copied/stale status file must not reset an authoritative DB row.
+            # If the DB really was lost, preserve the old execution assignment
+            # for reporting; never import possibly running Agent work as pending.
+            with self._transaction() as connection:
+                if connection.execute("SELECT 1 FROM jobs WHERE job_id=?", (job_id,)).fetchone():
+                    return
+                if current in {"pending", "running"}:
+                    current = "running"
+                    normalized.update(agent_recovery_required=True, recovery_reason="imported_authorized_agent_uncertain")
+                    normalized.pop("lease_expires_at", None)
+                normalized["status"] = current
+                now = _now()
+                connection.execute(
+                    "INSERT INTO jobs(job_id,batch_id,status,payload_json,status_json,assigned_agent_id,created_at,queued_at,"
+                    "started_at,finished_at,retry_count,cancel_requested,error,result_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (job_id, normalized.get("batch_id") or None, current, _json(payload), _json(normalized),
+                     normalized.get("assigned_agent_id"), normalized.get("created_at") or now, normalized.get("queued_at") or now,
+                     normalized.get("started_at"), normalized.get("finished_at"), int(normalized.get("retry_count") or 0),
+                     int(normalized.get("cancel_requested") is True), str(normalized.get("error") or ""),
+                     _json(normalized["result"]) if isinstance(normalized.get("result"), dict) else None),
+                )
+            return
         if current == "running":
             current = "pending"
             normalized.update(
@@ -298,6 +321,22 @@ class SQLiteTaskStore:
             ).fetchall()
             for row in rows:
                 status = _object(row["status_json"], {})
+                if status.get("agent_device_authorization"):
+                    # Losing an Agent lease is not proof its renderer stopped.
+                    # Keep the original assignment for result recovery, and never
+                    # silently hand potentially running work to a second machine.
+                    status["agent_recovery_required"] = True
+                    status["recovery_reason"] = "authorized_agent_lease_uncertain"
+                    status.pop("lease_expires_at", None)
+                    connection.execute(
+                        "UPDATE jobs SET status_json=?, lease_expires_at=NULL WHERE job_id=?",
+                        (_json(status), row["job_id"]),
+                    )
+                    connection.execute(
+                        "UPDATE agents SET status='offline' WHERE agent_id=? AND current_job_id=?",
+                        (row["assigned_agent_id"], row["job_id"]),
+                    )
+                    continue
                 cancelled = bool(row["cancel_requested"])
                 status.update(
                     {
@@ -336,11 +375,21 @@ class SQLiteTaskStore:
                 recovered.append(str(row["job_id"]))
         return recovered
 
-    def claim_job(self, agent_id: str, lease_seconds: int = 120) -> dict[str, Any] | None:
+    def claim_job(self, agent_id: str, lease_seconds: int = 120, *, authorization=None) -> dict[str, Any] | None:
+        from .device_agent_queue import require_decision, require_assignment
+        from .device_agent_protocol import fail
+        from .device_local_execution import render_operation_scopes
+
+        if authorization is not None:
+            require_decision(authorization, "execute")
         self.recover_expired_leases()
         now = _now()
         lease_expires_at = _future(lease_seconds)
         with self._transaction() as connection:
+            if authorization is not None:
+                require_decision(authorization, "execute")
+                from .device_agent_operations import require_agent_binding
+                require_agent_binding(connection, agent_id, authorization)
             agent = connection.execute(
                 "SELECT current_job_id FROM agents WHERE agent_id=?", (agent_id,)
             ).fetchone()
@@ -350,16 +399,59 @@ class SQLiteTaskStore:
                 row = connection.execute(
                     "SELECT * FROM jobs WHERE job_id=?", (agent["current_job_id"],)
                 ).fetchone()
+                if row is not None and authorization is not None:
+                    status = _object(row["status_json"], {})
+                    require_assignment(status, authorization)
+                    if status.get("agent_recovery_required") and status.get("agent_execution"):
+                        fail("DEVICE_AGENT_EXECUTION_UNCERTAIN", "原处理任务状态待确认，未重复分配", 409)
+                    if not render_operation_scopes(_object(row["payload_json"], {})) <= authorization.scopes:
+                        fail("DEVICE_SCOPE_DENIED", "此执行机当前没有原任务所需权限")
+                    if status.get("agent_recovery_required"):
+                        # No durable start receipt exists: the compliant Agent
+                        # has not been authorized to invoke its renderer yet.
+                        status.pop("agent_recovery_required", None)
+                        status.pop("recovery_reason", None)
+                        status.update(heartbeat_at=now, lease_expires_at=lease_expires_at)
+                        connection.execute("UPDATE jobs SET status_json=?,heartbeat_at=?,lease_expires_at=? WHERE job_id=?",
+                                           (_json(status), now, lease_expires_at, row["job_id"]))
+                        row = dict(row)
+                        row.update(status_json=_json(status), lease_expires_at=lease_expires_at)
                 return self._job_claim_dict(row) if row is not None else None
+
+            if authorization is not None and authorization.thumbprint is not None:
+                busy = connection.execute(
+                    "SELECT 1 FROM jobs WHERE status='running' AND json_extract(status_json, '$.agent_device_authorization.thumbprint')=? LIMIT 1",
+                    (authorization.thumbprint,),
+                ).fetchone()
+                if busy is not None:
+                    # Several labels/accounts must not give one physical key
+                    # concurrent render slots in the same central queue.
+                    return None
 
             row = connection.execute(
                 """
                 SELECT * FROM jobs
                 WHERE status='pending' AND cancel_requested=0
+                  AND COALESCE(json_extract(status_json, '$.device_authorization.waiting'), 0)=0
+                  AND json_type(status_json, '$.agent_device_authorization') IS NULL
                 ORDER BY queued_at, created_at, rowid
                 LIMIT 1
                 """
             ).fetchone()
+            if authorization is not None:
+                # Only server-recorded owners count. Legacy/unowned jobs and
+                # user_id fields inside the job payload are never guessed.
+                candidates = connection.execute(
+                    "SELECT * FROM jobs WHERE status='pending' AND cancel_requested=0 "
+                    "AND COALESCE(json_extract(status_json, '$.device_authorization.waiting'), 0)=0 "
+                    "AND json_type(status_json, '$.agent_device_authorization') IS NULL "
+                    "AND json_type(status_json, '$.device_authorization.user_id')='integer' "
+                    "AND json_extract(status_json, '$.device_authorization.user_id')=? "
+                    "ORDER BY queued_at, created_at, rowid",
+                    (authorization.user_id,),
+                )
+                row = next((candidate for candidate in candidates
+                            if render_operation_scopes(_object(candidate["payload_json"], {})) <= authorization.scopes), None)
             if row is None:
                 connection.execute(
                     "UPDATE agents SET status='idle', last_heartbeat_at=? WHERE agent_id=?",
@@ -368,6 +460,8 @@ class SQLiteTaskStore:
                 return None
 
             status = _object(row["status_json"], {})
+            if authorization is not None:
+                status["agent_device_authorization"] = authorization.snapshot()
             status.update(
                 {
                     "status": "running",
@@ -508,6 +602,57 @@ class SQLiteTaskStore:
             )
         return status
 
+    def device_waiting_jobs(self, user_id: int) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT job_id, created_at, status_json FROM jobs WHERE status='pending' AND cancel_requested=0 "
+                "AND json_extract(status_json, '$.device_authorization.waiting')=1 "
+                "AND json_extract(status_json, '$.device_authorization.user_id')=? ORDER BY created_at, rowid LIMIT 100", (user_id,)
+            ).fetchall()
+        return [{"job_id": row["job_id"], "created_at": row["created_at"],
+                 "code": (_object(row["status_json"], {}).get("device_authorization") or {}).get("code", "AUTH_REFRESH_REQUIRED")}
+                for row in rows]
+
+    def get_job_payload(self, job_id: str) -> dict[str, Any]:
+        with self._connect() as connection:
+            row = connection.execute("SELECT payload_json FROM jobs WHERE job_id=?", (job_id,)).fetchone()
+        if row is None:
+            raise KeyError("任务不存在")
+        return _object(row["payload_json"], {})
+
+    def pause_for_device_authorization(self, job_id: str, code: str) -> dict[str, Any]:
+        with self._transaction() as connection:
+            row = connection.execute("SELECT status_json, assigned_agent_id, status, cancel_requested FROM jobs WHERE job_id=?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError("任务不存在")
+            status = _object(row["status_json"], {})
+            if row["status"] not in {"running", "pending"}:
+                return status
+            binding = dict(status.get("device_authorization") or {})
+            binding.update({"waiting": True, "code": code, "checked_at": _now()})
+            status.update({"status": "cancelled" if row["cancel_requested"] else "pending", "device_authorization": binding})
+            for field in ("assigned_agent_id", "started_at", "heartbeat_at", "lease_expires_at"):
+                status.pop(field, None)
+            connection.execute("UPDATE jobs SET status=?, status_json=?, assigned_agent_id=NULL, started_at=NULL, heartbeat_at=NULL, lease_expires_at=NULL WHERE job_id=?",
+                               (status["status"], _json(status), job_id))
+            connection.execute("UPDATE agents SET status='idle', current_job_id=NULL WHERE agent_id=? AND current_job_id=?", (row["assigned_agent_id"], job_id))
+        return status
+
+    def resume_device_authorization(self, job_id, user_id, binding):
+        with self._transaction() as connection:
+            row = connection.execute("SELECT status, cancel_requested, status_json FROM jobs WHERE job_id=?", (job_id,)).fetchone()
+            if row is None:
+                raise KeyError("任务不存在")
+            status = _object(row["status_json"], {})
+            original = status.get("device_authorization") or {}
+            if original.get("user_id") != user_id or binding.get("user_id") != user_id:
+                raise PermissionError("无权恢复该任务的设备授权")
+            if row["status"] != "pending" or row["cancel_requested"] or not original.get("waiting"):
+                raise ValueError("此任务不在等待授权状态")
+            status["device_authorization"] = binding
+            connection.execute("UPDATE jobs SET status_json=? WHERE job_id=?", (_json(status), job_id))
+        return status
+
     def get_status(self, job_id: str) -> dict[str, Any] | None:
         with self._connect() as connection:
             row = connection.execute(
@@ -610,8 +755,9 @@ class SQLiteTaskStore:
                 (batch_id,),
             ).fetchall()
             for row in rows:
-                if row["status"] == "pending":
-                    status = _object(row["status_json"], {})
+                status = _object(row["status_json"], {})
+                unstarted_agent = row["status"] == "running" and bool(status.get("agent_device_authorization")) and not status.get("agent_execution")
+                if row["status"] == "pending" or unstarted_agent:
                     status.update(
                         {
                             "status": "cancelled",
@@ -628,6 +774,8 @@ class SQLiteTaskStore:
                         (_json(status), now, row["job_id"]),
                     )
                     cancelled.append(str(row["job_id"]))
+                    if unstarted_agent:
+                        connection.execute("UPDATE agents SET current_job_id=NULL,status='idle' WHERE current_job_id=?", (row["job_id"],))
                 elif row["status"] == "running":
                     connection.execute(
                         "UPDATE jobs SET cancel_requested=1 WHERE job_id=?",

@@ -155,6 +155,12 @@ def test_no_legacy_fallback_in_empty_folder_mode(tmp_path):
     assert folders.scan_folders(tmp_path).assets == ()
 
 
+def test_empty_folder_catalog_creates_the_user_drop_directory(tmp_path):
+    catalog = folders.FolderCatalog(tmp_path)
+    assert catalog.assets == ()
+    assert (tmp_path / "素材").is_dir()
+
+
 def test_scan_unchanged_does_not_hash_media(tmp_path, monkeypatch):
     picture(tmp_path)
     first = folders.scan_folders(tmp_path)

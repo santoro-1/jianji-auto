@@ -1486,12 +1486,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=0,
         help="把第 1 条视频轨道第 1 个片段的目标时长改为指定微秒数；0 表示不修改",
     )
+    from .device_command_authorization import add_command_authorization_arguments
+    add_command_authorization_arguments(parser)
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(sys.argv[1:] if argv is None else argv)
-
+def _run_probe(args) -> int:
     try:
         draft = import_pyjianyingdraft()
 
@@ -1606,4 +1606,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except Exception as exc:
         log(str(exc), "ERROR")
+        return 1
+
+
+def main(argv: list[str] | None = None) -> int:
+    from .device_command_authorization import command_authorization
+    from .device_local_execution import authorized_local_unit
+    from .device_auth_protocol import DeviceAuthorizationError
+    from .device_identity_windows import DeviceIdentityError
+
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    if not args.output_root:
+        return _run_probe(args)  # Inspection/material metadata export is not rendering.
+    try:
+        with command_authorization(args), authorized_local_unit({"local:draft"}):
+            return _run_probe(args)
+    except (DeviceAuthorizationError, DeviceIdentityError) as exc:
+        log(f"{exc.code}: {exc}", "ERROR")
         return 1
