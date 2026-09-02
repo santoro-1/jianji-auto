@@ -4091,6 +4091,7 @@ class ProjectStore:
                 "last_synced_at": now,
                 "confirmed_at": snapshot.get("confirmed_at"),
                 "quote_recovery": snapshot.get("quote_recovery"),
+                "download_progress": snapshot.get("download_progress"),
             }
             if quote_binding is not None:
                 batch_record["quote_binding"] = quote_binding

@@ -273,7 +273,7 @@ def test_cloud_download_carries_proof_but_runninghub_url_never_does(
         assert not req.has_header("Dpop") and not req.has_header("Authorization")
         return Response(b"raw")
 
-    monkeypatch.setattr("jyd_probe.auth_center.urlopen", direct)
+    monkeypatch.setattr(client._h3_media_session, "open", direct)
     assert (
         client.download_h3_segment_video(
             "login-token",

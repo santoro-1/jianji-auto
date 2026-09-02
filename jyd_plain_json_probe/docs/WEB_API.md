@@ -672,6 +672,10 @@ PATCH /api/new/projects/{project_id}/items/{item_id}/postprocess-settings
 `postprocess/export`，不得把其他已就绪行一并提交到 `postprocess/generate`。
 同一请求批量规划多个草稿时，名称在任务提交前即按批内集合预留；即使草稿目录尚未由队列
 创建，同名基础名也会依次取得 `-02`、`-03` 后缀，不能把文件系统的瞬时空缺当作名称可用。
+同一项目的生成、导出和状态同步在单个 API 进程中串行进入提交临界区；连续点击即使携带
+不同幂等键，也不能在首个剪映任务号回写前再创建第二个任务。状态同步发现活动操作没有
+`job_id` 时不再无限等待：操作以 `POSTPROCESS_SUBMISSION_INTERRUPTED` 失败收口，有完整历史
+冻结草稿的行恢复为 `COMPOSITION_READY`，否则恢复为可重新生成的 `COMPOSITION_FAILED`。
 对于已有两个及以上真实数字人分段的行，`postprocess/generate` 会在冻结配方前自动用现有
 工作台令牌调用一次 `/api/workbench/visual-analysis`，只判断连接处 `seam_broll` 候选并与首轮
 配方合并。成功候选摘要用于幂等复用；云端失败、无合格素材或旧服务暂不支持新字段时不阻塞
@@ -972,7 +976,17 @@ $env:JYD_ADMIN_COOKIE_SECURE="false"
 $env:JYD_SITE_USERNAME="operator"
 $env:JYD_SITE_PASSWORD="自定义操作员密码"
 $env:JYD_SITE_SESSION_SECRET="请设置长期固定的操作员会话密钥"
-$env:JYD_AUTH_TIMEOUT_SECONDS="15"
+$env:JYD_AUTH_TIMEOUT_SECONDS="30"
+$env:JYD_H3_DOWNLOAD_WORKERS="10"
+$env:JYD_H3_DOWNLOAD_MIN_WORKERS="2"
+$env:JYD_H3_DOWNLOAD_ADAPTIVE_ENABLED="true"
+$env:JYD_H3_DOWNLOAD_QUEUE_MAX="1000"
+$env:JYD_H3_DOWNLOAD_VALIDATE_WORKERS="2"
+$env:JYD_H3_DOWNLOAD_CONNECT_TIMEOUT_SECONDS="10"
+$env:JYD_H3_DOWNLOAD_READ_IDLE_TIMEOUT_SECONDS="120"
+$env:JYD_H3_DOWNLOAD_TOTAL_TIMEOUT_SECONDS="3600"
+$env:JYD_H3_DOWNLOAD_MIN_FREE_GB="20"
+$env:JYD_H3_DOWNLOAD_BATCH_MAX_GB="100"
 $env:JYD_EXECUTION_MODE="embedded" # 多处理机中央服务改为 agent
 $env:JYD_DATABASE_PATH="D:\JydServer\control.db"
 $env:JYD_AGENT_TOKEN="请设置长期固定的处理机接入令牌"
@@ -1336,6 +1350,9 @@ Invoke-RestMethod `
   调用该地址，别名内部仍复用统一 content-analysis 协调器，不会调用独立视觉模型接口。统一
   分析及其单行重试接口先返回已持久化的 `PENDING` 项目快照，再由后台执行；客户端通过项目
   查询接口轮询最终状态，不应把 POST 连接保持到远端分析结束。远端分析请求上限统一为 600 秒。
+  所有项目共享整机 10 路公平队列，请求携带稳定 `analysis_operation_id` 和
+  `X-JYD-Request-Budget-Ms`。队列满或熔断的有限重试复用原操作 ID；明确业务失败、契约错误
+  或总预算耗尽不自动重放。`GET /api/health` 的 `doubao_requests` 可查看活动、排队与项目分布。
 - `POST /api/new/projects/{project_id}/items/{item_id}/visual-analysis/retry`：迁移期兼容别名，
   对当前行强制刷新统一内容分析；生产前端改用同一行的 `content-analysis/retry` 地址。
 - `PUT /api/new/projects/{project_id}/items/{item_id}/visual-overlays`：请求体为

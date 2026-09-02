@@ -17,6 +17,14 @@
 
 字幕精确校准默认使用本机 `http://127.0.0.1:18084` 的 CPU FunASR。工作台启动时会先复用已经运行的兼容服务；完整包内存在 `asr_runtime` 时会自动静默启动，关闭工作台时自动结束。模型只提供字词时间，不改写脚本，也不决定断句。
 
+工作台运行期间每 5 秒同时检查所管理的 ASR 进程和 `/healthz`；连续 3 次健康检查失败后，
+按 2、5、15 秒退避，最多自动拉起 3 次。次数耗尽后不会无限重启，启动窗口会明确提示查看
+`data/logs/asr-supervisor.jsonl` 和 `data/logs/asr.log`。监督日志记录 PID、启动/停止时间、
+退出码、是否由工作台关闭、重启次数、当时内存/磁盘资源和 ASR 合并输出尾部。因连接中断失败的
+当前本地识别会等待服务恢复并且只重试一次，不会重复触发 MiniMax、RunningHub 或剪映任务。
+上述默认值可通过 `data/processor_config.json` 的 `asr_health_interval_seconds`、
+`asr_health_failure_limit`、`asr_restart_limit` 和 `asr_restart_backoff_seconds` 调整。
+
 完整打包时，把 `runninghub_mvp/media_node/build-portable-media-node.ps1` 生成并展开的完整便携运行时传给：
 
 ```powershell

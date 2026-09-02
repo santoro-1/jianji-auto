@@ -3,7 +3,9 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import hashlib
+import inspect
 import json
+import uuid
 from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
@@ -18,6 +20,27 @@ from .semantic_visuals import (
     recall_semantic_visual_candidates,
 )
 from .unified_visual_plan import UnifiedVisualInput, prepare_unified_visual_input
+
+
+def _analyze_visual_request(
+    client: AuthCenterClient,
+    token: str,
+    payload: dict[str, Any],
+    *,
+    project_key: str,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"force_refresh": force_refresh}
+    parameters = inspect.signature(client.analyze_workbench_visuals).parameters
+    if "analysis_operation_id" in parameters or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    ):
+        kwargs.update(
+            analysis_operation_id=uuid.uuid4().hex,
+            project_key=project_key,
+        )
+    return client.analyze_workbench_visuals(token, payload, **kwargs)
 
 
 def _seam_recipe_fingerprint(recipe: Mapping[str, Any]) -> str:
@@ -366,9 +389,11 @@ class ProjectVisualAnalysisCoordinator:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(
-                        self.client.analyze_workbench_visuals,
+                        _analyze_visual_request,
+                        self.client,
                         token,
                         target.request,
+                        project_key=f"{owner_user_id}:{project_id}",
                         force_refresh=force_refresh,
                     ): target
                     for target in remote_targets
@@ -525,9 +550,11 @@ class ProjectVisualAnalysisCoordinator:
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 futures = {
                     pool.submit(
-                        self.client.analyze_workbench_visuals,
+                        _analyze_visual_request,
+                        self.client,
                         token,
                         target.request,
+                        project_key=f"{owner_user_id}:{project_id}",
                     ): target
                     for target in targets
                 }

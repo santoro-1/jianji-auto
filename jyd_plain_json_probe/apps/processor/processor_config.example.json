@@ -8,5 +8,9 @@
   "auth_authority": "false",
   "asr_base_url": "http://127.0.0.1:18084",
   "asr_required": "true",
-  "asr_runtime_root": "asr_runtime"
+  "asr_runtime_root": "asr_runtime",
+  "asr_health_interval_seconds": "5",
+  "asr_health_failure_limit": "3",
+  "asr_restart_limit": "3",
+  "asr_restart_backoff_seconds": "2,5,15"
 }

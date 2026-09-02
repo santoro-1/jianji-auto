@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+from datetime import datetime, timezone
 import json
 import logging
 import os
 from pathlib import Path
+import shutil
 import socket
 import subprocess
 import sys
@@ -18,6 +21,7 @@ import webbrowser
 
 
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
+_ASR_EVENT_LOG_LOCK = threading.Lock()
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(SOURCE_ROOT / "src"))
 
@@ -240,6 +244,111 @@ def _asr_is_healthy(base_url: str) -> bool:
         return False
 
 
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _asr_log_tail(data_root: Path, *, limit_bytes: int = 8192) -> str:
+    path = data_root / "logs" / "asr.log"
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - limit_bytes), os.SEEK_SET)
+            return handle.read().decode("utf-8", errors="replace")[-4000:]
+    except OSError:
+        return ""
+
+
+def _system_resource_snapshot(data_root: Path) -> dict[str, object]:
+    snapshot: dict[str, object] = {"cpu_count": os.cpu_count()}
+    try:
+        disk = shutil.disk_usage(data_root)
+        snapshot.update(
+            {
+                "disk_total_bytes": disk.total,
+                "disk_free_bytes": disk.free,
+            }
+        )
+    except OSError:
+        pass
+    if sys.platform == "win32":
+        class MemoryStatus(ctypes.Structure):
+            _fields_ = [
+                ("length", ctypes.c_ulong),
+                ("memory_load_percent", ctypes.c_ulong),
+                ("total_physical_bytes", ctypes.c_ulonglong),
+                ("available_physical_bytes", ctypes.c_ulonglong),
+                ("total_page_file_bytes", ctypes.c_ulonglong),
+                ("available_page_file_bytes", ctypes.c_ulonglong),
+                ("total_virtual_bytes", ctypes.c_ulonglong),
+                ("available_virtual_bytes", ctypes.c_ulonglong),
+                ("available_extended_virtual_bytes", ctypes.c_ulonglong),
+            ]
+
+        memory = MemoryStatus()
+        memory.length = ctypes.sizeof(MemoryStatus)
+        try:
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+                snapshot.update(
+                    {
+                        "memory_load_percent": int(memory.memory_load_percent),
+                        "memory_total_bytes": int(memory.total_physical_bytes),
+                        "memory_available_bytes": int(memory.available_physical_bytes),
+                    }
+                )
+        except (AttributeError, OSError):
+            pass
+    return snapshot
+
+
+def _record_asr_event(data_root: Path, event: str, **details: object) -> None:
+    record = {
+        "schema": "jyd.asr-supervisor-event.v1",
+        "timestamp": _utc_now(),
+        "event": event,
+        **details,
+        "system_resources": _system_resource_snapshot(data_root),
+    }
+    path = data_root / "logs" / "asr-supervisor.jsonl"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with _ASR_EVENT_LOG_LOCK, path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
+    except OSError as exc:
+        logging.getLogger("jyd_probe.server").warning(
+            "无法写入 ASR 监督日志: %s", exc
+        )
+
+
+def _process_started_at(process: subprocess.Popen[bytes]) -> str:
+    return str(getattr(process, "_jyd_asr_started_at", "") or "")
+
+
+def _record_asr_process_stop(
+    data_root: Path,
+    process: subprocess.Popen[bytes],
+    *,
+    event: str,
+    launcher_requested_stop: bool,
+    reason: str,
+    restart_count: int,
+) -> None:
+    _record_asr_event(
+        data_root,
+        event,
+        pid=process.pid,
+        started_at=_process_started_at(process),
+        stopped_at=_utc_now(),
+        exit_code=process.poll(),
+        launcher_requested_stop=launcher_requested_stop,
+        reason=reason,
+        restart_count=restart_count,
+        last_standard_error=_asr_log_tail(data_root),
+        captured_stream="combined_stdout_stderr",
+    )
+
+
 def _asr_runtime_layout(app_root: Path, config: dict[str, str]) -> tuple[Path, Path, Path] | None:
     configured = (
         os.environ.get("JYD_ASR_RUNTIME_ROOT", "").strip()
@@ -271,6 +380,8 @@ def _start_embedded_asr(
     app_root: Path,
     data_root: Path,
     config: dict[str, str],
+    *,
+    stop_event: threading.Event | None = None,
 ) -> subprocess.Popen[bytes] | None:
     base_url = os.environ.get("JYD_ASR_BASE_URL", "http://127.0.0.1:18084").rstrip("/")
     if _asr_is_healthy(base_url):
@@ -320,17 +431,362 @@ def _start_embedded_asr(
             stderr=subprocess.STDOUT,
             creationflags=creation_flags,
         )
+        started_at = _utc_now()
+        setattr(process, "_jyd_asr_started_at", started_at)
+        _record_asr_event(
+            data_root,
+            "process_started",
+            pid=process.pid,
+            started_at=started_at,
+            command_module="media_node.asr_service.app:app",
+            base_url=base_url,
+        )
     finally:
         log_handle.close()
     for _ in range(30):
         if process.poll() is not None:
+            _record_asr_process_stop(
+                data_root,
+                process,
+                event="process_exited_during_startup",
+                launcher_requested_stop=False,
+                reason="process_exited_before_health_check",
+                restart_count=0,
+            )
             raise RuntimeError(f"内置 ASR 启动失败，请查看 {log_path}")
         if _asr_is_healthy(base_url):
             print("本地 ASR: CPU 轻量模型已就绪")
             return process
-        time.sleep(1)
+        if stop_event is not None:
+            if stop_event.wait(1):
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+                _record_asr_process_stop(
+                    data_root,
+                    process,
+                    event="process_stopped_during_startup",
+                    launcher_requested_stop=True,
+                    reason="workbench_shutdown_during_asr_startup",
+                    restart_count=0,
+                )
+                raise RuntimeError("工作台关闭，已停止正在启动的内置 ASR")
+        else:
+            time.sleep(1)
     process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+    _record_asr_process_stop(
+        data_root,
+        process,
+        event="process_stopped_during_startup",
+        launcher_requested_stop=False,
+        reason="health_check_timeout",
+        restart_count=0,
+    )
     raise RuntimeError(f"内置 ASR 30 秒内未就绪，请查看 {log_path}")
+
+
+def _asr_supervisor_number(
+    config: dict[str, str], name: str, default: float, *, minimum: float
+) -> float:
+    try:
+        return max(minimum, float(config.get(name, default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _asr_restart_backoffs(config: dict[str, str]) -> tuple[float, ...]:
+    raw = str(config.get("asr_restart_backoff_seconds", "2,5,15"))
+    values: list[float] = []
+    for part in raw.split(","):
+        try:
+            values.append(max(0.0, float(part.strip())))
+        except ValueError:
+            continue
+    return tuple(values) or (2.0, 5.0, 15.0)
+
+
+class _EmbeddedASRSupervisor:
+    def __init__(
+        self,
+        app_root: Path,
+        data_root: Path,
+        config: dict[str, str],
+    ) -> None:
+        self.app_root = app_root
+        self.data_root = data_root
+        self.config = config
+        self.base_url = os.environ.get(
+            "JYD_ASR_BASE_URL", "http://127.0.0.1:18084"
+        ).rstrip("/")
+        self.required = os.environ.get(
+            "JYD_ASR_REQUIRED", "true"
+        ).strip().lower() not in {"0", "false", "no", "off"}
+        self.health_interval_seconds = _asr_supervisor_number(
+            config, "asr_health_interval_seconds", 5.0, minimum=0.1
+        )
+        self.health_failure_limit = round(
+            _asr_supervisor_number(
+                config, "asr_health_failure_limit", 3.0, minimum=1.0
+            )
+        )
+        self.restart_limit = round(
+            _asr_supervisor_number(config, "asr_restart_limit", 3.0, minimum=1.0)
+        )
+        self.restart_backoffs = _asr_restart_backoffs(config)
+        self.restart_count = 0
+        self.health_failures = 0
+        self.process: subprocess.Popen[bytes] | None = None
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._restart_exhausted_reported = False
+        self._restart_unavailable_reported = False
+
+    def _can_start_embedded(self) -> bool:
+        if not self.required:
+            return False
+        parsed = urlparse(self.base_url)
+        return bool(
+            parsed.scheme == "http"
+            and parsed.hostname in {"127.0.0.1", "localhost"}
+            and _asr_runtime_layout(self.app_root, self.config) is not None
+        )
+
+    def start(self) -> None:
+        if not self.required:
+            _record_asr_event(
+                self.data_root,
+                "supervisor_disabled",
+                base_url=self.base_url,
+                reason="asr_not_required",
+            )
+            return
+        try:
+            self.process = _start_embedded_asr(
+                self.app_root,
+                self.data_root,
+                self.config,
+                stop_event=self._stop_event,
+            )
+            if self.process is None and _asr_is_healthy(self.base_url):
+                _record_asr_event(
+                    self.data_root,
+                    "compatible_service_reused",
+                    pid=None,
+                    base_url=self.base_url,
+                    restart_count=0,
+                )
+        except Exception as exc:
+            _record_asr_event(
+                self.data_root,
+                "initial_start_failed",
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                restart_count=0,
+                last_standard_error=_asr_log_tail(self.data_root),
+            )
+            print(f"! 本地 ASR 首次启动失败，后台将在有限次数内恢复：{exc}")
+        self._thread = threading.Thread(
+            target=self._monitor_loop,
+            name="jyd-asr-supervisor",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def _monitor_loop(self) -> None:
+        while not self._stop_event.wait(self.health_interval_seconds):
+            try:
+                self._monitor_once()
+            except Exception as exc:
+                _record_asr_event(
+                    self.data_root,
+                    "supervisor_check_failed",
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                    restart_count=self.restart_count,
+                )
+
+    def _monitor_once(self) -> None:
+        if self._stop_event.is_set():
+            return
+        process = self.process
+        if process is not None and process.poll() is not None:
+            _record_asr_process_stop(
+                self.data_root,
+                process,
+                event="process_exited",
+                launcher_requested_stop=False,
+                reason="unexpected_process_exit",
+                restart_count=self.restart_count,
+            )
+            self.process = None
+            self.health_failures = self.health_failure_limit
+        elif _asr_is_healthy(self.base_url):
+            if self.health_failures:
+                _record_asr_event(
+                    self.data_root,
+                    "health_recovered",
+                    pid=process.pid if process is not None else None,
+                    restart_count=self.restart_count,
+                    previous_failure_count=self.health_failures,
+                )
+            self.health_failures = 0
+            return
+        else:
+            self.health_failures += 1
+            if self.health_failures == 1:
+                _record_asr_event(
+                    self.data_root,
+                    "health_check_failed",
+                    pid=process.pid if process is not None else None,
+                    restart_count=self.restart_count,
+                )
+        if self.health_failures < self.health_failure_limit:
+            return
+        self.health_failures = 0
+        if process is not None and process.poll() is None:
+            self._stop_owned_process(
+                process,
+                launcher_requested_stop=False,
+                reason="health_check_failure_limit_reached",
+            )
+        self._restart_after_failure()
+
+    def _restart_after_failure(self) -> None:
+        if self._stop_event.is_set():
+            return
+        if not self._can_start_embedded():
+            if not self._restart_unavailable_reported:
+                self._restart_unavailable_reported = True
+                _record_asr_event(
+                    self.data_root,
+                    "restart_unavailable",
+                    base_url=self.base_url,
+                    restart_count=self.restart_count,
+                    reason="local_runtime_missing_or_external_service",
+                )
+                print("! 本地 ASR 不可用，且当前地址/运行时不允许工作台自动拉起。")
+            return
+        if self.restart_count >= self.restart_limit:
+            if not self._restart_exhausted_reported:
+                self._restart_exhausted_reported = True
+                _record_asr_event(
+                    self.data_root,
+                    "restart_limit_reached",
+                    restart_count=self.restart_count,
+                    restart_limit=self.restart_limit,
+                    last_standard_error=_asr_log_tail(self.data_root),
+                )
+                print(
+                    "! 本地 ASR 自动恢复次数已用完。请查看 "
+                    "data\\logs\\asr-supervisor.jsonl 和 asr.log 后重启工作台。"
+                )
+            return
+        attempt = self.restart_count + 1
+        delay = self.restart_backoffs[
+            min(attempt - 1, len(self.restart_backoffs) - 1)
+        ]
+        _record_asr_event(
+            self.data_root,
+            "restart_scheduled",
+            restart_count=attempt,
+            restart_limit=self.restart_limit,
+            delay_seconds=delay,
+        )
+        if self._stop_event.wait(delay):
+            return
+        self.restart_count = attempt
+        try:
+            restarted_process = _start_embedded_asr(
+                self.app_root,
+                self.data_root,
+                self.config,
+                stop_event=self._stop_event,
+            )
+        except Exception as exc:
+            self.process = None
+            if self._stop_event.is_set():
+                return
+            _record_asr_event(
+                self.data_root,
+                "restart_failed",
+                restart_count=self.restart_count,
+                restart_limit=self.restart_limit,
+                error_type=type(exc).__name__,
+                error_message=str(exc),
+                last_standard_error=_asr_log_tail(self.data_root),
+            )
+            return
+        if self._stop_event.is_set():
+            if restarted_process is not None:
+                self._stop_owned_process(
+                    restarted_process,
+                    launcher_requested_stop=True,
+                    reason="workbench_shutdown_after_asr_restart",
+                )
+            return
+        self.process = restarted_process
+        _record_asr_event(
+            self.data_root,
+            "restart_succeeded",
+            pid=self.process.pid if self.process is not None else None,
+            restart_count=self.restart_count,
+            restart_limit=self.restart_limit,
+            reused_compatible_service=self.process is None,
+        )
+
+    def _stop_owned_process(
+        self,
+        process: subprocess.Popen[bytes],
+        *,
+        launcher_requested_stop: bool,
+        reason: str,
+    ) -> None:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
+        _record_asr_process_stop(
+            self.data_root,
+            process,
+            event="process_stopped",
+            launcher_requested_stop=launcher_requested_stop,
+            reason=reason,
+            restart_count=self.restart_count,
+        )
+        if self.process is process:
+            self.process = None
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join(timeout=self.health_interval_seconds + 1)
+        process = self.process
+        if process is not None:
+            self._stop_owned_process(
+                process,
+                launcher_requested_stop=True,
+                reason="workbench_shutdown",
+            )
+        _record_asr_event(
+            self.data_root,
+            "supervisor_stopped",
+            restart_count=self.restart_count,
+            launcher_requested_stop=True,
+        )
 
 
 def _start_embedded_collector(port: int = 8765) -> bool:
@@ -460,7 +916,7 @@ def main(argv: list[str] | None = None) -> int:
         logger_name="jyd_probe.server",
         propagate=False,
     )
-    asr_process: subprocess.Popen[bytes] | None = None
+    asr_supervisor: _EmbeddedASRSupervisor | None = None
     try:
         app_root, data_root = _configure_environment()
         if args.render_job:
@@ -477,7 +933,8 @@ def main(argv: list[str] | None = None) -> int:
                 result = run_render_job_file(args.render_job)
             print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
             return 0
-        asr_process = _start_embedded_asr(app_root, data_root, startup_config)
+        asr_supervisor = _EmbeddedASRSupervisor(app_root, data_root, startup_config)
+        asr_supervisor.start()
         configure_file_logging(data_root / "logs", "workbench.log")
         configure_file_logging(
             data_root / "logs",
@@ -559,12 +1016,8 @@ def main(argv: list[str] | None = None) -> int:
         print(details, file=sys.stderr)
         return 1
     finally:
-        if asr_process is not None and asr_process.poll() is None:
-            asr_process.terminate()
-            try:
-                asr_process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                asr_process.kill()
+        if asr_supervisor is not None:
+            asr_supervisor.stop()
 
 
 if __name__ == "__main__":

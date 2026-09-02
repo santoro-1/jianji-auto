@@ -5,6 +5,8 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import threading
+import time
 
 import pytest
 
@@ -20,6 +22,7 @@ from jyd_probe.project_h3_media import (  # noqa: E402
     H3MediaAssets,
     H3_VISUAL_DISSOLVE_SECONDS,
 )
+from jyd_probe.h3_segment_downloads import H3SegmentDownloadManager  # noqa: E402
 from jyd_probe.project_store import ProjectStore  # noqa: E402
 
 
@@ -459,6 +462,111 @@ def test_h3_sync_downloads_successful_segments_incrementally_and_versions_previe
     assert completed["items"][0]["outputs"]["base_video"]["source_type"] == "h3"
 
 
+def test_h3_sync_returns_without_waiting_for_shared_download_manager(
+    tmp_path: Path,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 非阻塞同步",
+        items=[{"row_key": "1", "script_text": "第一段。"}],
+    )
+    project_id = str(project["project_id"])
+    payload = b"video:h3-blocked-segment"
+    snapshot = {
+        "batch_id": "h3-batch-1",
+        "status": "ACTIVE",
+        "items": [
+            {
+                "item_id": "remote-row-1",
+                "row_id": "1",
+                "status": "RUNNING",
+                "segments": [
+                    {
+                        "segment_id": "h3-blocked-segment",
+                        "index": 0,
+                        "script_text": "第一段。",
+                        "status": "SUCCESS",
+                        "normalized_video_download_url": "/segment/video",
+                        "normalized_video_sha256": hashlib.sha256(payload).hexdigest(),
+                        "completed_at": "2026-09-02T00:00:00+00:00",
+                    }
+                ],
+            }
+        ],
+    }
+    store.set_h3_batch_snapshot(
+        "user-1",
+        project_id,
+        prepare_key="quote-blocked",
+        snapshot=snapshot,
+    )
+    release_download = threading.Event()
+
+    class BlockingH3Client(FakeH3Client):
+        def download_h3_segment_video(
+            self,
+            token: str,
+            segment_id: str,
+            target: Path,
+            *,
+            max_bytes: int,
+            delivery: dict | None = None,
+        ) -> int:
+            del token, segment_id, max_bytes, delivery
+            if not release_download.wait(5):
+                raise TimeoutError("test download gate was not released")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+            return len(payload)
+
+    client = BlockingH3Client()
+    client.snapshot = snapshot
+    storage_root = tmp_path / "storage"
+    manager = H3SegmentDownloadManager(
+        storage_root,
+        max_workers=1,
+        min_workers=1,
+        adaptive_enabled=False,
+        acquire_machine_lock=False,
+    )
+    coordinator = ProjectH3Coordinator(
+        store,
+        client,  # type: ignore[arg-type]
+        storage_root=storage_root,
+        media_preparer=fake_media_preparer,
+        segment_download_manager=manager,
+    )
+    try:
+        started = time.perf_counter()
+        response = coordinator.sync("user-1", project_id, "token")
+        elapsed = time.perf_counter() - started
+
+        assert elapsed < 1.0
+        progress = response["project"]["settings"]["h3"]["batches"][0][
+            "download_progress"
+        ]
+        assert progress["downloaded_count"] == 0
+        assert progress["total_count"] == 1
+        assert progress["active_count"] + progress["queued_count"] == 1
+
+        release_download.set()
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            refreshed = coordinator.sync("user-1", project_id, "token")["project"]
+            if refreshed["settings"]["h3"]["batches"][0]["download_progress"][
+                "downloaded_count"
+            ] == 1:
+                break
+            time.sleep(0.02)
+        else:
+            pytest.fail("shared H3 download did not finish after the gate opened")
+    finally:
+        release_download.set()
+        manager.shutdown(wait_seconds=5)
+
+
 def test_h3_sync_prefers_runninghub_direct_delivery(tmp_path: Path) -> None:
     store = ProjectStore(tmp_path / "control.db")
     project = store.create_project(
@@ -549,7 +657,7 @@ def test_h3_sync_prefers_runninghub_direct_delivery(tmp_path: Path) -> None:
     segment = synchronized["items"][0]["settings"]["h3"]["segments"][0]
     assert segment["local_preview_ready"] is True
     cache_root = tmp_path / "storage" / "projects" / "user-1" / project_id
-    metadata = next(cache_root.rglob("raw.json"))
+    metadata = next(cache_root.rglob("versions/*/metadata.json"))
     cached = json.loads(metadata.read_text(encoding="utf-8"))
     assert cached["result_signature"] == signature
     assert cached["local_video_sha256"]

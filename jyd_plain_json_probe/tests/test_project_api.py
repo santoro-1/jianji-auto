@@ -262,6 +262,12 @@ class ProjectApiTest(unittest.TestCase):
                     '{"project_id":"another-project","access_token":"leak"}\n',
                     encoding="utf-8",
                 )
+                (logs_root / "asr-supervisor.jsonl").write_text(
+                    '{"event":"process_exited","pid":123,"exit_code":17,'
+                    '"last_standard_error":"D:\\\\private\\\\asr.wav",'
+                    '"access_token":"asr-secret"}\n',
+                    encoding="utf-8",
+                )
 
                 response = client.get(
                     f'/api/new/projects/{project["project_id"]}/diagnostics'
@@ -272,6 +278,7 @@ class ProjectApiTest(unittest.TestCase):
                     summary_text = archive.read("项目诊断摘要.json").decode("utf-8")
                     summary = json.loads(summary_text)
                     log_text = archive.read("项目相关日志.txt").decode("utf-8")
+                    asr_log = archive.read("ASR监督日志.jsonl").decode("utf-8")
                 self.assertEqual(summary["schema"], "jyd.project-diagnostics.v1")
                 self.assertEqual(
                     summary["operations"][0]["correlation_id"],
@@ -300,6 +307,12 @@ class ProjectApiTest(unittest.TestCase):
                 self.assertIn("<redacted-path>", log_text)
                 self.assertNotIn("another-project", log_text)
                 self.assertNotIn("leak", log_text)
+                self.assertIn('"event":"process_exited"', asr_log)
+                self.assertIn('"exit_code":17', asr_log)
+                self.assertIn('"access_token":"***"', asr_log)
+                self.assertNotIn("asr-secret", asr_log)
+                self.assertNotIn("D:\\private", asr_log)
+                self.assertIn("<redacted-path>", asr_log)
 
                 active_user = second_user
                 client.cookies.clear()

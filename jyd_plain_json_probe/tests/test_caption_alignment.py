@@ -222,6 +222,38 @@ class CaptionAlignmentTests(unittest.TestCase):
             [200_000, 1_200_000, 2_200_000, 3_200_000],
         )
 
+    def test_unavailable_asr_retries_current_transcription_once_after_recovery(self) -> None:
+        aligner = FunASRCaptionAligner("http://127.0.0.1:18084")
+        unavailable = CaptionAlignmentError("ASR_UNAVAILABLE", "连接被拒绝")
+        with patch.object(
+            aligner,
+            "_transcribe_once",
+            side_effect=[unavailable, self.payload],
+        ) as transcribe, patch.object(
+            aligner, "_wait_for_service_recovery", return_value=True
+        ) as wait_for_recovery:
+            payload = aligner._transcribe(Path("current-task.mp3"))
+
+        self.assertIs(payload, self.payload)
+        self.assertEqual(transcribe.call_count, 2)
+        wait_for_recovery.assert_called_once_with()
+
+    def test_unavailable_asr_never_retries_current_transcription_more_than_once(self) -> None:
+        aligner = FunASRCaptionAligner("http://127.0.0.1:18084")
+        failures = [
+            CaptionAlignmentError("ASR_UNAVAILABLE", "第一次连接被拒绝"),
+            CaptionAlignmentError("ASR_UNAVAILABLE", "恢复后仍连接失败"),
+        ]
+        with patch.object(
+            aligner, "_transcribe_once", side_effect=failures
+        ) as transcribe, patch.object(
+            aligner, "_wait_for_service_recovery", return_value=True
+        ):
+            with self.assertRaisesRegex(CaptionAlignmentError, "恢复后仍连接失败"):
+                aligner._transcribe(Path("current-task.mp3"))
+
+        self.assertEqual(transcribe.call_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import copy
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import json
 import logging
 from pathlib import Path
 import threading
 from typing import Any, Callable
-import uuid
+from urllib.parse import urlsplit
 
 from .auth_center import AuthCenterClient
 from .h3_quote_recovery import (
@@ -18,6 +17,13 @@ from .logging_config import log_event
 from .caption_alignment import CaptionAlignmentError, alignment_matches
 from .h3_audio_cleanup import H3_AUDIO_CLEANUP_VERSION, read_cleanup, request_cleanup
 from .h3_cache_paths import compact_digest, item_h3_root
+from .h3_segment_downloads import (
+    H3DownloadManagerUnavailable,
+    H3DownloadQueueFull,
+    H3DownloadStale,
+    H3SegmentDownloadManager,
+    H3SegmentDownloadTask,
+)
 from .h3_video_segments import (
     H3_VIDEO_SEQUENCE_VERSION, freeze_segment, h3_video_sequence_ready,
 )
@@ -100,6 +106,31 @@ def _h3_segment_cache_files(
     return directory / "raw.mp4", directory / "raw.json"
 
 
+def _versioned_h3_segment_path(directory: Path) -> tuple[Path, dict[str, Any]] | None:
+    pointer = directory / "current.json"
+    try:
+        payload = json.loads(pointer.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    signature = str(payload.get("result_signature") or "").strip().lower()
+    if len(signature) != 64 or any(
+        character not in "0123456789abcdef" for character in signature
+    ):
+        return None
+    version_directory = (directory / "versions" / signature).resolve()
+    try:
+        version_directory.relative_to(directory.resolve())
+    except ValueError:
+        return None
+    video = version_directory / "video.mp4"
+    metadata = version_directory / "metadata.json"
+    if not video.is_file() or video.stat().st_size <= 0 or not metadata.is_file():
+        return None
+    return video, payload
+
+
 def current_h3_segment_preview_path(
     project: dict[str, Any],
     *,
@@ -161,7 +192,10 @@ def current_h3_segment_preview_path(
             segment_id=segment_id,
         )
         cache_path, _ = _h3_segment_cache_files(root, **cache_args)
-        if not cache_path.is_file() or cache_path.stat().st_size <= 0:
+        versioned = _versioned_h3_segment_path(cache_path.parent)
+        if versioned is not None:
+            cache_path = versioned[0]
+        elif not cache_path.is_file() or cache_path.stat().st_size <= 0:
             cache_path, _ = _h3_segment_cache_files(root, **cache_args, legacy=True)
         cache_path = cache_path.resolve()
         try:
@@ -234,6 +268,7 @@ class ProjectH3Coordinator:
         storage_root: Path | None = None,
         max_video_bytes: int = 2 * 1024 * 1024 * 1024,
         max_segment_download_workers: int = 3,
+        segment_download_manager: H3SegmentDownloadManager | None = None,
         caption_aligner: Any = None,
         require_precise_alignment: bool = False,
         media_preparer: Callable[..., H3MediaAssets] = prepare_h3_media,
@@ -248,6 +283,7 @@ class ProjectH3Coordinator:
         self.max_segment_download_workers = max(
             1, min(8, int(max_segment_download_workers))
         )
+        self.segment_download_manager = segment_download_manager
         self.caption_aligner = caption_aligner
         self.require_precise_alignment = bool(require_precise_alignment)
         self.media_preparer = media_preparer
@@ -1300,6 +1336,17 @@ class ProjectH3Coordinator:
             video_path, metadata_path = self._segment_cache_files(
                 owner_user_id, project_id, item_id, remote_item, segment, legacy=legacy
             )
+            if not legacy:
+                versioned = _versioned_h3_segment_path(video_path.parent)
+                if versioned is not None:
+                    current_video, pointer = versioned
+                    if not require_current:
+                        return current_video
+                    if pointer.get("result_signature") == self._segment_result_signature(
+                        segment
+                    ):
+                        return current_video
+                    return None
             if not video_path.is_file() or video_path.stat().st_size <= 0:
                 continue
             if not require_current:
@@ -1326,6 +1373,8 @@ class ProjectH3Coordinator:
         item_id: str,
         remote_item: dict[str, Any],
         segment: dict[str, Any],
+        progress_callback: Callable[[int, int | None], None] | None = None,
+        should_publish: Callable[[], bool] | None = None,
     ) -> Path:
         video_path, metadata_path = self._segment_cache_files(
             owner_user_id, project_id, item_id, remote_item, segment
@@ -1343,21 +1392,39 @@ class ProjectH3Coordinator:
             )
             if current is not None:
                 return current
-            video_path.parent.mkdir(parents=True, exist_ok=True)
-            suffix = uuid.uuid4().hex
-            temporary_video = video_path.with_name(f"current.{suffix}.mp4.tmp")
-            temporary_metadata = metadata_path.with_name(f"current.{suffix}.json.tmp")
+            cache_directory = video_path.parent
+            version_directory = (
+                cache_directory / "versions" / result_signature
+            )
+            version_directory.mkdir(parents=True, exist_ok=True)
+            final_video = version_directory / "video.mp4"
+            final_metadata = version_directory / "metadata.json"
+            temporary_video = version_directory / "video.mp4.part"
+            temporary_metadata = version_directory / "metadata.json.tmp"
+            pointer = cache_directory / "current.json"
+            temporary_pointer = cache_directory / "current.json.tmp"
             try:
-                self.client.download_h3_segment_video(
-                    token,
-                    str(segment["segment_id"]),
-                    temporary_video,
-                    max_bytes=self.max_video_bytes,
-                    delivery=(
+                download = self.client.download_h3_segment_video
+                download_kwargs: dict[str, Any] = {
+                    "max_bytes": self.max_video_bytes,
+                    "delivery": (
                         segment.get("video_delivery")
                         if isinstance(segment.get("video_delivery"), dict)
                         else None
                     ),
+                }
+                if isinstance(self.client, AuthCenterClient):
+                    download_kwargs.update(
+                        {
+                            "resume": True,
+                            "progress_callback": progress_callback,
+                        }
+                    )
+                download(
+                    token,
+                    str(segment["segment_id"]),
+                    temporary_video,
+                    **download_kwargs,
                 )
                 if not temporary_video.is_file() or temporary_video.stat().st_size <= 0:
                     raise ValueError("数字人网站返回了空的 H3 分段视频")
@@ -1366,12 +1433,29 @@ class ProjectH3Coordinator:
                     segment.get("normalized_video_sha256") or ""
                 ).strip().lower()
                 if expected_sha256 and actual_sha256 != expected_sha256:
+                    temporary_video.unlink(missing_ok=True)
+                    temporary_video.with_name(
+                        temporary_video.name + ".resume.json"
+                    ).unlink(missing_ok=True)
                     raise ValueError("H3 分段下载结果与云端版本摘要不一致")
-                temporary_video.replace(video_path)
+                if isinstance(self.client, AuthCenterClient):
+                    try:
+                        if self.segment_download_manager is not None:
+                            with self.segment_download_manager.validation_slot():
+                                _probe_duration(temporary_video)
+                        else:
+                            _probe_duration(temporary_video)
+                    except (OSError, RuntimeError, ValueError):
+                        temporary_video.unlink(missing_ok=True)
+                        temporary_video.with_name(
+                            temporary_video.name + ".resume.json"
+                        ).unlink(missing_ok=True)
+                        raise
+                temporary_video.replace(final_video)
                 temporary_metadata.write_text(
                     json.dumps(
                         {
-                            "schema": "jyd.h3-segment-cache.v1",
+                            "schema": "jyd.h3-segment-cache.v2",
                             "remote_batch_id": str(remote_item.get("batch_id") or ""),
                             "remote_item_id": str(remote_item.get("item_id") or ""),
                             "segment_id": str(segment.get("segment_id") or ""),
@@ -1386,11 +1470,31 @@ class ProjectH3Coordinator:
                     ),
                     encoding="utf-8",
                 )
-                temporary_metadata.replace(metadata_path)
-                return video_path
+                temporary_metadata.replace(final_metadata)
+                if should_publish is not None and not should_publish():
+                    raise H3DownloadStale("H3 分段已有更新版本，旧下载不会发布")
+                temporary_pointer.write_text(
+                    json.dumps(
+                        {
+                            "schema": "jyd.h3-segment-current.v1",
+                            "result_signature": result_signature,
+                            "video": (
+                                Path("versions") / result_signature / "video.mp4"
+                            ).as_posix(),
+                            "metadata": (
+                                Path("versions") / result_signature / "metadata.json"
+                            ).as_posix(),
+                        },
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                    encoding="utf-8",
+                )
+                temporary_pointer.replace(pointer)
+                return final_video
             finally:
-                temporary_video.unlink(missing_ok=True)
                 temporary_metadata.unlink(missing_ok=True)
+                temporary_pointer.unlink(missing_ok=True)
 
     def _cache_snapshot_segments(
         self,
@@ -1410,6 +1514,8 @@ class ProjectH3Coordinator:
             if isinstance(value, dict)
         }
         pending: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+        total_downloadable = 0
+        ready_count = 0
         for remote_value in cached_snapshot.get("items", []):
             if not isinstance(remote_value, dict):
                 continue
@@ -1425,6 +1531,10 @@ class ProjectH3Coordinator:
                     segment.get("segment_id") or ""
                 ).strip():
                     continue
+                if str(segment.get("status") or "").upper() not in {
+                    "FAILED", "DOWNLOAD_FAILED", "CANCELLED"
+                }:
+                    total_downloadable += 1
                 existing = self._cached_segment_path(
                     owner_user_id,
                     project_id,
@@ -1448,37 +1558,143 @@ class ProjectH3Coordinator:
                     if current is not None:
                         segment["local_preview_ready"] = True
                         segment["local_preview_is_current"] = True
+                        segment["local_download_state"] = "ready"
+                        ready_count += 1
                     else:
                         pending.append((item, remote_item, segment))
 
+        manager = self.segment_download_manager
+        current_download_keys: set[str] = set()
+        batch_key = (
+            f"{owner_user_id}:{project_id}:"
+            f"{str(cached_snapshot.get('batch_id') or '')}"
+        )
         if not pending:
+            if manager is not None:
+                cached_snapshot["download_progress"] = manager.get_batch_progress(
+                    batch_key,
+                    total_count=total_downloadable,
+                    ready_count=ready_count,
+                    current_keys=current_download_keys,
+                )
             return self._annotate_head_cleanup(owner_user_id, project_id, project, cached_snapshot)
-        worker_count = min(self.max_segment_download_workers, len(pending))
-        with ThreadPoolExecutor(
-            max_workers=worker_count,
-            thread_name_prefix="h3-segment-download",
-        ) as executor:
-            futures = {
-                executor.submit(
-                    self._download_segment_to_cache,
-                    owner_user_id,
-                    project_id,
-                    token,
-                    item_id=str(item["item_id"]),
-                    remote_item=remote_item,
-                    segment=segment,
-                ): segment
-                for item, remote_item, segment in pending
-            }
-            for future in as_completed(futures):
-                segment = futures[future]
+
+        if manager is None:
+            for item, remote_item, segment in pending:
                 try:
-                    future.result()
+                    self._download_segment_to_cache(
+                        owner_user_id,
+                        project_id,
+                        token,
+                        item_id=str(item["item_id"]),
+                        remote_item=remote_item,
+                        segment=segment,
+                    )
                 except (OSError, RuntimeError, ValueError) as exc:
                     segment["local_preview_error"] = str(exc)[:500]
+                    segment["local_download_state"] = "failed"
                 else:
                     segment["local_preview_ready"] = True
                     segment["local_preview_is_current"] = True
+                    segment["local_download_state"] = "ready"
+            return self._annotate_head_cleanup(owner_user_id, project_id, project, cached_snapshot)
+
+        for item, remote_item, segment in pending:
+            item_id = str(item["item_id"])
+            remote_batch_id = str(remote_item.get("batch_id") or "")
+            remote_item_id = str(remote_item.get("item_id") or "")
+            segment_id = str(segment.get("segment_id") or "")
+            result_signature = self._segment_result_signature(segment)
+            slot_key = ":".join(
+                (
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    remote_batch_id,
+                    remote_item_id,
+                    segment_id,
+                )
+            )
+            download_key = f"{slot_key}:{result_signature}"
+            current_download_keys.add(download_key)
+
+            def runner(
+                progress: Callable[[int, int | None], None],
+                current: Callable[[], bool],
+                *,
+                bound_item_id: str = item_id,
+                bound_remote_item: dict[str, Any] = copy.deepcopy(remote_item),
+                bound_segment: dict[str, Any] = copy.deepcopy(segment),
+            ) -> Path:
+                return self._download_segment_to_cache(
+                    owner_user_id,
+                    project_id,
+                    token,
+                    item_id=bound_item_id,
+                    remote_item=bound_remote_item,
+                    segment=bound_segment,
+                    progress_callback=progress,
+                    should_publish=current,
+                )
+
+            try:
+                delivery = (
+                    segment.get("video_delivery")
+                    if isinstance(segment.get("video_delivery"), dict)
+                    else {}
+                )
+                origin_url = (
+                    str(delivery.get("download_url") or "")
+                    if str(delivery.get("mode") or "") == "runninghub_direct"
+                    else str(getattr(self.client, "base_url", "") or "")
+                )
+                state = manager.enqueue(
+                    H3SegmentDownloadTask(
+                        key=download_key,
+                        slot_key=slot_key,
+                        batch_key=batch_key,
+                        total_count=total_downloadable,
+                        target_directory=self._segment_cache_files(
+                            owner_user_id,
+                            project_id,
+                            item_id,
+                            remote_item,
+                            segment,
+                        )[0].parent,
+                        runner=runner,
+                        origin_host=str(urlsplit(origin_url).hostname or ""),
+                    )
+                )
+            except (H3DownloadManagerUnavailable, H3DownloadQueueFull) as exc:
+                segment["local_download_state"] = "failed"
+                segment["local_preview_error"] = str(exc)[:500]
+                continue
+            segment["local_download_state"] = state["state"]
+            segment["local_download_bytes"] = state["bytes_downloaded"]
+            segment["local_download_total_bytes"] = state["total_bytes"]
+            segment["local_download_bytes_per_second"] = state["bytes_per_second"]
+            if state.get("error"):
+                segment["local_preview_error"] = str(state["error"])[:500]
+            if state["state"] == "ready":
+                current_path = self._cached_segment_path(
+                    owner_user_id,
+                    project_id,
+                    item_id,
+                    remote_item,
+                    segment,
+                    require_current=True,
+                )
+                if current_path is not None:
+                    segment["local_preview_ready"] = True
+                    segment["local_preview_is_current"] = True
+                    ready_count += 1
+
+        cached_snapshot["download_progress"] = manager.get_batch_progress(
+            batch_key,
+            total_count=total_downloadable,
+            ready_count=ready_count,
+            current_keys=current_download_keys,
+        )
         return self._annotate_head_cleanup(owner_user_id, project_id, project, cached_snapshot)
 
     def _annotate_head_cleanup(

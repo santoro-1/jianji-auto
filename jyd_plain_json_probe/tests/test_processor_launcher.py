@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
 import unittest
 import uuid
+from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +24,135 @@ from apps.processor.processor_windows import (  # noqa: E402
 
 
 class ProcessorLauncherTest(unittest.TestCase):
+    def test_asr_supervisor_restarts_with_limit_and_records_exit_evidence(self) -> None:
+        from apps.processor import processor_windows
+
+        root = PROJECT_ROOT / "runtime" / "test_tmp" / f"asr_supervisor_{uuid.uuid4().hex}"
+        data_root = root / "data"
+        (data_root / "logs").mkdir(parents=True)
+        (data_root / "logs" / "asr.log").write_text(
+            "uvicorn stopped unexpectedly", encoding="utf-8"
+        )
+
+        class FakeProcess:
+            def __init__(self, pid: int, exit_code: int | None) -> None:
+                self.pid = pid
+                self.exit_code = exit_code
+                self._jyd_asr_started_at = "2026-09-03T00:00:00+00:00"
+
+            def poll(self):
+                return self.exit_code
+
+            def terminate(self):
+                self.exit_code = 0
+
+            def wait(self, timeout=None):
+                return self.exit_code
+
+            def kill(self):
+                self.exit_code = -9
+
+        try:
+            config = {
+                "asr_health_failure_limit": "1",
+                "asr_restart_limit": "1",
+                "asr_restart_backoff_seconds": "0",
+            }
+            replacement = FakeProcess(202, None)
+            with patch.dict(
+                os.environ,
+                {
+                    "JYD_ASR_BASE_URL": "http://127.0.0.1:18084",
+                    "JYD_ASR_REQUIRED": "true",
+                },
+            ), patch.object(
+                processor_windows,
+                "_asr_runtime_layout",
+                return_value=(Path("python.exe"), root, root / "models"),
+            ), patch.object(
+                processor_windows, "_asr_is_healthy", return_value=False
+            ), patch.object(
+                processor_windows, "_start_embedded_asr", return_value=replacement
+            ) as start_asr:
+                supervisor = processor_windows._EmbeddedASRSupervisor(
+                    root, data_root, config
+                )
+                supervisor.process = FakeProcess(101, 17)
+                supervisor._monitor_once()
+                self.assertIs(supervisor.process, replacement)
+                self.assertEqual(supervisor.restart_count, 1)
+                start_asr.assert_called_once_with(
+                    root,
+                    data_root,
+                    config,
+                    stop_event=supervisor._stop_event,
+                )
+
+                replacement.exit_code = 23
+                supervisor._monitor_once()
+                self.assertEqual(start_asr.call_count, 1)
+
+            events = [
+                json.loads(line)
+                for line in (data_root / "logs" / "asr-supervisor.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            unexpected_exit = next(
+                event for event in events if event["event"] == "process_exited"
+            )
+            self.assertEqual(unexpected_exit["pid"], 101)
+            self.assertEqual(unexpected_exit["exit_code"], 17)
+            self.assertFalse(unexpected_exit["launcher_requested_stop"])
+            self.assertIn("uvicorn stopped unexpectedly", unexpected_exit["last_standard_error"])
+            self.assertTrue(any(event["event"] == "restart_succeeded" for event in events))
+            self.assertTrue(any(event["event"] == "restart_limit_reached" for event in events))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_asr_supervisor_marks_launcher_requested_shutdown(self) -> None:
+        from apps.processor import processor_windows
+
+        root = PROJECT_ROOT / "runtime" / "test_tmp" / f"asr_shutdown_{uuid.uuid4().hex}"
+        data_root = root / "data"
+        (data_root / "logs").mkdir(parents=True)
+
+        class FakeProcess:
+            pid = 303
+            _jyd_asr_started_at = "2026-09-03T00:00:00+00:00"
+
+            def __init__(self) -> None:
+                self.exit_code = None
+
+            def poll(self):
+                return self.exit_code
+
+            def terminate(self):
+                self.exit_code = 0
+
+            def wait(self, timeout=None):
+                return self.exit_code
+
+            def kill(self):
+                self.exit_code = -9
+
+        try:
+            supervisor = processor_windows._EmbeddedASRSupervisor(root, data_root, {})
+            supervisor.process = FakeProcess()
+            supervisor.stop()
+            events = [
+                json.loads(line)
+                for line in (data_root / "logs" / "asr-supervisor.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            stopped = next(event for event in events if event["event"] == "process_stopped")
+            self.assertTrue(stopped["launcher_requested_stop"])
+            self.assertEqual(stopped["reason"], "workbench_shutdown")
+            self.assertEqual(stopped["exit_code"], 0)
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
     def test_release_diagnostic_is_read_only_and_uses_compiled_roots(self) -> None:
         from contextlib import redirect_stdout
         import hashlib

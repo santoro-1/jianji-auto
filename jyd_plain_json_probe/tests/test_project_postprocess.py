@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import shutil
 import sys
+import threading
 import unittest
 import uuid
 from unittest.mock import patch
@@ -318,6 +319,293 @@ class ProjectPostprocessApiTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_sync_recovers_jobless_postprocess_operation_without_losing_ready_draft(self) -> None:
+        user_id = "jobless-recovery-user"
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id=user_id,
+            owner_username="tester",
+            name="无任务号恢复",
+            items=[{"row_key": "1", "script_text": "恢复已经生成的草稿"}],
+        )
+        item = project["items"][0]
+        base_path = self.settings.storage_root / "jobless-recovery-base.mp4"
+        base_path.write_bytes(b"video")
+        store.add_asset(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            asset_type="base_video",
+            source_type="runninghub_merge",
+            status="READY",
+            filename=base_path.name,
+            managed_path=str(base_path),
+            make_current=True,
+        )
+        store.set_item_subtitles(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": [],
+                "render_cues": [
+                    {
+                        "text": item["script_text"],
+                        "start_us": 0,
+                        "duration_us": 1_000_000,
+                    }
+                ],
+                "status": "PREVIEW_READY",
+                "style": {},
+                "overflow_risk": False,
+            },
+        )
+        draft_dir = self.settings.default_draft_root / "ready-before-interruption"
+        draft_dir.mkdir(parents=True)
+        (draft_dir / "draft_content.json").write_text("{}", encoding="utf-8")
+        succeeded = store.create_operation(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            idempotency_key="successful-preview",
+            payload={},
+        )
+        store.transition_operation(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            operation_id=succeeded["operation_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            status="SUCCEEDED",
+            item_status="COMPOSITION_READY",
+            result={
+                "job_id": "completed-job",
+                "output_draft_dir": str(draft_dir),
+                "output_draft_name": draft_dir.name,
+            },
+        )
+        orphan = store.create_operation(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            idempotency_key="interrupted-preview",
+            payload={},
+        )
+        store.transition_operation(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            operation_id=orphan["operation_id"],
+            operation_type="POSTPROCESS_GENERATE",
+            status="PENDING",
+            item_status="POSTPROCESS_RUNNING",
+        )
+
+        class Queue:
+            @staticmethod
+            def get_status(_job_id):
+                raise AssertionError("没有任务号的操作不应查询剪映队列")
+
+        class EmptyMusicMatcher:
+            @staticmethod
+            def snapshot():
+                return {"profiles": []}
+
+        coordinator = ProjectPostprocessCoordinator(
+            store,
+            Queue(),
+            storage_root=self.settings.storage_root,
+            draft_root=self.settings.default_draft_root,
+            fonts=[],
+            bgm_assets=[],
+            music_matcher=EmptyMusicMatcher(),
+        )
+
+        recovered = coordinator.sync(user_id, project["project_id"])
+
+        recovered_item = recovered["items"][0]
+        recovered_orphan = next(
+            operation
+            for operation in recovered["operations"]
+            if operation["operation_id"] == orphan["operation_id"]
+        )
+        self.assertEqual(recovered_item["status"], "COMPOSITION_READY")
+        self.assertEqual(recovered_orphan["status"], "FAILED")
+        self.assertEqual(
+            recovered_orphan["error_code"], "POSTPROCESS_SUBMISSION_INTERRUPTED"
+        )
+        self.assertTrue(recovered_item["allowed_actions"]["generate_variants"])
+
+    def test_postprocess_start_serializes_different_keys_for_the_same_project(self) -> None:
+        user_id = "postprocess-concurrency-user"
+        store = ProjectStore(self.settings.storage_root / "control.db")
+        project = store.create_project(
+            owner_user_id=user_id,
+            owner_username="tester",
+            name="重复刷新并发保护",
+            items=[{"row_key": "1", "script_text": "请勿重复提交"}],
+        )
+        item = project["items"][0]
+        audio_path = self.settings.storage_root / "concurrency-audio.mp3"
+        audio_path.write_bytes(b"audio")
+        audio = store.add_asset(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename=audio_path.name,
+            managed_path=str(audio_path),
+            make_current=True,
+        )
+        store.set_item_subtitles(
+            user_id,
+            project["project_id"],
+            item["item_id"],
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": [
+                    {
+                        "text": item["script_text"],
+                        "start_us": 0,
+                        "duration_us": 1_000_000,
+                    }
+                ],
+                "render_cues": [],
+                "bound_audio_asset_id": audio["asset_id"],
+                "status": "READY",
+                "style": {},
+                "overflow_risk": False,
+            },
+        )
+        base_path = self.settings.storage_root / "concurrency-base.mp4"
+        base_path.write_bytes(b"video")
+        store.add_asset(
+            owner_user_id=user_id,
+            project_id=project["project_id"],
+            item_id=item["item_id"],
+            asset_type="base_video",
+            source_type="runninghub_merge",
+            status="READY",
+            filename=base_path.name,
+            managed_path=str(base_path),
+            make_current=True,
+        )
+        font_path = self.settings.storage_root / "concurrency-font.ttf"
+        font_path.write_bytes(b"font")
+        font = {
+            "identity": "font-test",
+            "name": "测试字体",
+            "path": str(font_path),
+            "available": True,
+        }
+
+        class BlockingQueue:
+            def __init__(self) -> None:
+                self.submit_entered = threading.Event()
+                self.release_submit = threading.Event()
+                self.submit_count = 0
+
+            def submit_batch(self, _jobs, _variants):
+                self.submit_count += 1
+                self.submit_entered.set()
+                if not self.release_submit.wait(5):
+                    raise TimeoutError("测试未释放剪映提交")
+                return {"batch_id": "batch-1", "job_ids": ["job-1"]}
+
+            @staticmethod
+            def get_status(_job_id):
+                return {"job_id": "job-1", "status": "running"}
+
+        class EmptyMusicMatcher:
+            @staticmethod
+            def snapshot():
+                return {"profiles": []}
+
+        queue = BlockingQueue()
+        coordinators = [
+            ProjectPostprocessCoordinator(
+                store,
+                queue,
+                storage_root=self.settings.storage_root,
+                draft_root=self.settings.default_draft_root,
+                fonts=[font],
+                bgm_assets=[],
+                music_matcher=EmptyMusicMatcher(),
+            )
+            for _ in range(2)
+        ]
+        outcomes: list[object] = []
+
+        def submit(coordinator, key):
+            try:
+                outcomes.append(
+                    coordinator.start(
+                        user_id,
+                        project["project_id"],
+                        idempotency_key=key,
+                        item_settings=[
+                            {
+                                "item_id": item["item_id"],
+                                "font_identity": font["identity"],
+                                "bgm_selection_mode": "manual",
+                                "bgm_identity": "",
+                            }
+                        ],
+                    )
+                )
+            except Exception as exc:
+                outcomes.append(exc)
+
+        draft_job = {"output": {"skip_export": True}}
+        with patch(
+            "jyd_probe.project_postprocess.derive_project_render_cues",
+            return_value=(
+                [
+                    {
+                        "text": item["script_text"],
+                        "start_us": 0,
+                        "duration_us": 1_000_000,
+                    }
+                ],
+                {"status": "SUCCESS", "timing_source": "minimax_raw_cue_interpolation"},
+            ),
+        ), patch.object(
+            ProjectPostprocessCoordinator,
+            "_build_draft_job",
+            return_value=draft_job,
+        ):
+            first = threading.Thread(target=submit, args=(coordinators[0], "click-1"))
+            second = threading.Thread(target=submit, args=(coordinators[1], "click-2"))
+            first.start()
+            self.assertTrue(queue.submit_entered.wait(5))
+            second.start()
+            self.assertTrue(second.is_alive())
+            queue.release_submit.set()
+            first.join(5)
+            second.join(5)
+
+        self.assertFalse(first.is_alive())
+        self.assertFalse(second.is_alive())
+        self.assertEqual(queue.submit_count, 1)
+        self.assertEqual(len(outcomes), 2)
+        self.assertEqual(sum(isinstance(value, dict) for value in outcomes), 1)
+        errors = [value for value in outcomes if isinstance(value, Exception)]
+        self.assertEqual(len(errors), 1)
+        self.assertIn("请勿重复提交", str(errors[0]))
+        latest = store.get_project(user_id, project["project_id"])
+        operations = [
+            operation
+            for operation in latest["operations"]
+            if operation["operation_type"] == "POSTPROCESS_GENERATE"
+        ]
+        self.assertEqual(len(operations), 1)
+        self.assertEqual(operations[0]["result"]["job_id"], "job-1")
 
     def test_missing_layout_font_uses_available_default_and_accepts_stale_client(self) -> None:
         user = {"user_id": "font-fallback-user", "username": "tester", "enabled": True}

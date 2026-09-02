@@ -18,6 +18,7 @@ DIAGNOSTIC_SCHEMA = "jyd.project-diagnostics.v1"
 LOG_FILENAMES = ("workbench.log", "render.log", "collector.log")
 MAX_LOG_BYTES = 2 * 1024 * 1024
 MAX_LOG_LINES = 5000
+MAX_ASR_SUPERVISOR_BYTES = 256 * 1024
 _SENSITIVE_CONTENT_FIELD = re.compile(
     r'(?i)"(?:script_text|original_script|prompt|payload|result)"\s*:'
 )
@@ -37,6 +38,7 @@ def build_project_diagnostic_archive(
     archive_path = output_root / f"project-diagnostics-{uuid.uuid4().hex}.zip"
     summary = _safe_project_summary(project)
     matched_logs = _matching_project_logs(project, logs_root)
+    asr_supervisor_log = _recent_asr_supervisor_log(logs_root)
     with zipfile.ZipFile(
         archive_path,
         "w",
@@ -51,13 +53,44 @@ def build_project_diagnostic_archive(
             matched_logs or "未在本机保留期内找到与当前项目直接关联的日志。\n",
         )
         archive.writestr(
+            "ASR监督日志.jsonl",
+            asr_supervisor_log or "未找到本机 ASR 监督记录。\n",
+        )
+        archive.writestr(
             "说明.txt",
             "此诊断包只包含当前项目的结构化摘要和可关联日志，"
             "不包含脚本文本、素材文件、素材路径、操作负载或登录凭据。\n"
+            "ASR 监督日志是同一台处理机的共享进程生命周期记录，不仅属于当前项目。\n"
             "独立 Agent 运行在其他电脑时，其 agent.log 保存在该电脑的 logs 文件夹，"
             "不会被本机诊断包自动收集。\n",
         )
     return archive_path
+
+
+def _recent_asr_supervisor_log(logs_root: Path) -> str:
+    path = logs_root / "asr-supervisor.jsonl"
+    try:
+        if not path.is_file() or path.is_symlink():
+            return ""
+        modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+        if modified < datetime.now(timezone.utc) - timedelta(days=14):
+            return ""
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            size = handle.tell()
+            handle.seek(max(0, size - MAX_ASR_SUPERVISOR_BYTES), 0)
+            raw = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+    if size > MAX_ASR_SUPERVISOR_BYTES:
+        raw = raw.partition("\n")[2]
+    safe_lines: list[str] = []
+    for raw_line in raw.splitlines()[-1000:]:
+        line = redact_text(raw_line)
+        line = _WINDOWS_ABSOLUTE_PATH.sub("<redacted-path>", line)
+        line = _UNC_ABSOLUTE_PATH.sub("<redacted-path>", line)
+        safe_lines.append(line[:32768])
+    return "\n".join(safe_lines) + ("\n" if safe_lines else "")
 
 
 def _safe_project_summary(project: dict[str, Any]) -> dict[str, Any]:

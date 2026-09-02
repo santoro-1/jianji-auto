@@ -57,17 +57,45 @@ class _BinaryResponse:
         return self.stream.read(size)
 
 
+class _InterruptingBinaryResponse(_BinaryResponse):
+    def __init__(self, first_chunk: bytes, *, etag: str):
+        super().__init__(first_chunk)
+        self.headers["ETag"] = etag
+        self._read_count = 0
+
+    def read(self, size: int = -1) -> bytes:
+        self._read_count += 1
+        if self._read_count == 1:
+            return super().read(size)
+        raise OSError("simulated connection interruption")
+
+
+class _PartialBinaryResponse(_BinaryResponse):
+    status = 206
+
+    def __init__(self, payload: bytes, *, offset: int, etag: str):
+        super().__init__(payload)
+        self.headers.update(
+            {
+                "Content-Range": f"bytes {offset}-{offset + len(payload) - 1}/{offset + len(payload)}",
+                "ETag": etag,
+            }
+        )
+
+
 class AuthCenterTest(unittest.TestCase):
     def test_h3_direct_download_does_not_forward_center_token(self) -> None:
         payload = b"direct-h3-video"
         target = PROJECT_ROOT / ".pytest-direct-h3-video.tmp"
         target.unlink(missing_ok=True)
         try:
-            with patch(
-                "jyd_probe.auth_center.urlopen",
+            client = AuthCenterClient("https://video.example")
+            with patch.object(
+                client._h3_media_session,
+                "open",
                 return_value=_BinaryResponse(payload),
             ) as request_mock:
-                size = AuthCenterClient("https://video.example").download_h3_segment_video(
+                size = client.download_h3_segment_video(
                     "center-token",
                     "segment-1",
                     target,
@@ -104,6 +132,155 @@ class AuthCenterTest(unittest.TestCase):
                     },
                 )
         request_mock.assert_not_called()
+
+    def test_h3_direct_download_refreshes_expired_url_once_without_new_result(
+        self,
+    ) -> None:
+        target = PROJECT_ROOT / ".pytest-refreshed-h3-video.tmp"
+        target.unlink(missing_ok=True)
+        signature = "b" * 64
+        expired = HTTPError(
+            "https://rh-files.example/old.mp4",
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(b"expired"),
+        )
+        client = AuthCenterClient("https://video.example")
+        try:
+            with patch.object(
+                client._h3_media_session,
+                "open",
+                side_effect=[expired, _BinaryResponse(b"refreshed")],
+            ) as media_open, patch.object(
+                client,
+                "refresh_h3_segment_delivery",
+                return_value={
+                    "mode": "runninghub_direct",
+                    "download_url": "https://rh-files.example/new.mp4",
+                    "result_signature": signature,
+                },
+            ) as refresh:
+                assert client.download_h3_segment_video(
+                    "center-token",
+                    "segment-1",
+                    target,
+                    max_bytes=1024,
+                    delivery={
+                        "mode": "runninghub_direct",
+                        "download_url": "https://rh-files.example/old.mp4",
+                        "result_signature": signature,
+                    },
+                    resume=True,
+                ) == len(b"refreshed")
+            assert media_open.call_count == 2
+            refresh.assert_called_once_with("center-token", "segment-1")
+            assert target.read_bytes() == b"refreshed"
+        finally:
+            client.close()
+            target.unlink(missing_ok=True)
+            target.with_name(target.name + ".resume.json").unlink(missing_ok=True)
+
+    def test_h3_direct_download_resumes_after_interrupted_stream(self) -> None:
+        target = PROJECT_ROOT / f".pytest-h3-resume-{uuid.uuid4().hex}.tmp"
+        signature = "c" * 64
+        etag = '"stable-video-v1"'
+        first = b"first-half-"
+        second = b"second-half"
+        client = AuthCenterClient("https://video.example")
+        try:
+            with patch.object(
+                client._h3_media_session,
+                "open",
+                side_effect=[
+                    _InterruptingBinaryResponse(first, etag=etag),
+                    _PartialBinaryResponse(second, offset=len(first), etag=etag),
+                ],
+            ) as media_open:
+                with self.assertRaises(AuthCenterError):
+                    client.download_h3_segment_video(
+                        "center-token",
+                        "segment-1",
+                        target,
+                        max_bytes=1024,
+                        delivery={
+                            "mode": "runninghub_direct",
+                            "download_url": "https://rh-files.example/video.mp4",
+                            "result_signature": signature,
+                        },
+                        resume=True,
+                    )
+                self.assertEqual(target.read_bytes(), first)
+                self.assertTrue(
+                    target.with_name(target.name + ".resume.json").is_file()
+                )
+
+                size = client.download_h3_segment_video(
+                    "center-token",
+                    "segment-1",
+                    target,
+                    max_bytes=1024,
+                    delivery={
+                        "mode": "runninghub_direct",
+                        "download_url": "https://rh-files.example/video.mp4",
+                        "result_signature": signature,
+                    },
+                    resume=True,
+                )
+
+            resumed_request = media_open.call_args_list[1].args[0]
+            self.assertEqual(resumed_request.headers["Range"], f"bytes={len(first)}-")
+            self.assertEqual(resumed_request.headers["If-range"], etag)
+            self.assertEqual(size, len(first + second))
+            self.assertEqual(target.read_bytes(), first + second)
+        finally:
+            client.close()
+            target.unlink(missing_ok=True)
+            target.with_name(target.name + ".resume.json").unlink(missing_ok=True)
+
+    def test_h3_direct_download_truncates_partial_when_range_is_ignored(self) -> None:
+        target = PROJECT_ROOT / f".pytest-h3-range-ignored-{uuid.uuid4().hex}.tmp"
+        signature = "d" * 64
+        old_partial = b"old-partial-"
+        full_payload = b"complete-video"
+        target.write_bytes(old_partial)
+        target.with_name(target.name + ".resume.json").write_text(
+            json.dumps(
+                {
+                    "etag": '"old-validator"',
+                    "last_modified": None,
+                    "result_signature": signature,
+                }
+            ),
+            encoding="utf-8",
+        )
+        client = AuthCenterClient("https://video.example")
+        try:
+            with patch.object(
+                client._h3_media_session,
+                "open",
+                return_value=_BinaryResponse(full_payload),
+            ) as media_open:
+                size = client.download_h3_segment_video(
+                    "center-token",
+                    "segment-1",
+                    target,
+                    max_bytes=1024,
+                    delivery={
+                        "mode": "runninghub_direct",
+                        "download_url": "https://rh-files.example/video.mp4",
+                        "result_signature": signature,
+                    },
+                    resume=True,
+                )
+            request = media_open.call_args.args[0]
+            self.assertEqual(request.headers["Range"], f"bytes={len(old_partial)}-")
+            self.assertEqual(size, len(full_payload))
+            self.assertEqual(target.read_bytes(), full_payload)
+        finally:
+            client.close()
+            target.unlink(missing_ok=True)
+            target.with_name(target.name + ".resume.json").unlink(missing_ok=True)
 
     def test_client_classifies_remote_business_rejection(self) -> None:
         error = HTTPError(
@@ -207,7 +384,13 @@ class AuthCenterTest(unittest.TestCase):
         submitted = json.loads(request.data.decode("utf-8"))
         self.assertEqual(submitted["original_script"], "  原文\n不能 trim  ")
         self.assertTrue(submitted["force_refresh"])
-        self.assertEqual(request_mock.call_args.kwargs["timeout"], 600.0)
+        self.assertEqual(request_mock.call_args.kwargs["timeout"], 10.0)
+        self.assertGreaterEqual(
+            int(request.headers["X-jyd-request-budget-ms"]), 599000
+        )
+        self.assertLessEqual(
+            int(request.headers["X-jyd-request-budget-ms"]), 600000
+        )
         self.assertEqual(result, payload)
 
     def test_content_analysis_diagnostics_classify_transport_without_secrets(self) -> None:

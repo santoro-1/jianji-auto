@@ -110,8 +110,13 @@ def test_old_download_is_reused_then_new_version_uses_short_cache(tmp_path, monk
     client.video_payloads["s1"] = b"replacement"
     synced = coordinator.sync("u1", project["project_id"], "token")["project"]
     assert client.downloads == ["s1"]
-    assert h3.current_h3_segment_preview_path(synced, **preview_args) == new_raw
-    assert new_raw.read_bytes() == b"replacement"
+    current = h3.current_h3_segment_preview_path(synced, **preview_args)
+    assert current != old_raw
+    assert current.is_relative_to(new_raw.parent)
+    assert current.read_bytes() == b"replacement"
+    # v2 publishes immutable signature directories plus one atomic pointer;
+    # the old raw.mp4 slot is not overwritten in place.
+    assert new_raw.read_bytes() == b""
     assert old_raw.read_bytes() == b"video:s1"
     assert old_meta.is_file()
     assert not calls  # Cleanup still pending; no premature assembly.

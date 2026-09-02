@@ -61,11 +61,13 @@ def test_multiple_variable_head_pulses_removed_without_timing_or_speech_change(
     clean = cleanup.apply_head_gate(pcm, gate)
     assert clean.shape == pcm.shape
     assert clean.dtype == pcm.dtype
-    assert np.count_nonzero(clean[: round(anchor * rate)]) == 0
+    assert np.count_nonzero(clean[: gate.mute_until_sample]) == 0
     assert np.array_equal(
         clean[gate.restore_at_sample :], pcm[gate.restore_at_sample :]
     )
-    assert 0 < gate.restore_at_sample <= round(anchor * rate)
+    assert 0 <= gate.restore_at_sample <= round(anchor * rate)
+    if anchor <= cleanup.DEFAULT_CONFIG.speech_guard_ms / 1000:
+        assert gate.reason == "SPEECH_STARTS_IMMEDIATELY"
 
 
 def test_already_clean_clip_stays_identical():
@@ -77,7 +79,7 @@ def test_already_clean_clip_stays_identical():
 def test_no_head_gap_never_falls_back_to_fixed_mute():
     pcm = np.full((32000, 1), 10000, dtype=np.int16)
     gate = cleanup.plan_head_gate(pcm, 32000, "你的体重", tokens(0.05))
-    assert gate.reason == "NO_HEAD_GAP"
+    assert gate.reason == "SPEECH_STARTS_IMMEDIATELY"
     assert np.array_equal(cleanup.apply_head_gate(pcm, gate), pcm)
 
 
@@ -90,19 +92,66 @@ def test_half_cosine_fade_has_zero_and_unity_endpoints():
     assert np.array_equal(clean[619:], pcm[619:])
 
 
-def test_prefix_is_exact_and_cannot_match_late_repeated_sentence():
-    with pytest.raises(H3MediaError, match="精确匹配"):
-        cleanup.prefix_anchor("你的体重", tokens()[1:])
+def test_prefix_uses_earliest_timestamped_speech_without_script_hard_match():
+    observed = tokens()[1:]
+    assert cleanup.prefix_anchor("完全不同的脚本", observed)[0] == observed[0].start_us
     noise = [RecognizedToken("啊", "啊", i, i + 1) for i in range(4)]
-    with pytest.raises(H3MediaError, match="精确匹配"):
-        cleanup.prefix_anchor("你的体重", noise + tokens())
-    assert cleanup.prefix_anchor("你，的体重", tokens())[0] == 400000
+    assert cleanup.prefix_anchor("你的体重", noise + tokens())[0] == 0
+    with pytest.raises(H3MediaError, match="正常人声"):
+        cleanup.prefix_anchor("你的体重", [])
 
 
 def test_invalid_anchor_does_not_modify_source():
     pcm = waveform(32000, 1, 0.4)
-    with pytest.raises(H3MediaError, match="有效范围"):
-        cleanup.plan_head_gate(pcm, 32000, "你的体重", tokens(6))
+    gate = cleanup.plan_head_gate(pcm, 32000, "你的体重", tokens(6))
+    assert gate.reason == "SPEECH_OUTSIDE_HEAD_LIMIT"
+    assert np.array_equal(cleanup.apply_head_gate(pcm, gate), pcm)
+
+
+def test_missing_asr_tokens_preserves_original_instead_of_failing_item():
+    pcm = waveform(32000, 1, 0.4)
+    gate = cleanup.plan_head_gate(pcm, 32000, "你的体重", [])
+    assert gate.reason == "NO_RELIABLE_SPEECH"
+    assert np.array_equal(cleanup.apply_head_gate(pcm, gate), pcm)
+
+
+def test_ready_noop_cleanup_exposes_nonblocking_warning(tmp_path, monkeypatch):
+    raw = tmp_path / "current.mp4"
+    raw.write_bytes(b"source")
+    ready = cleanup.CleanedSegment(
+        tmp_path,
+        "key",
+        "digest",
+        tmp_path / "clean.wav",
+        tmp_path / "preview.mp4",
+        {
+            "muted_until_seconds": 0.0,
+            "restored_at_seconds": 0.0,
+            "gate": {"reason": "NO_RELIABLE_SPEECH"},
+        },
+    )
+    monkeypatch.setattr(cleanup, "read_cleanup", lambda *_args, **_kwargs: ready)
+    state = cleanup.request_cleanup(raw, "任意脚本", None)
+    assert state["status"] == "READY"
+    assert state["reason"] == "NO_RELIABLE_SPEECH"
+    assert "保留原音" in state["warning"]
+
+
+def test_transient_head_noise_is_not_mistaken_for_stable_speech():
+    rate = 32000
+    pcm = waveform(rate, 1, 1.2)
+    gate = cleanup.plan_head_gate(
+        pcm,
+        rate,
+        "不要求精确匹配",
+        [RecognizedToken("错", "错", 1_200_000, 1_500_000)],
+    )
+    assert gate.reason == "HEAD_NOISE_BEFORE_SPEECH"
+    assert gate.anchor_sample >= round(1.19 * rate)
+    assert gate.restore_at_sample <= round(1.02 * rate)
+    clean = cleanup.apply_head_gate(pcm, gate)
+    assert np.count_nonzero(clean[: gate.mute_until_sample]) == 0
+    assert np.array_equal(clean[gate.restore_at_sample :], pcm[gate.restore_at_sample :])
 
 
 def test_cache_identity_covers_raw_script_and_configuration():

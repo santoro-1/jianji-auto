@@ -121,7 +121,7 @@ class NewFrontendTest(unittest.TestCase):
             const blocked = {status:'H3_REVIEW_REQUIRED', settings:{h3:{remote_batch_id:'bad', remote_status:'SUCCESS', materialization_error:{requires_input_change:true}, segments:[{status:'SUCCESS',local_preview_is_current:true}]}}, outputs:{}};
             const ready = {status:'BASE_VIDEO_READY', settings:{h3:{remote_batch_id:'good',remote_status:'SUCCESS',segments:[{status:'SUCCESS',local_preview_is_current:true}]}}, outputs:{audio:{file_exists:true},base_video:{file_exists:true}},allowed_actions:{start_postprocess:true}};
             const project = {items:[blocked,ready]};
-            ready.outputs.audio.metadata = {head_cleanup_version:'jyd.h3-head-silence.v1'};
+            ready.outputs.audio.metadata = {head_cleanup_version:'jyd.h3-head-silence.v2'};
             ready.outputs.base_video.metadata = {video_sequence_version:'jyd.h3-video-sequence.v1', segment_count:1, source_segment_asset_ids:['clip-1']};
             ready.outputs.original_video_segments = [{asset_id:'clip-1', file_exists:true}];
             ready.settings.h3.segments[0].local_audio_cleanup = {status:'READY'};
@@ -134,12 +134,16 @@ class NewFrontendTest(unittest.TestCase):
             ready.outputs.original_video_segments[0].file_exists=true;
             ready.outputs.audio.metadata.head_cleanup_version = 'old';
             ready.settings.h3.segments[0].local_audio_cleanup.status = 'PROCESSING';
+            ready.settings.h3.segments[0].local_audio_cleanup.version = 'jyd.h3-head-silence.v2';
             assert.equal(h3NeedsLocalMaterialization(project),true);
             assert.equal(h3HasPendingPostprocess(project),false);
             ready.settings.h3.segments[0].local_audio_cleanup.status = 'FAILED';
             assert.equal(h3NeedsLocalMaterialization(project),false);
             assert.equal(h3HasPendingPostprocess(project),false);
-            ready.outputs.audio.metadata.head_cleanup_version = 'jyd.h3-head-silence.v1';
+            ready.settings.h3.segments[0].local_audio_cleanup.version = 'jyd.h3-head-silence.v1';
+            assert.equal(h3NeedsLocalMaterialization(project),true);
+            ready.settings.h3.segments[0].local_audio_cleanup.version = 'jyd.h3-head-silence.v2';
+            ready.outputs.audio.metadata.head_cleanup_version = 'jyd.h3-head-silence.v2';
             ready.settings.h3.segments[0].local_audio_cleanup.status = 'READY';
             blocked.settings.h3.segments[0].local_preview_is_current=false;
             assert.equal(h3NeedsLocalMaterialization(project),true);
@@ -148,6 +152,22 @@ class NewFrontendTest(unittest.TestCase):
         """
         result = subprocess.run([node, "-e", script], capture_output=True, text=True, encoding="utf-8")
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_h3_safe_noop_cleanup_is_ready_with_visible_warning(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("已保留原音（未自动清理片头）", page)
+        self.assertIn("cleanup?.warning", page)
+
+    def test_h3_download_progress_is_scoped_to_segment_review(self) -> None:
+        page = (FRONTEND_ROOT / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function h3DownloadProgressTextForItem", page)
+        self.assertIn("已下载 ${downloaded}/${total}", page)
+        self.assertIn("计算速度中", page)
+        self.assertIn("剩余时间计算中", page)
+        self.assertIn("0 B/s · 已完成", page)
+        self.assertIn("downloadProgress: h3DownloadProgressForItem(script)", page)
+        self.assertIn("h3DownloadProgressTextForItem(script)", page)
+        self.assertNotIn('id="h3-global-download-progress"', page)
 
     def test_h3_row_override_markup_uses_existing_escape_helper(self) -> None:
         page = (PROJECT_ROOT / "apps" / "processor" / "frontend" / "new" / "index.html").read_text(

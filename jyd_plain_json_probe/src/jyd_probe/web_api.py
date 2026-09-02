@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import traceback
 import uuid
 from typing import Any
@@ -52,6 +53,10 @@ from .auth_center import (
 )
 from .admin_auth import AdminAuth
 from .draft_crypto import is_plain_json_file
+from .doubao_request_manager import (
+    DoubaoRequestManager,
+    shutdown_global_doubao_request_manager,
+)
 from .draft_transfer import import_transfer_package
 from .excel_batch import parse_excel_batch_workbook
 from .music_matching import MusicProfileMatcher
@@ -69,6 +74,7 @@ from .project_composition import (
     ProjectCompositionStartDispatcher,
 )
 from .project_h3 import ProjectH3Coordinator, current_h3_segment_preview_path
+from .h3_segment_downloads import H3SegmentDownloadManager
 from .h3_quote_recovery import H3QuoteConflict
 from .project_ltx import (
     LtxWorkbenchClient,
@@ -209,7 +215,23 @@ class WebApiSettings:
     shared_processor_url: str = ""
     ltx_workbench_url: str = ""
     auth_authority: bool = False
-    auth_timeout_seconds: int = 15
+    auth_timeout_seconds: int = 30
+    content_analysis_max_in_flight: int = 10
+    content_analysis_queue_max: int = 1000
+    content_analysis_total_timeout_seconds: int = 600
+    content_analysis_connect_timeout_seconds: int = 10
+    content_analysis_retry_max: int = 2
+    h3_download_workers: int = 10
+    h3_download_min_workers: int = 2
+    h3_download_queue_max: int = 1000
+    h3_download_min_free_gb: int = 0
+    h3_download_batch_max_gb: int = 0
+    h3_download_adaptive_enabled: bool = True
+    h3_download_validate_workers: int = 2
+    h3_download_connect_timeout_seconds: int = 10
+    h3_download_read_idle_timeout_seconds: int = 120
+    h3_download_total_timeout_seconds: int = 3600
+    h3_provider_allowed_hosts: tuple[str, ...] = ()
     asr_base_url: str = ""
     asr_timeout_seconds: int = 1800
     asr_shared_token: str = ""
@@ -1731,7 +1753,62 @@ def default_settings() -> WebApiSettings:
         ).strip(),
         ltx_workbench_url=os.environ.get("JYD_LTX_WORKBENCH_URL", "").strip(),
         auth_authority=_as_bool(os.environ.get("JYD_AUTH_AUTHORITY", "false")),
-        auth_timeout_seconds=_env_positive_int("JYD_AUTH_TIMEOUT_SECONDS", 15),
+        auth_timeout_seconds=_env_positive_int("JYD_AUTH_TIMEOUT_SECONDS", 30),
+        content_analysis_max_in_flight=_env_bounded_positive_int(
+            "JYD_CONTENT_ANALYSIS_MAX_IN_FLIGHT", 10, maximum=10
+        ),
+        content_analysis_queue_max=_env_positive_int(
+            "JYD_CONTENT_ANALYSIS_QUEUE_MAX", 1000
+        ),
+        content_analysis_total_timeout_seconds=_env_positive_int(
+            "JYD_CONTENT_ANALYSIS_TOTAL_TIMEOUT_SECONDS", 600
+        ),
+        content_analysis_connect_timeout_seconds=_env_positive_int(
+            "JYD_CONTENT_ANALYSIS_CONNECT_TIMEOUT_SECONDS", 10
+        ),
+        content_analysis_retry_max=_env_bounded_positive_int(
+            "JYD_CONTENT_ANALYSIS_RETRY_MAX", 2, maximum=2
+        ),
+        h3_download_workers=_env_bounded_positive_int(
+            "JYD_H3_DOWNLOAD_WORKERS", 10, maximum=10
+        ),
+        h3_download_min_workers=_env_bounded_positive_int(
+            "JYD_H3_DOWNLOAD_MIN_WORKERS", 2, maximum=10
+        ),
+        h3_download_queue_max=_env_positive_int(
+            "JYD_H3_DOWNLOAD_QUEUE_MAX", 1000
+        ),
+        h3_download_adaptive_enabled=_as_bool(
+            os.environ.get("JYD_H3_DOWNLOAD_ADAPTIVE_ENABLED", "true")
+        ),
+        h3_download_validate_workers=_env_bounded_positive_int(
+            "JYD_H3_DOWNLOAD_VALIDATE_WORKERS", 2, maximum=2
+        ),
+        h3_download_connect_timeout_seconds=_env_positive_int(
+            "JYD_H3_DOWNLOAD_CONNECT_TIMEOUT_SECONDS", 10
+        ),
+        h3_download_read_idle_timeout_seconds=_env_positive_int(
+            "JYD_H3_DOWNLOAD_READ_IDLE_TIMEOUT_SECONDS", 120
+        ),
+        h3_download_total_timeout_seconds=_env_positive_int(
+            "JYD_H3_DOWNLOAD_TOTAL_TIMEOUT_SECONDS", 3600
+        ),
+        h3_download_min_free_gb=_env_positive_int(
+            "JYD_H3_DOWNLOAD_MIN_FREE_GB", 20
+        ),
+        h3_download_batch_max_gb=_env_positive_int(
+            "JYD_H3_DOWNLOAD_BATCH_MAX_GB", 100
+        ),
+        h3_provider_allowed_hosts=tuple(
+            dict.fromkeys(
+                value.strip().lower().lstrip(".")
+                for value in os.environ.get(
+                    "JYD_H3_PROVIDER_ALLOWED_HOSTS",
+                    "runninghub.cn,runninghub.ai,myqcloud.com,tencentcos.cn",
+                ).split(",")
+                if value.strip()
+            )
+        ),
         asr_base_url=os.environ.get(
             "JYD_ASR_BASE_URL", "http://127.0.0.1:18084"
         ).strip(),
@@ -1780,8 +1857,45 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         cookie_name=settings.site_cookie_name,
         create_initial=settings.auth_authority and settings.bootstrap_site_user,
     )
+    doubao_request_manager = (
+        None
+        if settings.auth_authority
+        else DoubaoRequestManager(
+            max_concurrency=settings.content_analysis_max_in_flight,
+            queue_max=settings.content_analysis_queue_max,
+        )
+    )
     auth_center = None if settings.auth_authority else AuthCenterClient(
-        settings.auth_server_url, timeout_seconds=settings.auth_timeout_seconds
+        settings.auth_server_url,
+        timeout_seconds=settings.auth_timeout_seconds,
+        h3_provider_allowed_hosts=settings.h3_provider_allowed_hosts,
+        h3_download_connect_timeout_seconds=(
+            settings.h3_download_connect_timeout_seconds
+        ),
+        h3_download_read_idle_timeout_seconds=(
+            settings.h3_download_read_idle_timeout_seconds
+        ),
+        h3_download_total_timeout_seconds=(
+            settings.h3_download_total_timeout_seconds
+        ),
+        doubao_request_manager=doubao_request_manager,
+        content_analysis_total_timeout_seconds=(
+            settings.content_analysis_total_timeout_seconds
+        ),
+        content_analysis_connect_timeout_seconds=(
+            settings.content_analysis_connect_timeout_seconds
+        ),
+        content_analysis_retry_max=settings.content_analysis_retry_max,
+    )
+    h3_segment_download_manager = H3SegmentDownloadManager(
+        settings.storage_root,
+        max_workers=settings.h3_download_workers,
+        min_workers=settings.h3_download_min_workers,
+        queue_max=settings.h3_download_queue_max,
+        min_free_bytes=settings.h3_download_min_free_gb * 1024 * 1024 * 1024,
+        max_batch_bytes=settings.h3_download_batch_max_gb * 1024 * 1024 * 1024,
+        adaptive_enabled=settings.h3_download_adaptive_enabled,
+        validation_workers=settings.h3_download_validate_workers,
     )
     auth_handoffs = AuthHandoffStore(lifetime_seconds=60)
     template_import_tickets = AuthHandoffStore(lifetime_seconds=600)
@@ -1886,6 +2000,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.admin_auth = admin_auth
     app.state.site_auth = site_auth
     app.state.auth_center = auth_center
+    app.state.h3_segment_download_manager = h3_segment_download_manager
     app.state.auth_handoffs = auth_handoffs
     app.state.template_import_tickets = template_import_tickets
     app.state.agent_token = agent_token
@@ -1966,6 +2081,31 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         )
 
     @app.middleware("http")
+    async def observe_ordinary_api_health(request: Request, call_next):
+        request_started_at = time.monotonic()
+        path = request.url.path
+        observe = (
+            path.startswith("/api/")
+            and "/video" not in path
+            and "/preview" not in path
+            and "/download" not in path
+        )
+        try:
+            response = await call_next(request)
+        except Exception:
+            if observe:
+                h3_segment_download_manager.observe_api_result(
+                    time.monotonic() - request_started_at, failed=True
+                )
+            raise
+        if observe:
+            h3_segment_download_manager.observe_api_result(
+                time.monotonic() - request_started_at,
+                failed=response.status_code >= 500,
+            )
+        return response
+
+    @app.middleware("http")
     async def require_admin_session(request: Request, call_next):
         path = request.url.path
         admin_required = _is_admin_protected_path(path)
@@ -2021,6 +2161,12 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     def stop_storage_lifecycle() -> None:
+        h3_segment_download_manager.shutdown()
+        if auth_center is not None:
+            auth_center.close()
+        if doubao_request_manager is not None:
+            doubao_request_manager.shutdown()
+        shutdown_global_doubao_request_manager()
         if composition_start_dispatcher is not None:
             composition_start_dispatcher.shutdown()
         content_analysis_dispatcher.shutdown()
@@ -3476,6 +3622,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             client,
             storage_root=settings.storage_root,
             max_video_bytes=settings.max_video_upload_bytes,
+            segment_download_manager=h3_segment_download_manager,
             caption_aligner=caption_aligner,
             require_precise_alignment=settings.asr_required,
             head_cleanup_enabled=True,
@@ -6261,6 +6408,15 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             "auth_authority": settings.auth_authority,
             "auth_server_url": settings.auth_server_url,
             "shared_processor_url": settings.shared_processor_url,
+            "h3_downloads": h3_segment_download_manager.diagnostics(),
+            "doubao_requests": (
+                doubao_request_manager.diagnostics()
+                if doubao_request_manager is not None
+                else {
+                    "schema": "jyd.doubao-request-manager-health.v1",
+                    "enabled": False,
+                }
+            ),
         }
 
     @app.get("/api/local/config")
@@ -7983,6 +8139,17 @@ def _env_positive_int(name: str, default: int) -> int:
     if parsed <= 0:
         raise RuntimeError(f"环境变量 {name} 必须是正整数: {value}")
     return parsed
+
+
+def _env_bounded_positive_int(
+    name: str, default: int, *, maximum: int
+) -> int:
+    value = _env_positive_int(name, default)
+    if value > int(maximum):
+        raise RuntimeError(
+            f"环境变量 {name} 不能超过 {int(maximum)}，当前值为 {value}"
+        )
+    return value
 
 
 def _load_or_create_text_secret(path: Path) -> str:

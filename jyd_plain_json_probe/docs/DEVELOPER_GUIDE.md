@@ -555,7 +555,22 @@ data/template_library/<template_id>/
 | `JYD_EXECUTION_MODE` | `embedded` 或 `agent` | `embedded` |
 | `JYD_ALLOW_LOCAL_FILE_ACCESS` | 是否允许网页引用本机路径 | 源码单机启动为 `true` |
 | `JYD_AUTH_SERVER_URL` | 统一账户中心地址 | 由部署配置决定 |
-| `JYD_AUTH_TIMEOUT_SECONDS` | 数字人网站普通 API 请求超时 | `15` |
+| `JYD_AUTH_TIMEOUT_SECONDS` | 数字人网站普通 API 请求超时 | `30` |
+| `JYD_CONTENT_ANALYSIS_MAX_IN_FLIGHT` | 整机豆包分析 HTTP 硬上限（不可超过 10） | `10` |
+| `JYD_CONTENT_ANALYSIS_QUEUE_MAX` | 跨项目豆包分析有界等待队列 | `1000` |
+| `JYD_CONTENT_ANALYSIS_TOTAL_TIMEOUT_SECONDS` | JYD 单次分析全链路总预算 | `600` |
+| `JYD_CONTENT_ANALYSIS_CONNECT_TIMEOUT_SECONDS` | 连接数字人服务器超时 | `10` |
+| `JYD_CONTENT_ANALYSIS_RETRY_MAX` | 未确认准入/队列满/熔断时同操作重试上限 | `2` |
+| `JYD_H3_DOWNLOAD_WORKERS` | 整机 H3 下载硬上限（不可超过 10） | `10` |
+| `JYD_H3_DOWNLOAD_MIN_WORKERS` | H3 自适应并发下限 | `2` |
+| `JYD_H3_DOWNLOAD_ADAPTIVE_ENABLED` | 是否按普通 API 健康度在 2～10 路间调节 | `true` |
+| `JYD_H3_DOWNLOAD_QUEUE_MAX` | H3 有界等待队列 | `1000` |
+| `JYD_H3_DOWNLOAD_VALIDATE_WORKERS` | H3 媒体校验并发上限 | `2` |
+| `JYD_H3_DOWNLOAD_CONNECT_TIMEOUT_SECONDS` | H3 媒体连接超时 | `10` |
+| `JYD_H3_DOWNLOAD_READ_IDLE_TIMEOUT_SECONDS` | H3 连续无数据超时 | `120` |
+| `JYD_H3_DOWNLOAD_TOTAL_TIMEOUT_SECONDS` | H3 单片段总下载时限 | `3600` |
+| `JYD_H3_DOWNLOAD_MIN_FREE_GB` | 启动/续写下载所需最小磁盘余量 | `20` |
+| `JYD_H3_DOWNLOAD_BATCH_MAX_GB` | 单个 H3 批次当前版本累计下载硬上限 | `100` |
 | `JYD_SHARED_PROCESSOR_URL` | 公用工作台地址 | 空 |
 | `JYD_AGENT_TOKEN` | Agent 接入令牌 | 空 |
 | `JYD_MAX_ACTIVE_JOBS` | 单批最大任务数 | `500` |
@@ -828,6 +843,12 @@ BGM 不使用固定音量：`bgm_loudness.py` 先构造与剪映相同的末尾�
 `ProjectPostprocessCoordinator.sync()` 必须扫描全部仍为 `PENDING/RUNNING` 的 4B 操作，
 不能只检查每行最新一条。更新操作时通过 `operation_id` 精确定位；被新尝试取代的旧操作只
 回收自身终态，不覆盖当前行状态、字幕或成片指针。
+同一 API 进程内，4B 生成、按需导出和状态同步按“数据库路径 + 用户 + 项目”共用可重入锁，
+避免多个不同幂等键在任务号回写前同时越过行状态检查。同步发现仍为 `PENDING/RUNNING`、但
+从未取得剪映 `job_id` 的中断操作时，以 `POSTPROCESS_SUBMISSION_INTERRUPTED` 收口；若该行
+已有结构完整的历史冻结草稿则恢复 `COMPOSITION_READY`，否则进入可重试的
+`COMPOSITION_FAILED`。部署仍只支持一个中央 API 进程共同管理该 SQLite，不能把进程锁解释为
+多 API 进程写同库支持。
 
 新版页面把字幕效果卡直接放在表格“字幕样式”列，点击效果卡才打开字体和颜色配置；BGM
 继续在相邻列直接选择。修改任一设置只把对应脚本行退回 `BASE_VIDEO_READY` 并保留
@@ -876,6 +897,11 @@ BGM 不使用固定音量：`bgm_loudness.py` 先构造与剪映相同的末尾�
 `PENDING`/`SUCCESS`/`PARTIAL`/`FAILED` 尝试，单行显式重试使用 `force_refresh=true`。
 网页接口先持久化逐行 `PENDING` 并立即返回，再由最多 4 个后台批次执行器发起远端请求；浏览器
 沿用 5 秒状态轮询，因此最长 600 秒的单次远端等待不再同步占用网页请求连接。
+所有后台批次共享应用级 `DoubaoRequestManager`：内容分析与兼容视觉分析合计最多 10 路，
+按项目轮询且队列有界，不会形成 4×10 的远端突发。同一次操作透传稳定
+`analysis_operation_id` 与剩余预算头；只有连接结果未确认、服务器明确队列满或熔断时，才在
+总预算内复用原 ID 重试。`GET /api/health` 的 `doubao_requests` 返回活动数、等待数、项目
+分布和队列等待 p95，不保存脚本或令牌。
 协调器在同一次请求中加入本地生成的 `visual_context`，只包含 catalog 版本、概念描述和
 原文字符锚点，不含素材路径或时间。服务端响应在工作台再次核对脚本哈希、长度、三个分支
 状态、字幕完整覆盖以及视觉 anchor/concept 后才落盘。刷新重试时，新失败不得覆盖同一脚本

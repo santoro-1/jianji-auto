@@ -2233,6 +2233,46 @@
             return records;
         }
 
+        function h3DownloadProgressForItem(item, project = activeProject) {
+            const batchId = String(item?.h3Settings?.remote_batch_id || item?.settings?.h3?.remote_batch_id || '');
+            if (!batchId) return null;
+            const batch = h3BatchRecords(project).find((value) => String(value?.batch_id || '') === batchId);
+            return batch?.download_progress && typeof batch.download_progress === 'object'
+                ? batch.download_progress
+                : null;
+        }
+
+        function h3FormatDownloadSpeed(bytesPerSecond) {
+            const speed = Number(bytesPerSecond || 0);
+            if (!Number.isFinite(speed) || speed <= 0) return '';
+            if (speed >= 1024 * 1024) return `${(speed / (1024 * 1024)).toFixed(1)} MB/s`;
+            if (speed >= 1024) return `${(speed / 1024).toFixed(1)} KB/s`;
+            return `${Math.round(speed)} B/s`;
+        }
+
+        function h3FormatDownloadEta(seconds) {
+            const value = Number(seconds);
+            if (!Number.isFinite(value) || value < 0) return '';
+            if (value < 60) return '剩余不到 1 分钟';
+            if (value < 3600) return `剩余约 ${Math.ceil(value / 60)} 分钟`;
+            return `剩余约 ${Math.ceil(value / 3600)} 小时`;
+        }
+
+        function h3DownloadProgressTextForItem(item, project = activeProject) {
+            const progress = h3DownloadProgressForItem(item, project);
+            if (!progress) return '';
+            const total = Math.max(0, Number(progress.total_count || 0));
+            const downloaded = Math.min(total, Math.max(0, Number(progress.downloaded_count || 0)));
+            if (!total) return '';
+            const details = [`已下载 ${downloaded}/${total}`];
+            const speed = h3FormatDownloadSpeed(progress.bytes_per_second);
+            if (downloaded >= total) return `${details[0]} · 0 B/s · 已完成`;
+            details.push(speed || '计算速度中');
+            const eta = h3FormatDownloadEta(progress.estimated_remaining_seconds);
+            details.push(eta || '剩余时间计算中');
+            return details.join(' · ');
+        }
+
         function h3ItemIsActive(item, { includeQuote = false } = {}) {
             const h3 = item?.settings?.h3 || item?.h3Settings || {};
             if (h3.invalidated_reason || h3.materialization_error?.requires_input_change) return false;
@@ -2265,7 +2305,7 @@
                 const actions = item?.allowed_actions || {};
                 return Boolean(item?.settings?.h3?.remote_batch_id)
                     && h3OutputFileAvailable(item?.outputs?.base_video)
-                    && item?.outputs?.audio?.metadata?.head_cleanup_version === 'jyd.h3-head-silence.v1'
+                    && item?.outputs?.audio?.metadata?.head_cleanup_version === 'jyd.h3-head-silence.v2'
                     && h3VideoSequenceReady(item)
                     && (item?.settings?.h3?.segments || []).every((segment) => segment?.local_audio_cleanup?.status === 'READY')
                     && Boolean(actions.start_postprocess);
@@ -2300,9 +2340,12 @@
                 const needsDissolveUpgrade = includeDissolveUpgrade
                     && (h3.segments || []).length > 1
                     && Number(item?.outputs?.base_video?.metadata?.visual_dissolve_seconds || 0) !== 0.5;
-                const cleanupFailed = (h3.segments || []).some((segment) => segment?.local_audio_cleanup?.status === 'FAILED');
+                const cleanupFailed = (h3.segments || []).some((segment) =>
+                    segment?.local_audio_cleanup?.status === 'FAILED'
+                    && segment?.local_audio_cleanup?.version === 'jyd.h3-head-silence.v2'
+                );
                 const needsHeadCleanup = !cleanupFailed && remoteStatus === 'SUCCESS'
-                    && item?.outputs?.audio?.metadata?.head_cleanup_version !== 'jyd.h3-head-silence.v1';
+                    && item?.outputs?.audio?.metadata?.head_cleanup_version !== 'jyd.h3-head-silence.v2';
                 const needsAssembly = !h3.materialization_error?.requires_input_change
                     && item?.outputs?.composition_video?.source_type !== 'user_upload'
                     && !cleanupFailed
@@ -2638,6 +2681,7 @@
             return JSON.stringify({
                 itemId: script?.id || '',
                 baseAssetId: script?.baseVideo?.asset_id || '',
+                downloadProgress: h3DownloadProgressForItem(script),
                 segments: (script?.h3Settings?.segments || []).map((segment) => [
                     segment?.segment_id || '',
                     segment?.status || '',
@@ -2649,6 +2693,7 @@
                     segment?.local_audio_cleanup?.key || '',
                     segment?.local_audio_cleanup?.status || '',
                     segment?.local_audio_cleanup?.error || '',
+                    segment?.local_audio_cleanup?.warning || '',
                     segment?.can_retry === true,
                     segment?.can_regenerate === true,
                     segment?.error_code || '',
@@ -2704,7 +2749,8 @@
                 const localPreviewReady = segment.local_preview_ready === true;
                 const cleanup = segment.local_audio_cleanup || null;
                 const cleanupReady = !cleanup || cleanup.status === 'READY';
-                const cleanupLabel = !cleanup ? '' : cleanup.status === 'READY' ? '片头声音已清理'
+                const cleanupLabel = !cleanup ? '' : cleanup.status === 'READY' && cleanup.warning ? '已保留原音（未自动清理片头）'
+                    : cleanup.status === 'READY' ? '片头声音已清理'
                     : cleanup.status === 'FAILED' ? '本地清理失败（不会自动重新生成）'
                     : cleanup.status === 'RETRY_WAIT' ? '等待本地 ASR 重试'
                     : '正在本地清理片头声音';
@@ -2728,6 +2774,7 @@
                     <div class="space-y-2 p-3">
                         <p class="line-clamp-2 min-h-[2.25rem] text-[10px] leading-[1.125rem] text-gray-300" title="${escapeHtml(scriptText)}">${escapeHtml(scriptText || '暂无分段台词')}</p>
                         ${cleanupLabel ? `<p class="text-[9px] text-cyan-300">${escapeHtml(cleanupLabel)}</p>` : ''}
+                        ${cleanup?.warning ? `<p class="line-clamp-2 text-[9px] text-amber-300" title="${escapeHtml(cleanup.warning)}">${escapeHtml(cleanup.warning)}</p>` : ''}
                         ${cleanup?.error ? `<p class="line-clamp-2 text-[9px] text-amber-300" title="${escapeHtml(cleanup.error)}">${escapeHtml(cleanup.error)}</p>` : ''}
                         ${error ? `<p class="line-clamp-2 text-[9px] leading-4 text-rose-300" title="${escapeHtml(error)}">${escapeHtml(error)}</p>` : ''}
                         ${previewUrl && segment.local_preview_is_current === false ? '<p class="text-[9px] text-amber-300">新版本处理中，当前播放的是上一版本</p>' : ''}
@@ -2799,7 +2846,8 @@
                 });
             });
             const completed = segments.filter((segment) => String(segment.status || '').toUpperCase() === 'SUCCESS').length;
-            document.getElementById('h3-segment-preview-summary').textContent = `任务 ${script.rowKey} · 共 ${segments.length} 段 · 已完成 ${completed}/${segments.length}`;
+            const downloadProgressText = h3DownloadProgressTextForItem(script);
+            document.getElementById('h3-segment-preview-summary').textContent = `任务 ${script.rowKey} · 共 ${segments.length} 段 · 已完成 ${completed}/${segments.length}${downloadProgressText ? ` · ${downloadProgressText}` : ''}`;
             const downloadButton = document.getElementById('h3-segment-download-button');
             const downloadReady = segments.length > 0 && downloadableCount === segments.length;
             downloadButton.disabled = !downloadReady;
@@ -4330,6 +4378,7 @@
                     : (h3CompletedSegments === h3Segments.length && h3Segments.length
                         ? `${h3Segments.length} 段 · 点击检查`
                         : `已完成 ${h3CompletedSegments}/${h3Segments.length}`);
+                const h3DownloadProgressText = h3DownloadProgressTextForItem(script);
                 const singleActionClass = 'row-single-stage-action w-full px-2 py-1 rounded-lg border text-[9px] font-semibold transition-colors whitespace-nowrap';
                 const ltxItem = ltxStateForItem(script.id);
                 const ltxStatus = String(ltxItem?.status || '').toUpperCase();
@@ -4511,6 +4560,7 @@
                                 <span class="absolute left-1 top-2 flex h-7 w-12 items-center justify-center rounded-md border border-cyan-400/40 bg-slate-950"><i class="fa-solid ${h3FailedSegmentCount ? 'fa-triangle-exclamation' : 'fa-play'} text-[9px]"></i></span>
                             </span>
                             <span class="text-[9px] font-semibold">${escapeHtml(h3SegmentCheckLabel)}</span>
+                            ${h3DownloadProgressText ? `<span class="max-w-28 whitespace-normal text-[8px] leading-tight text-cyan-200/80">${escapeHtml(h3DownloadProgressText)}</span>` : ''}
                         </button>
                     </td>
                     <td class="table-actions-column px-3 py-3 text-center">

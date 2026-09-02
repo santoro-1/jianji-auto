@@ -19,12 +19,12 @@ import wave
 
 import numpy as np
 
-from .caption_alignment import RecognizedToken, _TOKEN_RE, _key
+from .caption_alignment import RecognizedToken
 from .h3_cache_paths import cleanup_directory
 from .project_h3_media import H3MediaError, _run
 
 
-H3_AUDIO_CLEANUP_VERSION = "jyd.h3-head-silence.v1"
+H3_AUDIO_CLEANUP_VERSION = "jyd.h3-head-silence.v2"
 logger = logging.getLogger(__name__)
 
 
@@ -33,9 +33,11 @@ class HeadCleanupConfig:
     version: str = H3_AUDIO_CLEANUP_VERSION
     window_ms: int = 10
     hop_ms: int = 5
-    quiet_ms: int = 20
     fade_ms: int = 10
-    quiet_below_speech_db: float = 25.0
+    stable_speech_ms: int = 80
+    stable_speech_active_ratio: float = 0.6
+    speech_onset_below_typical_db: float = 18.0
+    speech_guard_ms: int = 180
     max_head_seconds: float = 5.0
 
 
@@ -147,16 +149,28 @@ def _read_cleanup_directory(
 
 
 def prefix_anchor(script: str, tokens: list[RecognizedToken]) -> tuple[int, int]:
-    expected = [_key(match.group()) for match in _TOKEN_RE.finditer(script)][:3]
-    if not expected:
-        raise H3MediaError("H3 片头清理缺少有效分段台词")
-    # A model noise may produce up to two spurious leading tokens. Never use a
-    # later repeated sentence or any interpolated subtitle timestamp as anchor.
-    for start in range(min(3, len(tokens))):
-        matched = tokens[start : start + len(expected)]
-        if [token.key for token in matched] == expected:
-            return matched[0].start_us, matched[-1].end_us
-    raise H3MediaError("H3 片头台词未与本地 ASR 精确匹配，保留原片，等待本地重试")
+    """Return the earliest timestamped speech span without validating script text.
+
+    Head cleanup only needs evidence of normal speech and its approximate timing.
+    Requiring the first script characters to match made harmless ASR substitutions,
+    omissions and punctuation differences block the entire H3 item.
+    """
+    del script
+    valid = sorted(
+        (
+            token
+            for token in tokens
+            if 0 <= int(token.start_us) < int(token.end_us)
+        ),
+        key=lambda token: (int(token.start_us), int(token.end_us)),
+    )
+    if not valid:
+        raise H3MediaError("H3 片头清理未识别到带时间戳的正常人声")
+    first = valid[0]
+    # A few initial ASR tokens provide a representative speech-energy window.
+    # They are deliberately not compared with the script.
+    initial = valid[: min(5, len(valid))]
+    return int(first.start_us), max(int(token.end_us) for token in initial)
 
 
 def plan_head_gate(
@@ -168,19 +182,25 @@ def plan_head_gate(
 ) -> HeadGate:
     if pcm.ndim != 2 or not len(pcm) or pcm.dtype != np.int16 or sample_rate <= 0:
         raise H3MediaError("H3 片头清理 PCM 格式无效")
-    anchor_us, phrase_end_us = prefix_anchor(script, tokens)
-    anchor = round(anchor_us * sample_rate / 1_000_000)
+    try:
+        asr_anchor_us, phrase_end_us = prefix_anchor(script, tokens)
+    except H3MediaError:
+        return HeadGate(0, 0, 0, "NO_RELIABLE_SPEECH")
+    asr_anchor = round(asr_anchor_us * sample_rate / 1_000_000)
     phrase_end = min(len(pcm), round(phrase_end_us * sample_rate / 1_000_000))
     if (
-        anchor < 0
-        or anchor >= phrase_end
-        or anchor_us > config.max_head_seconds * 1_000_000
+        asr_anchor < 0
+        or asr_anchor >= phrase_end
+        or asr_anchor_us > config.max_head_seconds * 1_000_000
     ):
-        raise H3MediaError("H3 片头 ASR 时间戳超出有效范围，未静音原片")
+        return HeadGate(max(0, asr_anchor), 0, 0, "SPEECH_OUTSIDE_HEAD_LIMIT")
     window = max(1, round(sample_rate * config.window_ms / 1000))
     hop = max(1, round(sample_rate * config.hop_ms / 1000))
     fade = max(2, round(sample_rate * config.fade_ms / 1000))
-    quiet_length = max(window, fade, round(sample_rate * config.quiet_ms / 1000))
+    stable_frames = max(1, math.ceil(config.stable_speech_ms / config.hop_ms))
+    active_required = max(
+        1, math.ceil(stable_frames * config.stable_speech_active_ratio)
+    )
     # Max channel RMS, not downmix: opposite-phase stereo impulses must count.
     signal = pcm[:phrase_end].astype(np.float64) / 32768.0
 
@@ -188,29 +208,42 @@ def plan_head_gate(
         return float(np.sqrt(np.mean(signal[start:end] ** 2, axis=0)).max())
 
     speech_levels = [
-        rms(i, min(i + window, phrase_end)) for i in range(anchor, phrase_end, hop)
+        rms(i, min(i + window, phrase_end))
+        for i in range(asr_anchor, phrase_end, hop)
     ]
     typical = float(np.percentile(speech_levels, 70))
     if typical <= 1 / 32768:
-        raise H3MediaError("H3 ASR 开口位置没有有效语音能量，未静音原片")
+        return HeadGate(asr_anchor, 0, 0, "NO_STABLE_SPEECH_ENERGY")
     threshold = max(
-        1 / 32768, min(0.01, typical * 10 ** (-config.quiet_below_speech_db / 20))
+        1 / 32768,
+        typical * 10 ** (-config.speech_onset_below_typical_db / 20),
     )
-    quiet_start: int | None = None
-    restore = 0
-    for start in range(0, max(0, anchor - window + 1), hop):
-        if rms(start, start + window) <= threshold:
-            if quiet_start is None:
-                quiet_start = start
-            end = start + window
-            if end - quiet_start >= quiet_length:
-                restore = end
-        else:
-            quiet_start = None
-    if not restore:
-        # Immediate speech / no preceding gap: no blind fixed-duration mute.
-        return HeadGate(anchor, 0, 0, "NO_HEAD_GAP")
-    return HeadGate(anchor, max(0, restore - fade), restore, "HEAD_GAP_FOUND")
+    starts = list(range(0, max(1, phrase_end - window + 1), hop))
+    active = [rms(start, start + window) >= threshold for start in starts]
+    speech_onset: int | None = None
+    for index in range(0, max(0, len(active) - stable_frames + 1)):
+        block = active[index : index + stable_frames]
+        if sum(block) < active_required:
+            continue
+        first_active = next(offset for offset, value in enumerate(block) if value)
+        speech_onset = starts[index + first_active]
+        break
+    if speech_onset is None:
+        return HeadGate(asr_anchor, 0, 0, "NO_STABLE_SPEECH_ENERGY")
+
+    # Keep a generous untouched lead before the detected voice onset. This is
+    # intentionally conservative: leaving a little head noise is preferable to
+    # attenuating the first spoken syllable.
+    guard = max(0, round(sample_rate * config.speech_guard_ms / 1000))
+    restore = max(0, speech_onset - guard)
+    if restore <= fade:
+        return HeadGate(speech_onset, 0, 0, "SPEECH_STARTS_IMMEDIATELY")
+    return HeadGate(
+        speech_onset,
+        max(0, restore - fade),
+        restore,
+        "HEAD_NOISE_BEFORE_SPEECH",
+    )
 
 
 def apply_head_gate(pcm: np.ndarray, gate: HeadGate) -> np.ndarray:
@@ -374,6 +407,23 @@ def clean_segment(
             "channels": pcm.shape[1],
             "sample_count": len(pcm),
             "gate": asdict(gate),
+            "speech_detection": {
+                "asr_token_count": len(tokens),
+                "asr_preview": "".join(str(token.text) for token in tokens)[:80],
+                "first_asr_seconds": (
+                    min(
+                        int(token.start_us)
+                        for token in tokens
+                        if 0 <= int(token.start_us) < int(token.end_us)
+                    )
+                    / 1_000_000
+                    if any(
+                        0 <= int(token.start_us) < int(token.end_us)
+                        for token in tokens
+                    )
+                    else None
+                ),
+            },
             "audio_offset_seconds": offset,
             "muted_until_seconds": gate.mute_until_sample / rate,
             "restored_at_seconds": gate.restore_at_sample / rate,
@@ -478,11 +528,25 @@ def request_cleanup(
     if ready is not None:
         with _LOCK:
             _FAILURES.pop(str(directory.resolve()), None)
+        gate = ready.report.get("gate", {})
+        reason = str(gate.get("reason") or "") if isinstance(gate, dict) else ""
+        warning = (
+            "未检测到可安全清理的片头，已保留原音"
+            if reason
+            in {
+                "NO_RELIABLE_SPEECH",
+                "NO_STABLE_SPEECH_ENERGY",
+                "SPEECH_OUTSIDE_HEAD_LIMIT",
+            }
+            else ""
+        )
         return {
             **state,
             "status": "READY",
             "muted_until_seconds": ready.report["muted_until_seconds"],
             "restored_at_seconds": ready.report["restored_at_seconds"],
+            "reason": reason,
+            **({"warning": warning} if warning else {}),
         }
     identity = str(directory.resolve())
     failure_path = directory / "failure.json"

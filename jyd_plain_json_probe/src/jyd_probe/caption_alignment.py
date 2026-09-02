@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import time
 import unicodedata
 from typing import Any, Iterable, Iterator, Mapping
 from urllib.error import HTTPError, URLError
@@ -545,12 +546,14 @@ class FunASRCaptionAligner:
         *,
         timeout_seconds: int = 1800,
         shared_token: str = "",
+        recovery_wait_seconds: float = 40.0,
     ) -> None:
         self.base_url = str(base_url or "").strip().rstrip("/")
         self.timeout_seconds = max(1, int(timeout_seconds))
         self.shared_token = str(shared_token or "").strip()
+        self.recovery_wait_seconds = max(0.0, float(recovery_wait_seconds))
 
-    def _transcribe(self, path: Path) -> Mapping[str, Any]:
+    def _transcribe_once(self, path: Path) -> Mapping[str, Any]:
         boundary = f"jyd-{uuid.uuid4().hex}"
         filename = path.name.replace('"', "")
         body = (
@@ -588,6 +591,43 @@ class FunASRCaptionAligner:
         if not isinstance(payload, Mapping):
             raise CaptionAlignmentError("ASR_RESPONSE_INVALID", "FunASR 返回结构无效")
         return payload
+
+    def _wait_for_service_recovery(self) -> bool:
+        deadline = time.monotonic() + self.recovery_wait_seconds
+        while True:
+            request = Request(f"{self.base_url}/healthz", method="GET")
+            try:
+                with urlopen(
+                    request, timeout=min(2, self.timeout_seconds)
+                ) as response:
+                    payload = json.loads(response.read().decode("utf-8"))
+                if (
+                    response.status == 200
+                    and isinstance(payload, Mapping)
+                    and payload.get("status") == "ok"
+                ):
+                    return True
+            except (
+                HTTPError,
+                URLError,
+                TimeoutError,
+                OSError,
+                UnicodeDecodeError,
+                json.JSONDecodeError,
+            ):
+                pass
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            time.sleep(min(1.0, remaining))
+
+    def _transcribe(self, path: Path) -> Mapping[str, Any]:
+        try:
+            return self._transcribe_once(path)
+        except CaptionAlignmentError as exc:
+            if exc.code != "ASR_UNAVAILABLE" or not self._wait_for_service_recovery():
+                raise
+        return self._transcribe_once(path)
 
     def _transcribe_in_chunks(self, path: Path) -> Mapping[str, Any]:
         with _asr_audio_chunks(path, timeout_seconds=self.timeout_seconds) as chunks:

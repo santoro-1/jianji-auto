@@ -1,19 +1,30 @@
 from __future__ import annotations
 
 import hashlib
+from io import BytesIO
+from email.utils import parsedate_to_datetime
+import ipaddress
 import json
 import logging
 import mimetypes
+import random
 import secrets
+import socket
 import threading
 import time
+import requests
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from .logging_config import log_event
+from .doubao_request_manager import (
+    DoubaoRequestManager,
+    DoubaoRequestError,
+    global_doubao_request_manager,
+)
 
 
 WORKBENCH_ANALYSIS_TIMEOUT_SECONDS = 600.0
@@ -41,6 +52,7 @@ class AuthCenterError(RuntimeError):
         status_code: int = 503,
         error_code: str | None = None,
         retryable: bool | None = None,
+        retry_after_seconds: float | None = None,
     ):
         super().__init__(message)
         self.status_code = int(status_code)
@@ -50,6 +62,7 @@ class AuthCenterError(RuntimeError):
             if retryable is None
             else bool(retryable)
         )
+        self.retry_after_seconds = retry_after_seconds
 
     @staticmethod
     def _default_error_code(status_code: int) -> str:
@@ -65,7 +78,9 @@ class AuthCenterError(RuntimeError):
 
     @property
     def response_headers(self) -> dict[str, str]:
-        return {}
+        if self.retry_after_seconds is None:
+            return {}
+        return {"Retry-After": str(max(1, int(self.retry_after_seconds)))}
 
 
 class AuthCenterDeviceError(AuthCenterError):
@@ -91,6 +106,68 @@ class _NoDeviceCredentialRedirect(HTTPRedirectHandler):
 
 def _device_urlopen(request, *, timeout):
     return build_opener(_NoDeviceCredentialRedirect()).open(request, timeout=timeout)
+
+
+def _no_redirect_urlopen(request, *, timeout):
+    return build_opener(_NoDeviceCredentialRedirect()).open(request, timeout=timeout)
+
+
+class _H3MediaSession:
+    """Dedicated persistent pool; ordinary account API calls never use it."""
+
+    def __init__(self, max_connections: int = 10):
+        self.session = requests.Session()
+        self.session.trust_env = False
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=max(1, int(max_connections)),
+            pool_maxsize=max(1, int(max_connections)),
+            pool_block=True,
+            max_retries=0,
+        )
+        self.session.mount("https://", adapter)
+
+    def open(
+        self,
+        request: Request,
+        *,
+        connect_timeout: float,
+        read_timeout: float,
+        allowed_peer_ips: tuple[str, ...] = (),
+    ):
+        try:
+            response = self.session.request(
+                method=request.get_method(),
+                url=request.full_url,
+                headers=dict(request.header_items()),
+                stream=True,
+                allow_redirects=False,
+                timeout=(connect_timeout, read_timeout),
+            )
+        except requests.RequestException as exc:
+            raise URLError(exc) from exc
+        if allowed_peer_ips:
+            connection = getattr(response.raw, "_connection", None)
+            sock = getattr(connection, "sock", None)
+            try:
+                peer_ip = str(sock.getpeername()[0]) if sock is not None else ""
+            except OSError:
+                peer_ip = ""
+            if peer_ip not in allowed_peer_ips:
+                response.close()
+                raise URLError("H3 媒体连接的实际目标地址未通过安全校验")
+        if response.status_code >= 400:
+            raw = response.raw.read(64 * 1024, decode_content=True)
+            status = int(response.status_code)
+            reason = str(response.reason or "")
+            headers = response.headers
+            response.close()
+            raise HTTPError(
+                request.full_url, status, reason, headers, BytesIO(raw)
+            )
+        return response.raw
+
+    def close(self) -> None:
+        self.session.close()
 
 
 class AuthCenterConnectionError(AuthCenterError):
@@ -195,7 +272,20 @@ class AuthHandoffStore:
 class AuthCenterClient:
     """HTTP client used by standalone processors to share one account center."""
 
-    def __init__(self, base_url: str, *, timeout_seconds: float = 4.0):
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        timeout_seconds: float = 4.0,
+        h3_provider_allowed_hosts: tuple[str, ...] = (),
+        h3_download_connect_timeout_seconds: float = 10.0,
+        h3_download_read_idle_timeout_seconds: float = 120.0,
+        h3_download_total_timeout_seconds: float = 3600.0,
+        doubao_request_manager: DoubaoRequestManager | None = None,
+        content_analysis_total_timeout_seconds: float = 600.0,
+        content_analysis_connect_timeout_seconds: float = 10.0,
+        content_analysis_retry_max: int = 2,
+    ):
         normalized = base_url.strip().rstrip("/")
         parsed = urlsplit(normalized)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -204,7 +294,38 @@ class AuthCenterClient:
             raise ValueError("数字人网站地址不能包含查询参数或锚点")
         self.base_url = normalized
         self.timeout_seconds = max(1.0, float(timeout_seconds))
+        self.h3_download_connect_timeout_seconds = max(
+            1.0, float(h3_download_connect_timeout_seconds)
+        )
+        self.h3_download_read_idle_timeout_seconds = max(
+            1.0, float(h3_download_read_idle_timeout_seconds)
+        )
+        self.h3_download_total_timeout_seconds = max(
+            self.h3_download_read_idle_timeout_seconds,
+            float(h3_download_total_timeout_seconds),
+        )
+        self.h3_provider_allowed_hosts = tuple(
+            dict.fromkeys(
+                str(value or "").strip().lower().lstrip(".")
+                for value in h3_provider_allowed_hosts
+                if str(value or "").strip()
+            )
+        )
+        self._h3_media_session = _H3MediaSession(10)
+        self._doubao_request_manager = doubao_request_manager
+        self.content_analysis_total_timeout_seconds = max(
+            1.0, float(content_analysis_total_timeout_seconds)
+        )
+        self.content_analysis_connect_timeout_seconds = max(
+            1.0, float(content_analysis_connect_timeout_seconds)
+        )
+        self.content_analysis_retry_max = max(
+            0, min(2, int(content_analysis_retry_max))
+        )
         self.device_header_provider = None
+
+    def close(self) -> None:
+        self._h3_media_session.close()
 
     def _device_business_headers(
         self, token: str, *, method: str, path: str
@@ -322,6 +443,9 @@ class AuthCenterClient:
         *,
         force_refresh: bool = False,
         visual_context: dict[str, Any] | None = None,
+        analysis_operation_id: str | None = None,
+        project_key: str = "default",
+        request_budget_seconds: float | None = None,
     ) -> dict[str, Any]:
         trace_id = secrets.token_hex(8)
         script_sha256 = hashlib.sha256(original_script.encode("utf-8")).hexdigest()
@@ -331,13 +455,18 @@ class AuthCenterClient:
         except ValueError:
             target_port = None
         started_at = time.monotonic()
+        resolved_budget = min(
+            WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            self.content_analysis_total_timeout_seconds,
+            float(request_budget_seconds or self.content_analysis_total_timeout_seconds),
+        )
         diagnostic_context = {
             "trace_id": trace_id,
             "target_scheme": parsed.scheme,
             "target_host": parsed.hostname,
             "target_port": target_port,
             "endpoint": "/api/workbench/content-analysis",
-            "timeout_seconds": WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            "timeout_seconds": resolved_budget,
             "script_sha256": script_sha256,
             "script_length": len(original_script),
             "force_refresh": bool(force_refresh),
@@ -354,14 +483,19 @@ class AuthCenterClient:
             "access_token": token,
             "original_script": original_script,
             "force_refresh": force_refresh,
+            "analysis_operation_id": (
+                str(analysis_operation_id or "").strip() or secrets.token_hex(16)
+            ),
         }
         if visual_context is not None:
             payload["visual_context"] = visual_context
         try:
-            result = self._post(
-                "/api/workbench/content-analysis",
-                payload,
-                timeout_seconds=WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            result = self._execute_doubao_request(
+                path="/api/workbench/content-analysis",
+                payload=payload,
+                project_key=project_key,
+                operation_id=str(payload["analysis_operation_id"]),
+                request_budget_seconds=resolved_budget,
             )
         except AuthCenterError as exc:
             log_event(
@@ -399,16 +533,106 @@ class AuthCenterClient:
         payload: dict[str, Any],
         *,
         force_refresh: bool = False,
+        analysis_operation_id: str | None = None,
+        project_key: str = "default",
+        request_budget_seconds: float | None = None,
     ) -> dict[str, Any]:
-        return self._post(
-            "/api/workbench/visual-analysis",
-            {
+        operation_id = str(analysis_operation_id or "").strip() or secrets.token_hex(16)
+        return self._execute_doubao_request(
+            path="/api/workbench/visual-analysis",
+            payload={
                 "access_token": token,
                 **payload,
                 "force_refresh": force_refresh,
+                "analysis_operation_id": operation_id,
             },
-            timeout_seconds=WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            project_key=project_key,
+            operation_id=operation_id,
+            request_budget_seconds=(
+                self.content_analysis_total_timeout_seconds
+                if request_budget_seconds is None
+                else request_budget_seconds
+            ),
         )
+
+    def _execute_doubao_request(
+        self,
+        *,
+        path: str,
+        payload: dict[str, Any],
+        project_key: str,
+        operation_id: str,
+        request_budget_seconds: float,
+    ) -> dict[str, Any]:
+        budget = min(
+            WORKBENCH_ANALYSIS_TIMEOUT_SECONDS,
+            max(1.0, float(request_budget_seconds)),
+        )
+        try:
+            manager = self._doubao_request_manager or global_doubao_request_manager()
+            return manager.execute(
+                project_key=project_key,
+                operation_id=operation_id,
+                total_timeout_seconds=budget,
+                call=lambda remaining: self._post_doubao_with_retry(
+                    path=path,
+                    payload=payload,
+                    remaining_seconds=min(budget, remaining),
+                ),
+            )
+        except DoubaoRequestError as exc:
+            raise AuthCenterError(
+                str(exc),
+                status_code=429 if exc.code == "DOUBAO_QUEUE_FULL" else 504,
+                error_code=exc.code,
+                retryable=True,
+            ) from exc
+
+    def _post_doubao_with_retry(
+        self,
+        *,
+        path: str,
+        payload: dict[str, Any],
+        remaining_seconds: float,
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + max(0.001, float(remaining_seconds))
+        for attempt in range(self.content_analysis_retry_max + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AuthCenterError(
+                    "本机豆包请求总预算已耗尽",
+                    status_code=504,
+                    error_code="DOUBAO_TOTAL_DEADLINE_EXCEEDED",
+                    retryable=False,
+                )
+            try:
+                return self._post(
+                    path,
+                    payload,
+                    timeout_seconds=remaining,
+                    connect_timeout_seconds=min(
+                        self.content_analysis_connect_timeout_seconds, remaining
+                    ),
+                    extra_headers={
+                        "X-JYD-Request-Budget-Ms": str(max(1, int(remaining * 1000)))
+                    },
+                )
+            except AuthCenterError as exc:
+                may_retry = isinstance(exc, AuthCenterConnectionError) or exc.error_code in {
+                    "ARK_QUEUE_FULL",
+                    "ARK_CIRCUIT_OPEN",
+                }
+                if not may_retry or attempt >= self.content_analysis_retry_max:
+                    raise
+                ceiling = min(0.5 * (2**attempt), 5.0)
+                delay = (
+                    float(exc.retry_after_seconds)
+                    if exc.retry_after_seconds is not None
+                    else random.uniform(0.0, ceiling)
+                )
+                if time.monotonic() + delay >= deadline:
+                    raise
+                time.sleep(max(0.0, delay))
 
     def start_workbench_composition(
         self,
@@ -644,6 +868,19 @@ class AuthCenterClient:
             {"access_token": token},
         )
 
+    def refresh_h3_segment_delivery(
+        self, token: str, segment_id: str
+    ) -> dict[str, Any]:
+        response = self._post(
+            f"/api/workbench/h3-segments/{segment_id}/delivery/refresh",
+            {"access_token": token},
+            timeout_seconds=120.0,
+        )
+        delivery = response.get("video_delivery")
+        if not isinstance(delivery, dict):
+            raise AuthCenterError("数字人网站未返回刷新的 H3 交付信息")
+        return delivery
+
     def cancel_h3_quote(self, token: str, batch_id: str, *, request_key: str, quote_token: str) -> dict[str, Any]:
         return self._post(f"/api/workbench/h3-batches/{batch_id}/quote/cancel", {
             "access_token": token, "cancel_quote_confirmed": True,
@@ -859,6 +1096,8 @@ class AuthCenterClient:
         *,
         max_bytes: int,
         delivery: dict[str, Any] | None = None,
+        resume: bool = False,
+        progress_callback: Callable[[int, int | None], None] | None = None,
     ) -> int:
         clean_segment_id = str(segment_id or "").strip()
         if not clean_segment_id:
@@ -866,19 +1105,50 @@ class AuthCenterClient:
         if isinstance(delivery, dict) and str(delivery.get("mode") or "") == (
             "runninghub_direct"
         ):
-            direct_url = self._validated_direct_video_url(delivery.get("download_url"))
-            return self._download_request(
-                Request(
-                    direct_url,
-                    method="GET",
-                    headers={"Accept": "video/mp4,*/*"},
-                ),
-                target,
-                max_bytes=max_bytes,
-                timeout_seconds=300.0,
-                failure_message="直连下载 RunningHub H3 分段失败",
-                remote_label="RunningHub",
-            )
+            original_signature = str(delivery.get("result_signature") or "")
+
+            def download_direct(current_delivery: dict[str, Any]) -> int:
+                direct_url = self._validated_direct_video_url(
+                    current_delivery.get("download_url")
+                )
+                allowed_peer_ips = self._validate_direct_video_destination(direct_url)
+                return self._download_request(
+                    Request(
+                        direct_url,
+                        method="GET",
+                        headers={"Accept": "video/mp4,*/*"},
+                    ),
+                    target,
+                    max_bytes=max_bytes,
+                    timeout_seconds=self.h3_download_read_idle_timeout_seconds,
+                    connect_timeout_seconds=self.h3_download_connect_timeout_seconds,
+                    total_timeout_seconds=self.h3_download_total_timeout_seconds,
+                    failure_message="直连下载 RunningHub H3 分段失败",
+                    remote_label="RunningHub",
+                    resume=resume,
+                    progress_callback=progress_callback,
+                    allow_redirects=False,
+                    use_h3_media_pool=True,
+                    allowed_peer_ips=allowed_peer_ips,
+                    resume_identity=original_signature,
+                )
+
+            try:
+                return download_direct(delivery)
+            except AuthCenterError as exc:
+                if int(getattr(exc, "upstream_status_code", exc.status_code)) not in {
+                    401, 403, 404
+                }:
+                    raise
+            refreshed = self.refresh_h3_segment_delivery(token, clean_segment_id)
+            if str(refreshed.get("result_signature") or "") != original_signature:
+                raise AuthCenterError(
+                    "H3 分段已产生新结果，本次旧版本下载已停止",
+                    error_code="H3_RESULT_CHANGED",
+                    status_code=409,
+                    retryable=False,
+                )
+            return download_direct(refreshed)
         return self._download(
             f"/api/workbench/h3-segments/{clean_segment_id}/video",
             token,
@@ -886,10 +1156,11 @@ class AuthCenterClient:
             max_bytes=max_bytes,
             timeout_seconds=300.0,
             failure_message="下载 H3 标准化分段失败",
+            resume=resume,
+            progress_callback=progress_callback,
         )
 
-    @staticmethod
-    def _validated_direct_video_url(value: object) -> str:
+    def _validated_direct_video_url(self, value: object) -> str:
         url = str(value or "").strip()
         parsed = urlsplit(url)
         if (
@@ -897,8 +1168,27 @@ class AuthCenterClient:
             or not parsed.hostname
             or parsed.username is not None
             or parsed.password is not None
+            or parsed.fragment
         ):
             raise ValueError("数字人网站返回了不安全的 H3 直达地址")
+        try:
+            port = parsed.port
+        except ValueError as exc:
+            raise ValueError("数字人网站返回了无效的 H3 直达端口") from exc
+        if port not in {None, 443}:
+            raise ValueError("H3 直达地址只能使用 HTTPS 标准端口")
+        hostname = parsed.hostname.rstrip(".").lower()
+        try:
+            address = ipaddress.ip_address(hostname)
+        except ValueError:
+            address = None
+        if address is not None and not address.is_global:
+            raise ValueError("H3 直达地址不能指向本机、内网或保留地址")
+        if self.h3_provider_allowed_hosts and not any(
+            hostname == allowed or hostname.endswith("." + allowed)
+            for allowed in self.h3_provider_allowed_hosts
+        ):
+            raise ValueError("H3 直达地址不在允许的供应商主机范围内")
         # RunningHub/COS object names may contain Chinese characters. urllib's
         # Request expects an ASCII-safe request target, so preserve existing
         # percent escapes while encoding only the path component.
@@ -906,6 +1196,24 @@ class AuthCenterClient:
         return urlunsplit(
             (parsed.scheme, parsed.netloc, encoded_path, parsed.query, parsed.fragment)
         )
+
+    def _validate_direct_video_destination(self, url: str) -> tuple[str, ...]:
+        if not self.h3_provider_allowed_hosts:
+            return ()
+        parsed = urlsplit(url)
+        try:
+            answers = socket.getaddrinfo(
+                parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM
+            )
+        except OSError as exc:
+            raise ValueError("H3 直达地址暂时无法解析") from exc
+        approved: list[str] = []
+        for answer in answers:
+            address = ipaddress.ip_address(answer[4][0])
+            if not address.is_global:
+                raise ValueError("H3 直达地址解析到了本机、内网或保留地址")
+            approved.append(str(address))
+        return tuple(dict.fromkeys(approved))
 
     def _download(
         self,
@@ -916,6 +1224,8 @@ class AuthCenterClient:
         max_bytes: int,
         timeout_seconds: float,
         failure_message: str,
+        resume: bool = False,
+        progress_callback: Callable[[int, int | None], None] | None = None,
     ) -> int:
         device_headers = self._device_business_headers(
             token, method="GET", path=path
@@ -932,6 +1242,8 @@ class AuthCenterClient:
             timeout_seconds=timeout_seconds,
             failure_message=failure_message,
             remote_label="数字人网站",
+            resume=resume,
+            progress_callback=progress_callback,
         )
 
     def _download_request(
@@ -943,29 +1255,142 @@ class AuthCenterClient:
         timeout_seconds: float,
         failure_message: str,
         remote_label: str,
+        resume: bool = False,
+        progress_callback: Callable[[int, int | None], None] | None = None,
+        allow_redirects: bool = True,
+        connect_timeout_seconds: float | None = None,
+        total_timeout_seconds: float | None = None,
+        use_h3_media_pool: bool = False,
+        allowed_peer_ips: tuple[str, ...] = (),
+        resume_identity: str = "",
     ) -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
-        size = 0
+        resume_metadata = target.with_name(target.name + ".resume.json")
+        offset = target.stat().st_size if resume and target.is_file() else 0
+        validator = ""
+        if offset:
+            try:
+                stored = json.loads(resume_metadata.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                stored = {}
+            if isinstance(stored, dict):
+                stored_identity = str(stored.get("result_signature") or "")
+                if resume_identity and stored_identity != resume_identity:
+                    target.unlink(missing_ok=True)
+                    resume_metadata.unlink(missing_ok=True)
+                    offset = 0
+                validator = str(
+                    stored.get("etag") or stored.get("last_modified") or ""
+                ).strip()
+            if offset:
+                request.add_header("Range", f"bytes={offset}-")
+                if validator:
+                    request.add_header("If-Range", validator)
+        size = offset
+        started_at = time.monotonic()
         try:
-            opener = _device_urlopen if request.has_header("Dpop") else urlopen
-            with opener(
-                request, timeout=max(self.timeout_seconds, timeout_seconds)
-            ) as response:
+            connect_timeout = (
+                max(1.0, float(connect_timeout_seconds))
+                if connect_timeout_seconds is not None
+                else max(self.timeout_seconds, timeout_seconds)
+            )
+            if use_h3_media_pool:
+                opened_response = self._h3_media_session.open(
+                    request,
+                    connect_timeout=connect_timeout,
+                    read_timeout=max(1.0, float(timeout_seconds)),
+                    allowed_peer_ips=allowed_peer_ips,
+                )
+            else:
+                opener = (
+                    _device_urlopen
+                    if request.has_header("Dpop")
+                    else (urlopen if allow_redirects else _no_redirect_urlopen)
+                )
+                opened_response = opener(request, timeout=connect_timeout)
+            with opened_response as response:
+                if connect_timeout_seconds is not None and not use_h3_media_pool:
+                    sock = getattr(
+                        getattr(getattr(response, "fp", None), "raw", None),
+                        "_sock",
+                        None,
+                    )
+                    if sock is not None:
+                        sock.settimeout(max(1.0, float(timeout_seconds)))
+                status = int(getattr(response, "status", 200))
+                append = bool(offset and status == 206)
+                content_range = str(
+                    getattr(response, "headers", {}).get("Content-Range") or ""
+                ).strip()
+                if append and not content_range.lower().startswith(
+                    f"bytes {offset}-"
+                ):
+                    target.unlink(missing_ok=True)
+                    resume_metadata.unlink(missing_ok=True)
+                    raise AuthCenterError(
+                        "远程文件断点范围与本地残片不一致",
+                        status_code=502,
+                        retryable=True,
+                    )
+                if not append:
+                    size = 0
+                content_type = str(
+                    getattr(response, "headers", {}).get("Content-Type") or ""
+                ).split(";", 1)[0].strip().lower()
+                if use_h3_media_pool and content_type in {
+                    "text/html", "text/plain", "application/json"
+                }:
+                    target.unlink(missing_ok=True)
+                    resume_metadata.unlink(missing_ok=True)
+                    raise AuthCenterError(
+                        "RunningHub 返回的 H3 文件类型不是视频",
+                        status_code=502,
+                        retryable=False,
+                    )
                 content_length = str(
                     getattr(response, "headers", {}).get("Content-Length") or ""
                 ).strip()
+                declared_size = 0
                 if content_length:
                     try:
                         declared_size = int(content_length)
                     except ValueError:
                         declared_size = 0
-                    if declared_size > max_bytes:
+                    if size + declared_size > max_bytes:
+                        target.unlink(missing_ok=True)
+                        resume_metadata.unlink(missing_ok=True)
                         raise AuthCenterError(
                             "远程文件超过工作台允许的文件大小",
                             status_code=413,
                         )
-                with target.open("wb") as output:
+                etag = str(
+                    getattr(response, "headers", {}).get("ETag") or ""
+                ).strip()
+                last_modified = str(
+                    getattr(response, "headers", {}).get("Last-Modified") or ""
+                ).strip()
+                resume_metadata.write_text(
+                    json.dumps(
+                        {
+                            "etag": etag or None,
+                            "last_modified": last_modified or None,
+                            "result_signature": resume_identity or None,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                total = size + declared_size if declared_size else None
+                if progress_callback is not None:
+                    progress_callback(size, total)
+                with target.open("ab" if append else "wb") as output:
                     while True:
+                        if (
+                            total_timeout_seconds is not None
+                            and time.monotonic() - started_at
+                            > float(total_timeout_seconds)
+                        ):
+                            raise TimeoutError("H3 媒体下载超过总时限")
                         chunk = response.read(1024 * 1024)
                         if not chunk:
                             break
@@ -973,21 +1398,57 @@ class AuthCenterClient:
                         if size > max_bytes:
                             raise AuthCenterError("远程文件超过工作台允许的文件大小", status_code=413)
                         output.write(chunk)
+                        if progress_callback is not None:
+                            progress_callback(size, total)
         except HTTPError as exc:
             raw = exc.read()
-            target.unlink(missing_ok=True)
-            raise self._response_error(raw, int(exc.code), f"{remote_label}拒绝下载（HTTP {exc.code}）") from exc
+            if int(exc.code) == 416 and resume and target.is_file() and offset > 0:
+                if progress_callback is not None:
+                    progress_callback(offset, offset)
+                resume_metadata.unlink(missing_ok=True)
+                return offset
+            if not resume or int(exc.code) not in {401, 403, 404, 429, 502, 503, 504}:
+                target.unlink(missing_ok=True)
+                resume_metadata.unlink(missing_ok=True)
+            error = self._response_error(
+                raw,
+                int(exc.code),
+                f"{remote_label}拒绝下载（HTTP {exc.code}）",
+            )
+            retry_after = str(getattr(exc, "headers", {}).get("Retry-After") or "").strip()
+            if retry_after.isdigit():
+                error.retry_after_seconds = min(3600, int(retry_after))
+            elif retry_after:
+                try:
+                    retry_at = parsedate_to_datetime(retry_after).timestamp()
+                    error.retry_after_seconds = min(
+                        3600, max(0, round(retry_at - time.time()))
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    pass
+            raise error from exc
         except (URLError, OSError, TimeoutError) as exc:
-            target.unlink(missing_ok=True)
+            if not resume:
+                target.unlink(missing_ok=True)
+                resume_metadata.unlink(missing_ok=True)
             raise AuthCenterConnectionError(
                 f"{failure_message}，请检查{remote_label}是否在线"
             ) from exc
+        except AuthCenterError as exc:
+            if exc.status_code in {413, 422} or not exc.retryable:
+                target.unlink(missing_ok=True)
+                resume_metadata.unlink(missing_ok=True)
+            raise
         except BaseException:
-            target.unlink(missing_ok=True)
+            if not resume:
+                target.unlink(missing_ok=True)
+                resume_metadata.unlink(missing_ok=True)
             raise
         if size <= 0:
             target.unlink(missing_ok=True)
+            resume_metadata.unlink(missing_ok=True)
             raise AuthCenterError(f"{remote_label}返回了空文件")
+        resume_metadata.unlink(missing_ok=True)
         return size
 
     def _multipart_post(
@@ -1053,6 +1514,8 @@ class AuthCenterClient:
         payload: dict[str, Any],
         *,
         timeout_seconds: float | None = None,
+        extra_headers: dict[str, str] | None = None,
+        connect_timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
         device_headers = self._device_business_headers(
             str(payload.get("access_token") or ""), method="POST", path=path
@@ -1064,7 +1527,12 @@ class AuthCenterClient:
             f"{self.base_url}{path}",
             data=body,
             method="POST",
-            headers={"Content-Type": "application/json", "Accept": "application/json", **device_headers},
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                **(extra_headers or {}),
+                **device_headers,
+            },
         )
         return self._read_json_response(
             request,
@@ -1073,19 +1541,44 @@ class AuthCenterClient:
                 if timeout_seconds is None
                 else max(self.timeout_seconds, float(timeout_seconds))
             ),
+            connect_timeout_seconds=connect_timeout_seconds,
         )
 
     def _read_json_response(
-        self, request: Request, *, timeout_seconds: float
+        self,
+        request: Request,
+        *,
+        timeout_seconds: float,
+        connect_timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
         try:
             opener = _device_urlopen if request.has_header("Dpop") else urlopen
-            with opener(request, timeout=timeout_seconds) as response:
+            connect_timeout = (
+                timeout_seconds
+                if connect_timeout_seconds is None
+                else min(timeout_seconds, max(1.0, float(connect_timeout_seconds)))
+            )
+            with opener(request, timeout=connect_timeout) as response:
+                # urllib uses one socket timeout for connect and read. Once the
+                # connection is established, widen only the read timeout to the
+                # remaining end-to-end budget.
+                sock = getattr(
+                    getattr(getattr(response, "fp", None), "raw", None),
+                    "_sock",
+                    None,
+                )
+                if sock is not None:
+                    sock.settimeout(timeout_seconds)
                 raw = response.read()
                 status = int(getattr(response, "status", 200))
         except HTTPError as exc:
             raw = exc.read()
-            raise self._response_error(raw, int(exc.code), f"数字人网站拒绝请求（HTTP {exc.code}）") from exc
+            raise self._response_error(
+                raw,
+                int(exc.code),
+                f"数字人网站拒绝请求（HTTP {exc.code}）",
+                retry_after_header=exc.headers.get("Retry-After"),
+            ) from exc
         except (URLError, OSError, TimeoutError) as exc:
             raise AuthCenterConnectionError(
                 f"无法连接数字人网站 {self.base_url}，请确认数字人网站已经启动"
@@ -1111,7 +1604,14 @@ class AuthCenterClient:
         return data
 
     @classmethod
-    def _response_error(cls, raw: bytes, status: int, fallback: str) -> AuthCenterError:
+    def _response_error(
+        cls,
+        raw: bytes,
+        status: int,
+        fallback: str,
+        *,
+        retry_after_header: str | None = None,
+    ) -> AuthCenterError:
         try:
             data = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -1121,7 +1621,40 @@ class AuthCenterClient:
             code.startswith(("DEVICE_", "INVALID_DEVICE_")) or code in {"AUTH_REFRESH_REQUIRED", "CLIENT_UPGRADE_REQUIRED", "AMBIGUOUS_ACCOUNT_TOKEN"}
         ):
             return AuthCenterDeviceError(cls._detail(raw) or "请检查当前处理机的设备授权", error_code=code, status_code=status)
-        return AuthCenterError(cls._detail(raw) or fallback, status_code=status)
+        if (
+            isinstance(code, str)
+            and 1 <= len(code) <= 64
+            and code.replace("_", "").isalnum()
+            and code.replace("_", "").isascii()
+        ):
+            return AuthCenterError(
+                cls._detail(raw) or fallback,
+                status_code=status,
+                error_code=code,
+                retryable=status in {429, 502, 503, 504},
+                retry_after_seconds=cls._retry_after_seconds(retry_after_header),
+            )
+        return AuthCenterError(
+            cls._detail(raw) or fallback,
+            status_code=status,
+            retry_after_seconds=cls._retry_after_seconds(retry_after_header),
+        )
+
+    @staticmethod
+    def _retry_after_seconds(value: str | None) -> float | None:
+        clean = str(value or "").strip()
+        if not clean:
+            return None
+        try:
+            return min(60.0, max(0.0, float(clean)))
+        except ValueError:
+            try:
+                return min(
+                    60.0,
+                    max(0.0, parsedate_to_datetime(clean).timestamp() - time.time()),
+                )
+            except (TypeError, ValueError, OverflowError):
+                return None
 
     @staticmethod
     def _detail(raw: bytes) -> str:

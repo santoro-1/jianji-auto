@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import threading
 from typing import Any, Iterable
 import uuid
 
@@ -72,6 +73,7 @@ from .user_templates import detect_caption_tracks
 CAPTION_MAX_WIDTH_RATIO = 0.8
 POSTPROCESS_STALL_TIMEOUT_SECONDS = 30 * 60
 POSTPROCESS_NO_AGENT_GRACE_SECONDS = 60
+_POSTPROCESS_ACTION_LOCKS = [threading.RLock() for _ in range(64)]
 CAPTION_MAX_LINES = 1
 CAPTION_TRANSFORM_Y = -850 / 1920
 CAPTION_BOTTOM_OFFSET_RATIO = 0.5 + CAPTION_TRANSFORM_Y / 2
@@ -2209,6 +2211,40 @@ def _active_postprocess_operations(
     return active, latest_by_item
 
 
+def _postprocess_action_lock(
+    store: ProjectStore, owner_user_id: str, project_id: str
+) -> Any:
+    """Serialize postprocess submission and reconciliation for one project."""
+
+    key = (str(store.path), str(owner_user_id), str(project_id))
+    return _POSTPROCESS_ACTION_LOCKS[hash(key) % len(_POSTPROCESS_ACTION_LOCKS)]
+
+
+def _has_valid_postprocess_draft(
+    project: dict[str, Any], item_id: str, *, excluded_operation_id: str = ""
+) -> bool:
+    for operation in reversed(project.get("operations", [])):
+        if (
+            str(operation.get("operation_id") or "") == excluded_operation_id
+            or str(operation.get("item_id") or "") != item_id
+            or operation.get("operation_type") != "POSTPROCESS_GENERATE"
+            or operation.get("status") != "SUCCEEDED"
+        ):
+            continue
+        result = (
+            operation.get("result")
+            if isinstance(operation.get("result"), dict)
+            else {}
+        )
+        draft_dir_text = str(result.get("output_draft_dir") or "").strip()
+        if not draft_dir_text:
+            continue
+        draft_dir = Path(draft_dir_text).resolve()
+        if draft_dir.is_dir() and (draft_dir / "draft_content.json").is_file():
+            return True
+    return False
+
+
 def _postprocess_target_items(
     project: dict[str, Any], requested_item_ids: set[str]
 ) -> list[dict[str, Any]]:
@@ -2687,7 +2723,23 @@ class ProjectPostprocessCoordinator:
         idempotency_key: str,
         item_settings: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        project = self.store.get_project(owner_user_id, project_id)
+        with _postprocess_action_lock(self.store, owner_user_id, project_id):
+            return self._start_locked(
+                owner_user_id,
+                project_id,
+                idempotency_key=idempotency_key,
+                item_settings=item_settings,
+            )
+
+    def _start_locked(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        *,
+        idempotency_key: str,
+        item_settings: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        project = self._sync_locked(owner_user_id, project_id)
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("字幕与背景音乐预览请求缺少幂等键")
@@ -3128,7 +3180,25 @@ class ProjectPostprocessCoordinator:
     ) -> dict[str, Any]:
         """Export one browser preview only when the user explicitly requests a file."""
 
-        project = self.store.get_project(owner_user_id, project_id)
+        with _postprocess_action_lock(self.store, owner_user_id, project_id):
+            return self._export_preview_locked(
+                owner_user_id,
+                project_id,
+                item_id,
+                idempotency_key=idempotency_key,
+            )
+
+    def _export_preview_locked(
+        self,
+        owner_user_id: str,
+        project_id: str,
+        item_id: str,
+        *,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Run an explicit export while holding the per-project action lock."""
+
+        project = self._sync_locked(owner_user_id, project_id)
         clean_key = str(idempotency_key or "").strip()
         if not clean_key:
             raise ValueError("按需导出请求缺少幂等键")
@@ -3377,6 +3447,10 @@ class ProjectPostprocessCoordinator:
         return self.sync(owner_user_id, project_id)
 
     def sync(self, owner_user_id: str, project_id: str) -> dict[str, Any]:
+        with _postprocess_action_lock(self.store, owner_user_id, project_id):
+            return self._sync_locked(owner_user_id, project_id)
+
+    def _sync_locked(self, owner_user_id: str, project_id: str) -> dict[str, Any]:
         queue_store = getattr(self.render_queue, "store", None)
         recover_expired = getattr(queue_store, "recover_expired_leases", None)
         if callable(recover_expired):
@@ -3399,6 +3473,33 @@ class ProjectPostprocessCoordinator:
             operation_type = str(operation.get("operation_type") or "POSTPROCESS_GENERATE")
             job_id = str(result.get("job_id") or "")
             if not job_id:
+                recovery_status = preserved_item_status
+                if is_latest:
+                    recovery_status = (
+                        "COMPOSITION_READY"
+                        if item.get("outputs", {}).get("composition_video") is not None
+                        or _has_valid_postprocess_draft(
+                            project,
+                            item_id,
+                            excluded_operation_id=operation_id,
+                        )
+                        else "COMPOSITION_FAILED"
+                    )
+                self.store.transition_operation(
+                    owner_user_id,
+                    project_id,
+                    item["item_id"],
+                    operation_id=operation_id,
+                    operation_type=operation_type,
+                    status="FAILED",
+                    item_status=recovery_status,
+                    result=result,
+                    error_code="POSTPROCESS_SUBMISSION_INTERRUPTED",
+                    error_message=(
+                        "后期处理操作已创建但未进入剪映任务队列，"
+                        "已停止等待；请重新生成预览"
+                    ),
+                )
                 continue
             try:
                 status = self.render_queue.get_status(job_id)

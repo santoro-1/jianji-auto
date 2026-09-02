@@ -3,9 +3,11 @@ from __future__ import annotations
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import hashlib
+import inspect
 import logging
 import threading
 import time
+import uuid
 from typing import Any, Mapping
 
 from .auth_center import AuthCenterClient, AuthCenterError
@@ -33,6 +35,15 @@ CONTENT_ANALYSIS_BATCH_CONCURRENCY = 10
 analysis_logger = logging.getLogger(__name__)
 _UNCHANGED_SCRIPT_STATUSES = {"PENDING", "SUCCESS", "PARTIAL", "FAILED"}
 _BRANCH_STATUSES = {"SUCCESS", "FAILED"}
+
+
+def _supports_analysis_identity(client: object, method_name: str) -> bool:
+    method = getattr(client, method_name)
+    parameters = inspect.signature(method).parameters
+    return "analysis_operation_id" in parameters or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
 
 
 def _script_sha256(script: str) -> str:
@@ -102,8 +113,15 @@ def _analyze_with_visual_context_compat(
     *,
     force_refresh: bool,
     visual_context: Mapping[str, Any] | None,
+    analysis_operation_id: str | None = None,
+    project_key: str = "default",
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"force_refresh": force_refresh}
+    if _supports_analysis_identity(client, "analyze_workbench_content"):
+        kwargs.update(
+            analysis_operation_id=analysis_operation_id,
+            project_key=project_key,
+        )
     if visual_context is not None:
         kwargs["visual_context"] = dict(visual_context)
     try:
@@ -114,6 +132,11 @@ def _analyze_with_visual_context_compat(
 
     legacy_context = _legacy_content_visual_context(visual_context)
     legacy_kwargs: dict[str, Any] = {"force_refresh": force_refresh}
+    if _supports_analysis_identity(client, "analyze_workbench_content"):
+        legacy_kwargs.update(
+            analysis_operation_id=analysis_operation_id,
+            project_key=project_key,
+        )
     if legacy_context is not None:
         legacy_kwargs["visual_context"] = legacy_context
     try:
@@ -128,9 +151,13 @@ def _analyze_with_visual_context_compat(
         if legacy_context is None or not _is_visual_context_contract_rejection(exc):
             raise
 
-    result = client.analyze_workbench_content(
-        token, original_script, force_refresh=force_refresh
-    )
+    final_kwargs: dict[str, Any] = {"force_refresh": force_refresh}
+    if _supports_analysis_identity(client, "analyze_workbench_content"):
+        final_kwargs.update(
+            analysis_operation_id=analysis_operation_id,
+            project_key=project_key,
+        )
+    result = client.analyze_workbench_content(token, original_script, **final_kwargs)
     result["_workbench_visual_context_mode"] = "content_only"
     return result
 
@@ -415,6 +442,8 @@ class ProjectContentAnalysisCoordinator:
                     token,
                     target.original_script,
                     force_refresh=force_refresh,
+                    analysis_operation_id=uuid.uuid4().hex,
+                    project_key=f"{owner_user_id}:{project_id}",
                     visual_context=(
                         target.visual.visual_context
                         if target.visual is not None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 import uuid
 from unittest.mock import patch
@@ -121,8 +122,30 @@ def test_catalog_analysis_review_and_revision_api() -> None:
             )
             assert analyzed.status_code == 200, analyzed.text
             analyzed_project = analyzed.json()
+            deadline = time.monotonic() + 5
             analysis = analyzed_project["items"][0]["visual_analysis"]
+            stable_revision = None
+            stable_reads = 0
+            while time.monotonic() < deadline:
+                if (
+                    analysis["analysis_status"] == "SUCCESS"
+                    and analyzed_project["revision"] == stable_revision
+                ):
+                    stable_reads += 1
+                else:
+                    stable_reads = 0
+                stable_revision = analyzed_project["revision"]
+                if stable_reads >= 2:
+                    break
+                time.sleep(0.05)
+                refreshed = client.get(
+                    f"/api/new/projects/{project['project_id']}"
+                )
+                assert refreshed.status_code == 200, refreshed.text
+                analyzed_project = refreshed.json()
+                analysis = analyzed_project["items"][0]["visual_analysis"]
             assert analysis["analysis_status"] == "SUCCESS"
+            assert stable_reads >= 2
             assert analysis["mapping_status"] == "FAILED"
 
             saved = client.put(
