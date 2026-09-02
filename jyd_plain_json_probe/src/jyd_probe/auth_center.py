@@ -206,10 +206,15 @@ class AuthCenterClient:
         self.timeout_seconds = max(1.0, float(timeout_seconds))
         self.device_header_provider = None
 
-    def _h3_device_headers(self, token: str, *, method: str, path: str) -> dict[str, str]:
-        from .device_business_transport import is_h3_contract_path
+    def _device_business_headers(
+        self, token: str, *, method: str, path: str
+    ) -> dict[str, str]:
+        from .device_business_transport import is_device_business_contract_path
 
-        if not is_h3_contract_path(method, path) or self.device_header_provider is None:
+        if (
+            not is_device_business_contract_path(method, path)
+            or self.device_header_provider is None
+        ):
             return {}
         provider = self.device_header_provider
         if getattr(provider, "origin", self.base_url) != self.base_url:
@@ -912,7 +917,9 @@ class AuthCenterClient:
         timeout_seconds: float,
         failure_message: str,
     ) -> int:
-        device_headers = self._h3_device_headers(token, method="GET", path=path)
+        device_headers = self._device_business_headers(
+            token, method="GET", path=path
+        )
         request = Request(
             f"{self.base_url}{path}",
             method="GET",
@@ -989,6 +996,15 @@ class AuthCenterClient:
         fields: dict[str, Any],
         files: list[tuple[str, str, bytes, str]],
     ) -> dict[str, Any]:
+        device_headers = self._device_business_headers(
+            str(fields.get("access_token") or ""), method="POST", path=path
+        )
+        if device_headers:
+            fields = {
+                key: value
+                for key, value in fields.items()
+                if key != "access_token"
+            }
         boundary = f"----jyd-{secrets.token_hex(16)}"
         chunks: list[bytes] = []
         for name, value in fields.items():
@@ -1026,6 +1042,7 @@ class AuthCenterClient:
             headers={
                 "Content-Type": f"multipart/form-data; boundary={boundary}",
                 "Accept": "application/json",
+                **device_headers,
             },
         )
         return self._read_json_response(request, timeout_seconds=300.0)
@@ -1037,7 +1054,9 @@ class AuthCenterClient:
         *,
         timeout_seconds: float | None = None,
     ) -> dict[str, Any]:
-        device_headers = self._h3_device_headers(str(payload.get("access_token") or ""), method="POST", path=path)
+        device_headers = self._device_business_headers(
+            str(payload.get("access_token") or ""), method="POST", path=path
+        )
         if device_headers:
             payload = {key: value for key, value in payload.items() if key != "access_token"}
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")

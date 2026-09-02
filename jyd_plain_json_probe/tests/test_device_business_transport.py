@@ -15,7 +15,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from jyd_probe.auth_center import AuthCenterClient, AuthCenterDeviceError
 from jyd_probe.device_auth_protocol import DeviceAuthorizationError
-from jyd_probe.device_business_transport import DeviceBusinessProofs
+from jyd_probe.device_business_transport import (
+    DeviceBusinessProofs,
+    is_device_business_contract_path,
+)
 
 
 class Response:
@@ -70,6 +73,93 @@ def test_h3_json_uses_headers_not_body_credentials_and_preserves_business_key(
     client.device_header_provider.assert_called_once_with(
         "login-token", method="POST", path="/api/workbench/h3-batches/prepare"
     )
+
+
+def test_audio_generation_uses_device_headers_and_removes_body_token(
+    client, monkeypatch
+):
+    sent = []
+
+    def request(req, **_):
+        sent.append(req)
+        return Response({"batch_id": "audio-1"})
+
+    monkeypatch.setattr("jyd_probe.auth_center._device_urlopen", request)
+    monkeypatch.setattr(
+        "jyd_probe.auth_center.urlopen",
+        lambda *_a, **_k: pytest.fail("no account-token resend"),
+    )
+    payload = {"request_key": "audio-key", "rows": [], "speech_options": {}}
+    assert client.create_workbench_audio_batch("login-token", payload) == {
+        "batch_id": "audio-1"
+    }
+    assert json.loads(sent[0].data) == payload
+    assert sent[0].get_header("Authorization") == "DPoP bound-token"
+    assert sent[0].get_header("Dpop") == "fresh-proof"
+    client.device_header_provider.assert_called_once_with(
+        "login-token", method="POST", path="/api/workbench/audio-batches"
+    )
+
+
+def test_voice_creation_multipart_uses_device_headers_and_omits_body_token(
+    client, monkeypatch
+):
+    sent = []
+
+    def request(req, **_):
+        sent.append(req)
+        return Response({"task_id": "voice-1"})
+
+    monkeypatch.setattr("jyd_probe.auth_center._device_urlopen", request)
+    monkeypatch.setattr(
+        "jyd_probe.auth_center.urlopen",
+        lambda *_a, **_k: pytest.fail("no account-token resend"),
+    )
+    result = client.create_voice_creation(
+        "login-token",
+        fields={"name": "voice"},
+        source_a_name="voice.wav",
+        source_a=b"wave",
+        source_a_content_type="audio/wav",
+    )
+    assert result == {"task_id": "voice-1"}
+    assert sent[0].get_header("Authorization") == "DPoP bound-token"
+    assert sent[0].get_header("Dpop") == "fresh-proof"
+    assert b'\r\n\r\nlogin-token\r\n' not in sent[0].data
+    client.device_header_provider.assert_called_once_with(
+        "login-token", method="POST", path="/api/workbench/voice-creations"
+    )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/workbench/voices/voice-1/preview",
+        "/api/workbench/voices/voice-1/activate",
+        "/api/workbench/voice-creations",
+        "/api/workbench/voice-creations/task-1/save",
+        "/api/workbench/audio-batches",
+        "/api/workbench/audio-batches/batch-1/items/item-1/retry",
+        "/api/workbench/audio-batches/batch-1/items/item-1/composition",
+        "/api/workbench/tasks/item-1/composition/retry",
+        "/api/workbench/tasks/item-1/enhancement/backfill",
+    ],
+)
+def test_all_paid_workbench_contracts_are_device_bound(path):
+    assert is_device_business_contract_path("POST", path) is True
+
+
+@pytest.mark.parametrize(
+    "method,path",
+    [
+        ("POST", "/api/workbench/voices"),
+        ("POST", "/api/workbench/audio-batches/batch-1"),
+        ("GET", "/api/workbench/audio-batches/batch-1/items/item-1/audio"),
+        ("POST", "/api/auth/center/verify"),
+    ],
+)
+def test_read_only_and_login_contracts_remain_account_only(method, path):
+    assert is_device_business_contract_path(method, path) is False
 
 
 def test_bootstrap_and_not_yet_integrated_contracts_never_receive_device_proof(

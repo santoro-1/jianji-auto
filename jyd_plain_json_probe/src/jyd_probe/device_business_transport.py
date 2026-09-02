@@ -1,4 +1,4 @@
-"""Attach this processor's proof to the audited H3 cloud contract only.
+"""Attach this processor's proof to audited paid workbench contracts.
 
 This is transport, not a local license gate. Without usable device credentials a
 single account-only request can read/recover old results or receive the cloud's
@@ -14,7 +14,7 @@ from .device_auth_protocol import DeviceAuthorizationError
 from .device_identity_windows import DeviceIdentityError
 
 _ID = r"[A-Za-z0-9_-]{1,100}"
-_POST = re.compile(
+_H3_POST = re.compile(
     r"/api/workbench/(?:h3-execution-accounts|h3-authorization-waiting|h3-audio-sources(?:/approve)?|"
     r"h3-batches/prepare|h3-batches/"
     + _ID
@@ -23,7 +23,7 @@ _POST = re.compile(
     + _ID
     + r"/(?:regeneration/(?:prepare|confirm)|retry/(?:prepare|confirm)|cancel))\Z"
 )
-_GET = re.compile(
+_H3_GET = re.compile(
     r"/api/workbench/(?:h3-segments/"
     + _ID
     + r"/video|h3-items/"
@@ -31,20 +31,36 @@ _GET = re.compile(
     + r"/(?:audio|raw-cues))\Z"
 )
 
+_WORKBENCH_POST = re.compile(
+    r"/api/workbench/(?:"
+    r"voices/" + _ID + r"/(?:preview|activate)|"
+    r"voice-creations(?:/" + _ID + r"/save)?|"
+    r"audio-batches|"
+    r"audio-batches/" + _ID + r"/items/" + _ID + r"/(?:retry|composition)|"
+    r"tasks/" + _ID + r"/(?:composition/retry|enhancement/backfill)"
+    r")\Z"
+)
+
+
+def is_device_business_contract_path(method: str, path: str) -> bool:
+    if path.startswith("/api/workbench/h3-"):
+        if (method == "POST" and _H3_POST.fullmatch(path)) or (
+            method == "GET" and _H3_GET.fullmatch(path)
+        ):
+            return True
+        from .auth_center import AuthCenterDeviceError
+
+        raise AuthCenterDeviceError(
+            "H3 设备请求地址不在已接入的接口范围内",
+            error_code="INVALID_DEVICE_REQUEST_TARGET",
+        )
+    return method == "POST" and _WORKBENCH_POST.fullmatch(path) is not None
+
 
 def is_h3_contract_path(method: str, path: str) -> bool:
     if not path.startswith("/api/workbench/h3-"):
         return False
-    if (method == "POST" and _POST.fullmatch(path)) or (
-        method == "GET" and _GET.fullmatch(path)
-    ):
-        return True
-    from .auth_center import AuthCenterDeviceError
-
-    raise AuthCenterDeviceError(
-        "H3 设备请求地址不在已接入的接口范围内",
-        error_code="INVALID_DEVICE_REQUEST_TARGET",
-    )
+    return is_device_business_contract_path(method, path)
 
 
 class DeviceBusinessProofs:
@@ -54,7 +70,7 @@ class DeviceBusinessProofs:
         self.account_resolver = account_resolver
 
     def __call__(self, login_token: str, *, method: str, path: str):
-        if not is_h3_contract_path(method, path):
+        if not is_device_business_contract_path(method, path):
             return None
         # Source builds have no production keys. This is not a configurable
         # allow switch: server enforcement still rejects unbound new operations.

@@ -12,6 +12,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from jyd_probe.music_matching import (  # noqa: E402
+    LEGACY_DURATION_FILTER_MIGRATION,
+    LEGACY_DURATION_FILTER_PROFILE_COUNT,
+    LEGACY_DURATION_FILTER_PROFILE_VERSION,
+    LEGACY_DURATION_FILTER_WORKBOOK_SHA256,
+    LEGACY_DURATION_FILTERS,
     MUSIC_MATCHER_HARD_FILTERS_V1,
     MUSIC_MATCHER_VERSION,
     MUSIC_MATCHER_WEIGHTS_V1,
@@ -52,6 +57,18 @@ def health_intent(**changes):
     return value
 
 
+def write_music_fixture(root: Path, document: dict) -> None:
+    (root / "manifest").mkdir(parents=True)
+    shutil.copy2(
+        AUDIO_ROOT / "manifest" / "audio_manifest.json",
+        root / "manifest" / "audio_manifest.json",
+    )
+    (root / "manifest" / "music_profiles.v1.json").write_text(
+        json.dumps(document, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
 class MusicProfileMatcherTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -64,6 +81,7 @@ class MusicProfileMatcherTest(unittest.TestCase):
         self.assertEqual(self.snapshot["needs_review_count"], 4)
         self.assertEqual(self.snapshot["taxonomy_version"], MUSIC_TAXONOMY_VERSION)
         self.assertEqual(self.snapshot["matcher_version"], MUSIC_MATCHER_VERSION)
+        self.assertIsNone(self.snapshot["compatibility_migration"])
         identities = {profile["identity"] for profile in self.snapshot["profiles"]}
         self.assertEqual(len(identities), 48)
         self.assertTrue(all(identity.startswith("music_id:") for identity in identities))
@@ -258,23 +276,75 @@ class MusicProfileMatcherTest(unittest.TestCase):
     def test_manifest_rejects_weight_drift_before_matching(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "manifest").mkdir(parents=True)
-            shutil.copy2(
-                AUDIO_ROOT / "manifest" / "audio_manifest.json",
-                root / "manifest" / "audio_manifest.json",
-            )
             document = json.loads(
                 (AUDIO_ROOT / "manifest" / "music_profiles.v1.json").read_text(
                     encoding="utf-8"
                 )
             )
             document["weights"]["scene"] = 24
-            (root / "manifest" / "music_profiles.v1.json").write_text(
-                json.dumps(document, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            write_music_fixture(root, document)
             with self.assertRaises(MusicProfileError):
                 MusicProfileMatcher(root).snapshot()
+
+    def test_known_20260806_duration_filter_manifest_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            document = json.loads(
+                (AUDIO_ROOT / "manifest" / "music_profiles.v1.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            document["profile_version"] = LEGACY_DURATION_FILTER_PROFILE_VERSION
+            document["hard_filters"] = list(LEGACY_DURATION_FILTERS)
+            document["source"]["workbook_sha256"] = (
+                LEGACY_DURATION_FILTER_WORKBOOK_SHA256
+            )
+            document["profiles"] = document["profiles"][:LEGACY_DURATION_FILTER_PROFILE_COUNT]
+            write_music_fixture(root, document)
+
+            snapshot = MusicProfileMatcher(root).snapshot()
+
+            self.assertEqual(snapshot["profile_count"], LEGACY_DURATION_FILTER_PROFILE_COUNT)
+            self.assertEqual(
+                snapshot["compatibility_migration"],
+                LEGACY_DURATION_FILTER_MIGRATION,
+            )
+
+    def test_unknown_duration_filter_manifest_drift_is_still_rejected(self) -> None:
+        current_document = json.loads(
+            (AUDIO_ROOT / "manifest" / "music_profiles.v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        cases = []
+
+        wrong_version = json.loads(json.dumps(current_document))
+        wrong_version["hard_filters"] = list(LEGACY_DURATION_FILTERS)
+        cases.append(wrong_version)
+
+        wrong_count = json.loads(json.dumps(current_document))
+        wrong_count["profile_version"] = LEGACY_DURATION_FILTER_PROFILE_VERSION
+        wrong_count["hard_filters"] = list(LEGACY_DURATION_FILTERS)
+        wrong_count["source"]["workbook_sha256"] = LEGACY_DURATION_FILTER_WORKBOOK_SHA256
+        cases.append(wrong_count)
+
+        unknown_filter = json.loads(json.dumps(current_document))
+        unknown_filter["hard_filters"].append("unknown_future_filter")
+        cases.append(unknown_filter)
+
+        invalid_filter_type = json.loads(json.dumps(current_document))
+        invalid_filter_type["hard_filters"] = 1
+        cases.append(invalid_filter_type)
+
+        for index, document in enumerate(cases):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                write_music_fixture(root, document)
+                with self.assertRaisesRegex(
+                    MusicProfileError,
+                    "音乐硬过滤规则与 music-matcher.v1 不一致",
+                ):
+                    MusicProfileMatcher(root).snapshot()
 
 
 if __name__ == "__main__":

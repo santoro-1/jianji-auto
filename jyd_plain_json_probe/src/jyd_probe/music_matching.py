@@ -26,6 +26,19 @@ MUSIC_MATCHER_HARD_FILTERS_V1 = (
     "rights_allowed",
     "forbidden_traits_absent",
 )
+LEGACY_DURATION_FILTER_PROFILE_VERSION = "2026-08-06.1"
+LEGACY_DURATION_FILTER_PROFILE_COUNT = 46
+LEGACY_DURATION_FILTER_WORKBOOK_SHA256 = (
+    "52770fb7a6e993a173b17d87a71ea68b8a7a8c787b0e90ef0b3fc16c739a278f"
+)
+LEGACY_DURATION_FILTERS = (
+    "enabled_and_available",
+    "auto_eligible",
+    "rights_allowed",
+    "duration_covers_video",
+    "forbidden_traits_absent",
+)
+LEGACY_DURATION_FILTER_MIGRATION = "ignore_obsolete_duration_covers_video"
 RECENT_USE_PENALTY = 0.75
 MAX_RECENT_USE_PENALTY = 2.25
 RECENCY_CANDIDATE_SCORE_GAP = 4.0
@@ -332,6 +345,31 @@ def _score(intent: dict[str, Any], profile: dict[str, Any]) -> dict[str, float]:
     }
 
 
+def _known_legacy_hard_filter_migration(
+    document: Mapping[str, Any],
+    raw_profiles: list[Any],
+) -> str | None:
+    """Accept only the shipped 2026-08-06 manifest's obsolete duration filter."""
+    raw_hard_filters = document.get("hard_filters")
+    if not isinstance(raw_hard_filters, list) or not all(
+        isinstance(value, str) for value in raw_hard_filters
+    ):
+        raise MusicProfileError("音乐硬过滤规则与 music-matcher.v1 不一致")
+    hard_filters = tuple(raw_hard_filters)
+    if hard_filters == MUSIC_MATCHER_HARD_FILTERS_V1:
+        return None
+    source = document.get("source")
+    if (
+        hard_filters == LEGACY_DURATION_FILTERS
+        and document.get("profile_version") == LEGACY_DURATION_FILTER_PROFILE_VERSION
+        and len(raw_profiles) == LEGACY_DURATION_FILTER_PROFILE_COUNT
+        and isinstance(source, dict)
+        and source.get("workbook_sha256") == LEGACY_DURATION_FILTER_WORKBOOK_SHA256
+    ):
+        return LEGACY_DURATION_FILTER_MIGRATION
+    raise MusicProfileError("音乐硬过滤规则与 music-matcher.v1 不一致")
+
+
 class MusicProfileMatcher:
     """Validate the shipped profile library and return one deterministic Top1 track."""
 
@@ -357,14 +395,16 @@ class MusicProfileMatcher:
             raise MusicProfileError("音乐 matcher_version 不匹配")
         if document.get("weights") != MUSIC_MATCHER_WEIGHTS_V1:
             raise MusicProfileError("音乐评分权重与 music-matcher.v1 不一致")
-        if tuple(document.get("hard_filters", ())) != MUSIC_MATCHER_HARD_FILTERS_V1:
-            raise MusicProfileError("音乐硬过滤规则与 music-matcher.v1 不一致")
         profile_version = document.get("profile_version")
         if not isinstance(profile_version, str) or not profile_version:
             raise MusicProfileError("profile_version 不能为空")
         raw_profiles = document.get("profiles")
         if not isinstance(raw_profiles, list) or not raw_profiles:
             raise MusicProfileError("profiles 必须是非空数组")
+        compatibility_migration = _known_legacy_hard_filter_migration(
+            document,
+            raw_profiles,
+        )
         profiles = [_validate_profile(raw, index) for index, raw in enumerate(raw_profiles)]
         identities = [profile["identity"] for profile in profiles]
         if len(identities) != len(set(identities)):
@@ -387,6 +427,7 @@ class MusicProfileMatcher:
             "matcher_version": MUSIC_MATCHER_VERSION,
             "profile_version": profile_version,
             "profile_hash": hashlib.sha256(raw_bytes).hexdigest(),
+            "compatibility_migration": compatibility_migration,
             "source": document.get("source", {}),
             "profile_count": len(profiles),
             "auto_eligible_count": sum(1 for profile in profiles if profile["auto_eligible"]),
