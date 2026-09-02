@@ -207,7 +207,7 @@ class AuthCenterTest(unittest.TestCase):
         submitted = json.loads(request.data.decode("utf-8"))
         self.assertEqual(submitted["original_script"], "  原文\n不能 trim  ")
         self.assertTrue(submitted["force_refresh"])
-        self.assertEqual(request_mock.call_args.kwargs["timeout"], 900.0)
+        self.assertEqual(request_mock.call_args.kwargs["timeout"], 600.0)
         self.assertEqual(result, payload)
 
     def test_content_analysis_diagnostics_classify_transport_without_secrets(self) -> None:

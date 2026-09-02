@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import hashlib
 import logging
+import threading
 import time
 from typing import Any, Mapping
 
@@ -258,6 +259,8 @@ class ProjectContentAnalysisCoordinator:
         *,
         item_ids: list[str] | None = None,
         force_refresh: bool = False,
+        _prepare_only: bool = False,
+        _resume_pending: bool = False,
     ) -> dict[str, Any]:
         batch_started_at = time.monotonic()
         project = self.store.get_project(owner_user_id, project_id)
@@ -299,7 +302,15 @@ class ProjectContentAnalysisCoordinator:
             item_id = str(item["item_id"])
             if requested and item_id not in requested:
                 continue
-            if not item.get("allowed_actions", {}).get("analyze_content", False):
+            pending_snapshot = (
+                _resume_pending
+                and (item.get("content_analysis") or {}).get("overall_status")
+                == "PENDING"
+            )
+            if (
+                not item.get("allowed_actions", {}).get("analyze_content", False)
+                and not pending_snapshot
+            ):
                 raise ValueError(f"任务 {item.get('row_key')} 正在生成或分析，请稍后重试")
             script = str(item["script_text"])
             script_hash = _script_sha256(script)
@@ -326,7 +337,8 @@ class ProjectContentAnalysisCoordinator:
                     and previous_visual.get("analysis_status") in {"SUCCESS", "FAILED"}
                 )
             if (
-                not force_refresh
+                not pending_snapshot
+                and not force_refresh
                 and is_current
                 and title_is_current
                 and visual_is_current
@@ -378,6 +390,8 @@ class ProjectContentAnalysisCoordinator:
             )
 
         if not targets:
+            return self.store.get_project(owner_user_id, project_id)
+        if _prepare_only:
             return self.store.get_project(owner_user_id, project_id)
 
         workers = min(self.max_concurrency, len(targets))
@@ -695,3 +709,64 @@ class ProjectContentAnalysisCoordinator:
             status_counts=status_counts,
         )
         return project
+
+
+class ProjectContentAnalysisDispatcher:
+    """Persist PENDING synchronously, then run provider calls off-request."""
+
+    def __init__(self, *, max_workers: int = 4) -> None:
+        self._executor = ThreadPoolExecutor(
+            max_workers=max(1, int(max_workers)),
+            thread_name_prefix="jyd-content-analysis",
+        )
+        self._lock = threading.Lock()
+        self._futures: set[Future[dict[str, Any]]] = set()
+
+    def submit(
+        self,
+        coordinator: ProjectContentAnalysisCoordinator,
+        owner_user_id: str,
+        project_id: str,
+        token: str,
+        *,
+        item_ids: list[str] | None = None,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        project = coordinator.analyze(
+            owner_user_id,
+            project_id,
+            token,
+            item_ids=item_ids,
+            force_refresh=force_refresh,
+            _prepare_only=True,
+        )
+        if not any(
+            (item.get("content_analysis") or {}).get("overall_status") == "PENDING"
+            for item in project.get("items", [])
+            if item_ids is None or str(item.get("item_id")) in set(item_ids)
+        ):
+            return project
+        future = self._executor.submit(
+            coordinator.analyze,
+            owner_user_id,
+            project_id,
+            token,
+            item_ids=item_ids,
+            force_refresh=force_refresh,
+            _resume_pending=True,
+        )
+        with self._lock:
+            self._futures.add(future)
+        future.add_done_callback(self._completed)
+        return project
+
+    def _completed(self, future: Future[dict[str, Any]]) -> None:
+        with self._lock:
+            self._futures.discard(future)
+        try:
+            future.result()
+        except Exception:
+            analysis_logger.exception("统一内容分析后台批次发生未处理异常")
+
+    def shutdown(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=True)

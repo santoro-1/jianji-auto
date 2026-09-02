@@ -60,7 +60,10 @@ from .h3_handoff import H3HandoffError, import_h3_handoff
 from .project_store import ProjectRevisionConflict, ProjectStore
 from .user_templates import UserTemplateStore, normalize_template_cover_frame_count
 from .project_audio import ProjectAudioCoordinator
-from .project_content_analysis import ProjectContentAnalysisCoordinator
+from .project_content_analysis import (
+    ProjectContentAnalysisCoordinator,
+    ProjectContentAnalysisDispatcher,
+)
 from .project_composition import (
     ProjectCompositionCoordinator,
     ProjectCompositionStartDispatcher,
@@ -1867,6 +1870,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if composition_coordinator is not None
         else None
     )
+    content_analysis_dispatcher = ProjectContentAnalysisDispatcher(max_workers=4)
     project_result_library = ProjectResultLibrary(
         project_store,
         settings.result_library_root or (settings.storage_root / "result_library"),
@@ -1890,6 +1894,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     app.state.user_template_store = user_template_store
     app.state.project_result_library = project_result_library
     app.state.composition_start_dispatcher = composition_start_dispatcher
+    app.state.content_analysis_dispatcher = content_analysis_dispatcher
     app.state.runtime_control = runtime_control
 
     @app.post("/api/runtime/pages")
@@ -2018,6 +2023,7 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
     def stop_storage_lifecycle() -> None:
         if composition_start_dispatcher is not None:
             composition_start_dispatcher.shutdown()
+        content_analysis_dispatcher.shutdown()
         storage_lifecycle.stop()
 
     app.add_middleware(
@@ -3220,7 +3226,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if type(payload.get("force_refresh", False)) is not bool:
             raise HTTPException(status_code=422, detail="force_refresh 必须是布尔值")
         try:
-            return project_content_analysis_coordinator(client).analyze(
+            return content_analysis_dispatcher.submit(
+                project_content_analysis_coordinator(client),
                 user["user_id"],
                 project_id,
                 token,
@@ -3247,7 +3254,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         user = current_project_user(request)
         client, token = digital_human_access(request)
         try:
-            return project_content_analysis_coordinator(client).analyze(
+            return content_analysis_dispatcher.submit(
+                project_content_analysis_coordinator(client),
                 user["user_id"],
                 project_id,
                 token,
@@ -3390,7 +3398,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if type(payload.get("force_refresh", False)) is not bool:
             raise HTTPException(status_code=422, detail="force_refresh 必须是布尔值")
         try:
-            return project_content_analysis_coordinator(client).analyze(
+            return content_analysis_dispatcher.submit(
+                project_content_analysis_coordinator(client),
                 user["user_id"],
                 project_id,
                 token,
@@ -3417,7 +3426,8 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         user = current_project_user(request)
         client, token = digital_human_access(request)
         try:
-            return project_content_analysis_coordinator(client).analyze(
+            return content_analysis_dispatcher.submit(
+                project_content_analysis_coordinator(client),
                 user["user_id"],
                 project_id,
                 token,

@@ -247,6 +247,22 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         if response.status_code != 200:
             raise AssertionError(response.text)
 
+    @staticmethod
+    def _wait_for_analysis(
+        client: TestClient, project_id: str, *, timeout_seconds: float = 5.0
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            project = client.get(f"/api/new/projects/{project_id}").json()
+            if not any(
+                (item.get("content_analysis") or {}).get("overall_status")
+                == "PENDING"
+                for item in project.get("items", [])
+            ):
+                return project
+            time.sleep(0.01)
+        raise AssertionError("内容分析后台任务未在测试时限内结束")
+
     def test_project_batch_analyzes_one_script_per_request_with_limit_ten(self) -> None:
         lock = threading.Lock()
         active = 0
@@ -283,9 +299,16 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
                 f"/api/new/projects/{project['project_id']}/content-analysis",
                 json={},
             )
+            accepted = response.json()
+            self.assertTrue(
+                all(
+                    item["content_analysis"]["overall_status"] == "PENDING"
+                    for item in accepted["items"]
+                )
+            )
+            result = self._wait_for_analysis(client, project["project_id"])
 
         self.assertEqual(response.status_code, 200, response.text)
-        result = response.json()
         self.assertEqual(len(calls), 12)
         self.assertEqual(peak, 10)
         self.assertTrue(all(item["content_analysis"]["overall_status"] == "SUCCESS" for item in result["items"]))
@@ -299,6 +322,44 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertEqual(
             first["settings"]["postprocess"]["top_title"],
             {"label": "减脂真相", "headline": "坚持更关键"},
+        )
+
+    def test_content_analysis_request_returns_while_provider_is_blocked(self) -> None:
+        started = threading.Event()
+        release = threading.Event()
+
+        def analyze(_client, _token, original_script, *, force_refresh=False):
+            started.set()
+            release.wait(2)
+            return _remote_result(original_script)
+
+        login_patch, verify_patch, analyze_patch = self._patches(analyze)
+        with login_patch, verify_patch, analyze_patch, TestClient(
+            create_app(self.settings)
+        ) as client:
+            self._login(client)
+            project = client.post(
+                "/api/new/projects",
+                json={"name": "后台分析", "items": [{"row_key": "1", "script_text": "测试"}]},
+            ).json()
+            started_at = time.monotonic()
+            accepted = client.post(
+                f"/api/new/projects/{project['project_id']}/content-analysis",
+                json={},
+            ).json()
+            elapsed = time.monotonic() - started_at
+            self.assertLess(elapsed, 0.5)
+            self.assertEqual(
+                accepted["items"][0]["content_analysis"]["overall_status"],
+                "PENDING",
+            )
+            self.assertTrue(started.wait(1))
+            release.set()
+            completed = self._wait_for_analysis(client, project["project_id"])
+
+        self.assertEqual(
+            completed["items"][0]["content_analysis"]["overall_status"],
+            "SUCCESS",
         )
 
     def test_branches_and_project_items_fail_independently(self) -> None:
@@ -328,6 +389,13 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             result = client.post(
                 f"/api/new/projects/{project['project_id']}/content-analysis", json={}
             ).json()
+            self.assertTrue(
+                all(
+                    item["content_analysis"]["overall_status"] == "PENDING"
+                    for item in result["items"]
+                )
+            )
+            result = self._wait_for_analysis(client, project["project_id"])
 
         first, second, third = result["items"]
         self.assertEqual(first["content_analysis"]["overall_status"], "SUCCESS")
@@ -359,6 +427,10 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             first = client.post(
                 f"/api/new/projects/{project_id}/content-analysis", json={}
             ).json()
+            self.assertEqual(
+                first["items"][0]["content_analysis"]["overall_status"], "PENDING"
+            )
+            first = self._wait_for_analysis(client, project_id)
             second = client.post(
                 f"/api/new/projects/{project_id}/content-analysis", json={}
             ).json()
@@ -443,6 +515,7 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             analyzed = client.post(
                 f"/api/new/projects/{project_id}/content-analysis", json={}
             ).json()
+            analyzed = self._wait_for_analysis(client, project_id)
             first_id = analyzed["items"][0]["item_id"]
             second_before = analyzed["items"][1]["content_analysis"]
             calls.clear()
@@ -464,6 +537,7 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             refreshed = client.post(
                 f"/api/new/projects/{project_id}/content-analysis", json={}
             ).json()
+            refreshed = self._wait_for_analysis(client, project_id)
 
         self.assertEqual(calls, [("修改后的脚本一", False)])
         self.assertTrue(all(item["content_analysis"]["overall_status"] == "SUCCESS" for item in refreshed["items"]))
@@ -491,10 +565,15 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             partial = client.post(
                 f"/api/new/projects/{project_id}/content-analysis", json={}
             ).json()
+            partial = self._wait_for_analysis(client, project_id)
             item_id = partial["items"][0]["item_id"]
             retried = client.post(
                 f"/api/new/projects/{project_id}/items/{item_id}/content-analysis/retry"
             ).json()
+            self.assertEqual(
+                retried["items"][0]["content_analysis"]["overall_status"], "PENDING"
+            )
+            retried = self._wait_for_analysis(client, project_id)
 
         snapshot = retried["items"][0]["content_analysis"]
         self.assertEqual(snapshot["overall_status"], "SUCCESS")
@@ -561,6 +640,7 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
             result = client.post(
                 f"/api/new/projects/{project_id}/content-analysis", json={}
             ).json()
+            result = self._wait_for_analysis(client, project_id)
 
         item = result["items"][0]
         self.assertEqual(item["content_analysis"]["overall_status"], "FAILED")

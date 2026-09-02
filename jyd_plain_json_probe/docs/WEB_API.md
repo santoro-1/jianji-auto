@@ -71,7 +71,8 @@
 
 - H3 状态响应在每段增加 `local_audio_cleanup`：`status` 为 `PENDING`、`PROCESSING`、
   `RETRY_WAIT`、`FAILED` 或 `READY`，包含 `version`、`key`；就绪时包含
-  `muted_until_seconds` / `restored_at_seconds`，失败时包含 `error`。
+  `muted_until_seconds` / `restored_at_seconds` / `reason`。无法可靠定位但已安全保留原音时仍为
+  `READY`，并包含 `warning`；真正的 ASR 服务、转码、磁盘或缓存发布故障才返回失败状态和 `error`。
 - `local_preview_ready` / `local_preview_is_current` 继续表示原始下载缓存状态，不能据此
   宣称声音清理完成。页面仅在清理就绪后播放清理版。`/h3-segments/{number}/preview`
   返回清理版 MP4；清理未就绪返回 404 提示。`/h3-segments/download` 始终打包原片，
@@ -1332,7 +1333,9 @@ Invoke-RestMethod `
 - `GET /api/new/fixed-visuals/nameplate/preview`：鉴权返回工作台内置的张雒人名牌预览；该素材
   不进入语义 catalog、模型请求或逐行审核列。
 - `POST /api/new/projects/{project_id}/visual-analysis`：仅作为迁移期兼容别名保留；生产前端不再
-  调用该地址，别名内部仍复用统一 content-analysis 协调器，不会调用独立视觉模型接口。
+  调用该地址，别名内部仍复用统一 content-analysis 协调器，不会调用独立视觉模型接口。统一
+  分析及其单行重试接口先返回已持久化的 `PENDING` 项目快照，再由后台执行；客户端通过项目
+  查询接口轮询最终状态，不应把 POST 连接保持到远端分析结束。远端分析请求上限统一为 600 秒。
 - `POST /api/new/projects/{project_id}/items/{item_id}/visual-analysis/retry`：迁移期兼容别名，
   对当前行强制刷新统一内容分析；生产前端改用同一行的 `content-analysis/retry` 地址。
 - `PUT /api/new/projects/{project_id}/items/{item_id}/visual-overlays`：请求体为

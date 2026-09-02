@@ -16,7 +16,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 from .logging_config import log_event
 
 
-WORKBENCH_ANALYSIS_TIMEOUT_SECONDS = 900.0
+WORKBENCH_ANALYSIS_TIMEOUT_SECONDS = 600.0
 analysis_logger = logging.getLogger(__name__)
 
 
