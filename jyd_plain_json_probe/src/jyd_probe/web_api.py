@@ -40,6 +40,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
+from starlette.concurrency import run_in_threadpool
 
 from .audio_catalog import AudioCatalog, CombinedAudioCatalog
 from .asset_admin import AssetAdminCatalog
@@ -2118,7 +2119,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         if not admin_required:
             site_token = request.cookies.get(site_auth.cookie_name, "")
             try:
-                if verify_site_token(site_token) is not None:
+                verified_site_user = await run_in_threadpool(
+                    verify_site_token, site_token
+                )
+                if verified_site_user is not None:
+                    request.state.jyd_site_user = verified_site_user
                     return await call_next(request)
             except AuthCenterError as exc:
                 log_event(
@@ -2135,7 +2140,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
                     error_summary=str(exc).strip()[:500],
                 )
                 if path.startswith("/api/"):
-                    return JSONResponse({"detail": str(exc)}, status_code=503)
+                    return JSONResponse(
+                        {"detail": str(exc)},
+                        status_code=503,
+                        headers=exc.response_headers,
+                    )
                 login_path = "/app/new/login" if path.startswith("/app/new") else "/login"
                 return RedirectResponse(
                     f"{login_path}?next={quote(path, safe='/')}&center=offline", status_code=303
@@ -2270,7 +2279,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         return FileResponse(index_path)
 
     @app.post("/api/auth/login")
-    def site_login(payload: dict[str, Any] = Body(...)) -> JSONResponse:
+    def site_login(
+        request: Request, payload: dict[str, Any] = Body(...)
+    ) -> JSONResponse:
         username = str(payload.get("username", ""))
         password = str(payload.get("password", ""))
         if settings.auth_authority:
@@ -2284,11 +2295,18 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             try:
                 remote = auth_center.login(username, password) if auth_center else None
             except AuthCenterError as exc:
-                raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+                raise HTTPException(
+                    status_code=exc.status_code,
+                    detail=str(exc),
+                    headers=exc.response_headers,
+                ) from exc
             if remote is None:
                 raise HTTPException(status_code=503, detail="统一账号中心未配置")
             user = remote["user"]
             token = remote["access_token"]
+            old_token = request.cookies.get(settings.site_cookie_name, "")
+            auth_center.invalidate_verification(old_token)
+            auth_center.invalidate_verification(token)
         next_path = _safe_site_next(str(payload.get("next", "")))
         response = JSONResponse({"ok": True, "next": next_path, "user": user})
         set_site_token_cookie(response, token)
@@ -2331,24 +2349,32 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         project API without a digital-human account session.
         """
 
-        token = request.cookies.get(settings.site_cookie_name, "")
-        try:
-            user = verify_site_token(token)
-        except AuthCenterError as exc:
-            log_event(
-                workbench_logger,
-                "auth_center.project_user_verify_failed",
-                "项目接口内部无法完成数字人网站登录校验",
-                level=logging.ERROR,
-                component="workbench",
-                request_method=request.method,
-                request_path=request.url.path,
-                error_code=exc.error_code,
-                http_status=exc.status_code,
-                retryable=exc.retryable,
-                error_summary=str(exc).strip()[:500],
-            )
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        user = getattr(request.state, "jyd_site_user", None)
+        if not isinstance(user, dict):
+            token = request.cookies.get(settings.site_cookie_name, "")
+            try:
+                user = verify_site_token(token)
+            except AuthCenterError as exc:
+                log_event(
+                    workbench_logger,
+                    "auth_center.project_user_verify_failed",
+                    "项目接口内部无法完成数字人网站登录校验",
+                    level=logging.ERROR,
+                    component="workbench",
+                    request_method=request.method,
+                    request_path=request.url.path,
+                    error_code=exc.error_code,
+                    http_status=exc.status_code,
+                    retryable=exc.retryable,
+                    error_summary=str(exc).strip()[:500],
+                )
+                raise HTTPException(
+                    status_code=exc.status_code,
+                    detail=str(exc),
+                    headers=exc.response_headers,
+                ) from exc
+            if isinstance(user, dict):
+                request.state.jyd_site_user = user
         if not isinstance(user, dict):
             raise HTTPException(status_code=401, detail="请先使用数字人账号登录")
         user_id = str(user.get("user_id") or "").strip()
@@ -6089,7 +6115,10 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
 
     @app.post("/api/auth/logout")
     def site_logout(request: Request) -> JSONResponse:
-        app.state.device_sessions.forget(request.cookies.get(settings.site_cookie_name, ""))
+        site_token = request.cookies.get(settings.site_cookie_name, "")
+        app.state.device_sessions.forget(site_token)
+        if auth_center is not None:
+            auth_center.invalidate_verification(site_token)
         response = JSONResponse({"ok": True})
         site_auth.clear_session_cookie(response)
         admin_auth.clear_session_cookie(response)
@@ -6128,7 +6157,9 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         }
 
     @app.get("/api/auth/handoff")
-    def auth_center_accept_handoff(code: str = "", next: str = "/app") -> Response:
+    def auth_center_accept_handoff(
+        request: Request, code: str = "", next: str = "/app"
+    ) -> Response:
         if settings.auth_authority:
             access_token = auth_handoffs.consume(code)
             user = site_auth.verify_token(access_token or "")
@@ -6143,6 +6174,11 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
             user = result.get("user") if isinstance(result.get("user"), dict) else None
         if user is None or not access_token:
             return RedirectResponse("/login?next=/app", status_code=303)
+        if auth_center is not None:
+            auth_center.invalidate_verification(
+                request.cookies.get(settings.site_cookie_name, "")
+            )
+            auth_center.invalidate_verification(access_token)
         response = RedirectResponse(_safe_site_next(next), status_code=303)
         set_site_token_cookie(response, access_token)
         return response
@@ -6163,10 +6199,17 @@ def create_app(settings: WebApiSettings | None = None) -> FastAPI:
         }
 
     @app.get("/api/auth/local-handoff")
-    def accept_local_auth_handoff(code: str = "", next: str = "/app") -> Response:
+    def accept_local_auth_handoff(
+        request: Request, code: str = "", next: str = "/app"
+    ) -> Response:
         access_token = auth_handoffs.consume(code)
         if not access_token:
             raise HTTPException(status_code=401, detail="本地登录接力码无效或已过期")
+        if auth_center is not None:
+            auth_center.invalidate_verification(
+                request.cookies.get(settings.site_cookie_name, "")
+            )
+            auth_center.invalidate_verification(access_token)
         response = RedirectResponse(_safe_site_next(next), status_code=303)
         set_site_token_cookie(response, access_token)
         return response

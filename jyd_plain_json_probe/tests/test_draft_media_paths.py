@@ -1,5 +1,4 @@
 import copy
-import hashlib
 from pathlib import Path
 
 import pytest
@@ -43,7 +42,9 @@ def test_long_sources_are_copied_unchanged_without_touching_timeline(tmp_path):
         assert target.parent == output / media_paths.LOCAL_MEDIA_DIRECTORY
         assert len(str(target)) <= media_paths.MAX_EDITOR_MEDIA_PATH_UNITS
         assert target.read_bytes() == original.read_bytes()
-        assert target.stem == hashlib.sha256(original.read_bytes()).hexdigest()
+        assert target.stem.startswith("m-")
+        assert len(target.stem) == 2 + media_paths.LOCAL_MEDIA_TOKEN_LENGTH
+        assert len(target.stem) != 64
     for actual, expected in zip(data["materials"]["videos"], before["materials"]["videos"]):
         actual["path"] = expected["path"]
     assert data == before

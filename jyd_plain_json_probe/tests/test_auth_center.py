@@ -423,7 +423,7 @@ class AuthCenterTest(unittest.TestCase):
                     AuthCenterClient("https://video.example").verify("center-token")
 
         logs = "\n".join(captured.output)
-        self.assertIn("auth_center.session_verify_failed", logs)
+        self.assertIn("auth_verify.remote_failed", logs)
         self.assertIn('"endpoint":"/api/auth/center/verify"', logs)
         self.assertNotIn("center-token", logs)
 

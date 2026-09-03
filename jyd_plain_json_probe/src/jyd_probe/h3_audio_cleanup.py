@@ -20,7 +20,7 @@ import wave
 import numpy as np
 
 from .caption_alignment import RecognizedToken
-from .h3_cache_paths import cleanup_directory
+from .h3_cache_paths import cleanup_directory, previous_cleanup_directory
 from .project_h3_media import H3MediaError, _run
 
 
@@ -291,15 +291,21 @@ def clean_segment(
     if existing is not None:
         return existing
     directory, key, digest = _cache_directory(source, script, config)
-    legacy = _read_cleanup_directory(source.parent / "head-cleanup" / key, key, digest, config)
-    if legacy is not None:
+    previous = _read_cleanup_directory(
+        previous_cleanup_directory(source, key), key, digest, config
+    )
+    legacy = _read_cleanup_directory(
+        source.parent / "head-cleanup" / key, key, digest, config
+    )
+    reusable = previous or legacy
+    if reusable is not None:
         # Reuse validated old work without ASR/encoding. Publish the report last;
         # keep the old files intact for existing assets and historical drafts.
         directory.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="build-", dir=directory) as temporary:
             work = Path(temporary)
             for name in ("clean.wav", "preview.mp4", "report.json"):
-                shutil.copyfile(legacy.directory / name, work / name)
+                shutil.copyfile(reusable.directory / name, work / name)
             if _read_cleanup_directory(work, key, digest, config) is None:
                 raise H3MediaError("H3 旧清理缓存复制校验失败，原文件已保留")
             for name in ("clean.wav", "preview.mp4", "report.json"):

@@ -2738,11 +2738,12 @@
                 const isActive = H3_ACTIVE_ITEM_STATUSES.has(statusInfo.status);
                 const canRetry = segment.can_retry === true;
                 const canRegenerate = segment.can_regenerate === true;
-                const canAct = !isActive && (canRetry || canRegenerate);
+                const downloadState = String(segment.local_download_state || '').toLowerCase();
+                const isCurrentVersionPending = statusInfo.status === 'SUCCESS'
+                    && segment.local_preview_is_current !== true;
+                const canAct = !isActive && !isCurrentVersionPending && (canRetry || canRegenerate);
                 const error = String(segment.local_preview_error || segment.error_message || segment.error_code || '').trim();
-                const canRedownload = statusInfo.status === 'SUCCESS'
-                    && segment.local_preview_is_current !== true
-                    && Boolean(error)
+                const canRedownload = isCurrentVersionPending
                     && Boolean(String(segment.segment_id || '').trim());
                 const card = document.createElement('article');
                 card.className = `min-w-0 overflow-hidden rounded-xl border ${cardClass}`;
@@ -2754,7 +2755,7 @@
                     : cleanup.status === 'FAILED' ? '本地清理失败（不会自动重新生成）'
                     : cleanup.status === 'RETRY_WAIT' ? '等待本地 ASR 重试'
                     : '正在本地清理片头声音';
-                if (statusInfo.status === 'SUCCESS' && localPreviewReady && segment.local_preview_is_current !== false) {
+                if (statusInfo.status === 'SUCCESS' && localPreviewReady && segment.local_preview_is_current === true) {
                     downloadableCount += 1;
                 }
                 const segmentId = String(segment.segment_id || '');
@@ -2784,10 +2785,12 @@
                     const redownload = document.createElement('button');
                     redownload.type = 'button';
                     redownload.className = 'mx-3 mb-2 w-[calc(100%_-_1.5rem)] rounded-lg border border-cyan-400/35 bg-cyan-400/10 px-3 py-2 text-[10px] font-semibold text-cyan-200 hover:border-cyan-300 hover:text-white transition-colors';
-                    redownload.innerHTML = '<i class="fa-solid fa-download mr-1.5"></i>重新下载';
+                    redownload.innerHTML = downloadState === 'failed'
+                        ? '<i class="fa-solid fa-download mr-1.5"></i>重新下载当前版本（不收费）'
+                        : '<i class="fa-solid fa-download mr-1.5"></i>继续下载当前版本（不收费）';
                     redownload.addEventListener('click', async () => {
                         redownload.disabled = true;
-                        redownload.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>正在下载';
+                        redownload.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>正在检查下载';
                         await h3RedownloadSegment(String(segment.segment_id || ''));
                         renderH3SegmentPreviewModal({ force: true });
                     });
@@ -2819,7 +2822,9 @@
                     : 'mx-3 mb-3 w-[calc(100%_-_1.5rem)] cursor-not-allowed rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-[10px] font-semibold text-gray-600';
                 action.innerHTML = isActive
                     ? '<i class="fa-solid fa-spinner fa-spin mr-1.5"></i>处理中'
-                    : `<i class="fa-solid fa-rotate mr-1.5"></i>${canAct ? '重试这段' : (statusInfo.status === 'SUCCESS' ? '暂不可重试' : '等待片段就绪')}`;
+                    : isCurrentVersionPending
+                        ? '<i class="fa-solid fa-download mr-1.5"></i>新版下载完成前不允许重新生成'
+                        : `<i class="fa-solid fa-rotate mr-1.5"></i>${canAct ? '重试这段' : (statusInfo.status === 'SUCCESS' ? '暂不可重试' : '等待片段就绪')}`;
                 if (canAct) {
                     action.addEventListener('click', async () => {
                         action.disabled = true;
@@ -2911,7 +2916,7 @@
             const ready = segments.length > 0 && segments.every((segment) => {
                 return String(segment.status || '').toUpperCase() === 'SUCCESS'
                     && segment.local_preview_ready === true
-                    && segment.local_preview_is_current !== false;
+                    && segment.local_preview_is_current === true;
             });
             if (!ready) {
                 showToast('原始片段尚未就绪', '全部 H3 原始片段下载完成后才能打包。', 'warning');
@@ -4321,11 +4326,19 @@
                 const analysisStatus = script.contentAnalysis?.overall_status || 'NOT_REQUESTED';
                 const musicAnalysisStatus = script.contentAnalysis?.music_analysis_status || 'NOT_REQUESTED';
                 const subtitleAnalysisStatus = script.contentAnalysis?.subtitle_analysis_status || 'NOT_REQUESTED';
-                const partialAnalysisLabel = musicAnalysisStatus === 'SUCCESS' && subtitleAnalysisStatus === 'FAILED'
+                const titleAnalysisStatus = script.contentAnalysis?.title_analysis_status || 'NOT_REQUESTED';
+                const savedCoverTitle = script.postprocessSettings?.title || script.postprocessSettings?.cover_title || {};
+                const savedCoverTitleLine1 = String(savedCoverTitle.line_1 || '').trim();
+                const savedCoverTitleLine2 = String(savedCoverTitle.line_2 || '').trim();
+                const hasSavedCoverTitle = Boolean(savedCoverTitleLine1 && savedCoverTitleLine2);
+                const partialAnalysisLabel = titleAnalysisStatus === 'FAILED'
+                    ? '封面标题未完成'
+                    : musicAnalysisStatus === 'SUCCESS' && subtitleAnalysisStatus === 'FAILED'
                     ? '字幕断句已回退'
                     : (musicAnalysisStatus === 'FAILED' && subtitleAnalysisStatus === 'SUCCESS' ? 'BGM 分析未完成' : '部分分析已回退');
                 const analysisErrorSummary = analysisStatus === 'PENDING' ? '' : (
-                    script.contentAnalysis?.errors?.subtitle?.summary
+                    script.contentAnalysis?.errors?.title?.summary
+                    || script.contentAnalysis?.errors?.subtitle?.summary
                     || script.contentAnalysis?.errors?.music?.summary
                     || script.contentAnalysis?.errors?.request?.summary
                     || ''
@@ -4431,6 +4444,7 @@
                             <button type="button" ${canRetryAnalysis ? '' : 'disabled'} onclick="retryRowContentAnalysis(this)" class="row-content-analysis-action mt-1.5 text-[9px] ${analysisLabel[1]} ${canRetryAnalysis ? 'hover:text-white' : 'cursor-wait'} transition-colors" title="${escapeHtml(analysisStatusHint)}">
                                 <i class="fa-solid ${analysisLabel[2]} mr-1"></i>${analysisLabel[0]}${analysisStatus === 'SUCCESS' ? ' · 点击重新分析' : (['FAILED', 'PARTIAL', 'NOT_REQUESTED'].includes(analysisStatus) ? ' · 点击分析' : '')}
                             </button>
+                            ${hasSavedCoverTitle ? `<div class="row-cover-title mt-1.5 max-w-full rounded-md border border-cyan-400/20 bg-cyan-400/5 px-2 py-1 text-[9px] leading-4 text-cyan-100" title="封面标题已独立生成，不依赖字幕或视频预览"><span class="text-cyan-400">封面标题</span><span class="mx-1 text-cyan-700">·</span><span>${escapeHtml(savedCoverTitleLine1)} / ${escapeHtml(savedCoverTitleLine2)}</span></div>` : (titleAnalysisStatus === 'FAILED' ? '<div class="mt-1 text-[9px] text-amber-400">封面标题未完成，可单独重试统一分析</div>' : '')}
                         </div>
                     </td>
                     <td class="px-4 py-4">
@@ -4861,7 +4875,7 @@
                 const bgmName = bgmPresets.find(candidate => candidate.id === bgmIdentity)?.name || '无音乐';
                 showToast(
                     status === 'SUCCESS' ? '统一内容分析完成' : '统一内容分析已返回',
-                    status === 'SUCCESS' ? `音乐意图、字幕语义和视觉计划均可用；背景音乐已选择「${bgmName}」。` : `合法分支已分别保存；当前背景音乐为「${bgmName}」。`,
+                    status === 'SUCCESS' ? `封面标题、音乐意图、字幕语义和视觉计划均可用；背景音乐已选择「${bgmName}」。` : `合法分支已分别保存，封面标题不受字幕分支失败影响；当前背景音乐为「${bgmName}」。`,
                     status === 'SUCCESS' ? 'success' : 'warning'
                 );
             } catch (error) {

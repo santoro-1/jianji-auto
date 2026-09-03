@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
 import hashlib
+from collections import OrderedDict, deque
+from dataclasses import dataclass, field
 from io import BytesIO
 from email.utils import parsedate_to_datetime
 import ipaddress
@@ -171,13 +174,30 @@ class _H3MediaSession:
 
 
 class AuthCenterConnectionError(AuthCenterError):
-    def __init__(self, message: str):
+    def __init__(
+        self, message: str, *, retry_after_seconds: float | None = None
+    ):
         super().__init__(
             message,
             status_code=503,
             error_code="DIGITAL_HUMAN_CONNECTION_FAILED",
             retryable=True,
+            retry_after_seconds=retry_after_seconds,
         )
+
+
+@dataclass
+class _AuthVerifyCacheEntry:
+    user: dict[str, Any]
+    expires_at: float
+
+
+@dataclass
+class _AuthVerifyFlight:
+    event: threading.Event = field(default_factory=threading.Event)
+    user: dict[str, Any] | None = None
+    error: BaseException | None = None
+    invalidated: bool = False
 
 
 def create_local_workbench_handoff(
@@ -285,6 +305,13 @@ class AuthCenterClient:
         content_analysis_total_timeout_seconds: float = 600.0,
         content_analysis_connect_timeout_seconds: float = 10.0,
         content_analysis_retry_max: int = 2,
+        verify_cache_ttl_seconds: float = 5.0,
+        verify_cache_max_entries: int = 128,
+        verify_timeout_seconds: float = 8.0,
+        verify_breaker_failure_threshold: int = 3,
+        verify_breaker_window_seconds: float = 10.0,
+        verify_breaker_open_seconds: float = 15.0,
+        verify_summary_interval_seconds: float = 60.0,
     ):
         normalized = base_url.strip().rstrip("/")
         parsed = urlsplit(normalized)
@@ -322,10 +349,205 @@ class AuthCenterClient:
         self.content_analysis_retry_max = max(
             0, min(2, int(content_analysis_retry_max))
         )
+        self.verify_cache_ttl_seconds = max(
+            0.01, float(verify_cache_ttl_seconds)
+        )
+        self.verify_cache_max_entries = max(1, int(verify_cache_max_entries))
+        self.verify_timeout_seconds = max(1.0, float(verify_timeout_seconds))
+        self.verify_breaker_failure_threshold = max(
+            1, int(verify_breaker_failure_threshold)
+        )
+        self.verify_breaker_window_seconds = max(
+            0.01, float(verify_breaker_window_seconds)
+        )
+        self.verify_breaker_open_seconds = max(
+            0.01, float(verify_breaker_open_seconds)
+        )
+        self.verify_summary_interval_seconds = max(
+            0.01, float(verify_summary_interval_seconds)
+        )
+        self._verify_lock = threading.Lock()
+        self._verify_cache: OrderedDict[str, _AuthVerifyCacheEntry] = OrderedDict()
+        self._verify_flights: dict[str, _AuthVerifyFlight] = {}
+        self._verify_network_failures: deque[float] = deque()
+        self._verify_breaker_open_until = 0.0
+        self._verify_breaker_probe_in_flight = False
+        self._verify_next_summary_at = (
+            time.monotonic() + self.verify_summary_interval_seconds
+        )
+        self._verify_totals = self._new_verify_metrics()
+        self._verify_window = self._new_verify_metrics()
+        self._verify_window_latencies_ms: list[int] = []
+        self._verify_closed = False
         self.device_header_provider = None
 
     def close(self) -> None:
+        self.invalidate_verification_cache()
+        with self._verify_lock:
+            self._verify_closed = True
         self._h3_media_session.close()
+
+    @staticmethod
+    def _new_verify_metrics() -> dict[str, int]:
+        return {
+            "requests": 0,
+            "cache_hits": 0,
+            "coalesced_waiters": 0,
+            "remote_requests": 0,
+            "remote_successes": 0,
+            "remote_unauthorized": 0,
+            "remote_network_failures": 0,
+            "breaker_rejections": 0,
+            "wait_timeouts": 0,
+        }
+
+    def _bump_verify_metric_locked(self, name: str) -> None:
+        self._verify_totals[name] += 1
+        self._verify_window[name] += 1
+
+    def verification_snapshot(self) -> dict[str, Any]:
+        """Return aggregate diagnostics without exposing tokens or cached users."""
+
+        now = time.monotonic()
+        with self._verify_lock:
+            return {
+                **self._verify_totals,
+                "cache_entries": len(self._verify_cache),
+                "in_flight": len(self._verify_flights),
+                "breaker_state": self._verify_breaker_state_locked(now),
+            }
+
+    def invalidate_verification(self, token: str) -> None:
+        clean_token = str(token or "").strip()
+        if not clean_token:
+            return
+        with self._verify_lock:
+            self._verify_cache.pop(clean_token, None)
+            flight = self._verify_flights.pop(clean_token, None)
+            if flight is not None:
+                flight.invalidated = True
+                flight.error = AuthCenterError(
+                    "当前登录已经切换或退出，请重新登录",
+                    status_code=401,
+                    retryable=False,
+                )
+                flight.event.set()
+
+    def invalidate_verification_cache(self) -> None:
+        with self._verify_lock:
+            self._verify_cache.clear()
+            flights = list(self._verify_flights.values())
+            self._verify_flights.clear()
+            for flight in flights:
+                flight.invalidated = True
+                flight.error = AuthCenterError(
+                    "当前登录已经切换或退出，请重新登录",
+                    status_code=401,
+                    retryable=False,
+                )
+                flight.event.set()
+
+    def _purge_verify_cache_locked(self, now: float) -> None:
+        expired = [
+            token
+            for token, entry in self._verify_cache.items()
+            if entry.expires_at <= now
+        ]
+        for token in expired:
+            self._verify_cache.pop(token, None)
+        while len(self._verify_cache) > self.verify_cache_max_entries:
+            self._verify_cache.popitem(last=False)
+
+    def _verify_breaker_state_locked(self, now: float) -> str:
+        if self._verify_breaker_open_until <= 0:
+            return "CLOSED"
+        if now < self._verify_breaker_open_until:
+            return "OPEN"
+        return "HALF_OPEN"
+
+    def _breaker_rejection_locked(self, now: float) -> AuthCenterConnectionError | None:
+        if self._verify_breaker_open_until <= 0:
+            return None
+        if now < self._verify_breaker_open_until:
+            retry_after = max(1.0, self._verify_breaker_open_until - now)
+        elif self._verify_breaker_probe_in_flight:
+            retry_after = 1.0
+        else:
+            self._verify_breaker_probe_in_flight = True
+            return None
+        self._bump_verify_metric_locked("breaker_rejections")
+        return AuthCenterConnectionError(
+            "暂时无法连接数字人账号中心，请稍后重试",
+            retry_after_seconds=retry_after,
+        )
+
+    def _record_verify_network_failure_locked(self, now: float) -> bool:
+        cutoff = now - self.verify_breaker_window_seconds
+        while self._verify_network_failures and self._verify_network_failures[0] < cutoff:
+            self._verify_network_failures.popleft()
+        self._verify_network_failures.append(now)
+        opened_now = False
+        if self._verify_breaker_probe_in_flight or (
+            len(self._verify_network_failures)
+            >= self.verify_breaker_failure_threshold
+        ):
+            opened_now = now >= self._verify_breaker_open_until
+            self._verify_breaker_open_until = now + self.verify_breaker_open_seconds
+            self._verify_breaker_probe_in_flight = False
+        return opened_now
+
+    def _record_verify_reachable_locked(self) -> bool:
+        recovered = (
+            self._verify_breaker_open_until > 0
+            or self._verify_breaker_probe_in_flight
+        )
+        self._verify_network_failures.clear()
+        self._verify_breaker_open_until = 0.0
+        self._verify_breaker_probe_in_flight = False
+        return recovered
+
+    @staticmethod
+    def _clone_verify_error(error: BaseException) -> BaseException:
+        if isinstance(error, AuthCenterConnectionError):
+            return AuthCenterConnectionError(
+                str(error), retry_after_seconds=error.retry_after_seconds
+            )
+        if isinstance(error, AuthCenterError):
+            return AuthCenterError(
+                str(error),
+                status_code=error.status_code,
+                error_code=error.error_code,
+                retryable=error.retryable,
+                retry_after_seconds=error.retry_after_seconds,
+            )
+        return error
+
+    def _maybe_log_verify_summary(self) -> None:
+        now = time.monotonic()
+        with self._verify_lock:
+            if now < self._verify_next_summary_at:
+                return
+            metrics = dict(self._verify_window)
+            latencies = list(self._verify_window_latencies_ms)
+            state = self._verify_breaker_state_locked(now)
+            self._verify_window = self._new_verify_metrics()
+            self._verify_window_latencies_ms.clear()
+            self._verify_next_summary_at = now + self.verify_summary_interval_seconds
+        ordered = sorted(latencies)
+        p95_index = max(
+            0, min(len(ordered) - 1, ((len(ordered) * 95 + 99) // 100) - 1)
+        )
+        log_event(
+            analysis_logger,
+            "auth_verify.summary",
+            "数字人账号校验一分钟汇总",
+            component="workbench",
+            **metrics,
+            remote_average_ms=(round(sum(ordered) / len(ordered)) if ordered else 0),
+            remote_p95_ms=(ordered[p95_index] if ordered else 0),
+            remote_max_ms=(ordered[-1] if ordered else 0),
+            breaker_state=state,
+        )
 
     def _device_business_headers(
         self, token: str, *, method: str, path: str
@@ -361,39 +583,208 @@ class AuthCenterClient:
         return {"access_token": token, "user": user}
 
     def verify(self, token: str) -> dict[str, Any] | None:
-        if not token:
+        clean_token = str(token or "").strip()
+        if not clean_token:
             return None
+
+        now = time.monotonic()
+        leader = False
+        with self._verify_lock:
+            if self._verify_closed:
+                raise AuthCenterConnectionError("数字人账号中心客户端已经关闭")
+            self._bump_verify_metric_locked("requests")
+            self._purge_verify_cache_locked(now)
+            cached = self._verify_cache.get(clean_token)
+            if cached is not None:
+                self._verify_cache.move_to_end(clean_token)
+                self._bump_verify_metric_locked("cache_hits")
+                user = copy.deepcopy(cached.user)
+                flight = None
+                rejection = None
+            else:
+                user = None
+                flight = self._verify_flights.get(clean_token)
+                if flight is not None:
+                    self._bump_verify_metric_locked("coalesced_waiters")
+                    rejection = None
+                else:
+                    rejection = self._breaker_rejection_locked(now)
+                    if rejection is None:
+                        flight = _AuthVerifyFlight()
+                        self._verify_flights[clean_token] = flight
+                        leader = True
+
+        if cached is not None:
+            self._maybe_log_verify_summary()
+            return user
+        if rejection is not None:
+            self._maybe_log_verify_summary()
+            raise rejection
+        assert flight is not None
+        if not leader:
+            if not flight.event.wait(timeout=self.verify_timeout_seconds + 2.0):
+                with self._verify_lock:
+                    self._bump_verify_metric_locked("wait_timeouts")
+                self._maybe_log_verify_summary()
+                raise AuthCenterConnectionError(
+                    "数字人账号校验等待超时，请稍后重试"
+                )
+            if flight.error is not None:
+                raise self._clone_verify_error(flight.error)
+            return copy.deepcopy(flight.user)
+
         started_at = time.monotonic()
+        parsed = urlsplit(self.base_url)
         try:
-            data = self._post("/api/auth/center/verify", {"access_token": token})
+            target_port = parsed.port
+        except ValueError:
+            target_port = None
+        with self._verify_lock:
+            self._bump_verify_metric_locked("remote_requests")
+        log_event(
+            analysis_logger,
+            "auth_verify.remote_started",
+            "开始校验数字人账号登录状态",
+            component="workbench",
+            endpoint="/api/auth/center/verify",
+            target_scheme=parsed.scheme,
+            target_host=parsed.hostname,
+            target_port=target_port,
+        )
+
+        verified_user: dict[str, Any] | None = None
+        remote_error: BaseException | None = None
+        opened_breaker = False
+        recovered_breaker = False
+        unauthorized = False
+        try:
+            data = self._post(
+                "/api/auth/center/verify",
+                {"access_token": clean_token},
+                timeout_seconds=self.verify_timeout_seconds,
+                use_default_timeout_floor=False,
+            )
         except AuthCenterError as exc:
-            parsed = urlsplit(self.base_url)
-            try:
-                target_port = parsed.port
-            except ValueError:
-                target_port = None
+            unauthorized = exc.status_code == 401
+            if not unauthorized:
+                if isinstance(exc, AuthCenterConnectionError):
+                    remote_error = AuthCenterConnectionError(
+                        "暂时无法连接数字人账号中心，请稍后重试"
+                    )
+                    remote_error.__cause__ = exc.__cause__ or exc
+                else:
+                    remote_error = exc
+        except BaseException as exc:
+            remote_error = AuthCenterError(
+                "数字人账号校验发生内部错误",
+                status_code=502,
+                error_code="DIGITAL_HUMAN_VERIFY_FAILED",
+                retryable=True,
+            )
+            remote_error.__cause__ = exc
+
+        elapsed_ms = round((time.monotonic() - started_at) * 1000)
+        if remote_error is None and not unauthorized:
+            candidate = data.get("user")
+            if data.get("valid") is True and isinstance(candidate, dict):
+                verified_user = copy.deepcopy(candidate)
+            else:
+                unauthorized = True
+
+        with self._verify_lock:
+            self._verify_window_latencies_ms.append(elapsed_ms)
+            if isinstance(remote_error, AuthCenterConnectionError):
+                self._bump_verify_metric_locked("remote_network_failures")
+                opened_breaker = self._record_verify_network_failure_locked(
+                    time.monotonic()
+                )
+            else:
+                recovered_breaker = self._record_verify_reachable_locked()
+                if unauthorized:
+                    self._bump_verify_metric_locked("remote_unauthorized")
+                    self._verify_cache.pop(clean_token, None)
+                elif remote_error is None:
+                    self._bump_verify_metric_locked("remote_successes")
+
+            current_flight = self._verify_flights.get(clean_token)
+            if current_flight is flight:
+                self._verify_flights.pop(clean_token, None)
+            if not flight.invalidated:
+                flight.user = copy.deepcopy(verified_user)
+                flight.error = remote_error
+                if verified_user is not None and remote_error is None:
+                    self._verify_cache[clean_token] = _AuthVerifyCacheEntry(
+                        user=copy.deepcopy(verified_user),
+                        expires_at=time.monotonic()
+                        + self.verify_cache_ttl_seconds,
+                    )
+                    self._verify_cache.move_to_end(clean_token)
+                    self._purge_verify_cache_locked(time.monotonic())
+            flight.event.set()
+
+        if remote_error is not None or unauthorized:
+            error = remote_error
+            level = logging.WARNING if unauthorized else logging.ERROR
             log_event(
                 analysis_logger,
-                "auth_center.session_verify_failed",
-                "数字人网站登录状态校验失败",
-                level=logging.WARNING if exc.status_code == 401 else logging.ERROR,
+                "auth_verify.remote_failed",
+                "数字人账号登录状态校验失败",
+                level=level,
                 component="workbench",
                 endpoint="/api/auth/center/verify",
                 target_scheme=parsed.scheme,
                 target_host=parsed.hostname,
                 target_port=target_port,
-                elapsed_ms=round((time.monotonic() - started_at) * 1000),
-                error_code=exc.error_code,
-                http_status=exc.status_code,
-                retryable=exc.retryable,
-                error_summary=str(exc).strip()[:500],
-                **_safe_connection_cause(exc),
+                elapsed_ms=elapsed_ms,
+                error_code=(
+                    "DIGITAL_HUMAN_AUTH_EXPIRED"
+                    if unauthorized
+                    else getattr(error, "error_code", "DIGITAL_HUMAN_VERIFY_FAILED")
+                ),
+                http_status=(401 if unauthorized else getattr(error, "status_code", 502)),
+                retryable=(False if unauthorized else getattr(error, "retryable", True)),
+                error_summary=(
+                    "账号已停用、已删除或登录已失效"
+                    if unauthorized
+                    else str(error).strip()[:500]
+                ),
+                **(_safe_connection_cause(error) if error is not None else {}),
             )
-            if exc.status_code == 401:
-                return None
-            raise
-        user = data.get("user")
-        return user if data.get("valid") is True and isinstance(user, dict) else None
+        else:
+            log_event(
+                analysis_logger,
+                "auth_verify.remote_succeeded",
+                "数字人账号登录状态校验成功",
+                component="workbench",
+                endpoint="/api/auth/center/verify",
+                target_scheme=parsed.scheme,
+                target_host=parsed.hostname,
+                target_port=target_port,
+                elapsed_ms=elapsed_ms,
+            )
+        if opened_breaker:
+            log_event(
+                analysis_logger,
+                "auth_verify.breaker_opened",
+                "数字人账号中心连续连接失败，已进入短时保护",
+                level=logging.ERROR,
+                component="workbench",
+                failure_threshold=self.verify_breaker_failure_threshold,
+                open_seconds=self.verify_breaker_open_seconds,
+            )
+        if recovered_breaker:
+            log_event(
+                analysis_logger,
+                "auth_verify.breaker_recovered",
+                "数字人账号中心连接已经恢复",
+                component="workbench",
+            )
+        self._maybe_log_verify_summary()
+        if flight.invalidated and flight.error is not None:
+            raise self._clone_verify_error(flight.error)
+        if remote_error is not None:
+            raise remote_error
+        return copy.deepcopy(verified_user)
 
     def create_handoff(self, token: str) -> str:
         if not token:
@@ -1516,6 +1907,7 @@ class AuthCenterClient:
         timeout_seconds: float | None = None,
         extra_headers: dict[str, str] | None = None,
         connect_timeout_seconds: float | None = None,
+        use_default_timeout_floor: bool = True,
     ) -> dict[str, Any]:
         device_headers = self._device_business_headers(
             str(payload.get("access_token") or ""), method="POST", path=path
@@ -1539,7 +1931,11 @@ class AuthCenterClient:
             timeout_seconds=(
                 self.timeout_seconds
                 if timeout_seconds is None
-                else max(self.timeout_seconds, float(timeout_seconds))
+                else (
+                    max(self.timeout_seconds, float(timeout_seconds))
+                    if use_default_timeout_floor
+                    else max(1.0, float(timeout_seconds))
+                )
             ),
             connect_timeout_seconds=connect_timeout_seconds,
         )

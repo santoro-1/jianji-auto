@@ -628,7 +628,7 @@ class ProjectAudioApiTest(unittest.TestCase):
 
         def fake_download(_self, _token, _batch_id, _item_id, target, *, max_bytes):
             del max_bytes
-            target.parent.mkdir(parents=True, exist_ok=True)
+            self.assertTrue(target.parent.is_dir())
             target.write_bytes(b"ID3-real-audio")
             return len(b"ID3-real-audio")
 

@@ -9,14 +9,19 @@
 
 本包也不包含本地 ASR。H3 片头声音清理和精确字幕需要可用的 ASR；新电脑首次安装应使用
 包含 ASR、FFmpeg 和公共素材的完整包，不能只把代码更新包解压到空目录。
-详细打包和首次安装命令见 [2026-08-31 发布指令](https://github.com/santoro-1/jianji-auto/blob/main/jyd_plain_json_probe/docs/RELEASE_20260831.md)。
+代码更新统一按 [快速打包](FAST_BUILD.md) 运行 `scripts\build\build_processor.ps1 -UpdateOnly`，
+生成本仓库 `release\JianyingRenderServer-update-windows-x64.zip`，并直接覆盖目标安装的
+`digital-human` 目录。188/250 的完整包仍按
+[双工作台发布与更新流程](../../../数字人/ltx_lip_sync_workbench/发布与更新流程.md)
+生成 `数字人\release\update-日期时间-full.zip`。日常代码更新不再使用
+`ltx_lip_sync_workbench\build_code_update.ps1` 生成的工具根目录安装器包。
 
 ## 更新步骤
 
 1. 等待正在导出的任务结束。
 2. 关闭全部工作台网页，并退出“公域闪剪工作台”统一启动器。
 3. 建议照常备份原工作台目录中的 `data` 文件夹；更新包不会修改它。
-4. 解压本更新包，把全部文件复制到**直接包含 `JianyingRenderServer.exe` 的原目录**并选择覆盖。统一安装对应外层目录下的 `digital-human`，不要覆盖到启动器所在外层目录；独立安装对应 EXE 所在目录。
+4. 解压本更新包，把 ZIP 内全部内容复制到**直接包含 `JianyingRenderServer.exe` 的原 `digital-human` 目录**并选择覆盖；不要复制到外层启动器目录，也不要额外套一层文件夹。
 5. 不要删除原来的 `data` 文件夹；程序继续读取其中已有的任务、配置和素材。
 6. 原来使用统一安装的，回到完整工具根目录，双击 `PublicVideoWorkbenchLauncher.exe`；原来使用独立工作台的，按原入口启动工作台即可，不需要新增 LTX。
 7. 浏览器按 `Ctrl+F5`，确认原有素材和最近任务仍然存在。使用 LTX 的统一安装还应确认视频对口型可以上传人物视频。

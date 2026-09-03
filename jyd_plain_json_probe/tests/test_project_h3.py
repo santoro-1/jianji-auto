@@ -657,7 +657,7 @@ def test_h3_sync_prefers_runninghub_direct_delivery(tmp_path: Path) -> None:
     segment = synchronized["items"][0]["settings"]["h3"]["segments"][0]
     assert segment["local_preview_ready"] is True
     cache_root = tmp_path / "storage" / "projects" / "user-1" / project_id
-    metadata = next(cache_root.rglob("versions/*/metadata.json"))
+    metadata = next(cache_root.rglob("v-*.json"))
     cached = json.loads(metadata.read_text(encoding="utf-8"))
     assert cached["result_signature"] == signature
     assert cached["local_video_sha256"]
@@ -997,6 +997,87 @@ def test_h3_sync_recovers_missing_files_from_a_non_latest_successful_batch(
     assert first["outputs"]["base_video"]["metadata"]["h3_segment_signature"]
     assert first["outputs"]["audio"]["metadata"]["duration_us"] == 1_000_000
     assert first["outputs"]["base_video"]["metadata"]["duration_us"] == 1_000_000
+
+
+def test_h3_sync_keeps_refreshing_a_non_latest_batch_with_a_stale_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = ProjectStore(tmp_path / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 旧批次新版下载恢复",
+        items=[
+            {"row_key": "1", "script_text": "第一条。"},
+            {"row_key": "2", "script_text": "第二条。"},
+        ],
+    )
+    project_id = str(project["project_id"])
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    client = MultiBatchFakeH3Client()
+    for row_key in ("1", "2"):
+        segment = {
+            "segment_id": f"segment-{row_key}",
+            "index": 0,
+            "script_text": f"第{'一' if row_key == '1' else '二'}条。",
+            "status": "SUCCESS",
+            "normalized_video_download_url": f"/{row_key}.mp4",
+            "local_preview_ready": True,
+            "local_preview_is_current": row_key == "2",
+            "local_download_state": "ready" if row_key == "2" else "queued",
+        }
+        snapshot = {
+            "batch_id": f"h3-success-{row_key}",
+            "status": "SUCCESS",
+            "items": [
+                {
+                    "item_id": f"remote-{row_key}",
+                    "row_id": row_key,
+                    "status": "SUCCESS",
+                    "segments": [segment],
+                }
+            ],
+        }
+        client.snapshots[str(snapshot["batch_id"])] = snapshot
+        store.set_h3_batch_snapshot(
+            "user-1",
+            project_id,
+            prepare_key=f"quote-{row_key}",
+            snapshot=snapshot,
+        )
+
+    current = store.get_project("user-1", project_id)
+    for item in current["items"]:
+        for asset_type, suffix in (("audio", ".wav"), ("base_video", ".mp4")):
+            path = tmp_path / f"{item['row_key']}-{asset_type}{suffix}"
+            path.write_bytes(f"existing-{item['row_key']}-{asset_type}".encode())
+            store.add_asset(
+                owner_user_id="user-1",
+                project_id=project_id,
+                item_id=str(item["item_id"]),
+                asset_type=asset_type,
+                source_type="h3",
+                status="READY",
+                filename=path.name,
+                managed_path=str(path),
+                make_current=True,
+            )
+
+    monkeypatch.setattr("jyd_probe.project_h3.h3_video_sequence_ready", lambda _item: True)
+    coordinator = ProjectH3Coordinator(store, client)  # type: ignore[arg-type]
+    coordinator.sync("user-1", project_id, "token")
+
+    assert client.fetched_batch_ids == ["h3-success-1", "h3-success-2"]
 
 
 def test_h3_sync_recovers_item_owned_legacy_batch_after_install_path_move(

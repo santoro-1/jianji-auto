@@ -24,7 +24,12 @@
 - 修改渲染参数、字幕 cue、SRT、BGM、视频源或保存目录：读 `docs/RENDER_JOB_SCHEMA.md`。
 - 修改项目结构或跨模块代码：读 `docs/PROJECT_LAYOUT.md` 和 `docs/PROJECT_STATUS.md`。
 - 修改本地安装和处理机使用：读 `START_HERE.md`、`docs/PROCESSOR_DEPLOYMENT.md`。
-- 修改更新包或打包：读 `docs/PROCESSOR_UPDATE.md`、`docs/FAST_BUILD.md`。
+- 修改更新包或打包：读 `docs/PROCESSOR_UPDATE.md`、`docs/FAST_BUILD.md`。如果目标是188/250
+  双工作台统一安装，还必须读取
+  `D:\工作内容\轻盈健\数字人\ltx_lip_sync_workbench\发布与更新流程.md`。普通代码更新统一运行
+  本仓库 `scripts\build\build_processor.ps1 -UpdateOnly`，交付后直接覆盖目标安装的
+  `digital-human` 目录；完整包仍只使用 LTX 仓库的 `build_production_bundle.ps1`。不得使用
+  `build_code_update.ps1` 或历史 `docs/RELEASE_20260831.md` 代替当前发布规则。
 - 修改公用机或多处理机：读 `docs/SHARED_PROCESSOR_QUICK_START.md`、`docs/MULTI_PROCESSOR.md`。
 - 修改本地草稿读取或采集器：读 `docs/LOCAL_COLLECTOR.md`；分析已有草稿时再读 `docs/DRAFT_IMPORT_ANALYZER.md`。
 - 修改素材库时，只读对应专项文档：`AUDIO_LIBRARY.md`、`FONT_LIBRARY.md`、`FLOWER_TEXT_LIBRARY.md`、`TEXT_TEMPLATE_LIBRARY.md`、`STICKER_LIBRARY.md` 或 `EFFECT_LIBRARY.md`。

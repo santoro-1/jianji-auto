@@ -402,6 +402,11 @@ class ProjectContentAnalysisApiTest(unittest.TestCase):
         self.assertEqual(second["content_analysis"]["overall_status"], "PARTIAL")
         self.assertEqual(second["content_analysis"]["music_analysis_status"], "SUCCESS")
         self.assertEqual(second["content_analysis"]["subtitle_analysis_status"], "FAILED")
+        self.assertEqual(second["content_analysis"]["title_analysis_status"], "SUCCESS")
+        self.assertEqual(
+            second["settings"]["postprocess"]["cover_title"],
+            {"line_1": "减脂真相", "line_2": "坚持更关键"},
+        )
         self.assertEqual(third["content_analysis"]["overall_status"], "FAILED")
         self.assertIsNotNone(third["content_analysis"]["errors"]["request"])
         self.assertTrue(all(item["status"] == "DRAFT" for item in result["items"]))

@@ -16,7 +16,11 @@ from .h3_quote_recovery import (
 from .logging_config import log_event
 from .caption_alignment import CaptionAlignmentError, alignment_matches
 from .h3_audio_cleanup import H3_AUDIO_CLEANUP_VERSION, read_cleanup, request_cleanup
-from .h3_cache_paths import compact_digest, item_h3_root
+from .h3_cache_paths import (
+    compact_digest,
+    item_h3_root,
+    previous_compact_digest,
+)
 from .h3_segment_downloads import (
     H3DownloadManagerUnavailable,
     H3DownloadQueueFull,
@@ -92,6 +96,7 @@ def _h3_segment_cache_files(
     remote_item_id: str,
     segment_id: str,
     legacy: bool = False,
+    previous_compact: bool = False,
 ) -> tuple[Path, Path]:
     key = _h3_segment_cache_key(
         remote_batch_id=remote_batch_id,
@@ -102,8 +107,37 @@ def _h3_segment_cache_files(
     if legacy:
         directory = root / "segment-cache" / key
         return directory / "current.mp4", directory / "current.json"
-    directory = root / ("s-" + compact_digest(key))
+    token = previous_compact_digest(key) if previous_compact else compact_digest(key)
+    directory = root / ("s-" + token)
     return directory / "raw.mp4", directory / "raw.json"
+
+
+def _h3_segment_cache_candidates(
+    storage_root: Path, **kwargs: str
+) -> list[tuple[Path, Path]]:
+    """Return the new short cache first, followed by read-only old layouts."""
+
+    return [
+        _h3_segment_cache_files(storage_root, **kwargs),
+        _h3_segment_cache_files(
+            storage_root, **kwargs, previous_compact=True
+        ),
+        _h3_segment_cache_files(storage_root, **kwargs, legacy=True),
+    ]
+
+
+def _segment_version_files(
+    directory: Path, result_signature: str
+) -> tuple[Path, Path, Path, Path]:
+    """Build flat, bounded names for one immutable H3 result version."""
+
+    token = compact_digest(result_signature)
+    return (
+        directory / f"v-{token}.mp4",
+        directory / f"v-{token}.json",
+        directory / f"v-{token}.part",
+        directory / f"v-{token}.tmp",
+    )
 
 
 def _versioned_h3_segment_path(directory: Path) -> tuple[Path, dict[str, Any]] | None:
@@ -119,14 +153,28 @@ def _versioned_h3_segment_path(directory: Path) -> tuple[Path, dict[str, Any]] |
         character not in "0123456789abcdef" for character in signature
     ):
         return None
-    version_directory = (directory / "versions" / signature).resolve()
+    video_value = str(payload.get("video") or "").strip()
+    metadata_value = str(payload.get("metadata") or "").strip()
+    if not video_value or not metadata_value:
+        # Compatibility with the first versioned-cache implementation.
+        video_value = (Path("versions") / signature / "video.mp4").as_posix()
+        metadata_value = (Path("versions") / signature / "metadata.json").as_posix()
+    video = (directory / Path(video_value)).resolve()
+    metadata = (directory / Path(metadata_value)).resolve()
     try:
-        version_directory.relative_to(directory.resolve())
+        video.relative_to(directory.resolve())
+        metadata.relative_to(directory.resolve())
     except ValueError:
         return None
-    video = version_directory / "video.mp4"
-    metadata = version_directory / "metadata.json"
     if not video.is_file() or video.stat().st_size <= 0 or not metadata.is_file():
+        return None
+    try:
+        metadata_payload = json.loads(metadata.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(metadata_payload, dict):
+        return None
+    if metadata_payload.get("result_signature") != signature:
         return None
     return video, payload
 
@@ -191,25 +239,27 @@ def current_h3_segment_preview_path(
             remote_item_id=remote_item_id,
             segment_id=segment_id,
         )
-        cache_path, _ = _h3_segment_cache_files(root, **cache_args)
-        versioned = _versioned_h3_segment_path(cache_path.parent)
-        if versioned is not None:
-            cache_path = versioned[0]
-        elif not cache_path.is_file() or cache_path.stat().st_size <= 0:
-            cache_path, _ = _h3_segment_cache_files(root, **cache_args, legacy=True)
-        cache_path = cache_path.resolve()
-        try:
-            cache_path.relative_to(root)
-        except ValueError as exc:
-            raise FileNotFoundError("H3 分段文件不存在") from exc
-        if cache_path.is_file() and cache_path.stat().st_size > 0:
-            if not original:
-                cleaned = read_cleanup(cache_path, str(current_segment.get("script_text") or ""))
-                if cleaned is not None:
-                    return cleaned.preview_path
-                if current_segment.get("local_audio_cleanup"):
-                    raise FileNotFoundError("H3 片段正在本地清理声音，原始素材仍可下载")
-            return cache_path
+        for cache_path, _ in _h3_segment_cache_candidates(root, **cache_args):
+            versioned = _versioned_h3_segment_path(cache_path.parent)
+            if versioned is not None:
+                cache_path = versioned[0]
+            cache_path = cache_path.resolve()
+            try:
+                cache_path.relative_to(root)
+            except ValueError as exc:
+                raise FileNotFoundError("H3 分段文件不存在") from exc
+            if cache_path.is_file() and cache_path.stat().st_size > 0:
+                if not original:
+                    cleaned = read_cleanup(
+                        cache_path, str(current_segment.get("script_text") or "")
+                    )
+                    if cleaned is not None:
+                        return cleaned.preview_path
+                    if current_segment.get("local_audio_cleanup"):
+                        raise FileNotFoundError(
+                            "H3 片段正在本地清理声音，原始素材仍可下载"
+                        )
+                return cache_path
 
     # Compatibility for H3 assets produced before incremental segment caching.
     outputs = item.get("outputs") if isinstance(item.get("outputs"), dict) else {}
@@ -381,12 +431,24 @@ class ProjectH3Coordinator:
             if isinstance(item.get("settings"), dict)
             else {}
         )
+        segments = h3.get("segments") if isinstance(h3.get("segments"), list) else []
+        has_pending_current_segment = any(
+            isinstance(segment, dict)
+            and str(segment.get("status") or "").upper() == "SUCCESS"
+            and (
+                segment.get("local_preview_is_current") is False
+                or str(segment.get("local_download_state") or "").lower()
+                in {"queued", "downloading", "validating", "failed", "stale"}
+            )
+            for segment in segments
+        )
         return (
             bool(str(h3.get("remote_batch_id") or "").strip())
             and not h3.get("invalidated_reason")
             and not h3.get("materialization_error", {}).get("requires_input_change")
             and str(h3.get("remote_status") or "").upper() == "SUCCESS"
-            and (not self._local_h3_files_ready(item)
+            and (has_pending_current_segment
+                 or not self._local_h3_files_ready(item)
                  or not h3_video_sequence_ready(item)
                  or (self.head_cleanup_enabled and item.get("outputs", {}).get("audio", {}).get("metadata", {}).get("head_cleanup_version") != H3_AUDIO_CLEANUP_VERSION))
         )
@@ -1301,6 +1363,7 @@ class ProjectH3Coordinator:
         segment: dict[str, Any],
         *,
         legacy: bool = False,
+        previous_compact: bool = False,
     ) -> tuple[Path, Path]:
         assert self.storage_root is not None
         return _h3_segment_cache_files(
@@ -1312,6 +1375,7 @@ class ProjectH3Coordinator:
             remote_item_id=str(remote_item.get("item_id") or ""),
             segment_id=str(segment.get("segment_id") or ""),
             legacy=legacy,
+            previous_compact=previous_compact,
         )
 
     @staticmethod
@@ -1332,11 +1396,16 @@ class ProjectH3Coordinator:
         *,
         require_current: bool,
     ) -> Path | None:
-        for legacy in (False, True):
+        layouts = (
+            {"legacy": False, "previous_compact": False},
+            {"legacy": False, "previous_compact": True},
+            {"legacy": True, "previous_compact": False},
+        )
+        for layout in layouts:
             video_path, metadata_path = self._segment_cache_files(
-                owner_user_id, project_id, item_id, remote_item, segment, legacy=legacy
+                owner_user_id, project_id, item_id, remote_item, segment, **layout
             )
-            if not legacy:
+            if not layout["legacy"]:
                 versioned = _versioned_h3_segment_path(video_path.parent)
                 if versioned is not None:
                     current_video, pointer = versioned
@@ -1354,9 +1423,10 @@ class ProjectH3Coordinator:
             metadata = self._read_segment_cache_metadata(metadata_path)
             if metadata.get("result_signature") == self._segment_result_signature(segment):
                 return video_path
-            # Once a nonempty short cache exists it is the authoritative current
-            # slot. Do not materialize an old fallback while preview serves new.
-            return None
+            if not layout["legacy"] and not layout["previous_compact"]:
+                # Once a nonempty new short cache exists it is authoritative.
+                # Do not materialize an older fallback while preview serves new.
+                return None
         return None
 
     def _segment_download_lock(self, video_path: Path) -> threading.Lock:
@@ -1393,16 +1463,23 @@ class ProjectH3Coordinator:
             if current is not None:
                 return current
             cache_directory = video_path.parent
-            version_directory = (
-                cache_directory / "versions" / result_signature
+            cache_directory.mkdir(parents=True, exist_ok=True)
+            (
+                final_video,
+                final_metadata,
+                temporary_video,
+                temporary_metadata,
+            ) = _segment_version_files(
+                cache_directory, result_signature
             )
-            version_directory.mkdir(parents=True, exist_ok=True)
-            final_video = version_directory / "video.mp4"
-            final_metadata = version_directory / "metadata.json"
-            temporary_video = version_directory / "video.mp4.part"
-            temporary_metadata = version_directory / "metadata.json.tmp"
+            existing_version = self._read_segment_cache_metadata(final_metadata)
+            if (
+                existing_version
+                and existing_version.get("result_signature") != result_signature
+            ):
+                raise RuntimeError("H3 下载版本短标识冲突，请重试本地处理")
             pointer = cache_directory / "current.json"
-            temporary_pointer = cache_directory / "current.json.tmp"
+            temporary_pointer = cache_directory / "current.tmp"
             try:
                 download = self.client.download_h3_segment_video
                 download_kwargs: dict[str, Any] = {
@@ -1455,7 +1532,7 @@ class ProjectH3Coordinator:
                 temporary_metadata.write_text(
                     json.dumps(
                         {
-                            "schema": "jyd.h3-segment-cache.v2",
+                            "schema": "jyd.h3-segment-cache.v3",
                             "remote_batch_id": str(remote_item.get("batch_id") or ""),
                             "remote_item_id": str(remote_item.get("item_id") or ""),
                             "segment_id": str(segment.get("segment_id") or ""),
@@ -1476,14 +1553,10 @@ class ProjectH3Coordinator:
                 temporary_pointer.write_text(
                     json.dumps(
                         {
-                            "schema": "jyd.h3-segment-current.v1",
+                            "schema": "jyd.h3-segment-current.v2",
                             "result_signature": result_signature,
-                            "video": (
-                                Path("versions") / result_signature / "video.mp4"
-                            ).as_posix(),
-                            "metadata": (
-                                Path("versions") / result_signature / "metadata.json"
-                            ).as_posix(),
+                            "video": final_video.name,
+                            "metadata": final_metadata.name,
                         },
                         ensure_ascii=False,
                         sort_keys=True,
@@ -1943,7 +2016,7 @@ class ProjectH3Coordinator:
             freeze_segment(path, h3_root / "f") for path in segment_paths
         ]
         if cleanup_assets and any(
-            path.parent.name != clean.raw_sha256
+            self._sha256_file(path) != clean.raw_sha256
             for path, clean in zip(frozen_paths, cleanup_assets, strict=True)
         ):
             raise H3MediaError("H3 分段在声音清理后发生变化，请重试本地处理")
@@ -2118,7 +2191,7 @@ class ProjectH3Coordinator:
                                   "segment_id": segment["segment_id"], "video_index": index},
                     metadata={"h3_segment_signature": signature, "actual_duration_us": duration_us,
                               "script_text": str(segment.get("script_text") or ""),
-                              "source_sha256": frozen.parent.name,
+                              "source_sha256": self._sha256_file(frozen),
                               "video_sequence_version": H3_VIDEO_SEQUENCE_VERSION},
                 )
             ids.append(asset["asset_id"])

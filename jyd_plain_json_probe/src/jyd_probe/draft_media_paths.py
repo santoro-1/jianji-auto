@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ import uuid
 # source path does not imply that Jianying's file/thumbnail APIs can open it.
 MAX_EDITOR_MEDIA_PATH_UNITS = 240
 LOCAL_MEDIA_DIRECTORY = "jyd_media"
+LOCAL_MEDIA_TOKEN_LENGTH = 24
 
 
 def _path_units(path: str | Path) -> int:
@@ -23,6 +25,16 @@ def _path_units(path: str | Path) -> int:
 def _sha256(path: Path) -> str:
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def _media_token(digest: str) -> str:
+    raw = bytes.fromhex(digest)
+    if len(raw) != 32:
+        raise ValueError("草稿素材摘要格式无效")
+    return (
+        base64.b32encode(raw).decode("ascii").rstrip("=").lower()
+        [:LOCAL_MEDIA_TOKEN_LENGTH]
+    )
 
 
 def _media_materials(value: Any) -> Iterator[dict[str, Any]]:
@@ -45,9 +57,10 @@ def localize_long_media_paths(data: dict[str, Any], draft_dir: Path) -> int:
     """Copy overlong local media into a new output draft, then update references.
 
     Only media paths change: identities, names, clocks, volume and transitions
-    remain intact. Full content hashes isolate same-name clips and regenerated
-    versions. Originals are never moved, linked or overwritten. The caller must
-    save the JSON only after this function succeeds.
+    remain intact. Short content tokens isolate same-name clips and regenerated
+    versions; complete hashes are still verified from file bytes. Originals are
+    never moved, linked or overwritten. The caller must save the JSON only after
+    this function succeeds.
     """
     media_root = draft_dir.resolve() / LOCAL_MEDIA_DIRECTORY
     replacements: list[tuple[dict[str, Any], str]] = []
@@ -70,7 +83,7 @@ def localize_long_media_paths(data: dict[str, Any], draft_dir: Path) -> int:
             if source.stat().st_size == 0:
                 raise ValueError(f"草稿长路径素材为空：{source}")
             digest = _sha256(source)
-            target = media_root / f"{digest}{source.suffix.lower()}"
+            target = media_root / f"m-{_media_token(digest)}{source.suffix.lower()}"
             if _path_units(target) > MAX_EDITOR_MEDIA_PATH_UNITS:
                 raise ValueError(
                     "剪映草稿保存目录或草稿名称过长，无法生成兼容的素材路径；"
@@ -81,7 +94,7 @@ def localize_long_media_paths(data: dict[str, Any], draft_dir: Path) -> int:
                     raise RuntimeError(f"草稿内素材副本校验失败，未覆盖现有文件：{target}")
             else:
                 media_root.mkdir(parents=True, exist_ok=True)
-                temporary = media_root / f"{uuid.uuid4().hex}.tmp"
+                temporary = media_root / f"copy-{uuid.uuid4().hex[:8]}.tmp"
                 try:
                     shutil.copyfile(source, temporary)
                     if _sha256(temporary) != digest:

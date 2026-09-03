@@ -572,6 +572,7 @@ class ProjectAudioCoordinator:
                         target = directory / f"v{generation_version}.mp3"
                         temporary = target.with_suffix(".mp3.tmp")
                         try:
+                            target.parent.mkdir(parents=True, exist_ok=True)
                             self.client.download_workbench_audio(
                                 token,
                                 batch_id,
@@ -579,7 +580,6 @@ class ProjectAudioCoordinator:
                                 temporary,
                                 max_bytes=self.max_audio_bytes,
                             )
-                            target.parent.mkdir(parents=True, exist_ok=True)
                             temporary.replace(target)
                         except BaseException:
                             temporary.unlink(missing_ok=True)

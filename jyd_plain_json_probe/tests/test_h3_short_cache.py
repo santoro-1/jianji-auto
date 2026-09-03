@@ -1,6 +1,5 @@
 """Regression for 250/188 paths and failures that cannot be written to disk."""
 
-import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
@@ -14,7 +13,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from jyd_probe import h3_audio_cleanup as cleanup
 from jyd_probe import project_h3 as h3
-from jyd_probe.h3_cache_paths import compact_digest, cleanup_directory, item_h3_root
+from jyd_probe.h3_cache_paths import (
+    H3_PATH_TOKEN_LENGTH,
+    compact_digest,
+    cleanup_directory,
+    item_h3_root,
+    previous_cleanup_directory,
+    previous_compact_digest,
+)
+from jyd_probe.h3_video_segments import freeze_segment
 from test_h3_audio_cleanup_coordinator import setup_coordinator
 
 
@@ -35,7 +42,14 @@ def write_cleanup(directory, raw, script):
     (directory / "report.json").write_text(json.dumps(report), encoding="utf-8")
 
 
-@pytest.mark.parametrize("runtime", ["F:/cxd/PV/digital-human", "E:/cxd/PublicVideo-x64"])
+@pytest.mark.parametrize(
+    "runtime",
+    [
+        "F:/cxd/PV/digital-human",
+        "E:/cxd/PublicVideo-x64",
+        "G:/新建文件夹/PublicVideo0903_v2/digital-human",
+    ],
+)
 def test_deployment_paths_include_temp_files_and_stay_below_240(runtime):
     # No file is created on either production drive. Include full-size IDs and
     # both transient filenames: checking only final MP4 names missed this bug.
@@ -48,27 +62,39 @@ def test_deployment_paths_include_temp_files_and_stay_below_240(runtime):
     root = item_h3_root(storage, "6", "b" * 32, "f" * 32)
     short = cleanup_directory(old_raw, key)
     assert short == cleanup_directory(new_raw, key)
+    version_paths = h3._segment_version_files(new_raw.parent, key)
     paths = [
-        new_raw, new_meta, new_raw.with_name("current." + "1" * 32 + ".mp4.tmp"),
+        new_raw,
+        new_meta,
+        *version_paths,
+        version_paths[2].with_name(version_paths[2].name + ".resume.json"),
+        new_raw.parent / "current.json",
+        new_raw.parent / "current.tmp",
         short / "failure.json", short / "build-12345678" / "analysis.wav",
         root / ("m-" + compact_digest(key)) / "h3-authoritative-full.part.wav",
-        root / "f" / key / ("1" * 32 + ".part.mp4"),
+        root / "f" / ("f-" + compact_digest(key)) / "segment.12345678.part",
     ]
     for path in paths:
         assert len(str(path).encode("utf-16-le")) // 2 < 240, str(path)
-        path.relative_to(root)
+        relative = path.relative_to(root)
+        assert all(len(part) not in {52, 64} for part in relative.parts), str(path)
     old_work = old_raw.parent / "head-cleanup" / key / "build-12345678" / "analysis.wav"
     assert len(str(old_work)) > 260
     assert len(str(short / "build-12345678" / "analysis.wav")) < len(str(old_work)) - 80
 
 
-def test_compact_ids_keep_all_hash_bits_and_windows_case_safety():
+def test_compact_ids_are_bounded_and_windows_case_safe():
+    seen = set()
     for raw in (b"raw", b"other", bytes(range(256))):
         digest = hashlib.sha256(raw).hexdigest()
         compact = compact_digest(digest)
         assert compact == compact.lower()
-        assert len(compact) == 52
-        assert base64.b32decode(compact.upper() + "====").hex() == digest
+        assert len(compact) == H3_PATH_TOKEN_LENGTH == 24
+        assert compact.isalnum()
+        assert compact not in seen
+        seen.add(compact)
+        # The old 52-character name is retained only for reading existing data.
+        assert len(previous_compact_digest(digest)) == 52
 
 
 def test_new_cache_isolated_by_owner_project_item_batch_and_segment(tmp_path):
@@ -83,12 +109,22 @@ def test_new_cache_isolated_by_owner_project_item_batch_and_segment(tmp_path):
     assert first != cleanup_directory(raw, cleanup.cleanup_key("b" * 64, "first"))
 
 
-def test_old_download_is_reused_then_new_version_uses_short_cache(tmp_path, monkeypatch):
+@pytest.mark.parametrize("old_layout", ["legacy", "previous_compact"])
+def test_old_download_is_reused_then_new_version_uses_short_cache(
+    tmp_path, monkeypatch, old_layout
+):
     store, project, client, coordinator, calls, request = setup_coordinator(tmp_path, monkeypatch)
     remote = {**client.snapshot["items"][0], "batch_id": client.snapshot["batch_id"]}
     segment = remote["segments"][0]
     args = ("u1", project["project_id"], project["items"][0]["item_id"], remote, segment)
-    old_raw, old_meta = coordinator._segment_cache_files(*args, legacy=True)
+    old_raw, old_meta = coordinator._segment_cache_files(
+        *args,
+        **(
+            {"legacy": True}
+            if old_layout == "legacy"
+            else {"previous_compact": True}
+        ),
+    )
     old_raw.parent.mkdir(parents=True)
     old_raw.write_bytes(b"video:s1")
     old_meta.write_text(json.dumps({
@@ -145,6 +181,72 @@ def test_old_valid_cleanup_copied_without_asr_or_changing_original(tmp_path, mon
     assert raw.read_bytes() == b"raw media"
     assert cleanup.clean_segment(raw, "script", None) == result
     run.assert_not_called()
+
+
+def test_previous_compact_cleanup_is_migrated_to_short_directory(
+    tmp_path, monkeypatch
+):
+    raw = tmp_path / "h3" / ("s-" + previous_compact_digest("d" * 64)) / "raw.mp4"
+    raw.parent.mkdir(parents=True)
+    raw.write_bytes(b"raw media")
+    key = cleanup.cleanup_key(cleanup.file_sha256(raw), "script")
+    previous = previous_cleanup_directory(raw, key)
+    write_cleanup(previous, raw, "script")
+    monkeypatch.setattr(
+        cleanup, "_run", Mock(side_effect=AssertionError("no encoding"))
+    )
+
+    result = cleanup.clean_segment(raw, "script", None)
+
+    assert result.directory == cleanup_directory(raw, key)
+    assert result.directory != previous
+    assert len(result.directory.name) == 2 + H3_PATH_TOKEN_LENGTH
+    assert previous.is_dir()
+
+
+def test_frozen_segments_use_short_directory_and_keep_full_hash_in_metadata(tmp_path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"immutable segment")
+    digest = cleanup.file_sha256(source)
+
+    frozen = freeze_segment(source, tmp_path / "h3" / "f")
+
+    assert frozen.parent.name == "f-" + compact_digest(digest)
+    assert len(frozen.parent.name) == 2 + H3_PATH_TOKEN_LENGTH
+    assert len(frozen.parent.name) != 64
+    identity = json.loads(
+        (frozen.parent / "identity.json").read_text(encoding="utf-8")
+    )
+    assert identity == {"sha256": digest}
+    assert freeze_segment(source, tmp_path / "h3" / "f") == frozen
+
+
+def test_first_versioned_layout_remains_readable(tmp_path):
+    signature = "a" * 64
+    directory = tmp_path / ("s-" + previous_compact_digest("b" * 64))
+    version = directory / "versions" / signature
+    version.mkdir(parents=True)
+    video = version / "video.mp4"
+    video.write_bytes(b"old versioned video")
+    metadata = version / "metadata.json"
+    metadata.write_text(
+        json.dumps({"result_signature": signature}), encoding="utf-8"
+    )
+    (directory / "current.json").write_text(
+        json.dumps(
+            {
+                "result_signature": signature,
+                "video": f"versions/{signature}/video.mp4",
+                "metadata": f"versions/{signature}/metadata.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert h3._versioned_h3_segment_path(directory) == (
+        video.resolve(),
+        json.loads((directory / "current.json").read_text(encoding="utf-8")),
+    )
 
 
 @pytest.fixture

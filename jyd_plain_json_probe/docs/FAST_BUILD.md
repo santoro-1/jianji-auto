@@ -1,5 +1,10 @@
 # 快速打包
 
+> 本文的代码更新包同时适用于 JYD 独立工作台和 188/250 双工作台。所有普通代码更新统一
+> 生成 `JianyingRenderServer-update-windows-x64.zip`，并直接覆盖现有安装的 `digital-human`
+> 目录。188/250 的完整包仍从 `D:\工作内容\轻盈健\数字人\ltx_lip_sync_workbench` 构建，
+> 权威步骤见 [双工作台发布与更新流程](../../../数字人/ltx_lip_sync_workbench/发布与更新流程.md)。
+
 ## 第一次准备环境
 
 只需要运行一次：
@@ -87,8 +92,10 @@ release\JianyingRenderServer-windows-x64.zip
 release\JianyingRenderServer-update-windows-x64.zip
 ```
 
-先关闭处理服务器，把更新包解压到原来的 `JianyingRenderServer` 目录并覆盖同名文件。更新包
-不含 `data` 目录，不会复制、删除或覆盖素材、模板、任务、登录数据和配置。
+先关闭全部工作台页面和统一启动器，把更新包内全部内容解压到原安装中直接包含
+`JianyingRenderServer.exe` 的 `digital-human` 目录并覆盖同名文件。不要解压到外层工具根目录，
+也不要额外套一层文件夹。更新包不含 `data` 目录，不会复制、删除或覆盖素材、模板、任务、
+登录数据、配置或本地 ASR。
 
 如果服务器和采集器代码都修改了：
 

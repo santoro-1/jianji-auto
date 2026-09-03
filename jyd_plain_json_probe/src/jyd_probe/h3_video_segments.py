@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -9,6 +10,7 @@ from typing import Any
 import uuid
 
 from .h3_audio_cleanup import file_sha256
+from .h3_cache_paths import compact_digest
 
 
 H3_VIDEO_SEQUENCE_VERSION = "jyd.h3-video-sequence.v1"
@@ -17,18 +19,33 @@ H3_VIDEO_SEQUENCE_VERSION = "jyd.h3-video-sequence.v1"
 def freeze_segment(source: Path, root: Path) -> Path:
     """Never let a historical draft reference the replaceable current.mp4 cache."""
     digest = file_sha256(source)
-    target = root / digest / "segment.mp4"
+    directory = root / ("f-" + compact_digest(digest))
+    target = directory / "segment.mp4"
+    identity = directory / "identity.json"
     if target.is_file() and file_sha256(target) == digest:
+        if not identity.is_file():
+            identity.write_text(
+                json.dumps({"sha256": digest}, sort_keys=True), encoding="utf-8"
+            )
         return target
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(f"{uuid.uuid4().hex}.part.mp4")
+    if target.exists():
+        raise RuntimeError("H3 冻结分段短标识冲突，请重试本地处理")
+    directory.mkdir(parents=True, exist_ok=True)
+    suffix = uuid.uuid4().hex[:8]
+    temporary = directory / f"segment.{suffix}.part"
+    temporary_identity = directory / f"identity.{suffix}.tmp"
     try:
         shutil.copyfile(source, temporary)
         if file_sha256(temporary) != digest:
             raise RuntimeError("H3 分段在保存期间发生变化，请重试本地处理")
         os.replace(temporary, target)
+        temporary_identity.write_text(
+            json.dumps({"sha256": digest}, sort_keys=True), encoding="utf-8"
+        )
+        os.replace(temporary_identity, identity)
     finally:
         temporary.unlink(missing_ok=True)
+        temporary_identity.unlink(missing_ok=True)
     return target
 
 
