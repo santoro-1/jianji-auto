@@ -78,7 +78,9 @@ def _ffmpeg_path() -> str | None:
     project_root = Path(__file__).resolve().parents[2]
     candidates = (
         executable_root / "ffmpeg" / "bin" / "ffmpeg.exe",
+        executable_root / "asr_runtime" / "ffmpeg" / "bin" / "ffmpeg.exe",
         executable_root.parent / "ffmpeg" / "bin" / "ffmpeg.exe",
+        executable_root.parent / "asr_runtime" / "ffmpeg" / "bin" / "ffmpeg.exe",
         project_root / "ffmpeg" / "bin" / "ffmpeg.exe",
         Path.cwd() / "ffmpeg" / "bin" / "ffmpeg.exe",
     )

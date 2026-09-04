@@ -17,6 +17,7 @@ from jyd_probe.project_h3_media import (  # noqa: E402
     prepare_h3_media,
     H3MediaError,
 )
+from jyd_probe.bgm_loudness import _ffmpeg_path  # noqa: E402
 
 
 def test_h3_script_mismatch_is_rejected_before_encoding(tmp_path: Path) -> None:
@@ -50,6 +51,22 @@ def test_h3_media_finds_ffprobe_next_to_bundled_ffmpeg(tmp_path: Path) -> None:
     with patch("jyd_probe.project_h3_media.shutil.which", return_value=None), patch(
         "jyd_probe.project_h3_media._ffmpeg_path", return_value=str(ffmpeg)
     ):
+        assert _ffprobe_path() == str(ffprobe.resolve())
+
+
+def test_h3_media_finds_tools_in_embedded_asr_runtime(tmp_path: Path) -> None:
+    app_root = tmp_path / "digital-human"
+    executable = app_root / "JianyingRenderServer.exe"
+    ffmpeg = app_root / "asr_runtime" / "ffmpeg" / "bin" / "ffmpeg.exe"
+    ffprobe = ffmpeg.with_name("ffprobe.exe")
+    ffmpeg.parent.mkdir(parents=True)
+    ffmpeg.write_bytes(b"ffmpeg")
+    ffprobe.write_bytes(b"ffprobe")
+
+    with patch.object(sys, "executable", str(executable)), patch(
+        "jyd_probe.bgm_loudness.shutil.which", return_value=None
+    ), patch("jyd_probe.project_h3_media.shutil.which", return_value=None):
+        assert _ffmpeg_path() == str(ffmpeg.resolve())
         assert _ffprobe_path() == str(ffprobe.resolve())
 
 

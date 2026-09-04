@@ -1,5 +1,12 @@
 # 开发者指南
 
+### 2026-09-03 内置媒体工具自动发现
+
+- 冻结工作台除系统 `PATH`、EXE 同级 `ffmpeg/bin` 和 EXE 上一级 `ffmpeg/bin` 外，
+  也会自动发现 `asr_runtime/ffmpeg/bin` 中随便携 ASR 一同交付的 FFmpeg/FFprobe。
+- H3 新片段下载校验、片头声音清理、BGM 响度检测和浏览器预览共用该解析结果；直接运行
+  `JianyingRenderServer.exe` 不再依赖启动终端临时设置 `PATH`。
+
 ### 2026-09-03 H3 历史批次新版片段回收
 
 - 已成功但 `local_preview_is_current=false`，或本地下载仍为排队、下载、校验、失败状态的分段，
