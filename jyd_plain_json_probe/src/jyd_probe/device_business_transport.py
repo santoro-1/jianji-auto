@@ -15,7 +15,7 @@ from .device_identity_windows import DeviceIdentityError
 
 _ID = r"[A-Za-z0-9_-]{1,100}"
 _H3_POST = re.compile(
-    r"/api/workbench/(?:h3-execution-accounts|h3-authorization-waiting|h3-audio-sources(?:/approve)?|"
+    r"/api/workbench/(?:h3-assets(?:/lookup)?|h3-execution-accounts|h3-authorization-waiting|h3-audio-sources(?:/approve)?|"
     r"h3-batches/prepare|h3-batches/"
     + _ID
     + r"(?:/confirm|/quote/cancel|/authorization/(?:prepare|resume))?|"

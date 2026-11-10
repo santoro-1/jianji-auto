@@ -1,5 +1,24 @@
 # Web API
 
+## 2026-09-04 H3 素材上传合同
+
+JYD 的 H3 人物图和参考视频使用以下云端接口，二者都携带现有账号凭据和 DPoP 设备证明；服务端
+固定 `source_channel=h3_workbench`，请求不能自报来源：
+
+| 路径 | 请求 | 结果 |
+| --- | --- | --- |
+| `POST /api/workbench/h3-assets/lookup` | JSON：`upload_key` | 未找到为 `{"found":false}`；可复用时返回原素材合同 |
+| `POST /api/workbench/h3-assets` | multipart：`file`、`kind`、`asset_role`、`upload_key`、`source_sha256`、`transport_profile` | 新建返回 201/`uploaded`，幂等复用返回 200/`reused` |
+
+`kind` 只允许 `image|video`，并须分别对应 `reference_image|reference_video`；第一阶段
+`transport_profile` 固定 `original-v1`，服务端验证 `source_sha256 == transport_sha256`。成功响应含
+`asset_id/kind/asset_role/size_bytes/source_sha256/transport_sha256/transport_profile`。同一用户、来源、
+上传键绑定不同摘要、类型或角色时返回 `409 H3_UPLOAD_KEY_CONFLICT`；已消费或过期素材不复用。
+
+客户端不得整体读取文件或整体拼接 multipart。每块最多 1 MiB，并发送准确 Content-Length；响应
+未知时只以同一键 lookup，未恢复到确定素材 ID 前不得调用 `/api/workbench/h3-batches/prepare`。
+同一 prepare 中相同人物图或相同参考视频只上传一次。本合同不替换 H3 音频及历史通用上传接口。
+
 ## 2026-09-01 独立 Agent 实际 HTTP 合同（当前，开发中）
 
 共用中央接入密码与执行机设备授权是两层检查。受保护构建中，除挑战请求外，以下 POST 必须同时具有原 `Authorization: Bearer ...`、`X-Workbench-Agent-Permit` 和按模式要求的 `X-Workbench-Agent-Proof`。空信任根源码的旧测试兼容不适用于冻结 EXE；缺新协议返回 `DEVICE_AGENT_PROTOCOL_REQUIRED`，不能修改普通配置放行。

@@ -24,11 +24,13 @@ from jyd_probe.project_h3_media import (  # noqa: E402
 )
 from jyd_probe.h3_segment_downloads import H3SegmentDownloadManager  # noqa: E402
 from jyd_probe.project_store import ProjectStore  # noqa: E402
+from jyd_probe.auth_center import AuthCenterConnectionError  # noqa: E402
 
 
 class FakeH3Client:
     def __init__(self) -> None:
         self.uploads: list[tuple[str, str]] = []
+        self.h3_assets: dict[str, dict] = {}
         self.approvals: list[dict[str, object]] = []
         self.downloads: list[str] = []
         self.video_payloads: dict[str, bytes] = {}
@@ -61,16 +63,35 @@ class FakeH3Client:
             "reviewed_at": "2026-08-23T00:00:00+00:00",
         }
 
-    def upload_workbench_batch_asset(
+    def lookup_h3_asset(self, token: str, upload_key: str) -> dict:
+        payload = self.h3_assets.get(upload_key)
+        return {"found": False} if payload is None else {"found": True, **payload}
+
+    def upload_h3_asset(
         self,
         token: str,
         path: Path,
         *,
         kind: str,
+        asset_role: str,
         filename: str,
+        upload_key: str,
+        source_sha256: str,
+        transport_profile: str,
     ) -> dict:
         self.uploads.append((kind, filename))
-        return {"asset_id": f"cloud-{kind}-{len(self.uploads)}"}
+        payload = {
+            "status": "uploaded",
+            "asset_id": f"cloud-{kind}-{len(self.uploads)}",
+            "kind": kind,
+            "asset_role": asset_role,
+            "size_bytes": path.stat().st_size,
+            "source_sha256": source_sha256,
+            "transport_sha256": source_sha256,
+            "transport_profile": transport_profile,
+        }
+        self.h3_assets[upload_key] = payload
+        return payload
 
     def prepare_h3_batch(self, token: str, payload: dict) -> dict:
         self.prepared = payload
@@ -157,6 +178,214 @@ class MultiBatchFakeH3Client(FakeH3Client):
     def get_h3_batch(self, token: str, batch_id: str) -> dict:
         self.fetched_batch_ids.append(batch_id)
         return dict(self.snapshots[batch_id])
+
+
+def test_mock_09_upload_response_loss_recovers_original_asset_by_lookup(
+    tmp_path: Path,
+) -> None:
+    class LostResponseClient(FakeH3Client):
+        def upload_h3_asset(self, *args, **kwargs):
+            super().upload_h3_asset(*args, **kwargs)
+            raise AuthCenterConnectionError("response lost")
+
+    source = tmp_path / "reference.mp4"
+    source.write_bytes(b"same-video")
+    digest = hashlib.sha256(b"same-video").hexdigest()
+    client = LostResponseClient()
+    coordinator = ProjectH3Coordinator(ProjectStore(tmp_path / "control.db"), client)
+    asset_id = coordinator._resolve_or_upload_h3_asset(
+        "token",
+        source,
+        kind="video",
+        asset_role="reference_video",
+        filename="reference.mp4",
+        prepare_key="prepare-key-001",
+        source_sha256=digest,
+    )
+    assert asset_id == "cloud-video-1"
+    repeated_asset_id = coordinator._resolve_or_upload_h3_asset(
+        "token",
+        source,
+        kind="video",
+        asset_role="reference_video",
+        filename="reference.mp4",
+        prepare_key="prepare-key-001",
+        source_sha256=digest,
+    )
+    assert repeated_asset_id == asset_id
+    assert client.uploads == [("video", "reference.mp4")]
+
+
+def _build_ready_two_row_h3_project(root: Path) -> tuple[ProjectStore, str, list[str]]:
+    root.mkdir(parents=True, exist_ok=True)
+    store = ProjectStore(root / "control.db")
+    project = store.create_project(
+        owner_user_id="user-1",
+        owner_username="tester",
+        name="H3 两行上传测试",
+        items=[
+            {"row_key": "1", "script_text": "第一行测试文案。"},
+            {"row_key": "2", "script_text": "第二行测试文案。"},
+        ],
+    )
+    project_id = project["project_id"]
+    item_ids = [str(item["item_id"]) for item in project["items"]]
+
+    image_path = root / "identity.png"
+    image_path.write_bytes(b"shared-identity")
+    image = store.register_input_image(
+        owner_user_id="user-1",
+        project_id=project_id,
+        filename="identity.png",
+        content_type="image/png",
+        size_bytes=image_path.stat().st_size,
+        sha256=hashlib.sha256(b"shared-identity").hexdigest(),
+        managed_path=str(image_path),
+    )
+    store.apply_image_strategy(
+        "user-1",
+        project_id,
+        strategy="loop",
+        reuse_count=1,
+        image_ids=[str(image["image_id"])],
+    )
+
+    reference_path = root / "shared-reference.mp4"
+    reference_path.write_bytes(b"shared-reference-video")
+    reference_sha = hashlib.sha256(b"shared-reference-video").hexdigest()
+    for position, item_id in enumerate(item_ids, start=1):
+        script = f"第{'一' if position == 1 else '二'}行测试文案。"
+        audio_path = root / f"voice-{position}.mp3"
+        audio_path.write_bytes(f"audio-{position}".encode())
+        audio = store.add_asset(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item_id,
+            asset_type="audio",
+            source_type="minimax",
+            status="READY",
+            filename=audio_path.name,
+            managed_path=str(audio_path),
+            external_ref={
+                "batch_id": f"audio-batch-{position}",
+                "remote_item_id": f"audio-item-{position}",
+                "generation_version": 1,
+            },
+            metadata={"provider_status": "SUCCESS"},
+            make_current=True,
+        )
+        store.set_item_subtitles(
+            "user-1",
+            project_id,
+            item_id,
+            {
+                "source": "minimax_timestamps",
+                "raw_cues": [
+                    {
+                        "text": script,
+                        "start_us": 0,
+                        "duration_us": 1_000_000,
+                        "end_us": 1_000_000,
+                    }
+                ],
+                "render_cues": [],
+                "bound_audio_asset_id": audio["asset_id"],
+                "status": "READY",
+            },
+        )
+        store.add_h3_reference_video(
+            owner_user_id="user-1",
+            project_id=project_id,
+            item_id=item_id,
+            filename=reference_path.name,
+            managed_path=str(reference_path),
+            metadata={"sha256": reference_sha},
+        )
+    store.set_h3_configuration(
+        "user-1",
+        project_id,
+        identity_image_ids=[str(image["image_id"])],
+        defaults={
+            "continuity_mode": "loop_anchor",
+            "aspect_ratio": "9:16 (Portrait Widescreen)",
+            "megapixels": 1,
+            "generation_tail_seconds": 0.1,
+        },
+    )
+    return store, project_id, item_ids
+
+
+def test_mock_10_upload_failure_blocks_prepare_and_shared_video_uploads_once(
+    tmp_path: Path,
+) -> None:
+    success_store, success_project_id, success_item_ids = (
+        _build_ready_two_row_h3_project(tmp_path / "success")
+    )
+    success_client = FakeH3Client()
+    success_client.snapshot = {
+        **success_client.snapshot,
+        "fee_snapshot": {"segment_count": 2, "estimated_paid_calls": 2},
+        "items": [
+            {
+                "item_id": f"remote-row-{position}",
+                "row_id": str(position),
+                "status": "AWAITING_COST_CONFIRMATION",
+                "segments": [],
+            }
+            for position in (1, 2)
+        ],
+    }
+    success_coordinator = ProjectH3Coordinator(
+        success_store,
+        success_client,  # type: ignore[arg-type]
+        storage_root=tmp_path / "success-storage",
+        require_precise_alignment=False,
+    )
+    success_coordinator.prepare(
+        "user-1",
+        success_project_id,
+        "token",
+        idempotency_key="mock-10-shared-video",
+        selected_account_ids=[7],
+        item_ids=success_item_ids,
+    )
+    assert success_client.uploads.count(("video", "shared-reference.mp4")) == 1
+    assert success_client.prepared is not None
+    assert len(success_client.prepared["rows"]) == 2
+    assert len({row["video_asset_id"] for row in success_client.prepared["rows"]}) == 1
+
+    class FailedVideoUploadClient(FakeH3Client):
+        def __init__(self) -> None:
+            super().__init__()
+            self.video_attempts = 0
+
+        def upload_h3_asset(self, *args, **kwargs):
+            if kwargs.get("kind") == "video":
+                self.video_attempts += 1
+                raise AuthCenterConnectionError("upload failed")
+            return super().upload_h3_asset(*args, **kwargs)
+
+    failed_store, failed_project_id, failed_item_ids = _build_ready_two_row_h3_project(
+        tmp_path / "failed"
+    )
+    failed_client = FailedVideoUploadClient()
+    failed_coordinator = ProjectH3Coordinator(
+        failed_store,
+        failed_client,  # type: ignore[arg-type]
+        storage_root=tmp_path / "failed-storage",
+        require_precise_alignment=False,
+    )
+    with pytest.raises(AuthCenterConnectionError, match="upload failed"):
+        failed_coordinator.prepare(
+            "user-1",
+            failed_project_id,
+            "token",
+            idempotency_key="mock-10-failed-upload",
+            selected_account_ids=[7],
+            item_ids=failed_item_ids,
+        )
+    assert failed_client.video_attempts == 1
+    assert failed_client.prepared is None
 
 
 class FakeCaptionAligner:

@@ -9,7 +9,7 @@ import threading
 from typing import Any, Callable
 from urllib.parse import urlsplit
 
-from .auth_center import AuthCenterClient
+from .auth_center import AuthCenterClient, AuthCenterConnectionError, AuthCenterError
 from .h3_quote_recovery import (
     H3QuoteConflict, describe_quote, input_binding, serialized_quote_action,
 )
@@ -726,6 +726,89 @@ class ProjectH3Coordinator:
                   project_id=project_id, batch_id=batch_id)
         return {"project": project, "h3_batch": snapshot}
 
+    @staticmethod
+    def _source_sha256(path: Path, metadata: dict[str, Any] | None) -> str:
+        recorded = str((metadata or {}).get("sha256") or "").strip().lower()
+        if len(recorded) == 64 and all(character in "0123456789abcdef" for character in recorded):
+            return recorded
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @staticmethod
+    def _h3_upload_key(prepare_key: str, asset_role: str, source_sha256: str) -> str:
+        material = f"{prepare_key}\0{asset_role}\0{source_sha256}\0original-v1"
+        return "h3up-" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _validate_h3_asset_response(
+        payload: dict[str, Any],
+        *,
+        kind: str,
+        asset_role: str,
+        source_sha256: str,
+    ) -> str:
+        asset_id = str(payload.get("asset_id") or "").strip()
+        if not asset_id:
+            raise ValueError("数字人网站没有返回 H3 素材编号")
+        expected = {
+            "kind": kind,
+            "asset_role": asset_role,
+            "source_sha256": source_sha256,
+            "transport_sha256": source_sha256,
+            "transport_profile": "original-v1",
+        }
+        if any(str(payload.get(key) or "") != value for key, value in expected.items()):
+            raise ValueError("数字人网站返回的 H3 素材信息与本地文件不一致")
+        return asset_id
+
+    def _resolve_or_upload_h3_asset(
+        self,
+        token: str,
+        path: Path,
+        *,
+        kind: str,
+        asset_role: str,
+        filename: str,
+        prepare_key: str,
+        source_sha256: str,
+    ) -> str:
+        upload_key = self._h3_upload_key(prepare_key, asset_role, source_sha256)
+        lookup = self.client.lookup_h3_asset(token, upload_key)
+        if lookup.get("found") is True:
+            return self._validate_h3_asset_response(
+                lookup,
+                kind=kind,
+                asset_role=asset_role,
+                source_sha256=source_sha256,
+            )
+        try:
+            uploaded = self.client.upload_h3_asset(
+                token,
+                path,
+                kind=kind,
+                asset_role=asset_role,
+                filename=filename,
+                upload_key=upload_key,
+                source_sha256=source_sha256,
+                transport_profile="original-v1",
+            )
+        except AuthCenterError as exc:
+            if not isinstance(exc, AuthCenterConnectionError) and not exc.retryable:
+                raise
+            recovered = self.client.lookup_h3_asset(token, upload_key)
+            if recovered.get("found") is not True:
+                raise
+            uploaded = recovered
+        return self._validate_h3_asset_response(
+            uploaded,
+            kind=kind,
+            asset_role=asset_role,
+            source_sha256=source_sha256,
+        )
+
     @serialized_quote_action
     def prepare(
         self,
@@ -855,7 +938,7 @@ class ProjectH3Coordinator:
             )
 
         quote_binding = input_binding(project, target_items, self._latest_minimax_audio)
-        cloud_image_by_source: dict[str, str] = {}
+        cloud_asset_by_source: dict[tuple[str, str], str] = {}
         row_cloud_images: dict[str, str] = {}
         for item in target_items:
             image = item.get("inputs", {}).get("image")
@@ -868,19 +951,21 @@ class ProjectH3Coordinator:
                 raise ValueError(
                     f"第 {item.get('row_key')} 行人物图文件不存在: {image.get('filename') or image.get('asset_id')}"
                 )
-            source_key = str(image.get("metadata", {}).get("sha256") or path.resolve())
-            asset_id = cloud_image_by_source.get(source_key)
+            metadata = image.get("metadata") if isinstance(image.get("metadata"), dict) else {}
+            source_sha = self._source_sha256(path, metadata)
+            source_key = ("reference_image", source_sha)
+            asset_id = cloud_asset_by_source.get(source_key)
             if asset_id is None:
-                uploaded = self.client.upload_workbench_batch_asset(
+                asset_id = self._resolve_or_upload_h3_asset(
                     token,
                     path,
                     kind="image",
+                    asset_role="reference_image",
                     filename=str(image.get("filename") or path.name),
+                    prepare_key=clean_key,
+                    source_sha256=source_sha,
                 )
-                asset_id = str(uploaded.get("asset_id") or "").strip()
-                if not asset_id:
-                    raise ValueError("数字人网站没有返回 H3 人物图素材编号")
-                cloud_image_by_source[source_key] = asset_id
+                cloud_asset_by_source[source_key] = asset_id
             row_cloud_images[str(item["item_id"])] = asset_id
 
         rows: list[dict[str, Any]] = []
@@ -899,15 +984,21 @@ class ProjectH3Coordinator:
                 raise ValueError(
                     f"第 {item.get('row_key')} 行 H3 参考视频文件不存在"
                 )
-            uploaded = self.client.upload_workbench_batch_asset(
-                token,
-                path,
-                kind="video",
-                filename=str(reference.get("filename") or path.name),
-            )
-            video_asset_id = str(uploaded.get("asset_id") or "").strip()
-            if not video_asset_id:
-                raise ValueError("数字人网站没有返回 H3 参考视频素材编号")
+            metadata = reference.get("metadata") if isinstance(reference.get("metadata"), dict) else {}
+            source_sha = self._source_sha256(path, metadata)
+            source_key = ("reference_video", source_sha)
+            video_asset_id = cloud_asset_by_source.get(source_key)
+            if video_asset_id is None:
+                video_asset_id = self._resolve_or_upload_h3_asset(
+                    token,
+                    path,
+                    kind="video",
+                    asset_role="reference_video",
+                    filename=str(reference.get("filename") or path.name),
+                    prepare_key=clean_key,
+                    source_sha256=source_sha,
+                )
+                cloud_asset_by_source[source_key] = video_asset_id
             item_settings = (
                 item.get("settings")
                 if isinstance(item.get("settings"), dict)

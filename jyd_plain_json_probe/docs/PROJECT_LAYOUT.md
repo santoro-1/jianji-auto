@@ -12,7 +12,7 @@
 `device_identity_setup.py` 协调显式初始化/原密钥访问修复；`device_identity_setup_windows.py` 只启动并验证固定 EXE 辅助入口，`device_identity_acl.py` 合并已验证操作用户的原钥匙权限。普通读取和更新不调用提权。
 `device_identity_store.py` 维护机器级的非授权性定位记录、原密钥冲突诊断与跨进程初始化互斥锁；`device_software_initialization.py` 校验服务器软件初始化许可，`device_initialization_channel.py` 只向指定辅助进程发送一次许可，不提供通用签名或命令接口。
 `device_background_refresh.py` 为既有会话独立后台刷新；`device_h3_recovery_routes.py` 与 `device-h3-recovery.js` 提供 H3 原批次显式补授权，不自动重新生成。
-`device_business_transport.py` 将设备会话接到 `auth_center.py` 的已审计 H3 业务路径，防止证明流向第三方或拒绝后降级重发。
+`device_business_transport.py` 将设备会话接到 `auth_center.py` 的已审计 H3 业务路径，防止证明流向第三方或拒绝后降级重发；`h3_upload_transport.py` 为 H3 人物图和参考视频生成定长、1 MiB 分块的流式 multipart 请求体。
 `device_local_policy.py` 校验签名本地模式；`device_local_execution.py` 保护建草稿/导出核心；`device_local_web.py` 建立网站账号的内部执行上下文；`device_local_queue.py` 复核内嵌队列、保留授权等待并同步状态文件。
 `apps/processor/frontend/new/device-authorization.html/.css/.js` 为账号菜单中的独立激活页面，由 `web_api.py` 的 `/app/new/device-authorization` 提供。
 页面同时提供当前账号本地等待任务的显式恢复，不在加载/登录时自动执行。`task_store.py` 在既有状态 JSON 保存非秘密关联，不向任务载荷写入私钥或凭据。

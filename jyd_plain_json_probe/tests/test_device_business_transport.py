@@ -7,13 +7,18 @@ from pathlib import Path
 import sys
 import threading
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 from urllib.error import HTTPError
 
 import pytest
+import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from jyd_probe.auth_center import AuthCenterClient, AuthCenterDeviceError
+from jyd_probe.auth_center import (
+    AuthCenterClient,
+    AuthCenterConnectionError,
+    AuthCenterDeviceError,
+)
 from jyd_probe.device_auth_protocol import DeviceAuthorizationError
 from jyd_probe.device_business_transport import (
     DeviceBusinessProofs,
@@ -143,6 +148,8 @@ def test_voice_creation_multipart_uses_device_headers_and_omits_body_token(
         "/api/workbench/audio-batches/batch-1/items/item-1/composition",
         "/api/workbench/tasks/item-1/composition/retry",
         "/api/workbench/tasks/item-1/enhancement/backfill",
+        "/api/workbench/h3-assets/lookup",
+        "/api/workbench/h3-assets",
     ],
 )
 def test_all_paid_workbench_contracts_are_device_bound(path):
@@ -176,6 +183,83 @@ def test_bootstrap_and_not_yet_integrated_contracts_never_receive_device_proof(
     client.get_workbench_audio_batch("login-token", "audio-1")
     client.device_header_provider.assert_not_called()
     assert all(not req.has_header("Dpop") for req in calls)
+
+
+def test_mock_08_h3_lookup_and_upload_require_dpop_without_fallback(
+    client, monkeypatch, tmp_path
+):
+    source = tmp_path / "参考.mp4"
+    source.write_bytes(b"video")
+    seen_lookup = []
+    seen_upload = {}
+
+    def lookup(req, **_):
+        seen_lookup.append(req)
+        return Response({"found": False})
+
+    monkeypatch.setattr("jyd_probe.auth_center._device_urlopen", lookup)
+    monkeypatch.setattr(
+        "jyd_probe.auth_center.urlopen",
+        lambda *_a, **_k: pytest.fail("H3 素材请求不得降级为账号令牌请求"),
+    )
+    assert client.lookup_h3_asset("login-token", "h3-upload-key-001") == {
+        "found": False
+    }
+    assert len(seen_lookup) == 1
+    assert seen_lookup[0].get_header("Authorization") == "DPoP bound-token"
+    assert seen_lookup[0].get_header("Dpop") == "fresh-proof"
+    assert b"login-token" not in seen_lookup[0].data
+
+    def post(url, **kwargs):
+        seen_upload["url"] = url
+        seen_upload["headers"] = kwargs["headers"]
+        seen_upload["body"] = b"".join(kwargs["data"])
+        return SimpleNamespace(
+            content=json.dumps({"asset_id": "asset-1"}).encode(),
+            status_code=201,
+            headers={},
+            close=Mock(),
+        )
+
+    client._h3_upload_session.post = Mock(side_effect=post)
+    result = client.upload_h3_asset(
+        "login-token",
+        source,
+        kind="video",
+        asset_role="reference_video",
+        filename="参考.mp4",
+        upload_key="h3-upload-key-001",
+        source_sha256="a" * 64,
+    )
+    assert result["asset_id"] == "asset-1"
+    assert seen_upload["url"].endswith("/api/workbench/h3-assets")
+    assert seen_upload["headers"]["Authorization"] == "DPoP bound-token"
+    assert seen_upload["headers"]["DPoP"] == "fresh-proof"
+    assert int(seen_upload["headers"]["Content-Length"]) == len(
+        seen_upload["body"]
+    )
+    assert b"login-token" not in seen_upload["body"]
+    assert client.device_header_provider.call_args_list == [
+        call(
+            "login-token", method="POST", path="/api/workbench/h3-assets/lookup"
+        ),
+        call("login-token", method="POST", path="/api/workbench/h3-assets"),
+    ]
+
+    client._h3_upload_session.post = Mock(
+        side_effect=requests.ConnectionError("network interrupted")
+    )
+    with pytest.raises(AuthCenterConnectionError):
+        client.upload_h3_asset(
+            "login-token",
+            source,
+            kind="video",
+            asset_role="reference_video",
+            filename="参考.mp4",
+            upload_key="h3-upload-key-002",
+            source_sha256="a" * 64,
+        )
+    assert client._h3_upload_session.post.call_count == 1
 
 
 def test_missing_device_uses_one_account_request_cloud_still_decides(

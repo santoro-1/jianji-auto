@@ -23,6 +23,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener, urlopen
 
 from .logging_config import log_event
+from .h3_upload_transport import StreamingMultipartBody
 from .doubao_request_manager import (
     DoubaoRequestManager,
     DoubaoRequestError,
@@ -339,6 +340,16 @@ class AuthCenterClient:
             )
         )
         self._h3_media_session = _H3MediaSession(10)
+        self._h3_upload_session = requests.Session()
+        self._h3_upload_session.trust_env = False
+        upload_adapter = requests.adapters.HTTPAdapter(
+            pool_connections=1,
+            pool_maxsize=1,
+            pool_block=True,
+            max_retries=0,
+        )
+        self._h3_upload_session.mount("https://", upload_adapter)
+        self._h3_upload_session.mount("http://", upload_adapter)
         self._doubao_request_manager = doubao_request_manager
         self.content_analysis_total_timeout_seconds = max(
             1.0, float(content_analysis_total_timeout_seconds)
@@ -386,6 +397,7 @@ class AuthCenterClient:
         with self._verify_lock:
             self._verify_closed = True
         self._h3_media_session.close()
+        self._h3_upload_session.close()
 
     @staticmethod
     def _new_verify_metrics() -> dict[str, int]:
@@ -1214,6 +1226,39 @@ class AuthCenterClient:
             ],
         )
 
+    def lookup_h3_asset(self, token: str, upload_key: str) -> dict[str, Any]:
+        return self._post(
+            "/api/workbench/h3-assets/lookup",
+            {"access_token": token, "upload_key": upload_key},
+            timeout_seconds=30.0,
+        )
+
+    def upload_h3_asset(
+        self,
+        token: str,
+        path: Path,
+        *,
+        kind: str,
+        asset_role: str,
+        filename: str,
+        upload_key: str,
+        source_sha256: str,
+        transport_profile: str = "original-v1",
+    ) -> dict[str, Any]:
+        return self._streaming_multipart_post(
+            "/api/workbench/h3-assets",
+            {
+                "access_token": token,
+                "kind": kind,
+                "asset_role": asset_role,
+                "upload_key": upload_key,
+                "source_sha256": source_sha256,
+                "transport_profile": transport_profile,
+            },
+            file_path=path,
+            filename=filename,
+        )
+
     def list_h3_execution_accounts(self, token: str) -> dict[str, Any]:
         return self._post(
             "/api/workbench/h3-execution-accounts",
@@ -1899,6 +1944,74 @@ class AuthCenterClient:
         )
         return self._read_json_response(request, timeout_seconds=300.0)
 
+    def _streaming_multipart_post(
+        self,
+        path: str,
+        fields: dict[str, Any],
+        *,
+        file_path: Path,
+        filename: str,
+    ) -> dict[str, Any]:
+        device_headers = self._device_business_headers(
+            str(fields.get("access_token") or ""), method="POST", path=path
+        )
+        if device_headers:
+            fields = {
+                key: value for key, value in fields.items() if key != "access_token"
+            }
+        body = StreamingMultipartBody(
+            fields=fields,
+            file_field="file",
+            file_path=file_path,
+            filename=filename,
+        )
+        try:
+            response = self._h3_upload_session.post(
+                f"{self.base_url}{path}",
+                data=body,
+                headers={
+                    "Content-Type": body.content_type,
+                    "Content-Length": str(body.content_length),
+                    "Accept": "application/json",
+                    **device_headers,
+                },
+                timeout=(self.timeout_seconds, 300.0),
+                allow_redirects=False,
+            )
+        except requests.RequestException as exc:
+            raise AuthCenterConnectionError(
+                f"无法连接数字人网站 {self.base_url}，请确认数字人网站已经启动"
+            ) from exc
+        try:
+            raw = response.content
+            status = int(response.status_code)
+            if status < 200 or status >= 300:
+                raise self._response_error(
+                    raw,
+                    status,
+                    f"数字人网站拒绝 H3 素材上传（HTTP {status}）",
+                    retry_after_header=response.headers.get("Retry-After"),
+                )
+            try:
+                data = json.loads(raw.decode("utf-8")) if raw else {}
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise AuthCenterError(
+                    "数字人网站返回了无法识别的数据",
+                    status_code=502,
+                    error_code="DIGITAL_HUMAN_INVALID_RESPONSE",
+                    retryable=True,
+                ) from exc
+            if not isinstance(data, dict):
+                raise AuthCenterError(
+                    "数字人网站返回格式错误",
+                    status_code=502,
+                    error_code="DIGITAL_HUMAN_INVALID_RESPONSE",
+                    retryable=True,
+                )
+            return data
+        finally:
+            response.close()
+
     def _post(
         self,
         path: str,
@@ -2012,7 +2125,10 @@ class AuthCenterClient:
             data = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
             data = {}
+        detail_object = data.get("detail") if isinstance(data, dict) else None
         code = data.get("code") if isinstance(data, dict) else None
+        if not code and isinstance(detail_object, dict):
+            code = detail_object.get("code")
         if isinstance(code, str) and len(code) <= 64 and code.replace("_", "").isascii() and code.replace("_", "").isalnum() and (
             code.startswith(("DEVICE_", "INVALID_DEVICE_")) or code in {"AUTH_REFRESH_REQUIRED", "CLIENT_UPGRADE_REQUIRED", "AMBIGUOUS_ACCOUNT_TOKEN"}
         ):
@@ -2060,7 +2176,12 @@ class AuthCenterClient:
             return ""
         if not isinstance(data, dict):
             return ""
-        detail = str(data.get("detail", "")).strip()
+        raw_detail = data.get("detail", "")
+        detail = (
+            str(raw_detail.get("message") or "").strip()
+            if isinstance(raw_detail, dict)
+            else str(raw_detail).strip()
+        )
         errors = data.get("errors")
         if isinstance(errors, list):
             messages = [

@@ -91,8 +91,21 @@ def test_h3_routes_use_existing_login_and_original_project(tmp_path: Path) -> No
                 },
             ),
             patch(
-                "jyd_probe.auth_center.AuthCenterClient.upload_workbench_batch_asset",
-                side_effect=lambda *_args, **_kwargs: {"asset_id": next(upload_counter)},
+                "jyd_probe.auth_center.AuthCenterClient.lookup_h3_asset",
+                return_value={"found": False},
+            ),
+            patch(
+                "jyd_probe.auth_center.AuthCenterClient.upload_h3_asset",
+                side_effect=lambda *_args, **kwargs: {
+                    "status": "uploaded",
+                    "asset_id": next(upload_counter),
+                    "kind": kwargs["kind"],
+                    "asset_role": kwargs["asset_role"],
+                    "size_bytes": 1,
+                    "source_sha256": kwargs["source_sha256"],
+                    "transport_sha256": kwargs["source_sha256"],
+                    "transport_profile": kwargs["transport_profile"],
+                },
             ),
             patch(
                 "jyd_probe.auth_center.AuthCenterClient.prepare_h3_batch",
